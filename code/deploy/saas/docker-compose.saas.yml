@@ -1,0 +1,124 @@
+version: '3.8'
+
+# 知微AI教学助手 — SaaS 试用环境 Docker Compose
+# 部署: docker compose -f deploy/saas/docker-compose.saas.yml --env-file deploy/saas/.env.saas up -d
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: zhiwei-saas-nginx
+    ports:
+      - "${SAAS_PORT:-8080}:80"
+      - "443:443"
+    volumes:
+      - ./nginx.saas.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - business-api
+    restart: unless-stopped
+    networks:
+      - saas-net
+
+  business-api:
+    image: zhiwei/api:latest
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: zhiwei-saas-api
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - REDIS_URL=${REDIS_URL}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - saas-net
+
+  ai-service:
+    image: zhiwei/ai:latest
+    build:
+      context: ../../ai-service
+      dockerfile: Dockerfile
+    container_name: zhiwei-saas-ai
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - saas-net
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: zhiwei-saas-db
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - saas_pg_data:/var/lib/postgresql/data
+      - ../../backend/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - saas-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: zhiwei-saas-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - saas-net
+
+  # PostgreSQL 自动备份（每日 03:00）
+  backup:
+    image: postgres:16-alpine
+    container_name: zhiwei-saas-backup
+    volumes:
+      - ../../scripts/backup.sh:/backup.sh:ro
+      - saas_backup:/backups
+    environment:
+      - PGHOST=postgres
+      - PGUSER=${DB_USER}
+      - PGPASSWORD=${DB_PASSWORD}
+      - PGDATABASE=${DB_NAME}
+    entrypoint: |
+      sh -c 'echo "0 3 * * * /backup.sh >> /var/log/backup.log 2>&1" | crontab - && crond -f'
+    networks:
+      - saas-net
+
+volumes:
+  saas_pg_data:
+  saas_backup:
+
+networks:
+  saas-net:
+    driver: bridge

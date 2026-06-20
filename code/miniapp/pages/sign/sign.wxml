@@ -1,0 +1,42 @@
+<view wx:if="{{!signed}}" class="page">
+  <view class="card">
+    <text class="title">作业确认签字</text>
+    <view class="info">
+      <text>作业：分数加减法练习</text>
+      <text>学生：李明 · 三年级2班</text>
+      <text>得分：85分</text>
+    </view>
+  </view>
+
+  <!-- 签名区 -->
+  <view class="card sign-area">
+    <text class="label">请在下方签名</text>
+    <canvas
+      canvas-id="signCanvas"
+      class="canvas"
+      disable-scroll
+      bindtouchstart="onTouchStart"
+      bindtouchmove="onTouchMove"
+      bindtouchend="onTouchEnd"
+    />
+    <button class="clear-btn" bindtap="clearSignature" size="mini">清除</button>
+  </view>
+
+  <!-- 确认 -->
+  <view class="bottom-bar">
+    <checkbox checked="{{true}}" />
+    <text class="agree-text">我已确认以上信息，知悉孩子的作业完成情况</text>
+  </view>
+  <button
+    class="btn-primary submit-btn {{hasSignature ? '' : 'disabled'}}"
+    bindtap="handleSign"
+    disabled="{{!hasSignature}}"
+  >确认签字</button>
+</view>
+
+<!-- 成功 -->
+<view wx:else class="success-page">
+  <text class="success-icon">✅</text>
+  <text class="success-title">签字成功</text>
+  <text class="success-desc">老师将收到您已签字的通知</text>
+</view>

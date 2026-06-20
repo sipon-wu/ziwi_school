@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学 - 教师工作台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { DEFAULT: '#1A3A6B', hover: '#2B5DA8', dark: '#1E3A5F', light: 'rgba(26,58,107,0.08)' },
+        sidebar: '#212529',
+        page: '#F0F2F5',
+        border: '#E4E7ED',
+      }
+    }
+  }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+.sidebar-item { transition: background .15s ease; }
+.sidebar-item:hover { background: rgba(255,255,255,.08); }
+.sidebar-item.active { background: rgba(26,58,107,.3); border-left: 3px solid #1A3A6B; }
+.sidebar-item.active:not(:has(.border-l)) { /* fallback */ }
+.card-hover { transition: box-shadow .15s ease, transform .15s ease; }
+.card-hover:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-1px); }
+.gradient-login { background: linear-gradient(135deg, #1A3A6B, #2B5DA8, #1E3A5F); }
+</style>
+</head>
+<body class="bg-page h-screen flex overflow-hidden">
+
+<!-- ==================== 侧边栏 ==================== -->
+<aside class="w-[200px] bg-sidebar flex flex-col shrink-0">
+  <!-- Logo -->
+  <div class="h-[56px] flex items-center gap-2 px-4 border-b border-white/5">
+    <img src="ziwiAI.jpg" alt="知微" class="w-7 h-7 rounded">
+    <span class="text-[15px] font-semibold text-white tracking-wide">知微教学</span>
+  </div>
+
+  <!-- 导航菜单 -->
+  <nav class="flex-1 py-2">
+    <a href="#" class="sidebar-item active flex items-center gap-3 px-4 h-11 text-[13px] text-white ml-0">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      工作台
+    </a>
+    <a href="#" class="sidebar-item flex items-center gap-3 px-4 h-11 text-[13px] text-white/70">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      教案备课
+    </a>
+    <a href="#" class="sidebar-item flex items-center gap-3 px-4 h-11 text-[13px] text-white/70">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      出题组卷
+    </a>
+    <a href="#" class="sidebar-item flex items-center gap-3 px-4 h-11 text-[13px] text-white/70">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      习作指导
+    </a>
+    <a href="#" class="sidebar-item flex items-center gap-3 px-4 h-11 text-[13px] text-white/70">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      批阅管理
+    </a>
+    <a href="#" class="sidebar-item flex items-center gap-3 px-4 h-11 text-[13px] text-white/70">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+      家长签字
+    </a>
+  </nav>
+
+  <!-- 底部用户区 -->
+  <div class="h-[52px] flex items-center gap-2 px-4 border-t border-white/5">
+    <div class="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center text-xs font-medium">张</div>
+    <div class="flex-1 min-w-0">
+      <div class="text-[13px] text-white truncate">张老师</div>
+      <div class="text-[11px] text-white/50">三年级2班 · 语文</div>
+    </div>
+  </div>
+</aside>
+
+<!-- ==================== 右侧主区域 ==================== -->
+<div class="flex-1 flex flex-col min-w-0">
+
+  <!-- ============ 顶部导航栏 ============ -->
+  <header class="h-11 bg-white border-b border-border flex items-center px-5 shrink-0">
+    <!-- 面包屑 -->
+    <span class="text-[13px] text-gray-500">工作台</span>
+    <span class="text-[13px] text-gray-300 mx-2">/</span>
+    <span class="text-[13px] text-gray-800 font-medium">首页</span>
+
+    <!-- 右侧 -->
+    <div class="ml-auto flex items-center gap-4">
+      <!-- 学科/年级切换 -->
+      <select class="text-[13px] border border-border rounded-lg px-3 py-1.5 bg-white text-gray-700 outline-none focus:border-brand">
+        <option>三年级 · 语文</option>
+        <option>四年级 · 语文</option>
+        <option>三年级 · 数学</option>
+      </select>
+
+      <!-- 通知 -->
+      <button class="relative p-1 text-gray-500 hover:text-brand transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-[14px] rounded-full bg-[#DC3545] text-white text-[10px] font-medium flex items-center justify-center leading-none">3</span>
+      </button>
+
+      <!-- 头像 -->
+      <div class="w-7 h-7 rounded-full bg-brand/20 text-brand text-xs font-medium flex items-center justify-center">张</div>
+    </div>
+  </header>
+
+  <!-- ============ 主内容区 ============ -->
+  <main class="flex-1 overflow-auto p-5">
+
+    <!-- 欢迎横幅 -->
+    <div class="gradient-login rounded-xl px-6 py-5 mb-5 text-white">
+      <h2 class="text-base font-semibold mb-1">下午好，张老师 👋</h2>
+      <p class="text-[13px] text-white/80">今天还有 12 份作业待批阅，3 位家长未签字</p>
+    </div>
+
+    <!-- 三张统计卡片 -->
+    <div class="grid grid-cols-3 gap-4 mb-5">
+      <!-- 待批阅 -->
+      <div class="card-hover bg-white rounded-xl p-5 cursor-pointer">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[13px] text-gray-500">待批阅作业</span>
+          <span class="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+            <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+          </span>
+        </div>
+        <div class="text-[28px] font-semibold text-gray-900 leading-none mb-1">12</div>
+        <div class="text-[12px] text-gray-400">较昨日 <span class="text-red-500">+3</span></div>
+      </div>
+
+      <!-- 家长未签 -->
+      <div class="card-hover bg-white rounded-xl p-5 cursor-pointer">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[13px] text-gray-500">家长未签字</span>
+          <span class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+          </span>
+        </div>
+        <div class="text-[28px] font-semibold text-gray-900 leading-none mb-1">3</div>
+        <div class="text-[12px] text-gray-400">三年级2班 <span class="text-red-500">已逾期2人</span></div>
+      </div>
+
+      <!-- 教案草稿 -->
+      <div class="card-hover bg-white rounded-xl p-5 cursor-pointer">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[13px] text-gray-500">教案草稿</span>
+          <span class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </span>
+        </div>
+        <div class="text-[28px] font-semibold text-gray-900 leading-none mb-1">5</div>
+        <div class="text-[12px] text-gray-400">最近编辑：30分钟前</div>
+      </div>
+    </div>
+
+    <!-- 快捷入口 + 最近教案 -->
+    <div class="grid grid-cols-3 gap-4">
+      <!-- 快捷入口 -->
+      <div class="bg-white rounded-xl p-5">
+        <h3 class="text-[14px] font-semibold text-gray-800 mb-4">快捷入口</h3>
+        <div class="space-y-2">
+          <button class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-brand-light text-brand text-[13px] font-medium hover:bg-brand/10 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新建教案
+          </button>
+          <button class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-50 text-gray-700 text-[13px] hover:bg-gray-100 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            快速出题
+          </button>
+          <button class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-50 text-gray-700 text-[13px] hover:bg-gray-100 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            查看学情
+          </button>
+        </div>
+
+        <!-- 本周统计 -->
+        <div class="mt-5 pt-4 border-t border-border">
+          <div class="text-[12px] text-gray-400 mb-3">本周统计</div>
+          <div class="flex justify-between text-center">
+            <div><div class="text-lg font-semibold text-gray-800">8</div><div class="text-[11px] text-gray-400">生成教案</div></div>
+            <div><div class="text-lg font-semibold text-gray-800">3</div><div class="text-[11px] text-gray-400">发布作业</div></div>
+            <div><div class="text-lg font-semibold text-green-600">92%</div><div class="text-[11px] text-gray-400">课标对齐率</div></div>
+            <div><div class="text-lg font-semibold text-gray-800">85%</div><div class="text-[11px] text-gray-400">教案接受率</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 最近教案 - 占2列 -->
+      <div class="col-span-2 bg-white rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-[14px] font-semibold text-gray-800">最近教案</h3>
+          <a href="#" class="text-[13px] text-brand hover:text-brand-hover">查看全部 →</a>
+        </div>
+
+        <div class="space-y-0">
+          <!-- 教案 1 -->
+          <div class="flex items-center gap-4 py-3 border-b border-border last:border-0 card-hover cursor-pointer px-3 -mx-3 rounded-lg">
+            <div class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium text-gray-800 truncate">《观潮》第一课时</div>
+              <div class="text-[12px] text-gray-400 mt-0.5">四年级 · 语文 · 录入教案</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-600 shrink-0">已定稿</span>
+            <span class="text-[12px] text-gray-400 shrink-0">2小时前</span>
+          </div>
+
+          <!-- 教案 2 -->
+          <div class="flex items-center gap-4 py-3 border-b border-border last:border-0 card-hover cursor-pointer px-3 -mx-3 rounded-lg">
+            <div class="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium text-gray-800 truncate">《分数的初步认识》</div>
+              <div class="text-[12px] text-gray-400 mt-0.5">三年级 · 数学 · 复习课</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-50 text-orange-600 shrink-0">草稿</span>
+            <span class="text-[12px] text-gray-400 shrink-0">昨天</span>
+          </div>
+
+          <!-- 教案 3 -->
+          <div class="flex items-center gap-4 py-3 border-b border-border last:border-0 card-hover cursor-pointer px-3 -mx-3 rounded-lg">
+            <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium text-gray-800 truncate">Unit 3 My School Calendar</div>
+              <div class="text-[12px] text-gray-400 mt-0.5">五年级 · 英语 · A Let's talk</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-600 shrink-0">已定稿</span>
+            <span class="text-[12px] text-gray-400 shrink-0">3天前</span>
+          </div>
+
+          <!-- 教案 4 -->
+          <div class="flex items-center gap-4 py-3 border-b border-border last:border-0 card-hover cursor-pointer px-3 -mx-3 rounded-lg">
+            <div class="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium text-gray-800 truncate">《桂花雨》第二课时</div>
+              <div class="text-[12px] text-gray-400 mt-0.5">五年级 · 语文 · 精读课</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-600 shrink-0">已定稿</span>
+            <span class="text-[12px] text-gray-400 shrink-0">1周前</span>
+          </div>
+
+          <!-- 教案 5 -->
+          <div class="flex items-center gap-4 py-3 card-hover cursor-pointer px-3 -mx-3 rounded-lg">
+            <div class="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium text-gray-800 truncate">《长方形和正方形周长》</div>
+              <div class="text-[12px] text-gray-400 mt-0.5">三年级 · 数学 · 新授课</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-50 text-orange-600 shrink-0">草稿</span>
+            <span class="text-[12px] text-gray-400 shrink-0">2周前</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

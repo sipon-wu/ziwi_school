@@ -1,0 +1,2115 @@
+# 知微AI教学助手 技术方案文档
+
+【文档版本】v2.0-Tech  
+【最后更新】2026-06-19  
+【公司】知微信息技术有限公司  
+【产品】知微AI教学助手（简称：知微）  
+【AI助手】小微  
+
+**v2.0 修订**（Sprint 全量交付 + 运营运维体系）：
+- 里程碑：9 Sprint 全部交付，Go 编译零错误 (21MB)，前端零错误 (334KB)
+- 新增：腾讯云部署体系（演示环境 + SaaS 试用环境双套 docker-compose）
+- 新增：统一运营管理平台 9 Tab（学校/License/用量/试用/用户/健康/公告/日志/Token）
+- 新增：Token 用量追踪体系（双视角：模型方 + 租户方，可视化分析）
+- 新增：试用参数配置管理（开关/时长/额度 + 教师列表 + 延期/终止）
+- 新增：全平台用户管理（封禁/解封/角色筛选）
+- 新增：平台公告系统（发布/置顶/定向推送）
+- 新增：系统健康监控（服务状态 + 资源 + API耗时排行）
+- 新增：操作审计日志（管理员全量追踪，保留180天）
+
+**v1.4 修订**（腾讯技术评审修正）：
+- 修正：全局"模板消息"→"订阅消息"（微信模板消息已于2023年下线）
+- 新增：内容安全服务（学生UGC作文接入腾讯云天御审核）
+- 新增：小程序类目策略（"工具-效率"规避教育资质门槛）
+
+**v1.3 修订**（Security First + 架构补充）：
+- 新增：统一运营管理平台架构（多云SaaS+私有化+AI服务统一管理）
+- 加固：License 安全方案（KMS私钥管理/机器指纹/Nonce防重放/CRL吊销）
+- 加固：心跳签名+防重放（RSA签名+Nonce+Timestamp三重验证）
+- 加固：远程解锁双人审批流程
+- 加固：私有部署多层防篡改（时间校验/域名冗余/二进制自校验）
+- 加固：License管理后台MFA+审批流+IP白名单+审计
+
+**v1.2 修订说明**（补充需求书对齐）：
+- 新增：私有化部署方案（统一 PostgreSQL，对齐服务架构）
+- 新增：License 管理服务设计（心跳端点 + Token 分销）
+- 新增：演示环境架构（角色切换 + 数据重置机制）
+- 新增：试用转付费数据迁移设计
+- 修正：开发里程碑增加并行任务线
+
+**v1.1 修订说明**（基于五维专家评审）：
+- 新增：PostgreSQL RLS + GORM Scope 强制数据隔离机制
+- 新增：核心表索引补充（10+关键索引）
+- 新增：AI输出质量评估体系（评测用例集+自动化脚本）
+- 新增：教育合规、操作审计日志、安全应急响应
+- 新增：数据库备份恢复方案（RPO/RTO）
+- 新增：CI/CD 流水线设计
+- 修正：硬件规格 4C8G → 4C16G，成本同步调整
+
+---
+
+## 目录
+
+1. [架构概览](#一架构概览)
+2. [统一运营管理平台](#二统一运营管理平台)
+3. [技术选型与依据](#三技术选型与依据)
+4. [服务设计](#四服务设计)
+5. [数据库设计](#五数据库设计)
+6. [API 设计](#六api-设计)
+7. [核心数据流](#七核心数据流)
+8. [AI输出质量评估](#八ai输出质量评估)
+9. [安全策略](#九安全策略)
+10. [部署方案](#十部署方案)
+11. [私有化部署方案](#十一私有化部署方案)
+12. [License管理服务](#十二license管理服务)
+13. [演示环境架构](#十三演示环境架构)
+14. [试用转付费数据迁移](#十四试用转付费数据迁移)
+15. [监控与运维](#十五监控与运维)
+16. [基础设施成本估算](#十六基础设施成本估算)
+17. [开发里程碑](#十七开发里程碑)
+18. [关键决策记录](#十八关键决策记录)
+19. [腾讯云部署方案](#十九腾讯云部署方案)
+20. [运营管理平台功能清单](#二十运营管理平台功能清单)
+21. [Token用量追踪体系](#二十一token用量追踪体系)
+
+---
+
+## 一、架构概览
+
+### 1.1 整体架构图
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        客户端层                                  │
+│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ 教师PC Web       │  │ 学生小程序    │  │ 家长H5/小程序     │  │
+│  │ (Next.js SSR)    │  │ (微信原生)    │  │ (微信原生)       │  │
+│  └────────┬─────────┘  └──────┬───────┘  └────────┬─────────┘  │
+└───────────┼───────────────────┼───────────────────┼────────────┘
+            │                   │                   │
+┌───────────┴───────────────────┴───────────────────┴────────────┐
+│                      接入层                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Nginx (SSL终结 + 静态资源 + 反向代理 + 限流)              │   │
+│  └──────────────────────────┬───────────────────────────────┘   │
+└─────────────────────────────┼───────────────────────────────────┘
+                              │
+┌─────────────────────────────┼───────────────────────────────────┐
+│                      服务层（Docker Compose 单机）               │
+│                              │                                   │
+│  ┌───────────────────────────┴──────────────────────────────┐   │
+│  │               business-api (Go Gin 单体)                   │   │
+│  │  ┌──────────┬──────────┬──────────┬──────────┬─────────┐ │   │
+│  │  │用户模块   │教案模块   │题目模块   │批阅模块   │家校模块 │ │   │
+│  │  │认证/权限  │CRUD/生成 │出题/组卷  │批改/评分  │推送/签名│ │   │
+│  │  │          │          │          │          │通知/归档│ │   │
+│  │  └──────────┴──────────┴──────────┴──────────┴─────────┘ │   │
+│  └───────────────────────────┬──────────────────────────────┘   │
+│                              │ (HTTP/gRPC)                       │
+│  ┌───────────────────────────┴──────────────────────────────┐   │
+│  │              ai-service (Python FastAPI)                   │   │
+│  │  ┌────────────┬────────────┬────────────┬────────────┐   │   │
+│  │  │教案Agent    │出题Agent    │批阅Agent    │安全后处理   │   │   │
+│  │  │Prompt编排   │知识点映射   │多维度评分   │内容审核    │   │   │
+│  │  │课标RAG注入  │分层组卷     │评语生成     │幻觉检测    │   │   │
+│  │  └────────────┴────────────┴────────────┴────────────┘   │   │
+│  │  ┌──────────────────────────────────────────────────┐     │   │
+│  │  │         RAG层 (LangChain + pgvector)              │     │   │
+│  │  │  课标检索 / 教材知识库 / 教师偏好检索             │     │   │
+│  │  └──────────────────────────────────────────────────┘     │   │
+│  └───────────────────────────┬──────────────────────────────┘   │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │
+┌──────────────────────────────┼──────────────────────────────────┐
+│                        数据层                                    │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ PostgreSQL   │  │ pgvector      │  │ Redis 7      │           │
+│  │ 业务数据库   │  │ 课标向量检索  │  │ 缓存/会话     │           │
+│  │ 教案/题目    │  │ (PG扩展)      │  │ 异步队列      │           │
+│  │ 用户/批阅    │  │ bge-large-zh  │  │ 限流计数器    │           │
+│  └─────────────┘  └──────────────┘  └──────────────┘           │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────┐           │
+│  │  对象存储 (阿里云OSS / MinIO本地备选)             │           │
+│  │  教案导出文件 / 学生作文图片 / 签名图片           │           │
+│  └──────────────────────────────────────────────────┘           │
+└──────────────────────────────────────────────────────────────────┘
+
+                          ↓ (外部API)
+
+        ┌─────────────────┐        ┌─────────────────┐
+        │  通义千问 API    │        │  微信服务端 API   │
+        │  qwen-plus       │        │  订阅消息/登录    │
+        │  qwen-vl-plus    │        │  小程序能力       │
+        └─────────────────┘        └─────────────────┘
+```
+
+### 1.2 架构决策：为什么是 3 服务而非 8 微服务
+
+| 考量维度 | 3 服务单体 | 8 微服务 |
+|----------|:---:|:---:|
+| MVP 开发效率 | ✅ 单一代码库，快速迭代 | ❌ 服务间通信、CI/CD 复杂度高 |
+| 部署运维 | ✅ Docker Compose 一键启动 | ❌ 需要 K8s 集群，运维成本高 |
+| 2-3 所学校试点 | ✅ 单机 4C8G 完全够用 | ❌ 资源浪费严重 |
+| 后期拆分 | ✅ Go 内部包边界清晰，可拆分 | ✅ 天然隔离 |
+| 消息队列 | ✅ Redis 做异步队列 | ❌ Kafka 运维成本高 |
+
+**结论**：MVP 阶段 Go Gin 单体 + Python AI 服务 + Nginx 三层架构，预留微服务拆分接口。
+
+---
+
+## 二、统一运营管理平台
+
+### 2.1 概述
+
+知微云平台运营中心（admin.school.ziwi.cn）是知微公司内部统一管理所有租户（SaaS 云端 + 私有化部署）的运营后台。仅平台运营人员可访问，拥有完全独立的权限体系，不对任何学校客户开放。
+
+### 2.2 平台架构
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │   知微云平台运营中心 (admin.school.ziwi.cn)       │
+                    │           仅平台运营人员可访问             │
+                    └─────────────────┬───────────────────────┘
+                                      │
+            ┌─────────────────────────┼─────────────────────────┐
+            │                         │                         │
+    ┌───────┴───────┐         ┌───────┴───────┐         ┌───────┴───────┐
+    │  统一管理模块   │         │  统一SaaS租户  │         │ 私有化部署租户  │
+    │               │         │               │         │               │
+    │ • 财务管理     │         │ 阿里云 SaaS    │         │ 学校A机房      │
+    │ • License管理  │         │ 腾讯云 SaaS    │         │ 学校B机房      │
+    │ • Token/API Key│         │ AWS SaaS      │         │ 学校C机房      │
+    │ • 统一监控     │         │ 其他云 SaaS    │         │ ...           │
+    └───────┬───────┘         └───────────────┘         └───────────────┘
+            │
+    ┌───────┴───────────────────────────────┐
+    │          AI 服务接入层                  │
+    │                                        │
+    │  ┌──────────┬──────────┬────────────┐  │
+    │  │AI教案生成 │AI出题批阅│AI制造/质检  │  │
+    │  │(知微教学) │(知微教学) │(其他产品线) │  │
+    │  └──────────┴──────────┴────────────┘  │
+    │                                        │
+    │  统一 Token 管理：所有 AI 调用经运营中心 │
+    │  统一计量计费                            │
+    └────────────────────────────────────────┘
+```
+
+### 2.3 核心模块
+
+#### 2.3.1 统一管理模块
+
+| 模块 | 功能 | 说明 |
+|------|------|------|
+| **财务管理** | 订单管理、发票管理、收款确认、财务报表 | 对接内部ERP |
+| **License 管理** | License 签发/吊销/续期/远程解锁 | 见第12章 |
+| **Token / API Key** | Token 配额分配、消耗计量、API Key 签发 | 统一 Token 池 |
+| **统一监控** | 全平台健康状态、各租户用量、告警聚合 | 跨云跨私有部署 |
+
+#### 2.3.2 多云 SaaS 租户管理
+
+- 支持在阿里云、腾讯云、AWS 等多云环境部署 SaaS 租户
+- 每个云环境独立部署一套知微教学 SaaS 实例
+- 运营中心统一管理所有云上租户的学校、License、用量
+- 租户数据隔离：各云环境独立数据库，互不可见
+
+#### 2.3.3 私有化部署租户管理
+
+- 管理所有私有化部署学校的注册、License、心跳、升级
+- 远程推送升级包到学校服务器
+- 监控各校在线状态（心跳），异常告警
+- 私有化部署学校通过内网访问，云端仅接收心跳 + License 验证
+
+#### 2.3.4 AI 服务接入层
+
+运营中心作为统一 AI 服务入口：
+- 知微教学（当前产品线）：教案生成、出题、批阅、小微对话
+- 未来产品线（预留）：AI 制造排产、AI 质检、生产助手等
+- 统一 Token 计费：所有产品线共用 Token 池，运营中心统一计量
+
+### 2.4 权限体系
+
+| 角色 | 权限范围 |
+|------|------|
+| **超级管理员** | 全平台所有功能 |
+| **运营经理** | 租户管理、监控大盘、报表导出 |
+| **销售经理** | 学校管理、License 签发、用量查看（只读） |
+| **财务经理** | 订单管理、发票、财务报表（只读） |
+| **技术支持** | 远程解锁、日志收集、健康检查（只读） |
+
+### 2.5 与各子系统的关系
+
+```
+运营中心 (admin.school.ziwi.cn)
+    │
+    ├──→ SaaS 租户 (aliyun.ziwi.cn)
+    │     └─ 心跳端点 /api/v1/heartbeat
+    │     └─ Token 用量上报
+    │
+    ├──→ SaaS 租户 (tencent.ziwi.cn)  
+    │     └─ 同上
+    │
+    ├──→ 私有化部署学校 A (内网)
+    │     └─ 心跳端点 /api/v1/heartbeat
+    │     └─ License 验证
+    │     └─ 升级包推送
+    │
+    ├──→ 演示环境 (demo.ziwi.cn)
+    │     └─ 独立部署，每日重置
+    │
+    └──→ AI 服务 (通义千问 API)
+          └─ 统一 API Key 管理
+          └─ 统一 Token 计费
+```
+
+---
+
+## 三、技术选型与依据
+
+### 3.1 核心选型
+
+| 层级 | 选型 | 版本 | 选择依据 |
+|------|------|:---:|------|
+| **前端框架** | Next.js | 14 (App Router) | SSR/SSG 全栈能力，教师 PC Web 首选 |
+| **前端语言** | TypeScript | 5 | 类型安全，降低大型前端工程维护成本 |
+| **前端UI** | Tailwind CSS + shadcn/ui | 3.4 / latest | 快速构建，可定制，组件成熟 |
+| **前端编辑器** | ProseMirror | latest | 教案富文本编辑器，Schema 驱动 |
+| **图表** | Recharts | latest | 学情趋势/批阅雷达图 |
+| **后端框架** | Go Gin | 1.9+ | 高性能，轻量，Go 生态成熟 |
+| **AI框架** | Python LangChain | 0.3+ | Agent 编排，RAG 链路标准选型 |
+| **AI API** | FastAPI | 0.115+ | 异步支持，自动文档生成 |
+| **大模型** | 通义千问 qwen-plus | latest | 中文能力优，数据不出境，性价比高 |
+| **多模态模型** | 通义千问 qwen-vl-plus | latest | 手写作文识别 |
+| **数据库** | PostgreSQL | 16 | 事务、JSON、全文检索一应俱全 |
+| **向量扩展** | pgvector | 0.7+ | PostgreSQL 原生扩展，免维护独立向量库 |
+| **嵌入模型** | bge-large-zh-v1.5 | — | 中文语义向量，课标 RAG 检索 |
+| **缓存/队列** | Redis | 7 | 会话管理 + 异步任务（替代 Kafka） |
+| **对象存储** | 阿里云 OSS（生产）/ MinIO（开发） | — | 教案导出、作文图片存储 |
+| **反向代理** | Nginx | 1.25 | SSL 终结、静态资源、限流 |
+| **容器编排** | Docker Compose | v3 | 单机部署，一键启动 |
+| **监控** | Prometheus + Grafana | latest | API 延迟、AI 调用量、错误率 |
+
+### 3.2 为什么 PostgreSQL + pgvector 而非 MySQL + 独立向量库
+
+| 维度 | PostgreSQL + pgvector | MySQL + Milvus/Pinecone |
+|------|:---:|:---:|
+| 运维复杂度 | ✅ 一套数据库，零额外运维 | ❌ 两套数据库，独立升级维护 |
+| 事务一致性 | ✅ 课标条目与教案在同一事务 | ❌ 跨库事务复杂 |
+| 向量检索性能 | pgvector IVFFlat/HNSW 索引，10万级条目录秒级 | Milvus 更强但不必要 |
+| 开发体验 | ✅ 一套 SQL/ORM 搞定 | ❌ 两套 API |
+| MVP 成本 | 0 额外成本 | 100元/月起（云端向量库） |
+
+> 课标条目总量约 3000-5000 条（三科 × 四学段 × 若干领域），pgvector 完全够用。
+
+### 3.3 为什么 Redis 做异步队列而非 Kafka
+
+| 维度 | Redis | Kafka |
+|------|:---:|:---:|
+| 部署 | ✅ 已有 Redis，零额外部署 | ❌ 需要 Broker + Zookeeper/Kraft |
+| MVP 消息量 | 日均万级，Redis 秒级处理 | Kafka 适合百万级/天 |
+| 可靠性 | RDB/AOF 持久化足够 | 强持久化，MVP 不必要 |
+| 运维 | ✅ 团队已熟悉 | ❌ 学习曲线陡峭 |
+
+> 教案生成、批改等异步任务用 Redis List/Bull 模式实现，通知推送同理。
+
+### 3.4 为什么不用 Node.js
+
+v4.0 中 notification-service 使用 Node.js 是多余的。微信订阅消息是一次 HTTP POST 请求，Go 标准库 `net/http` 一行搞定。引入第三种语言意味着多一套运行时、依赖管理、部署配置，MVP 阶段得不偿失。
+
+---
+
+## 四、服务设计
+
+### 4.1 服务清单（3 个服务）
+
+| 服务名 | 语言 | 端口 | 简介 |
+|--------|:---:|:---:|------|
+| **business-api** | Go Gin | 8080 | 业务逻辑单体：用户/教案/题目/批阅/家校/通知 |
+| **ai-service** | Python FastAPI | 8000 | AI 能力：教案生成/出题/批阅/RAG/安全后处理 |
+| **nginx** | Nginx | 80/443 | 反向代理、SSL 终结、静态资源、限流 |
+
+### 4.2 business-api (Go) 模块划分
+
+```
+backend/
+├── cmd/server/main.go          # 服务入口
+├── internal/
+│   ├── config/                 # 配置管理（环境变量 + YAML）
+│   ├── middleware/              # 中间件
+│   │   ├── auth.go             # JWT 认证
+│   │   ├── logger.go           # 请求日志
+│   │   ├── ratelimit.go        # 限流
+│   │   └── cors.go             # 跨域
+│   ├── handler/                # HTTP 处理器
+│   │   ├── auth_handler.go     # 登录/注册/刷新Token
+│   │   ├── lesson_handler.go   # 教案 CRUD + 生成触发
+│   │   ├── exam_handler.go     # 出题 + 作业发布
+│   │   ├── grading_handler.go  # 批阅 + 复核队列
+│   │   ├── parent_handler.go   # 家校服务
+│   │   └── school_handler.go   # 学校管理
+│   ├── service/                # 业务逻辑层
+│   │   ├── auth_service.go
+│   │   ├── lesson_service.go
+│   │   ├── exam_service.go
+│   │   ├── grading_service.go
+│   │   ├── parent_service.go
+│   │   └── ai_client.go        # 调用 ai-service 的 HTTP 客户端
+│   ├── repository/             # 数据访问层
+│   │   ├── user_repo.go
+│   │   ├── lesson_repo.go
+│   │   ├── exam_repo.go
+│   │   ├── grading_repo.go
+│   │   └── school_repo.go
+│   └── model/                  # 数据模型
+│       ├── user.go
+│       ├── lesson.go
+│       ├── exam.go
+│       ├── grading.go
+│       └── common.go
+├── migrations/                 # PostgreSQL 迁移脚本
+├── go.mod
+└── Dockerfile
+```
+
+### 4.3 ai-service (Python) 模块划分
+
+```
+ai-service/
+├── api_server.py               # FastAPI 入口，注册路由
+├── agents/
+│   ├── __init__.py
+│   ├── lesson_plan_agent.py    # 教案生成 Agent
+│   │   ├── prompt_builder      # Prompt 模板编排
+│   │   ├── curriculum_injector # 课标 RAG 注入
+│   │   └── format_adapter      # 格式模板适配
+│   ├── exam_agent.py           # 出题 Agent
+│   │   ├── knowledge_mapper    # 知识点映射
+│   │   └── difficulty_ranker   # 难度分层（L1/L2/L3）
+│   ├── grading_agent.py        # 批阅 Agent
+│   │   ├── objective_grader    # 客观题批改
+│   │   ├── composition_grader  # 作文四维评分
+│   │   └── rubric_matcher      # 评分标准匹配
+│   └── safety_filter.py        # 安全后处理
+│       ├── content_moderation  # 内容审核
+│       ├── hallucination_check # 幻觉检测（多模型交叉验证）
+│       └── format_validator    # 教案格式校验
+├── rag/
+│   ├── __init__.py
+│   ├── curriculum_loader.py    # 课标 JSON 加载
+│   ├── vector_store.py         # pgvector 操作封装
+│   ├── retriever.py            # 语义检索 Top-K
+│   └── embedding.py            # bge-large-zh 嵌入
+├── prompts/                    # Prompt 模板文件
+│   ├── lesson_plan_system.txt  # 教案生成系统 Prompt
+│   ├── exam_generation.txt     # 出题 Prompt
+│   ├── composition_grading.txt # 作文批阅 Prompt
+│   └── safety_rules.txt        # 安全规则 Prompt
+├── models/                     # 模型调用封装
+│   ├── __init__.py
+│   ├── qwen_client.py          # 通义千问 API 客户端
+│   └── vl_client.py            # 多模态客户端
+├── requirements.txt
+└── Dockerfile
+```
+
+### 4.4 服务间通信
+
+```
+business-api ──(HTTP REST)──▶ ai-service
+     │                             │
+     │  教案生成请求                 │  LangChain 编排
+     │  → POST /ai/lesson-plan     │  → RAG 检索课标
+     │  ← SSE 流式返回              │  → 通义千问 API
+     │                             │  → 安全后处理
+     │                             │  ← JSON 教案
+     │                             │
+     │  出题请求                     │
+     │  → POST /ai/exam            │  → 知识点映射
+     │  ← JSON 题目列表             │  → 通义千问 API
+     │                             │
+     │  批阅请求                     │
+     │  → POST /ai/grade           │  → 分题型处理
+     │  ← JSON 评分结果             │  → qwen-vl-plus (作文)
+```
+
+### 4.5 SSE 流式推送设计
+
+教案生成采用 Server-Sent Events 逐段推送，避免教师等待：
+
+```
+教师点击"生成教案"
+  → business-api 接收请求，创建任务ID
+  → business-api 异步调用 ai-service
+  → ai-service 通义千问 API (stream=True)
+  → 每收到一个 token，通过 SSE 推送给前端
+  → 前端 ProseMirror 实时渲染
+  → 生成完成后，business-api 存储完整教案
+
+SSE 事件格式：
+event: lesson_plan_chunk
+data: {"field": "objectives", "content": "1. 知识与能力目标：...", "done": false}
+
+event: curriculum_alignment
+data: {"objective_id": "obj-1", "standard_code": "3.2.1", "match_score": 0.92}
+
+event: lesson_plan_complete
+data: {"lesson_plan_id": "lp-xxx", "edit_url": "/lesson-plans/lp-xxx"}
+```
+
+---
+
+## 五、数据库设计
+
+### 5.1 核心表结构
+
+#### 用户与学校
+
+```sql
+-- 学校（租户）
+CREATE TABLE schools (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200) NOT NULL,
+    region VARCHAR(100),             -- 省市区
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 用户
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id UUID REFERENCES schools(id),
+    phone VARCHAR(20) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('teacher', 'student', 'parent', 'admin')),
+    name VARCHAR(100) NOT NULL,
+    avatar_url VARCHAR(500),
+    grade VARCHAR(20),               -- 任教/就读年级
+    subject VARCHAR(20),             -- 任教科目（教师）
+    parent_student_id UUID REFERENCES users(id), -- 家长关联学生
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 班级
+CREATE TABLE classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id UUID REFERENCES schools(id),
+    name VARCHAR(100) NOT NULL,      -- 如 "三年级1班"
+    grade VARCHAR(20) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 教师-班级-科目关联
+CREATE TABLE teacher_classes (
+    teacher_id UUID REFERENCES users(id),
+    class_id UUID REFERENCES classes(id),
+    subject VARCHAR(20) NOT NULL,
+    PRIMARY KEY (teacher_id, class_id, subject)
+);
+
+-- 学生-班级关联
+CREATE TABLE student_classes (
+    student_id UUID REFERENCES users(id),
+    class_id UUID REFERENCES classes(id),
+    PRIMARY KEY (student_id, class_id)
+);
+```
+
+#### 教案
+
+```sql
+CREATE TABLE lesson_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    teacher_id UUID REFERENCES users(id) NOT NULL,
+    school_id UUID REFERENCES schools(id) NOT NULL,
+    subject VARCHAR(20) NOT NULL,
+    grade VARCHAR(20) NOT NULL,
+    textbook_unit VARCHAR(200),      -- 教材单元
+    lesson_title VARCHAR(300) NOT NULL,
+    period INT DEFAULT 1,            -- 课时
+
+    -- 教案内容（JSON 存储结构化内容）
+    content JSONB NOT NULL,          -- {objectives: [], process: [], ...}
+
+    -- 课标对齐
+    curriculum_alignments JSONB,     -- [{obj_id, standard_code, standard_content, score}]
+
+    -- 格式模板
+    format_template VARCHAR(50) DEFAULT 'core_literacy', -- 核心素养版
+
+    -- 生成状态
+    ai_generated BOOLEAN DEFAULT FALSE,
+    ai_model_version VARCHAR(50),
+    generation_time_ms INT,          -- 生成耗时（毫秒）
+
+    -- 编辑追踪
+    manual_edited BOOLEAN DEFAULT FALSE,
+    edit_count INT DEFAULT 0,        -- 修改次数
+    similarity_score DECIMAL(5,4),   -- 雷同度 0-1
+
+    status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'final')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 核心查询索引
+CREATE INDEX idx_lesson_plans_teacher ON lesson_plans(teacher_id, created_at DESC);
+CREATE INDEX idx_lesson_plans_school ON lesson_plans(school_id);
+CREATE INDEX idx_lesson_plans_subject_grade ON lesson_plans(school_id, subject, grade, created_at DESC);
+CREATE INDEX idx_lesson_plans_status ON lesson_plans(school_id, status);
+CREATE INDEX idx_lesson_plans_title_search ON lesson_plans USING gin(to_tsvector('simple', lesson_title));
+```
+
+#### 作业与批阅
+
+```sql
+-- 作业
+CREATE TABLE assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    teacher_id UUID REFERENCES users(id) NOT NULL,
+    class_id UUID REFERENCES classes(id) NOT NULL,
+    subject VARCHAR(20) NOT NULL,
+    title VARCHAR(300) NOT NULL,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('exercise', 'composition', 'exam')),
+    questions JSONB NOT NULL,        -- [{q_id, type, content, answer, score, curriculum_code}]
+    difficulty_level VARCHAR(5) DEFAULT 'L2', -- L1/L2/L3
+    due_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_assignments_teacher ON assignments(teacher_id, created_at DESC);
+CREATE INDEX idx_assignments_class ON assignments(class_id, created_at DESC);
+CREATE INDEX idx_assignments_due ON assignments(class_id, due_date) WHERE status != 'archived';
+
+-- 学生提交
+CREATE TABLE submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assignment_id UUID REFERENCES assignments(id) NOT NULL,
+    student_id UUID REFERENCES users(id) NOT NULL,
+    answers JSONB NOT NULL,          -- [{q_id, answer_text, image_url}]
+    submitted_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (assignment_id, student_id)
+);
+
+CREATE INDEX idx_submissions_assignment ON submissions(assignment_id);
+CREATE INDEX idx_submissions_student ON submissions(student_id, submitted_at DESC);
+
+-- 批阅结果
+CREATE TABLE grading_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    submission_id UUID REFERENCES submissions(id) NOT NULL,
+    question_id VARCHAR(50) NOT NULL,
+    type VARCHAR(20) NOT NULL,       -- objective/subjective/composition
+
+    -- 评分
+    ai_score DECIMAL(5,2),           -- AI 预打分
+    ai_confidence DECIMAL(4,3),      -- 置信度 0-1
+    teacher_score DECIMAL(5,2),      -- 教师最终分
+    teacher_adjusted BOOLEAN DEFAULT FALSE,
+
+    -- 批注
+    ai_feedback TEXT,                -- AI 评语/解析
+    teacher_comment TEXT,            -- 教师批注
+
+    -- 作文维度评分
+    composition_scores JSONB,        -- {content, structure, language, handwriting}
+
+    -- 状态
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'ai_graded', 'teacher_confirmed', 'parent_signed')),
+    graded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_grading_status ON grading_results(status, assignment_id);
+CREATE INDEX idx_grading_submission ON grading_results(submission_id);
+CREATE INDEX idx_grading_low_confidence ON grading_results(ai_confidence) WHERE status = 'ai_graded' AND ai_confidence < 0.85;
+```
+
+#### 家长签字
+
+```sql
+CREATE TABLE parent_signatures (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parent_id UUID REFERENCES users(id) NOT NULL,
+    student_id UUID REFERENCES users(id) NOT NULL,
+    assignment_id UUID REFERENCES assignments(id) NOT NULL,
+    signature_img_url VARCHAR(500),  -- 手写签名图片
+    signed_at TIMESTAMPTZ DEFAULT NOW(),
+    notified_at TIMESTAMPTZ,         -- 推送通知时间
+    UNIQUE (parent_id, assignment_id, student_id)
+);
+
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) NOT NULL,
+    type VARCHAR(30) NOT NULL,       -- homework_remind/sign_remind/grade_notify
+    title VARCHAR(200) NOT NULL,
+    content TEXT,
+    wechat_template_sent BOOLEAN DEFAULT FALSE,
+    read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id, read, created_at DESC);
+CREATE INDEX idx_notifications_type ON notifications(user_id, type, created_at DESC);
+
+CREATE INDEX idx_signatures_assignment ON parent_signatures(assignment_id);
+CREATE INDEX idx_signatures_parent ON parent_signatures(parent_id, student_id);
+```
+
+### 5.2 课标向量表（pgvector）
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE curriculum_standards (
+    id VARCHAR(50) PRIMARY KEY,      -- 如 "yuwen-3-4-yuedu-001"
+    subject VARCHAR(20) NOT NULL,
+    stage VARCHAR(20) NOT NULL,      -- "1-2年级" / "3-4年级" / "5-6年级" / "7-9年级"
+    domain VARCHAR(100) NOT NULL,    -- 如 "阅读与鉴赏" / "数与代数"
+    code VARCHAR(20) NOT NULL,       -- 如 "3.2.1"
+    content TEXT NOT NULL,           -- 课标原文
+    competency_dimension VARCHAR(100),
+    quality_standard TEXT,
+    embedding vector(768),           -- bge-large-zh-v1.5 嵌入，768维
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- HNSW 索引，加速向量检索
+CREATE INDEX ON curriculum_standards USING hnsw (embedding vector_cosine_ops);
+
+-- 常规索引
+CREATE INDEX idx_curriculum_subject ON curriculum_standards(subject, stage);
+```
+
+### 5.3 数据隔离策略（强制机制）
+
+MVP 阶段采用 **Shared Database, Row-Level Isolation**，并实现双重强制隔离。
+
+#### 4.3.1 PostgreSQL Row-Level Security (RLS)
+
+为防止代码层面遗漏 school_id 过滤导致跨租户数据泄露，启用 PostgreSQL RLS：
+
+```sql
+-- 为每张业务表启用 RLS
+ALTER TABLE lesson_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grading_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_signatures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略：当前用户只能看到自己学校的数据
+-- school_id 通过 PostgreSQL 运行时参数 app.current_school_id 传入
+CREATE POLICY school_isolation ON lesson_plans
+    FOR ALL
+    USING (school_id = current_setting('app.current_school_id')::UUID)
+    WITH CHECK (school_id = current_setting('app.current_school_id')::UUID);
+
+-- 其他表同理（assignments, submissions, grading_results, ...）
+```
+
+**Go 中间件设置当前学校上下文**：
+```go
+// middleware/tenant.go
+func TenantMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        schoolID := c.GetString("school_id") // 从 JWT 提取
+        // 每个请求开始时设置 PostgreSQL 运行时参数
+        db.Exec("SELECT set_config('app.current_school_id', $1, true)", schoolID)
+        c.Next()
+    }
+}
+```
+
+#### 4.3.2 GORM Scope 强制注入（代码层双保险）
+
+即使 RLS 生效，repository 层也通过 GORM Scope 自动注入 school_id，实现防御性编程：
+
+```go
+// repository/base_repo.go
+func (r *BaseRepository) SchoolScope(schoolID string) func(db *gorm.DB) *gorm.DB {
+    return func(db *gorm.DB) *gorm.DB {
+        return db.Where("school_id = ?", schoolID)
+    }
+}
+
+// 所有查询自动应用
+func (r *LessonRepo) FindByTeacher(teacherID, schoolID string) ([]LessonPlan, error) {
+    var plans []LessonPlan
+    err := r.db.Scopes(r.SchoolScope(schoolID)).
+        Where("teacher_id = ?", teacherID).
+        Order("created_at DESC").
+        Find(&plans).Error
+    return plans, err
+}
+```
+
+#### 4.3.3 三层隔离总结
+
+| 层 | 机制 | 作用 |
+|------|------|------|
+| **数据库层** | PostgreSQL RLS | 即使应用层 BUG 也不会泄露数据 |
+| **应用层** | GORM Scope 自动注入 | 防止开发者遗漏 school_id 过滤 |
+| **缓存层** | Redis key 前缀 `{school_id}:{resource}:{id}` | 防止跨校缓存串读 |
+
+> 后期可升级为 **Database-per-Tenant**（大校隔离）或 **Schema-per-Tenant**（中等隔离），Go repository 层接口不变。
+
+---
+
+## 六、API 设计
+
+### 6.1 API 风格
+
+- RESTful 风格，JSON 格式
+- 认证：Header `Authorization: Bearer {jwt_token}`
+- 分页：`?page=1&page_size=20`，返回 `{items, total, page, page_size}`
+- 错误格式：`{code, message, detail}`
+- **请求参数校验**：Go 端使用 `go-playground/validator` 统一校验，Python 端使用 Pydantic
+
+**Go 参数校验示例**：
+```go
+type GenerateLessonPlanRequest struct {
+    LessonTitle    string `json:"lesson_title" validate:"required,min=1,max=300"`
+    Subject        string `json:"subject" validate:"required,oneof=语文 数学 英语"`
+    Grade          string `json:"grade" validate:"required,oneof=一年级 二年级 三年级 四年级 五年级 六年级 七年级 八年级 九年级"`
+    TextbookUnit   string `json:"textbook_unit" validate:"max=200"`
+    Period         int    `json:"period" validate:"min=1,max=10"`
+    FormatTemplate string `json:"format_template" validate:"oneof=core_literacy 3d_objective unit_teaching"`
+}
+
+// 中间件自动校验
+func BindAndValidate(c *gin.Context, req interface{}) error {
+    if err := c.ShouldBindJSON(req); err != nil {
+        return err
+    }
+    if err := validator.Validate(req); err != nil {
+        // 返回具体校验失败字段
+        return NewValidationError(err)
+    }
+    return nil
+}
+```
+
+**Python Pydantic 校验示例**：
+```python
+from pydantic import BaseModel, Field, validator
+
+class LessonPlanRequest(BaseModel):
+    lesson_title: str = Field(..., min_length=1, max_length=300)
+    subject: str = Field(..., pattern="^(语文|数学|英语)$")
+    grade: str = Field(...)
+    period: int = Field(default=1, ge=1, le=10)
+    
+    @validator('grade')
+    def validate_grade(cls, v):
+        valid = ["一年级","二年级","三年级","四年级","五年级","六年级","七年级","八年级","九年级"]
+        if v not in valid:
+            raise ValueError(f'年级必须为有效值: {valid}')
+        return v
+```
+
+### 6.2 核心端点一览
+
+#### 认证
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/auth/register` | 手机号注册 |
+| POST | `/api/v1/auth/login` | 手机号+密码登录 |
+| POST | `/api/v1/auth/refresh` | 刷新 Token |
+| POST | `/api/v1/auth/logout` | 登出 |
+
+#### 教案
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/lesson-plans` | 教案列表（分页、筛选） |
+| POST | `/api/v1/lesson-plans` | 创建空白教案 |
+| GET | `/api/v1/lesson-plans/{id}` | 教案详情 |
+| PUT | `/api/v1/lesson-plans/{id}` | 更新教案 |
+| POST | `/api/v1/lesson-plans/{id}/generate` | **触发 AI 生成** → SSE 流式返回 |
+| GET | `/api/v1/lesson-plans/{id}/stream` | SSE 生成进度订阅 |
+| POST | `/api/v1/lesson-plans/{id}/finalize` | 定稿 |
+| GET | `/api/v1/lesson-plans/{id}/export` | 导出 Word/PDF |
+| GET | `/api/v1/lesson-plans/{id}/similarity-check` | 雷同度检测 |
+| GET | `/api/v1/curriculum-standards` | 课标条目查询（按学科+学段） |
+
+#### 出题
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/exams/generate` | AI 生成题目 |
+| GET | `/api/v1/exams/{id}` | 作业详情 |
+| POST | `/api/v1/exams/{id}/publish` | 发布作业到班级 |
+| GET | `/api/v1/exams/{id}/submissions` | 查看提交情况 |
+
+#### 批阅
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/grading/{submission_id}/auto-grade` | AI 自动批阅 |
+| PUT | `/api/v1/grading/{grading_id}` | 教师调整分数 |
+| POST | `/api/v1/grading/batch-confirm` | 批量确认 AI 评分 |
+| GET | `/api/v1/grading/review-queue` | 低置信度复核队列 |
+
+#### 家校
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/parent/sign/{assignment_id}` | 请求家长签字（触发通知） |
+| GET | `/api/v1/parent/sign-status/{assignment_id}` | 签字状态查看 |
+| GET | `/api/v1/parent/sign/{assignment_id}` | 家长查看作业批阅 |
+| POST | `/api/v1/parent/sign/{assignment_id}/confirm` | 家长确认签字 |
+
+#### 学生端
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/student/assignments` | 待做/已做作业列表 |
+| GET | `/api/v1/student/assignments/{id}` | 作业详情 |
+| POST | `/api/v1/student/assignments/{id}/submit` | 提交作业 |
+| POST | `/api/v1/student/upload/composition` | 作文拍照上传 |
+| GET | `/api/v1/student/grading/{id}` | 查看批改结果 |
+| GET | `/api/v1/student/error-book` | 错题本 |
+
+### 6.3 教案生成 API 详细设计
+
+**请求：**
+```
+POST /api/v1/lesson-plans/{id}/generate
+Content-Type: application/json
+
+{
+  "lesson_title": "观潮",
+  "subject": "语文",
+  "grade": "四年级",
+  "textbook_unit": "第一单元",
+  "period": 1,
+  "format_template": "core_literacy",
+  "preferences": {                            // 可选：教师偏好
+    "warmup_style": "情境导入",
+    "interaction_preference": "小组讨论",
+    "homework_level": "medium"
+  }
+}
+```
+
+**响应（SSE 流式）：**
+```
+Content-Type: text/event-stream
+
+event: start
+data: {"task_id": "task-xxx", "estimated_time": 30}
+
+event: curriculum_alignments
+data: {"alignments": [{"domain": "阅读与鉴赏", "code": "3.2.1", ...}]}
+
+event: objectives
+data: {"objectives": [{"text": "...", "curriculum_code": "3.2.1", ...}]}
+
+event: key_points
+data: {"points": ["...", "..."]}
+
+event: process
+data: {"step": 1, "phase": "导入", "content": "...", "duration": 5}
+
+event: complete
+data: {"lesson_plan_id": "lp-xxx", "generation_time_ms": 28000}
+```
+
+---
+
+## 七、核心数据流
+
+### 7.1 教案生成全流程
+
+```
+教师点击"生成教案"
+    │
+    ▼
+business-api: POST /lesson-plans/{id}/generate
+    │- 1. 参数校验（课题非空、学科有效、课时范围合理）
+    │- 2. 权限校验（教师身份 + 学校归属）
+    │- 3. 创建异步任务 → Redis Queue
+    │- 4. 返回 task_id + SSE 订阅地址
+    │
+    ▼ (异步任务)
+ai-service: LessonPlanAgent.execute()
+    │
+    ├─ 5. RAG 检索课标
+    │    ├─ 根据"学科+年级+课题"生成检索 Query
+    │    ├─ bge-large-zh 向量化 Query
+    │    ├─ pgvector 语义检索 Top-5 课标条目
+    │    └─ 返回课标原文列表
+    │
+    ├─ 6. Prompt 编排
+    │    ├─ 加载 System Prompt 模板
+    │    ├─ 注入课标约束（Top-5 条目作为"必须覆盖的教学目标来源"）
+    │    ├─ 注入格式要求（核心素养版 / 三维目标版 / 大单元版）
+    │    └─ 注入教师偏好（导入风格、互动偏好）
+    │
+    ├─ 7. 调用通义千问 API (stream=True)
+    │    ├─ 逐 token 接收
+    │    └─ 解析结构化字段（objectives / process / design_intent / ...）
+    │
+    ├─ 8. SSE 逐字段推送 business-api → 前端
+    │
+    ├─ 9. 安全后处理
+    │    ├─ 内容审核（政治敏感词检测）
+    │    ├─ 幻觉检测（关键事实交叉验证）
+    │    ├─ 格式校验（必填字段完整性）
+    │    └─ 课标标注补全（生成后反向检索匹配）
+    │
+    └─ 10. 存储 PostgreSQL + 返回完整教案
+```
+
+### 7.2 作文批改流程
+
+```
+学生拍照上传作文
+    │
+    ▼
+ai-service: GradingAgent.execute_composition()
+    │
+    ├─ 1. 调用 qwen-vl-plus 识别手写内容
+    │    ├─ 逐行 OCR，输出文本 + 置信度
+    │    └─ 卷面评估（置信度倒推潦草度、涂改率）
+    │
+    ├─ 2. AI 四维评分
+    │    ├─ 内容 (40%): 主题明确、内容丰富
+    │    ├─ 结构 (25%): 逻辑清晰、段落合理
+    │    ├─ 语言 (25%): 用词准确、句式多样
+    │    └─ 书写 (10%): 卷面整洁度（来自步骤1）
+    │
+    ├─ 3. 评语 + 修改建议生成
+    │
+    ├─ 4. 置信度判断
+    │    ├─ confidence ≥ 0.85 → 自动通过，等待教师批量确认
+    │    └─ confidence < 0.85 → 进入"低置信度复核队列"
+    │
+    └─ 5. 教师复核
+         ├─ 四维雷达图可视化
+         ├─ 教师可逐维调整分数
+         └─ 确认后推送家长签字
+```
+
+### 7.3 家长签字通知流程
+
+```
+教师批量确认批阅 → 点击"推送家长签字"
+    │
+    ▼
+business-api:
+    │- 1. 查询该班级所有学生 → 关联家长
+    │- 2. 批量创建 parent_signatures 记录 (status=pending)
+    │- 3. 批量创建 notifications 记录
+    │- 4. 异步调用微信订阅消息 API
+    │    POST https://api.weixin.qq.com/cgi-bin/message/subscribe/send
+    │    Body: {touser, template_id, data: {作业标题, 科目, 提交时间}}
+    │- 5. 更新 notifications.wechat_template_sent = true
+    │
+    ▼
+家长收到微信通知 → 点击进入 H5 签字页
+    │- 查看作业批阅详情（分数 + 评语 + 薄弱知识点）
+    │- 学情趋势迷你折线图（近 5 次）
+    │- 手写签名板 → Canvas → 上传 OSS
+    │- 点击"确认已阅"
+    │
+    ▼
+parent_signatures 状态 → signed
+教师端仪表盘 → 签字统计: 已签 35/40, 逾期 3
+```
+
+---
+
+## 八、AI输出质量评估
+
+### 8.1 为什么需要评估体系
+
+AI 生成的教案、题目、批阅意见不能仅靠"教师主观感觉"验证。需要建立可量化、可复现、可自动化的评估体系，否则：
+
+- 教案接受率 65% 的目标无法科学验证
+- 每次 Prompt 调整后不知道是变好还是变坏
+- 大模型版本升级（如 qwen-plus → qwen-max）的效果无法量化评估
+
+### 8.2 评估维度与指标
+
+| 维度 | 指标 | 计算方式 | 目标 |
+|------|------|------|:---:|
+| **课标对齐** | 对齐率 | 对齐条目数 / 应有条目数 | 100% |
+| **结构完整** | 必填字段覆盖率 | 已有字段 / 必填字段 | 100% |
+| **学科准确** | 知识性错误率 | 人工抽审（每周 10 份） | <1% |
+| **格式规范** | 格式符合率 | 自动校验模板匹配 | ≥98% |
+| **教师接受** | 修改率 | 编辑内容比例 <20% | ≥65% |
+| **作文批阅** | 教师复核确认率 | 教师直接通过比例 | ≥70%（首版） |
+
+### 8.3 评测用例集
+
+在 `ai-service/tests/fixtures/` 下维护标准化评测用例：
+
+```
+ai-service/tests/
+├── fixtures/
+│   ├── lesson_plan_cases.json      # 教案评测用例（≥50条）
+│   │   # 覆盖：语文/数学/英语 × 低/中/高年级 × 不同课文类型
+│   │   # 每条包含: {input, expected_subject, expected_grade, expected_standards[]}
+│   ├── exam_cases.json             # 出题评测用例（≥30条）
+│   │   # 覆盖：三科 × 三难度（L1/L2/L3）
+│   │   # 每条包含: {knowledge_point, difficulty, expected_question_count}
+│   └── composition_cases/          # 作文批阅评测用例
+│       ├── sample_01.jpg           # 标准字迹样例 + 人工批阅金标
+│       ├── sample_02.jpg           # 潦草字迹样例 + 金标
+│       └── gold_standards.json     # 金标评分 {content, structure, language, handwriting}
+├── eval_lesson_plan.py             # 教案评测脚本
+├── eval_exam.py                    # 出题评测脚本
+└── eval_composition.py             # 作文批阅评测脚本
+```
+
+### 8.4 自动化评测脚本
+
+```python
+# eval_lesson_plan.py 核心逻辑
+def evaluate_lesson_plan(case: dict, output: dict) -> dict:
+    scores = {}
+    
+    # 1. 课标对齐自动检测
+    expected_standards = set(case["expected_standards"])
+    actual_standards = set(a["code"] for a in output.get("curriculum_alignments", []))
+    scores["curriculum_alignment"] = len(expected_standards & actual_standards) / len(expected_standards)
+    
+    # 2. 结构完整性检测
+    required_fields = ["objectives", "key_points", "difficult_points", "process", "design_intent"]
+    scores["structure_completeness"] = sum(1 for f in required_fields if f in output) / len(required_fields)
+    
+    # 3. 格式符合率
+    scores["format_validity"] = 1.0 if validate_format(output["format_template"], output) else 0.0
+    
+    return {
+        "case_id": case["id"],
+        "scores": scores,
+        "overall": sum(scores.values()) / len(scores),
+        "duration_ms": output.get("generation_time_ms", 0)
+    }
+
+# CI 集成：每次 Prompt 变更自动跑全量评测
+# pytest tests/eval_lesson_plan.py --threshold 0.85
+```
+
+### 8.5 人工抽审流程
+
+| 频率 | 数量 | 审查人 | 重点 |
+|------|:---:|------|------|
+| 每周 | 10 份教案 | 学科教研员（签约外部） | 学科逻辑错误、课标匹配准确性 |
+| 每周 | 10 份作文批阅 | 语文教师 | 四维评分合理性、评语质量 |
+| 每次 Prompt 变更 | 30 份教案（自动化+人工各半） | 内部 + 教研员 | 回归验证 |
+
+### 8.6 评估数据闭环
+
+```
+人工抽审发现问题 → 更新评测用例 → 修改 Prompt/Agent → CI 自动跑评测 → 通过后上线
+```
+
+---
+
+## 九、安全策略
+
+### 9.1 认证与授权
+
+| 层级 | 策略 |
+|------|------|
+| **Token** | JWT (RS256)，有效期 2h，Refresh Token 7d |
+| **密码** | bcrypt 哈希，cost=12 |
+| **手机验证** | 阿里云短信服务，验证码 6 位，5 分钟有效，每日上限 10 次 |
+| **角色权限** | RBAC: admin > teacher > student/parent |
+| **租户隔离** | JWT 中嵌入 school_id，中间件注入请求上下文 |
+
+### 9.2 数据安全
+
+| 维度 | 措施 |
+|------|------|
+| **传输安全** | TLS 1.3，全站 HTTPS |
+| **存储加密** | PostgreSQL TDE（透明数据加密），密码字段单独 bcrypt |
+| **数据隔离** | school_id 行级过滤，禁止跨校数据访问 |
+| **日志安全** | 日志脱敏：手机号 138****1234，密码/Token 不记录 |
+| **备份** | PostgreSQL 每日自动备份 + WAL 归档，保留 30 天 |
+
+### 9.3 AI 安全
+
+| 风险 | 应对 |
+|------|------|
+| **Prompt 注入** | 用户输入清洗（移除指令字符），输入输出双审 |
+| **教学幻觉** | 多模型交叉校验 + 课标 RAG 锚定 + 置信度分级 |
+| **学生UGC内容合规** | 作文提交前接入**腾讯云天御内容安全**，语义审核+图片审核，违规拒绝/疑似标记人工复核 |
+| **数据出境** | 通义千问国内节点，数据不外传 |
+| **作文隐私** | 学生作文仅存储于本校实例，批阅完成后可设置自动删除策略 |
+
+**内容审核流程**：
+```
+学生提交作文 → 天御文本审核（同步，<200ms）
+  ├─ 通过 → 正常提交
+  ├─ 疑似 → 标记"待复核"，提交成功但教师可见标记
+  └─ 违规 → 拒绝提交，提示修改
+```
+
+### 9.4 API 安全
+
+- **限流**：Nginx 层全局 100 req/s，Go 中间件按用户角色分级
+  - 教师：60 req/min
+  - 学生：30 req/min
+  - AI 生成接口：10 req/min/教师
+- **CSRF 防护**：SameSite=Strict Cookie + CSRF Token（Double Submit Cookie 模式）
+- **安全响应头**：
+  ```
+  Content-Security-Policy: default-src 'self'; script-src 'self'; img-src 'self' https://*.myqcloud.com data:
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  ```
+- **WAF**：阿里云 WAF 基础版（SQL注入、XSS、CC攻击防护）
+- **CORS**：仅允许已配置域名
+- **请求大小限制**：10MB（作文图片上传可能导致大请求体）
+- **SQL 注入防护**：全部使用参数化查询（GORM/原生 SQL placeholder）
+
+### 9.5 敏感数据加密
+
+| 数据类型 | 加密方式 | 密钥管理 |
+|----------|------|------|
+| 用户密码 | bcrypt (cost=12)，不可逆 | — |
+| 学生作文原文/批阅结果 | AES-256-GCM（应用层加密） | 阿里云 KMS |
+| 手机号（日志中） | 脱敏 138****1234 | — |
+| JWT Private Key | 环境变量注入，不入镜像 | — |
+| 数据库备份文件 | AES-256 加密压缩 | 独立备份密钥 |
+
+### 9.6 操作审计日志
+
+所有关键操作记录审计日志，满足等保 2.0 合规要求：
+
+```sql
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    user_role VARCHAR(20) NOT NULL,
+    action VARCHAR(50) NOT NULL,        -- lesson_plan.create / assignment.publish / grade.confirm
+    resource_type VARCHAR(50) NOT NULL, -- lesson_plan / assignment / grading_result
+    resource_id UUID NOT NULL,
+    detail JSONB,                       -- {old_value, new_value, ip, user_agent}
+    ip_address INET,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_user ON audit_logs(user_id, created_at DESC);
+CREATE INDEX idx_audit_school ON audit_logs(school_id, created_at DESC);
+CREATE INDEX idx_audit_action ON audit_logs(action, created_at DESC);
+```
+
+**日志保留策略**：审计日志保留 180 天，超过的归档到 OSS 冷存储。
+
+### 9.7 安全应急响应
+
+#### 事件分级
+
+| 等级 | 定义 | 响应时限 | 示例 |
+|:---:|------|:---:|------|
+| P0 严重 | 数据泄露、系统被入侵 | 15 分钟内 | 跨校数据串读、数据库被拖库 |
+| P1 高危 | 安全漏洞可利用 | 2 小时内 | SQL注入、未授权访问 |
+| P2 中危 | 配置不当/信息泄露 | 24 小时内 | 错误页面暴露堆栈信息 |
+| P3 低危 | 轻微安全隐患 | 1 周内 | Cookie 未设 HttpOnly |
+
+#### 数据泄露响应流程
+
+1. **发现**（15 分钟内）→ 确认泄露范围和影响用户数
+2. **遏制**（30 分钟内）→ 切断受影响服务、冻结泄露账号
+3. **通知**（72 小时内）→ 按《个人信息保护法》向监管部门报告
+4. **修复**（24 小时内）→ 定位根因、修复漏洞、回归测试
+5. **复盘**（1 周内）→ 事故报告、改进措施、更新安全策略
+
+#### 通知渠道
+
+- 内部：企业微信应急群
+- 监管部门：网信办、教育局（法定 72 小时内）
+- 受影响用户：APP 内通知 + 短信
+
+### 9.8 教育合规
+
+#### 适用法规
+
+| 法规 | 关键要求 | 实施 |
+|------|------|------|
+| 《个人信息保护法》 | 未成年人信息需监护人同意 | 注册时家长授权勾选 + 隐私政策弹窗 |
+| 《未成年人保护法》 | 不得过度收集未成年人信息 | 只收集必要字段（姓名、年级、班级） |
+| 《儿童个人信息网络保护规定》 | 14岁以下需制定专门保护规则 | 单独的儿童隐私政策页面 |
+| 《数据安全法》 | 教育数据分类分级保护 | 学生作文/成绩定为 L3 敏感级 |
+| 《网络安全法》 | 网络产品需通过安全审查 | 上线前第三方安全渗透测试 |
+| 教育APP备案 | 教育部教育APP备案管理办法 | 上线前完成教育部备案 |
+
+#### 合规时间线
+
+| 阶段 | 事项 | 时间 |
+|------|------|:---:|
+| Sprint 1-2 | 起草《隐私政策》《儿童隐私政策》《用户协议》 | 第 1-2 周 |
+| Sprint 8 | 邀请外部律所合规审查 | 第 16 周 |
+| Sprint 9 | 提交教育部教育APP备案 | 第 17 周 |
+| Sprint 9 | 第三方安全渗透测试 | 第 18 周 |
+| 试点前 | 所有合规项通过 | 第 19 周 |
+
+---
+
+## 十、部署方案
+
+### 10.1 MVP 部署架构（Docker Compose 单机）
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - static_volume:/usr/share/nginx/html/static
+    depends_on:
+      - business-api
+
+  business-api:
+    build: ./backend
+    expose:
+      - "8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=zhiwei
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=zhiwei
+      - REDIS_URL=redis://redis:6379
+      - AI_SERVICE_URL=http://ai-service:8000
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}
+      - OSS_ENDPOINT=${OSS_ENDPOINT}
+    depends_on:
+      - postgres
+      - redis
+
+  ai-service:
+    build: ./ai-service
+    expose:
+      - "8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=zhiwei
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=zhiwei
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - EMBEDDING_MODEL=bge-large-zh-v1.5
+    depends_on:
+      - postgres
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=zhiwei
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=zhiwei
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  pg_data:
+  redis_data:
+  static_volume:
+```
+
+### 10.2 硬件要求（v1.1 修正）
+
+| 环境 | 规格 | 说明 |
+|------|------|------|
+| **开发** | 2C4G 笔记本 | 本地 Docker Desktop |
+| **测试** | 2C4G 云服务器 | 2-3 人内部试用 |
+| **MVP 生产** | **4C16G** 云服务器 | 2-3 所试点学校，预计日活 50-100 教师 |
+| **扩展** | 8C32G / 多实例 | 全校推广时升级 |
+
+> v1.1 修正说明：v1.0 中 4C8G 方案偏紧。PostgreSQL (~2GB) + Redis (~500MB) + Go (~1GB) + Python AI (~3GB for bge-large-zh) + Nginx + 系统开销 ≈ 8-10GB。升级为 4C16G 确保足够余量。
+
+### 10.3 环境变量清单
+
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `DB_PASSWORD` | PostgreSQL 密码 | `zhiwei2026!` |
+| `JWT_PRIVATE_KEY` | RS256 私钥（PEM） | `-----BEGIN RSA PRIVATE KEY-----...` |
+| `DASHSCOPE_API_KEY` | 通义千问 API Key | `sk-xxxx` |
+| `OSS_ENDPOINT` | 阿里云 OSS Endpoint | `oss-cn-chongqing.aliyuncs.com` |
+| `OSS_ACCESS_KEY` | OSS AccessKey | `LTAI5t...` |
+| `OSS_SECRET_KEY` | OSS SecretKey | `...` |
+| `WECHAT_APP_ID` | 微信小程序 AppID | `wx...` |
+| `WECHAT_APP_SECRET` | 微信小程序 Secret | `...` |
+| `WECHAT_SUBSCRIBE_TEMPLATE_ID` | 微信订阅消息 ID | `...` |
+
+### 10.4 生产部署命令
+
+```bash
+# 1. 拉取代码
+git clone <repo> /opt/zhiwei
+
+# 2. 配置环境变量
+cp .env.example .env
+vim .env  # 填入密码和 API Key
+
+# 3. 构建并启动
+docker compose up -d
+
+# 4. 数据库迁移
+docker compose exec business-api go run cmd/migrate/main.go
+
+# 5. 导入课标数据
+docker compose exec ai-service python scripts/import_curriculum.py
+
+# 6. 健康检查
+curl http://localhost:8080/api/v1/health
+```
+
+### 10.5 数据库备份与恢复
+
+#### 备份策略
+
+| 备份类型 | 频率 | 保留 | 工具 |
+|------|:---:|:---:|------|
+| **全量备份** | 每日 02:00 | 30 天 | `pg_dump -Fc` + AES-256 加密压缩 |
+| **WAL 连续归档** | 实时 | 7 天 | PostgreSQL `archive_command` → OSS |
+| **快照备份** | 每周日 | 12 周 | 阿里云磁盘快照 |
+
+#### 备份脚本
+
+```bash
+#!/bin/bash
+# /opt/zhiwei/scripts/backup.sh
+BACKUP_DIR="/opt/zhiwei/backups"
+OSS_BUCKET="oss://zhiwei-backups"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# 1. 全量备份 + 加密压缩
+docker compose exec -T postgres pg_dump -U zhiwei -Fc zhiwei \
+  | openssl enc -aes-256-cbc -pass file:/opt/zhiwei/keys/backup.key \
+  | gzip > "$BACKUP_DIR/zhiwei_$TIMESTAMP.dump.enc.gz"
+
+# 2. 上传 OSS
+ossutil cp "$BACKUP_DIR/zhiwei_$TIMESTAMP.dump.enc.gz" "$OSS_BUCKET/daily/"
+
+# 3. 清理 30 天前的本地备份
+find "$BACKUP_DIR" -name "*.enc.gz" -mtime +30 -delete
+
+# 4. 清理 30 天前的 OSS 日备份
+ossutil rm "$OSS_BUCKET/daily/" --include "*.enc.gz" --older-than 30d
+```
+
+#### RPO / RTO 目标
+
+| 指标 | MVP 目标 | 说明 |
+|------|:---:|------|
+| **RPO**（数据丢失窗口） | ≤ 1 小时 | WAL 归档到 OSS 的间隔 |
+| **RTO**（恢复时间） | ≤ 2 小时 | 单机恢复：拉取备份 → 解密 → pg_restore → 应用 WAL |
+| **恢复测试** | 每月 1 次 | 在隔离环境验证备份可用性 |
+
+#### 恢复命令
+
+```bash
+# 1. 从 OSS 拉取最新备份
+ossutil cp "$OSS_BUCKET/daily/zhiwei_20260615_020000.dump.enc.gz" /tmp/
+
+# 2. 解密
+openssl enc -d -aes-256-cbc -pass file:/opt/zhiwei/keys/backup.key \
+  -in /tmp/zhiwei_20260615_020000.dump.enc.gz | gunzip > /tmp/zhiwei.dump
+
+# 3. 恢复
+docker compose exec -T postgres pg_restore -U zhiwei -d zhiwei --clean /tmp/zhiwei.dump
+```
+
+### 10.6 CI/CD 流水线
+
+#### 流水线架构
+
+```
+Git Push → GitHub Actions / GitLab CI
+  │
+  ├─ Stage 1: Lint & Test
+  │    ├─ Go: go fmt, go vet, golangci-lint
+  │    ├─ Python: black, flake8, mypy
+  │    ├─ Frontend: eslint, prettier
+  │    └─ Unit Tests: go test -cover / pytest --cov
+  │
+  ├─ Stage 2: Security Scan
+  │    ├─ Trivy (容器镜像漏洞扫描)
+  │    ├─ Bandit (Python 安全扫描)
+  │    ├─ gosec (Go 安全扫描)
+  │    └─ npm audit (前端依赖)
+  │
+  ├─ Stage 3: AI Eval (PR 触发时)
+  │    └─ pytest tests/eval_lesson_plan.py --threshold 0.85
+  │
+  ├─ Stage 4: Build & Push
+  │    ├─ docker build backend → registry/zhiwei-api:{tag}
+  │    ├─ docker build ai-service → registry/zhiwei-ai:{tag}
+  │    └─ docker build frontend → registry/zhiwei-web:{tag}
+  │
+  └─ Stage 5: Deploy (main 分支自动，其他分支手动)
+       ├─ SSH → 测试服务器
+       ├─ docker compose pull
+       └─ docker compose up -d
+```
+
+#### 最小 CI 配置文件（GitHub Actions）
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Go Lint & Test
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - run: cd backend && go vet ./... && go test -cover ./...
+      
+      - name: Python Lint & Test
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: cd ai-service && pip install -r requirements.txt && pytest --cov
+      
+      - name: Frontend Lint
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: cd frontend && npm ci && npm run lint
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+
+  ai-eval:
+    if: contains(github.event.pull_request.labels.*.name, 'prompt-change')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: AI Evaluation
+        run: cd ai-service && pytest tests/eval_lesson_plan.py --threshold 0.85
+```
+
+---
+
+---
+
+## 十一、私有化部署方案
+
+### 13.1 概述
+
+部分学校要求数据不出校门，知微需支持私有化部署到学校机房。统一使用 PostgreSQL 技术栈，与 SaaS 版本保持完全一致。
+
+### 11.2 硬件要求（v1.2 与 SaaS 统一为 PostgreSQL）
+
+| 级别 | CPU | 内存 | 磁盘 | 适用规模 |
+|------|:---:|:---:|:---:|------|
+| 最低配置 | 8核 | 16GB | 200GB SSD | 1校，<50教师 |
+| 推荐配置 | 16核 | 32GB | 500GB SSD (RAID1) | 1-3校联合 |
+| 信创环境 | 鲲鹏/飞腾/海光 | 对应 | 同上 | 国产化要求 |
+
+操作系统支持：CentOS 7+ / Ubuntu 20.04+ / 麒麟V10 / 统信UOS
+
+### 11.3 服务清单（与 SaaS 技术栈一致）
+
+| 容器 | 镜像 | 端口 | 资源 |
+|------|------|:---:|------|
+| **postgres** | pgvector/pgvector:pg16 | 5432 | 2核4GB |
+| **redis** | redis:7-alpine | 6379 | 1核1GB |
+| **minio** | minio:latest | 9000, 9001 | 1核2GB |
+| **business-api** | zhiwei/api:{version} | 8080 | 2核4GB |
+| **ai-service** | zhiwei/ai:{version} | 8000 | 4核8GB |
+| **nginx** | nginx:1.25-alpine | 80/443 | 1核1GB |
+
+> 共 6 个容器，3 个自研服务（business-api / ai-service / nginx 配置），与 SaaS 架构完全对齐。
+
+### 11.4 离线安装包
+
+```
+zhiwei-offline-v1.0.0.tar.gz (~4GB)
+├── images/                 # docker save 导出镜像包
+│   ├── postgres.tar
+│   ├── redis.tar
+│   ├── minio.tar
+│   ├── business-api.tar
+│   ├── ai-service.tar
+│   └── nginx.tar
+├── docker-compose.yml      # 编排文件
+├── config/                 # 配置模板
+│   ├── .env.template
+│   └── nginx.conf.template
+├── scripts/
+│   ├── check.sh            # 环境检查
+│   ├── install.sh          # 安装向导
+│   ├── health.sh           # 健康检查
+│   ├── backup.sh           # 备份脚本
+│   ├── restore.sh          # 恢复脚本
+│   ├── upgrade.sh          # 滚动升级
+│   └── logs.sh             # 日志收集
+└── sql/
+    └── init_school.sql     # 学校初始化 SQL
+```
+
+### 11.5 运维脚本
+
+| 脚本 | 功能 | 关键行为 |
+|------|------|------|
+| `check.sh` | 部署前环境检查 | OS/CPU/内存/磁盘/Docker/端口检测 |
+| `install.sh` | 交互式安装 | 6步引导：学校名称→管理员→密码→License→AI模式→部署 |
+| `health.sh` | 服务健康检查 | 逐个容器检测 + API 端点探活 |
+| `backup.sh` | 数据库 + 文件备份 | pg_dump + MinIO 同步到 /data/backup/ |
+| `restore.sh` | 选择备份恢复 | 停服→恢复→验证→重启 |
+| `upgrade.sh` | 滚动升级 | 升级前自动备份，失败自动回滚 |
+| `logs.sh` | 日志收集 | 收集所有容器日志到 /data/logs/ |
+
+### 11.6 与 SaaS 版差异点
+
+| 维度 | SaaS 版 | 私有部署版 |
+|------|------|------|
+| 数据库 | PostgreSQL 16 | PostgreSQL 16（一致） |
+| 对象存储 | 阿里云 OSS | MinIO（本地 S3 兼容） |
+| 大模型 | 通义千问 API | 可选：云端 API / 本地模型 |
+| License | 无 | License 文件 + 心跳机制 |
+| 自动备份 | OSS 备份 | 本地脚本 + crontab |
+
+---
+
+## 十二、License 管理服务
+
+### 12.1 概述
+
+License 管理服务是知微商业化的核心基础设施，包含：
+- **云端 License 服务**：签发、验证、心跳接收
+- **校内 License Agent**：私有部署中的心跳上报 + 降级处理
+- **管理后台**：面向销售的 License 签发、Token 分销、用量监控
+
+### 12.2 License 文件格式与安全（v1.3 加固）
+
+```json
+// license_{school_id}.lic（AES-256-GCM 加密 + RSA-SHA256 签名）
+{
+  "school_id": "uuid",
+  "school_name": "xx小学",
+  "machine_fingerprint": "SHA256(cpu_id + mac + hostname)",
+  "issued_at": "2026-06-16T00:00:00Z",
+  "expires_at": "2027-06-16T00:00:00Z",
+  "token_quota": 100000,
+  "features": ["lesson_plan", "exam", "composition", "grading", "parent_sign"],
+  "max_teachers": 50,
+  "nonce": "random-16bytes"
+}
+// 外层：KMS 加密 → RSA-SHA256 签名
+```
+
+**安全机制**：
+
+| 机制 | 说明 | 防范风险 |
+|------|------|------|
+| **机器指纹绑定** | SHA256(cpu_id + MAC + hostname) | 防 License 跨机器复制 |
+| **AES-256-GCM 加密** | KMS 加密，密钥不落地 | 防篡改内容 |
+| **RSA-SHA256 签名** | 2048位，公钥内置二进制 | 防伪造 License |
+| **Nonce 防重放** | 每次签发唯一随机数，云端记录 | 同一 License 多次导入检测 |
+| **私钥管理** | 存储于阿里云 KMS，永不落地 | 防私钥泄露导致批量伪造 |
+| **CRL 吊销列表** | 云端维护已吊销 school_id | 支持远程吊销 |
+
+### 12.3 心跳机制（v1.3 加固）
+
+```
+校内 License Agent (每1小时)
+    │
+    ├─ 1. 生成 Nonce (随机16字节) + Timestamp
+    │
+    ├─ 2. 构建签名: RSA-SHA256(school_id + token_used + nonce + timestamp)
+    │
+    ├─ 3. POST https://license.ziwi.cn/api/v1/heartbeat
+    │    Headers: X-School-ID, X-Signature, X-Nonce, X-Timestamp
+    │
+    ├─ 4. 云端验证:
+    │    ├─ Timestamp 在 ±5 分钟内（防重放攻击）
+    │    ├─ Nonce 未使用过（Redis 缓存 10 分钟）
+    │    ├─ 签名验证通过
+    │    └─ License 未过期/未吊销
+    │
+    ├─ 重试策略: 指数退避（1min → 2min → 4min → 8min → 16min）
+    └─ 连续24小时失败 → 降级模式
+```
+
+### 12.4 云端 License API
+
+| 端点 | 认证 | 说明 |
+|------|------|------|
+| `POST /api/v1/heartbeat` | RSA 签名 + Nonce + Timestamp | 接收心跳 |
+| `POST /api/v1/license/verify` | mTLS 双向认证 | 验证 License |
+| `POST /api/v1/license/unlock` | 挑战-应答 + **双人审批** | 远程解锁 |
+
+**远程解锁双人审批流程**：
+1. 运营 A 点击"远程解锁" → 系统生成一次性挑战码（8位，5分钟有效）
+2. 运营 B 输入挑战码确认 → 云端用学校公钥加密解锁指令
+3. 学校 Agent 用私钥解密 → 验证签名 → 执行解锁
+4. 完整审批链写入审计日志
+
+### 12.5 私有部署防篡改
+
+| 攻击方式 | 防护 |
+|------|------|
+| 修改系统时间绕过过期 | 云端心跳返回 server_time，偏差 >24h 触发降级 |
+| 劫持 hosts 屏蔽心跳 | 内置 3 个备用域名 + IP 直连 |
+| 替换二进制 | 启动时 SHA256 自校验 |
+| 拦截心跳流量 | 本地单调时钟独立计时 |
+
+### 12.6 License 管理后台安全
+
+面向销售/运营/财务的 Web 后台（独立部署，不对外）：
+
+| 模块 | 功能 |
+|------|------|
+| 学校管理 | 列表/搜索/详情/创建/导出 |
+| License 签发 | 选择套餐 → 生成 .lic 文件 → 邮件发送 |
+| Token 分销 | 预置套餐(1万/5万/10万/50万/100万) + 自定义 |
+| 用量监控 | 仪表盘 + 趋势图 + 消耗明细 |
+| 预警 | token<10% 邮件 / <5% 邮件+短信 / 到期前30/15/7天提醒 |
+| 心跳监控 | 在线/离线/降级状态 + 异常告警 |
+| 远程解锁 | 续费后远程解锁，无需重新导入 License |
+| 报表 | 用量报表 + 财务对账报表 (Excel) |
+
+---
+
+## 十三、演示环境架构
+
+### 13.1 概述
+
+销售演示环境独立部署，与生产完全隔离。预置虚拟学校"示例学校"，含 3 名教师、3 个班级、50 份教案、200 道题目。
+
+### 13.2 核心设计
+
+| 特性 | 实现 |
+|------|------|
+| 无需登录 | 演示环境跳过认证中间件 |
+| 预置数据 | SQL 初始化脚本，含完整学校/教师/学生/教案/作业 |
+| 角色切换 | 前端下拉菜单切换：校长/教务主任/教师/家长视角 |
+| 三步引导 | 首次访问弹窗引导（1-生成教案 → 2-发布作业 → 3-批改学生作业） |
+| 小微预置 | 对话框预置 4 条快捷指令，点击即演示 |
+| 每日重置 | 凌晨 2:00 cron 执行数据库恢复脚本，2:00-2:10 维护提示 |
+
+### 13.3 技术实现
+
+```bash
+# 每日重置 cron
+0 2 * * * /opt/zhiwei-demo/reset.sh
+
+# reset.sh
+docker compose down
+docker compose up -d postgres
+sleep 5
+docker compose exec -T postgres psql -U zhiwei -d zhiwei_demo < /opt/zhiwei-demo/sql/reset_demo.sql
+docker compose up -d
+```
+
+### 13.4 角色切换实现
+
+```typescript
+// 前端：演示环境角色上下文
+const DEMO_ROLES = {
+  principal:  { label: '校长视角', school_id: DEMO_SCHOOL_ID, view: 'dashboard' },
+  director:   { label: '教务主任', school_id: DEMO_SCHOOL_ID, view: 'quality' },
+  teacher:    { label: '教师视角', school_id: DEMO_SCHOOL_ID, user_id: 'demo-teacher-zhang' },
+  parent:     { label: '家长视角', school_id: DEMO_SCHOOL_ID, user_id: 'demo-parent-001' },
+};
+```
+
+---
+
+## 十四、试用转付费数据迁移
+
+### 13.1 概述
+
+教师个人试用 → 学校购买 License → 教师加入学校 → 数据无缝迁移。
+
+### 14.1 概述
+
+```
+教师注册 → [试用] → 学校发起认领 → [待认领] → 教师确认 → [在校]
+                                                      ↓
+                                                  教师拒绝 → [试用]
+                  
+教师离职 → [离职]（账号冻结，产出物保留在学校）
+```
+
+### 14.3 数据迁移规则
+
+| 数据类型 | 操作 | 关键 SQL |
+|----------|------|------|
+| 教师信息 | UPDATE school_id | `UPDATE users SET school_id=$1 WHERE id=$2` |
+| 教案 | UPDATE school_id + 保留时间戳 | 同上，lesson_plans 表 |
+| 作业 | UPDATE school_id | 同上，assignments 表 |
+| 班级 | INSERT 到学校租户 | 冲突时加后缀 "_{教师名}" |
+| Token 消耗 | 保留历史，不计入学校配额 | 独立 audit 记录 |
+
+### 14.4 异常处理
+
+| 场景 | 处理 |
+|------|------|
+| 教师未注册试用 | 提示先注册 |
+| 教师已属其他学校 | 需先离职或联系客服 |
+| 教师拒绝认领 | 保持试用状态 |
+| 试用已过期 | 认领成功后自动激活 |
+
+---
+
+## 十五、监控与运维
+
+### 15.1 监控指标
+
+| 指标类型 | 指标 | 告警阈值 |
+|----------|------|:---:|
+| **API 性能** | P99 响应时间（教案生成） | > 30s |
+| **API 性能** | P99 响应时间（其他接口） | > 3s |
+| **API 可用性** | 错误率（5xx） | > 1% |
+| **AI 质量** | 课标对齐率 | < 100% |
+| **AI 质量** | 大模型 API 调用失败率 | > 2% |
+| **业务** | 教案修改率（编辑>20%内容） | > 35% |
+| **业务** | 低置信度批阅占比 | > 30% |
+| **系统** | CPU 使用率 | > 80% |
+| **系统** | 内存使用率 | > 85% |
+| **系统** | 磁盘使用率 | > 80% |
+| **数据库** | PostgreSQL 连接数 | > 80% max_connections |
+| **数据库** | Redis 内存使用率 | > 80% maxmemory |
+
+### 15.2 日志规范
+
+```
+格式: JSON
+字段: timestamp, level, service, trace_id, user_id, school_id, message, duration_ms, extra
+
+示例:
+{
+  "timestamp": "2026-06-16T10:30:00Z",
+  "level": "INFO",
+  "service": "business-api",
+  "trace_id": "abc123",
+  "user_id": "user-xxx",
+  "school_id": "school-yyy",
+  "message": "lesson plan generated",
+  "duration_ms": 28000,
+  "extra": {
+    "lesson_plan_id": "lp-zzz",
+    "ai_model": "qwen-plus",
+    "curriculum_alignments": 5
+  }
+}
+```
+
+### 15.3 告警通知
+
+- 基础设施告警 → 企业微信群机器人
+- AI 服务异常 → 企业微信 + On-Call 工程师
+- 每日报表：教案生成数、批阅量、API 调用量、成本 → 企业微信晨报
+
+---
+
+## 十六、基础设施成本估算
+
+### 16.1 MVP 阶段月成本（v1.2，含补充需求）
+
+| 项目 | 规格/用量 | 月成本 |
+|------|------|:---:|
+| 云服务器 ECS | **4核16GB**，80GB SSD | ¥550 |
+| 云数据库 PostgreSQL | 2核4GB，50GB（含 pgvector） | ¥400 |
+| Redis | 1GB 标准版 | ¥50 |
+| 对象存储 OSS | 100GB 存储 + 50GB 流量 | ¥30 |
+| OSS 备份存储 | 备份保留 30 天 + WAL 归档 | ¥20 |
+| 磁盘快照 | 每周快照 × 4 | ¥60 |
+| 通义千问 API | 日均 300 次教案生成 + 500 次批阅 | ¥300 |
+| CDN | 50GB 流量 | ¥20 |
+| 短信服务 | 验证码 500 条/月 | ¥25 |
+| WAF 基础版 | Web 应用防火墙 | ¥100 |
+| 域名 + SSL | 年付 | ¥10 |
+| 微信小程序认证 | 年付 300 元 | ¥25 |
+| KMS 密钥管理 | 1 个主密钥 | ¥20 |
+| 演示环境服务器 | 独立 4C8G（预置数据） | ¥300 |
+| License 服务 | 轻量 2C4G（心跳端点） | ¥100 |
+| **合计** | | **~¥2,010/月** |
+
+> v1.2 修正：增加演示环境独立服务器 + License 心跳端点。核心 SaaS + 演示 + License 三套环境。
+
+### 16.2 扩容成本预估
+
+| 阶段 | 规模 | 月成本 |
+|------|------|:---:|
+| MVP 试点 | 2-3 校，50-100 教师 | ~¥1,610 |
+| 小规模推广 | 20 校，500 教师 | ~¥4,500 |
+| 区域推广 | 100 校，3000 教师 | ~¥18,000 |
+| 全省覆盖 | 500+ 校 | ¥60,000+ |
+
+---
+
+## 十七、开发里程碑
+
+### 17.1 总体路线（20 周主线 + 6.5 周并行任务）
+
+**主线（核心 MVP）**：
+
+| 阶段 | 周期 | 任务 | 关键产出 |
+|------|:---:|------|------|
+| **S1: 基础设施** | 第 1-2 周 | 项目初始化、Docker Compose、CI/CD、备份脚本 | 可运行空骨架 |
+| **S2: 用户系统** | 第 3-4 周 | 认证服务、学校管理、班级配置、RLS | 登录可用 |
+| **S3: 教案核心** | 第 5-7 周 | 课标数据导入、教案 Agent、编辑器、AI评测用例 | 教案可生成 |
+| **S4: 出题+作业** | 第 8-9 周 | 出题 Agent、作业发布 | 出题可用 |
+| **S5: 批阅+习作** | 第 10-12 周 | 批阅 Agent、多模态作文批改 | 批阅可用 |
+| **S6: 学生+家长端** | 第 13-14 周 | 小程序开发、拍照上传、家长签字 | 全端打通 |
+| **S7: 小微对话** | 第 15-16 周 | 小微浮窗、自然语言交互、偏好学习 | 小微可用 |
+| **S8: 安全加固** | 第 17-18 周 | 渗透测试、合规审查、审计日志、应急预案 | 安全达标 |
+| **S9: 联调试点** | 第 19-20 周 | 端到端测试、性能优化、试点上线 | 试点报告 |
+
+**并行人（补充需求，不阻塞主线）**：
+
+| 阶段 | 周期 | 任务 | 前置条件 |
+|------|:---:|------|------|
+| **P1: 演示环境** | 第 5-6 周 | 演示服务器搭建、预置数据准备、角色切换 | S1 完成 |
+| **P2: License 后台** | 第 7-9 周 | 云端 License API + 管理后台 Web | S2 完成 |
+| **P3: 私有部署** | 第 10-12 周 | 离线安装包、运维脚本、信创适配 | S4 完成 |
+| **P4: 试用转付费** | 第 13 周 | 数据迁移逻辑、认领流程 | S6 开始 |
+
+### 17.2 里程碑验收标准
+
+| 里程碑 | 时间 | 验收标准 |
+|--------|:---:|------|
+| **M1: 教案可生成** | 第 7 周末 | 教师可在 PC 端输入课题 → AI 生成结构化教案（含课标标注）→ 编辑 → 导出 Word |
+| **M2: 出题可用** | 第 9 周末 | 教师输入知识点 → AI 生成 5-10 道题 → 发布到班级 |
+| **M3: 习作可批阅** | 第 12 周末 | 学生拍照上传作文 → AI 识别+四维预打分 → 教师复核确认 |
+| **M4: 小微可对话** | 第 16 周末 | 教师通过浮窗与小微自然语言交互，可完成教案生成/出题/查询等 |
+| **M5: 安全合规** | 第 18 周末 | 渗透测试无高危漏洞、审计日志可用、备份恢复验证通过 |
+| **M6: 试点上线** | 第 20 周末 | 2-3 所学校真实使用，核心流程无阻塞 Bug |
+
+### 17.3 质量门禁
+
+| 门禁 | 标准 | 检查方式 |
+|------|------|:---:|
+| 代码 Review | 2 人以上通过 | GitLab MR |
+| 单元测试覆盖率 | ≥70% | `go test -cover` / `pytest --cov` |
+| 核心流程集成测试 | 100% 通过 | CI Pipeline |
+| API 响应时间 | P99 ≤30s（教案生成），P99 ≤3s（其他） | k6 压测 |
+| 安全扫描 | 无高危漏洞 | Trivy / 阿里云安全中心 |
+| UI 走查 | 与设计稿一致 | Figma 对比 |
+
+---
+
+## 十八、关键决策记录
+
+| # | 决策 | 依据 | 日期 |
+|---|------|------|:---:|
+| 1 | Go 单体 + Python AI + Nginx（3 服务），非 8 微服务 | 陈工评审告诫 + MVP 阶段效率优先 | 2026-06-16 |
+| 2 | PostgreSQL + pgvector，不单独部署向量数据库 | 运维成本低，课标条目量 pgvector 完全够用 | 2026-06-16 |
+| 3 | Redis 做异步队列，不上 Kafka | MVP 日均万级消息，Redis 足够 | 2026-06-16 |
+| 4 | 不使用 Node.js，通知逻辑并入 Go | 减少语言栈，降低运维复杂度 | 2026-06-16 |
+| 5 | Docker Compose 单机部署，不上 K8s | 2-3 所试点学校，单机足够 | 2026-06-16 |
+| 6 | 通义千问主力模型，qwen-vl-plus 多模态 | 数据不出境，中文能力强，性价比高 | 2026-06-16 |
+| 7 | SSE 流式推送教案生成进度 | 提升体感速度，避免教师空等 | 2026-06-16 |
+| 8 | Shared DB + school_id 行级隔离 + PostgreSQL RLS 强制 | MVP 简单可维护 + 安全底线 | 2026-06-16 |
+| 9 | bge-large-zh-v1.5 做课标嵌入 | 中文语义向量 SOTA，开源免费 | 2026-06-16 |
+| 10 | 作文批阅教师可接受率首版目标 ≥70% | 降低首版预期，留迭代空间 | 2026-06-16 |
+| 11 | 硬件规格升级为 4C16G | Python AI 嵌入模型 + 多服务内存需求 | 2026-06-16 |
+| 12 | 建立 AI 评测用例集 + 自动化评测脚本 | 科学验证 AI 输出质量，支撑 Prompt 迭代 | 2026-06-16 |
+| 13 | 敏感数据 AES-256-GCM 应用层加密 | 学生作文/成绩合规保护 | 2026-06-16 |
+| 14 | 操作审计日志独立表存储 | 等保 2.0 + 内部安全审计 | 2026-06-16 |
+| 15 | GORM Scope 自动注入 school_id | 防御性编程，防止开发者遗漏 RLS | 2026-06-16 |
+| 16 | 私有部署统一使用 PostgreSQL（非 MySQL） | 与 SaaS 版技术栈一致，pgvector 必须 | 2026-06-16 |
+| 17 | 私有部署 6 容器架构与 SaaS 版对齐 | 减少维护两套部署方案的成本 | 2026-06-16 |
+| 18 | 演示环境独立部署 + 每日数据重置 | 销售演示需要稳定可复现的环境 | 2026-06-16 |
+| 19 | License 心跳机制 + 降级模式 | 保护商业利益，断网不断服务 | 2026-06-16 |
+| 20 | 补充需求与核心 MVP 并行开发 | 不阻塞主线，最大化人力利用率 | 2026-06-16 |
+| 21 | License 私钥存储于阿里云 KMS | 五位安全专家一致要求，防范私钥泄露 | 2026-06-16 |
+| 22 | 心跳增加 RSA 签名 + Nonce + Timestamp | 三位专家指出原方案可被伪造和重放 | 2026-06-16 |
+| 23 | 远程解锁必须双人审批 | 防止单点恶意操作，四位专家要求 | 2026-06-16 |
+| 24 | License 增加机器指纹绑定 | 防止 .lic 文件跨机器复制 | 2026-06-16 |
+| 25 | 私有部署多层防篡改（时间/域名/二进制） | 学校 IT 有 root 权限，需纵深防御 | 2026-06-16 |
+| 26 | 新增统一运营管理平台 | 多云SaaS+私有化的统一管理底座 | 2026-06-16 |
+
+---
+
+**文档结束**
+
+【所属公司】知微信息技术有限公司  
+【产品】知微AI教学助手  
+【技术栈】Go + Python + Next.js + PostgreSQL  
+【部署】Docker Compose 单机 4C16G（SaaS）/ 离线安装包（私有化）  
+【版本】v1.4-Tech | 2026-06-16 | 腾讯技术评审修正版（订阅消息+内容安全）  
+【下一版本计划】试点上线后根据数据反馈迭代
+
+---
+
+**文档结束**
+
+【所属公司】知微信息技术有限公司  
+【产品】知微AI教学助手  
+【技术栈】Go + Python + Next.js + PostgreSQL  
+【部署】Docker Compose 单机  
+【下一版本计划】试点上线后根据数据反馈迭代
+
+---
+
+## 十九、腾讯云部署方案
+
+### 19.1 双环境架构
+
+```
+腾讯云 CVM
+├── 演示环境 (demo.ziwi.cn)          ← 独立部署
+│   ├── 2C8G Lighthouse 轻量服务器
+│   ├── docker compose -f deploy/demo/docker-compose.demo.yml
+│   ├── 每日 02:00 cron 重置演示数据
+│   └── 公开访问，角色切换（校长/教师/家长）
+│
+└── SaaS 试用环境 (school.ziwi.cn)     ← 多租户
+    ├── 4C16G CVM 标准服务器
+    ├── docker compose -f deploy/saas/docker-compose.saas.yml
+    ├── 14天试用 + 10万token赠送
+    ├── SSL (Let's Encrypt) + WAF + HSTS
+    └── 每日 03:00 自动备份
+```
+
+### 19.2 资源清单
+
+| 资源 | 规格 | 月成本 |
+|------|------|:---:|
+| CVM (SaaS) | 4C16G, 80GB SSD | ¥550 |
+| Lighthouse (演示) | 2C8G, 40GB SSD | ¥200 |
+| COS 对象存储 | 50GB 标准存储 | ¥10 |
+| EdgeOne CDN+WAF | 基础版 | ¥59 |
+| 共享流量包 | 100GB/月 | ¥50 |
+| **合计** | | **~¥869/月** |
+
+### 19.3 部署命令
+
+```bash
+# 演示环境
+bash deploy/demo/deploy.sh
+
+# SaaS 试用环境
+bash deploy/saas/deploy.sh
+```
+
+---
+
+## 二十、运营管理平台功能清单
+
+### 20.1 9 Tab 全景
+
+| Tab | 功能 | 关键要点 |
+|------|------|------|
+| **学校管理** | 列表/搜索/详情/导出 | 状态标记（有效/到期/离线） |
+| **License签发** | 5档套餐 + 时长 + 审批 | >5万Token需审批，.lic邮件发送 |
+| **用量监控** | 3卡片 + 预警 + 心跳日志 | Token<10%邮件/<5%短信，到期前30/15/7天提醒 |
+| **试用管理** | 4卡片 + 参数配置 + 教师列表 | 开关/时长/额度 + 延期/终止操作 |
+| **用户管理** | 全平台用户 + 封禁/解封 | 角色筛选 + 状态标记 |
+| **系统健康** | 服务状态 + CPU/内存/磁盘 + API耗时 | P99监控 |
+| **平台公告** | 发布/置顶/定向推送/撤销 | 面向教师/家长/全平台 |
+| **操作日志** | 管理员全量审计追踪 | 保留180天 |
+| **Token分析** | 模型方/租户方双视角 + 可视化 | 今日/本月/累计消耗 + 趋势+排行 |
+
+### 20.2 管理后台 API 新增
+
+```
+GET|PUT  /api/v1/trial/config          ← 试用参数（开关/时长/额度）
+GET      /api/v1/trial/teachers        ← 试用教师列表
+GET      /api/v1/admin/users           ← 全平台用户
+POST     /api/v1/admin/users/:id/block|unblock
+GET      /api/v1/admin/health          ← 系统健康
+GET|POST /api/v1/admin/announcements   ← 公告管理
+GET      /api/v1/admin/audit-logs      ← 操作日志
+GET      /api/v1/token/summary         ← Token 双视角总览
+GET      /api/v1/token/trend           ← Token 趋势
+GET      /api/v1/token/tenants         ← 租户排行
+```
+
+---
+
+## 二十一、Token 用量追踪体系
+
+### 21.1 数据模型
+
+```sql
+CREATE TABLE token_usage (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id UUID,                     -- NULL=个人试用
+    user_id UUID NOT NULL,
+    api_type VARCHAR(50) NOT NULL,      -- lesson_plan/exam/grading/composition/chat
+    model_name VARCHAR(50) NOT NULL,
+    prompt_tokens INT DEFAULT 0,
+    completion_tokens INT DEFAULT 0,
+    total_tokens INT DEFAULT 0,
+    cost_estimate DECIMAL(10,6) DEFAULT 0,
+    response_time_ms INT,
+    status VARCHAR(20) DEFAULT 'success',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 21.2 双视角
+
+| 视角 | 查看内容 | API |
+|------|------|------|
+| **模型方**（对内） | 通义千问API今日/本月/累计消耗 + 费用 + 按API类型/模型分布 | GET /token/summary |
+| **租户方**（对外） | 各学校Token排行 + 本月消耗 + 费用 + 调用次数 + 占比 | GET /token/tenants |
+| **趋势** | 30天Token消耗柱状图（可按学校筛选） | GET /token/trend?days=30&school_id= |
+
+### 21.3 可视化
+
+- 模型消耗分布：按API类型（教案/出题/批阅/对话）柱状条 + 按模型（qwen-plus/turbo/vl）占比
+- 租户排行表：排名 + 学校 + Token + 费用 + 调用次数 + 进度条
+- 30天趋势图：每日Token消耗柱状图 + 7天/30天切换
+
+---
+
+## 关键决策记录（续）
+
+| # | 决策 | 依据 | 日期 |
+|---|------|------|:---:|
+| 27 | 腾讯云双环境部署（演示+SaaS） | 演示独立重置，SaaS持久多租户 | 2026-06-19 |
+| 28 | 自建PostgreSQL非RDS（MVP节省成本） | pgvector需自建，RDS无价格优势 | 2026-06-19 |
+| 29 | API 完全自建 50+ 端点 | 灵活可控，无第三方API网关成本 | 2026-06-19 |
+| 30 | Go 编译验证通过 (21MB, EXIT:0) | 全量代码自审修复3项后一次通过 | 2026-06-19 |
+| 31 | 前端编译产品 334KB JS + 31KB CSS | 14路由页面全部正常 | 2026-06-19 |
+| 32 | Token用量双视角追踪体系 | 对模型方成本控制 + 对租户方计量计费 | 2026-06-19 |
+| 33 | 运营管理平台 9Tab 一体 | 统一入口降低运营学习成本 | 2026-06-19 |
+
+---
+
+**文档结束**
+
+【所属公司】知微信息技术有限公司  
+【产品】知微AI教学助手  
+【技术栈】Go + Python + React + PostgreSQL  
+【部署】Docker Compose 双环境（腾讯云演示 + SaaS）  
+【版本】v2.0-Tech | 2026-06-19 | Sprint全量交付 + 运营运维体系  
+【下一版本计划】试点上线后根据数据反馈迭代

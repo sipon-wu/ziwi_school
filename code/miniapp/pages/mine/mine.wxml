@@ -1,0 +1,29 @@
+<view class="page">
+  <!-- 头像区 -->
+  <view class="header card">
+    <view class="avatar">👤</view>
+    <view wx:if="{{isLogin}}" class="user-info">
+      <text class="name">{{userInfo.name}}</text>
+      <text class="detail">{{userInfo.grade}} · {{userInfo.school}}</text>
+    </view>
+    <button wx:else class="login-btn" open-type="getPhoneNumber" bindgetphonenumber="onGetPhoneNumber">
+      手机号一键登录
+    </button>
+  </view>
+
+  <!-- 功能列表 -->
+  <view class="card menu-list">
+    <view class="menu-item" bindtap="goToSettings">
+      <text>设置</text>
+      <text class="arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 退出 -->
+  <button wx:if="{{isLogin}}" class="card logout-btn" bindtap="logout">
+    退出登录
+  </button>
+
+  <!-- 版本 -->
+  <view class="version">知微教学 v0.2.0</view>
+</view>

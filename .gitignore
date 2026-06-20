@@ -1,0 +1,49 @@
+# OS
+.DS_Store
+Thumbs.db
+code/.DS_Store
+
+# Go build
+backend/server
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build
+frontend/dist/
+backend/tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Go
+backend/vendor/
+
+# Environment
+.env
+*.env.local
+.env.demo
+.env.production
+
+# Docker
+docker/data/
+
+# Logs
+*.log
+logs/
+
+# CodeBuddy
+.codebuddy/plans/

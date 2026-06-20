@@ -1,0 +1,269 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+	"github.com/zhiwei/backend/internal/config"
+	"github.com/zhiwei/backend/internal/handler"
+	"github.com/zhiwei/backend/internal/middleware"
+	"github.com/zhiwei/backend/internal/repository"
+	"github.com/zhiwei/backend/internal/service"
+)
+
+func main() {
+	cfg := config.Load()
+
+	// 数据库连接
+	db, err := gorm.Open(postgres.Open(cfg.DSN()), &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		log.Fatalf("数据库连接失败: %v", err)
+	}
+	sqlDB, _ := db.DB()
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(50)
+	defer sqlDB.Close()
+
+	// Redis 连接
+	rdb := redis.NewClient(&redis.Options{
+		Addr: cfg.RedisURL,
+	})
+	defer rdb.Close()
+
+	// 依赖注入 - Repository 层
+	authRepo := repository.NewAuthRepo(db, rdb)
+	schoolRepo := repository.NewSchoolRepo(db)
+	classRepo := repository.NewClassRepo(db)
+	lessonPlanRepo := repository.NewLessonPlanRepo(db)
+	statsRepo := repository.NewStatsRepo(db)
+	assignmentRepo := repository.NewAssignmentRepo(db)
+	submissionRepo := repository.NewSubmissionRepo(db)
+	parentSignRepo := repository.NewParentSignRepo(db)
+	gradingRepo := repository.NewGradingRepo(db)
+	studentRepo := repository.NewStudentRepo(db)
+	parentRepo := repository.NewParentRepo(db)
+	licenseRepo := repository.NewLicenseRepo(db)
+	trialRepo := repository.NewTrialRepo(db)
+	adminRepo := repository.NewAdminRepo(db)
+	tokenRepo := repository.NewTokenRepo(db)
+	modelRateRepo := repository.NewModelRateRepo(db)
+
+	// 依赖注入 - Service 层
+	authSvc := service.NewAuthService(cfg, authRepo)
+	schoolSvc := service.NewSchoolService(schoolRepo)
+	classSvc := service.NewClassService(classRepo)
+	dashSvc := service.NewDashboardService(statsRepo, lessonPlanRepo)
+
+	jwtSecret := []byte(cfg.JWTPrivateKey)
+
+	// 依赖注入 - Handler 层
+	authH := handler.NewAuthHandler(authSvc, jwtSecret)
+	schoolH := handler.NewSchoolHandler(schoolSvc)
+	classH := handler.NewClassHandler(classSvc)
+	dashH := handler.NewDashboardHandler(dashSvc)
+	planH := handler.NewLessonPlanHandler(lessonPlanRepo)
+	assignmentH := handler.NewAssignmentHandler(assignmentRepo)
+	submissionH := handler.NewSubmissionHandler(submissionRepo)
+	parentSignH := handler.NewParentSignHandler(parentSignRepo)
+	gradingH := handler.NewGradingHandler(gradingRepo)
+	compositionH := handler.NewCompositionHandler(submissionRepo)
+	studentH := handler.NewStudentHandler(studentRepo)
+	parentH := handler.NewParentHandler(parentRepo)
+	licenseH := handler.NewLicenseHandler(licenseRepo)
+	trialH := handler.NewTrialHandler(trialRepo)
+	adminH := handler.NewAdminHandler(adminRepo)
+	tokenH := handler.NewTokenHandler(tokenRepo)
+
+	// 路由
+	r := gin.New()
+	r.Use(middleware.Recovery())
+	r.Use(gin.Logger())
+	r.Use(middleware.CORS())
+	r.Use(middleware.SecurityHeaders())
+	r.MaxMultipartMemory = 20 << 20 // 20MB
+
+	// 健康检查
+	r.GET("/api/v1/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok", "service": "business-api"})
+	})
+
+	// 认证（无需鉴权）
+	auth := r.Group("/api/v1/auth")
+	{
+		auth.POST("/register", authH.Register)
+		auth.POST("/login", authH.Login)
+		auth.POST("/send-code", authH.SendCode)
+		auth.POST("/code-login", authH.CodeLogin)
+	}
+
+	// 需要鉴权的接口
+	protected := r.Group("/api/v1")
+	protected.Use(middleware.JWTAuth(jwtSecret, db))
+	protected.Use(middleware.TenantScope())
+	protected.Use(middleware.AuditLogger(db))
+	{
+		// 个人信息
+		protected.GET("/auth/me", authH.Me)
+		protected.POST("/auth/refresh", authH.Refresh)
+
+		// 学校管理
+		protected.GET("/schools", schoolH.List)
+		protected.POST("/schools", schoolH.Create)
+		protected.GET("/schools/:id", schoolH.Get)
+		protected.GET("/school/settings", schoolH.GetSettings)
+		protected.PUT("/schools/:id/settings", schoolH.UpdateSettings)
+
+		// 模型费率（前端展示用）
+		protected.GET("/model-rates", func(c *gin.Context) {
+			rates, err := modelRateRepo.GetAll()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"code": 200, "data": rates})
+		})
+
+		// 班级管理
+		protected.GET("/classes", classH.List)
+		protected.POST("/classes", classH.Create)
+
+		// 工作台
+		protected.GET("/dashboard/home", dashH.Home)
+
+		// 教案
+		protected.GET("/lesson-plans", planH.List)
+		protected.POST("/lesson-plans", planH.Create)
+		protected.GET("/lesson-plans/:id", planH.Get)
+		protected.PUT("/lesson-plans/:id", planH.Update)
+		protected.POST("/lesson-plans/:id/finalize", planH.Finalize)
+		protected.DELETE("/lesson-plans/:id", planH.Delete)
+
+		// 作业
+		protected.GET("/assignments", assignmentH.List)
+		protected.POST("/assignments", assignmentH.Create)
+
+		// 学生端
+		protected.GET("/student/assignments", studentH.ListAssignments)
+		protected.GET("/student/grading/:id", studentH.GetGrading)
+		protected.GET("/student/error-book", studentH.GetErrorBook)
+
+		// 学生提交
+		protected.POST("/submissions", submissionH.Submit)
+		protected.POST("/submissions/composition", compositionH.Submit)
+
+		// 家长端
+		protected.GET("/parent/assignments", parentH.ListAssignments)
+		protected.GET("/parent/signatures/:id", parentH.GetSignature)
+
+		// 家长签字
+		protected.GET("/parent-signatures", parentSignH.List)
+		protected.POST("/parent-signatures/:id/sign", parentSignH.Sign)
+
+		// License 管理
+		protected.GET("/license/schools", licenseH.ListSchools)
+		protected.GET("/license/heartbeats", licenseH.GetHeartbeats)
+
+		// 试用管理
+		protected.GET("/trial/config", trialH.GetConfig)
+		protected.PUT("/trial/config", trialH.UpdateConfig)
+		protected.GET("/trial/teachers", trialH.ListTeachers)
+
+		// Token 统计
+		protected.GET("/token/summary", tokenH.GetSummary)
+		protected.GET("/token/trend", tokenH.GetTrend)
+		protected.GET("/token/tenants", tokenH.GetTenantRanking)
+
+		// 平台管理
+		protected.GET("/admin/users", adminH.ListUsers)
+		protected.POST("/admin/users/:id/block", adminH.BlockUser)
+		protected.POST("/admin/users/:id/unblock", adminH.UnblockUser)
+		protected.GET("/admin/health", adminH.GetHealth)
+		protected.GET("/admin/announcements", adminH.ListAnnouncements)
+		protected.POST("/admin/announcements", adminH.CreateAnnouncement)
+		protected.GET("/admin/audit-logs", adminH.ListAuditLogs)
+
+		// 批阅结果
+		protected.GET("/grading", gradingH.List)
+		protected.GET("/grading/:id", gradingH.Detail)
+		protected.POST("/grading/:id/confirm", gradingH.Confirm)
+		protected.POST("/grading/:id/adjust", gradingH.AdjustScore)
+		protected.POST("/grading/batch-confirm", gradingH.BatchConfirm)
+	}
+
+	// AI 生成接口限流
+	aiGroup := protected.Group("/ai")
+	aiGroup.Use(middleware.RateLimit(10, time.Minute))
+	{
+		aiGroup.POST("/lesson-plan/generate", proxyAIWithModel(cfg, schoolRepo))
+		aiGroup.POST("/exam/generate", proxyAIWithModel(cfg, schoolRepo))
+		aiGroup.POST("/grading/auto", proxyAIWithModel(cfg, schoolRepo))
+		aiGroup.POST("/chat", proxyAIWithModel(cfg, schoolRepo))
+	}
+
+	port := cfg.Port
+	fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("  知微AI教学助手 (business-api)\n")
+	fmt.Printf("  版本: v0.1.0-dev\n")
+	fmt.Printf("  端口: %s\n", port)
+	fmt.Printf("  数据库: %s:%s/%s\n", cfg.DBHost, cfg.DBPort, cfg.DBName)
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("启动失败: %v", err)
+	}
+}
+
+// proxyAIWithModel 代理 AI 请求并注入学校模型偏好
+func proxyAIWithModel(cfg *config.Config, schoolRepo *repository.SchoolRepo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 1. 读原始请求体
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "读取请求体失败"})
+			return
+		}
+
+		// 2. 注入模型偏好（运营控制优先）
+		var payload map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+			payload = make(map[string]interface{})
+		}
+
+		// 如果前端没传 model，从学校设置中注入
+		if _, hasModel := payload["model"]; !hasModel {
+			schoolID, _ := c.Get("school_id")
+			if sid, ok := schoolID.(string); ok && sid != "" {
+				school, err := schoolRepo.FindByID(sid)
+				if err == nil && school.AIModelTier != "" {
+					payload["model"] = school.AIModelTier
+				}
+			}
+		}
+
+		// 3. 重新序列化并转发给 AI 服务
+		modifiedBody, _ := json.Marshal(payload)
+		targetURL := cfg.AIServiceURL + c.Request.URL.Path
+
+		resp, err := http.Post(targetURL, "application/json", bytes.NewReader(modifiedBody))
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "AI服务暂不可用"})
+			return
+		}
+		defer resp.Body.Close()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		c.Data(resp.StatusCode, "application/json", respBody)
+	}
+}

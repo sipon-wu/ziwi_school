@@ -1,0 +1,141 @@
+# 知微多产品线域名策略
+
+【文档版本】v2.1-Final  
+【编制】平台架构组 + CodeBuddy 联合评审  
+【日期】2026-06-20  
+【状态】定稿，可进入 DNS 配置阶段  
+
+---
+
+## 一、核心设计原则
+
+| 原则 | 说明 |
+|------|------|
+| 根域即品牌 | `ziwi.cn` 为公司品牌根域 |
+| 产品线域对称 | 教育/制造采用 `{功能}.{产品线}.ziwi.cn` 两层结构 |
+| 共享服务域 | 跨产品线技术服务统一管理 |
+| 租户服务独立 | `cloud.ziwi.cn` 为所有租户在线服务总入口 |
+| 语义短前缀 | 管理用 `manage`，运营用 `admin`，演示用 `demo`，试用用 `trial`，API用 `api`，移动端用 `m` |
+| Phase 对齐 | Phase 1 仅配置有后端响应的域名 |
+| 权限驱动入口 | 用户只记主站域名，`manage/admin` 通过角色权限控制可见性 |
+
+## 二、域名全景
+
+```
+ziwi.cn
+├── www.ziwi.cn              官网
+├── bbs.ziwi.cn              社区
+├── docs.ziwi.cn             开发者文档（共用）
+├── help.ziwi.cn             帮助中心入口页
+├── demo.ziwi.cn             演示中心（各产品线模块上架）
+├── ops.ziwi.cn              AI 运营平台（Phase 2）
+│
+├── cloud.ziwi.cn            租户服务中心（License/账单/Token）
+│   └── {tenant}.cloud.ziwi.cn  Wildcard，租户实例
+│
+├── api.ziwi.cn              统一 API 网关
+├── static.ziwi.cn           CDN 静态资源
+├── storage.ziwi.cn          对象存储
+├── license.ziwi.cn          License 服务 API
+├── heartbeat.ziwi.cn        License 心跳（Phase 2）
+│
+├── ai.ziwi.cn               AI 能力分销总入口（Phase 2/3）
+│
+├── school.ziwi.cn           教育主站
+│   ├── manage.school.ziwi.cn 学校管理端（校长/教务）
+│   ├── admin.school.ziwi.cn  内部运营后台
+│   ├── m.school.ziwi.cn      学生/家长 WAP
+│   ├── api.school.ziwi.cn    CNAME → api.ziwi.cn
+│   ├── help.school.ziwi.cn   教育帮助中心
+│   ├── demo.school.ziwi.cn   CNAME → demo.ziwi.cn
+│   ├── trial.school.ziwi.cn  CNAME → cloud.ziwi.cn
+│   ├── parent.school.ziwi.cn 家长独立入口（Phase 2）
+│   ├── exam.school.ziwi.cn   考试测评（Phase 2）
+│   └── live.school.ziwi.cn   直播课堂（Phase 2）
+│
+└── mfg.ziwi.cn              制造主站
+    ├── manage.mfg.ziwi.cn    工厂管理端
+    ├── admin.mfg.ziwi.cn     内部运营后台
+    ├── m.mfg.ziwi.cn         移动端/PDA
+    ├── api.mfg.ziwi.cn       CNAME → api.ziwi.cn
+    ├── help.mfg.ziwi.cn      制造帮助中心
+    ├── demo.mfg.ziwi.cn      CNAME → demo.ziwi.cn
+    ├── trial.mfg.ziwi.cn     CNAME → cloud.ziwi.cn
+    └── license.mfg.ziwi.cn   CNAME → license.ziwi.cn
+```
+
+## 三、用户访问策略
+
+### SaaS 用户：只记主站
+
+```
+教师/校长 → school.ziwi.cn → 顶部「进入管理后台」→ manage.school.ziwi.cn
+工人/厂长 → mfg.ziwi.cn    → 顶部「系统管理」  → manage.mfg.ziwi.cn
+运营人员 → 主站 → 顶部「运营后台」→ admin.{产品线}.ziwi.cn
+```
+
+所有子域名入口通过角色权限控制显隐，用户无需手动输入二级域名。
+
+### 私有部署用户：一个地址
+
+```
+http://{客户自定IP或域名}:8080
+  ├── /app         主站
+  ├── /manage      管理端
+  ├── /api/v1      API
+  ├── /m           移动端
+  ├── /help        帮助
+  └── /license     License 验证
+```
+
+登录后按角色权限显示不同功能入口，路径对用户透明。
+
+## 四、DNS 配置（Phase 1）
+
+### 教育端 CVM
+
+| 域名 | 类型 | 目标 |
+|------|:---:|------|
+| `school.ziwi.cn` | A | 教育 SaaS CVM IP |
+| `manage.school.ziwi.cn` | CNAME | `school.ziwi.cn` |
+| `admin.school.ziwi.cn` | CNAME | `school.ziwi.cn` |
+| `m.school.ziwi.cn` | CNAME | `school.ziwi.cn` |
+| `api.school.ziwi.cn` | CNAME | `api.ziwi.cn` |
+| `help.school.ziwi.cn` | CNAME | `school.ziwi.cn` |
+| `demo.school.ziwi.cn` | CNAME | `demo.ziwi.cn` |
+| `trial.school.ziwi.cn` | CNAME | `cloud.ziwi.cn` |
+
+### 共享服务
+
+| 域名 | 类型 | 目标 |
+|------|:---:|------|
+| `www.ziwi.cn` | A | 官网 CVM |
+| `demo.ziwi.cn` | A | 演示 CVM |
+| `bbs.ziwi.cn` | A | 社区 CVM |
+| `docs.ziwi.cn` | CNAME | 文档托管 |
+| `help.ziwi.cn` | A | 帮助入口 CVM |
+| `cloud.ziwi.cn` | A | 租户服务 CVM |
+| `*.cloud.ziwi.cn` | A | 租户服务 CVM |
+| `api.ziwi.cn` | CNAME | `cloud.ziwi.cn` |
+| `static.ziwi.cn` | CNAME | CDN/OSS |
+| `storage.ziwi.cn` | CNAME | CDN/OSS |
+| `license.ziwi.cn` | CNAME | `cloud.ziwi.cn` |
+
+## 五、关键决策
+
+| # | 决策 | 结论 |
+|---|------|------|
+| 1 | 教育主域名 | `school.ziwi.cn` |
+| 2 | 制造主域名 | `mfg.ziwi.cn` |
+| 3 | 客户管理 vs 公司运营 | `manage.*` 客户自管 / `admin.*` 公司运营，权限分离 |
+| 4 | 子域名入口策略 | 用户只记主站，`manage/admin` 通过角色权限控制可见 |
+| 5 | 私有部署入口 | 单地址 + 路径前缀 + 权限控制 |
+| 6 | 帮助体系 | 两线独立 `help.{产品线}` ，`help.ziwi.cn` 为入口导航 |
+| 7 | 演示中心 | `demo.ziwi.cn` 公司级，各产品线模块 CNAME 指向 |
+| 8 | 试用域名 | 统一 CNAME → `cloud.ziwi.cn` |
+| 9 | API 网关 | `api.ziwi.cn` 统一入口，两线 `api.*` CNAME 指向 |
+| 10 | AI 服务 | `ai.ziwi.cn` 延至 Phase 2/3 |
+
+---
+
+【版本】v2.1-Final | 2026-06-20 | 定稿，可进入 DNS 配置阶段

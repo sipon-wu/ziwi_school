@@ -1,0 +1,18 @@
+.page { padding-bottom: 40rpx; }
+.header { display: flex; align-items: center; gap: 24rpx; }
+.avatar {
+  width: 100rpx; height: 100rpx; border-radius: 50%;
+  background: var(--brand-light); display: flex; align-items: center; justify-content: center;
+  font-size: 48rpx;
+}
+.name { font-size: 34rpx; font-weight: 600; display: block; }
+.detail { font-size: 24rpx; color: var(--text-hint); }
+.login-btn { background: var(--brand); color: #fff; border-radius: 16rpx; font-size: 28rpx; }
+.menu-item {
+  display: flex; justify-content: space-between; padding: 24rpx 0;
+  font-size: 30rpx; border-bottom: 1rpx solid var(--border);
+}
+.menu-item:last-child { border-bottom: none; }
+.arrow { color: var(--text-hint); font-size: 36rpx; }
+.logout-btn { text-align: center; color: var(--danger); font-size: 30rpx; background: #fff; }
+.version { text-align: center; font-size: 24rpx; color: var(--text-hint); margin-top: 40rpx; }

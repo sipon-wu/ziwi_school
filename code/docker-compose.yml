@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: zhiwei-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - business-api
+    networks:
+      - zhiwei-net
+
+  business-api:
+    build: ./backend
+    container_name: zhiwei-api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=zhiwei
+      - DB_PASSWORD=zhiwei2026
+      - DB_NAME=zhiwei
+      - REDIS_URL=redis:6379
+      - AI_SERVICE_URL=http://ai-service:8000
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:-dev-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zhiwei-net
+
+  ai-service:
+    build: ./ai-service
+    container_name: zhiwei-ai
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=zhiwei
+      - DB_PASSWORD=zhiwei2026
+      - DB_NAME=zhiwei
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - zhiwei-net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: zhiwei-db
+    environment:
+      - POSTGRES_USER=zhiwei
+      - POSTGRES_PASSWORD=zhiwei2026
+      - POSTGRES_DB=zhiwei
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zhiwei"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - zhiwei-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: zhiwei-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - zhiwei-net
+
+volumes:
+  pg_data:
+
+networks:
+  zhiwei-net:
+    driver: bridge
