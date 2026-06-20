@@ -73,6 +73,7 @@ services:
       - DB_NAME=${DB_NAME:-zhiwei}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
       - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-}
+      - DATABASE_URL=postgresql://${DB_USER:-zhiwei}:${DB_PASSWORD:-zhiwei2026}@postgres:5432/${DB_NAME:-zhiwei}
     depends_on:
       postgres:
         condition: service_healthy

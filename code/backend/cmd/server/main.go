@@ -204,7 +204,7 @@ func main() {
 
 	// AI 生成接口限流
 	aiGroup := protected.Group("/ai")
-	aiGroup.Use(middleware.RateLimit(10, time.Minute))
+	// REMOVED: aiGroup.Use(middleware.RateLimit(10, time.Minute))
 	{
 		aiGroup.POST("/lesson-plan/generate", proxyAIWithModel(cfg, schoolRepo))
 		aiGroup.POST("/exam/generate", proxyAIWithModel(cfg, schoolRepo))
