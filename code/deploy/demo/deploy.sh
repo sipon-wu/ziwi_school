@@ -144,26 +144,24 @@ echo ""
 # 5. 构建前端
 # ═══════════════════════════════════════════
 echo "📦 [5/8] 构建前端..."
-cd "$PROJECT_DIR/frontend"
-
-if [ "$USE_DOCKER_BUILD" = true ]; then
-    # 用 Docker 构建前端（无需 Node.js）
-    echo "   使用 Docker 构建..."
-    docker run --rm \
-        -v "$(pwd):/app" \
-        -w /app \
-        node:20-alpine sh -c "npm install && npm run build"
+if [ -d "$PROJECT_DIR/frontend/dist" ]; then
+    echo -e "   ${GREEN}✅${NC} 前端已预构建，跳过"
 else
-    npm install --silent 2>/dev/null || npm install
-    npm run build
+    cd "$PROJECT_DIR/frontend"
+    if [ "$USE_DOCKER_BUILD" = true ]; then
+        echo "   使用 Docker 构建..."
+        docker run --rm -v "$(pwd):/app" -w /app node:20-alpine sh -c "npm install && npm run build"
+    else
+        npm install --silent 2>/dev/null || npm install
+        npm run build
+    fi
+    if [ ! -d "dist" ]; then
+        echo -e "${RED}❌ 前端构建失败: dist/ 目录不存在${NC}"
+        exit 1
+    fi
+    echo -e "   ${GREEN}✅${NC} 前端构建完成 ($(du -sh dist | cut -f1))"
+    cd "$PROJECT_DIR"
 fi
-
-if [ ! -d "dist" ]; then
-    echo -e "${RED}❌ 前端构建失败: dist/ 目录不存在${NC}"
-    exit 1
-fi
-echo -e "   ${GREEN}✅${NC} 前端构建完成 ($(du -sh dist | cut -f1))"
-cd "$PROJECT_DIR"
 echo ""
 
 # ═══════════════════════════════════════════
