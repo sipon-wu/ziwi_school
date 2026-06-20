@@ -104,6 +104,8 @@ services:
       - maintenance_work_mem=64MB
       - -c
       - max_connections=20
+      - -c
+      - listen_addresses=*
     environment:
       - POSTGRES_USER=${DB_USER:-zhiwei}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-zhiwei2026}
