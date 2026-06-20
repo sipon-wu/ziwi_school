@@ -48,6 +48,7 @@ services:
       - DB_PASSWORD=zhiwei2026
       - DB_NAME=zhiwei
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-}
     depends_on:
       postgres:
         condition: service_healthy

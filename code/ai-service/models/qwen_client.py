@@ -27,7 +27,15 @@ class QwenClient:
         
         if DASHSCOPE_AVAILABLE and self.api_key:
             dashscope.api_key = self.api_key
-            logger.info(f"通义千问客户端初始化: 模型={self.default_model}")
+            
+            # 百炼工作空间自定义端点（非公网 dashscope.aliyuncs.com）
+            base_url = os.environ.get("DASHSCOPE_BASE_URL", "")
+            if base_url:
+                dashscope.base_http_api_url = base_url
+                logger.info(f"通义千问客户端初始化: 模型={self.default_model}, 端点={base_url}")
+            else:
+                logger.info(f"通义千问客户端初始化: 模型={self.default_model}, 端点=默认公网")
+            
             self.ready = True
         else:
             logger.warning("通义千问未配置 API Key，使用模拟模式")
