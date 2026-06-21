@@ -292,6 +292,8 @@ def _detect_intent(msg: str) -> str:
 
     # 作文批改（先于普通批阅检测，避免"作文"落入 grading）
     if any(kw in msg for kw in ["作文批改","批改作文","作文点评","批阅作文"]): return "composition_grading"
+    # 同时包含"批改/批阅"+"作文"的组合也归为作文批改
+    if (any(kw in msg for kw in ["批改","批阅"]) and "作文" in msg): return "composition_grading"
 
     # 教案/备课
     if any(kw in msg for kw in ["教案","备课","写教案","生成教案"]): return "lesson_plan"
