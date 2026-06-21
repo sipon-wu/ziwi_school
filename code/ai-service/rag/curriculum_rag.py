@@ -82,8 +82,12 @@ class CurriculumRAG:
             cur.close()
             logger.info(f"RAG 检索: subject={subject} stage={stage} top_k={top_k} → {len(results)} 条匹配")
             return results
+        except Exception as e:
+            logger.warning(f"RAG 向量检索异常: {e}")
+            return self._keyword_fallback(subject, stage, lesson_title, top_k)
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def validate_alignment(self, lesson_content: str, subject: str, grade: str) -> List[Dict]:
         """校验教案与课标的对齐情况"""
@@ -112,8 +116,8 @@ class CurriculumRAG:
     def _keyword_fallback(self, subject: str, stage: str, query: str, top_k: int) -> List[Dict]:
         if not HAS_PG:
             return self._sample_standards(subject, stage)[:top_k]
-        conn = self._get_conn()
         try:
+            conn = self._get_conn()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("""
                 SELECT id, subject, stage, domain, code, content, competency_dimension
@@ -130,8 +134,12 @@ class CurriculumRAG:
                 })
             cur.close()
             return results
+        except Exception as e:
+            logger.warning(f"RAG 数据库异常: {e}")
+            return self._sample_standards(subject, stage)[:top_k]
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
 
     def _sample_standards(self, subject: str, stage: str) -> List[Dict]:

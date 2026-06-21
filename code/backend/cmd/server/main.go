@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -250,8 +251,12 @@ func main() {
 	fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 	fmt.Printf("  知微AI教学助手 (business-api)\n")
 	fmt.Printf("  版本: v0.1.0-dev\n")
-	fmt.Printf("  端口: %s\n", port)
-	fmt.Printf("  数据库: %s:%s/%s\n", cfg.DBHost, cfg.DBPort, cfg.DBName)
+	fmt.Printf("  已注册路由:\n")
+	for _, route := range r.Routes() {
+		if route.Method != "OPTIONS" {
+			fmt.Printf("    %s %s\n", route.Method, route.Path)
+		}
+	}
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 
 	if err := r.Run(":" + port); err != nil {
@@ -288,7 +293,8 @@ func proxyAIWithModel(cfg *config.Config, schoolRepo *repository.SchoolRepo) gin
 
 		// 3. 重新序列化并转发给 AI 服务
 		modifiedBody, _ := json.Marshal(payload)
-		targetURL := cfg.AIServiceURL + c.Request.URL.Path
+		targetPath := strings.Replace(c.Request.URL.Path, "/api/v1/ai/", "/api/", 1) + "/"
+	targetURL := cfg.AIServiceURL + targetPath
 
 		resp, err := http.Post(targetURL, "application/json", bytes.NewReader(modifiedBody))
 		if err != nil {
