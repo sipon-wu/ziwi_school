@@ -121,11 +121,11 @@ func (h *LessonPlanHandler) Update(c *gin.Context) {
 }
 
 func (h *LessonPlanHandler) Finalize(c *gin.Context) {
-	if err := h.repo.Update(c.Param("id"), map[string]interface{}{"status":"final"}); err != nil {
+	if err := h.repo.Update(c.Param("id"), map[string]interface{}{"status":"final","review_status":"pending"}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":"定稿失败"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message":"教案已定稿"})
+	c.JSON(http.StatusOK, gin.H{"message":"已定稿，进入互审队列"})
 }
 
 func (h *LessonPlanHandler) Delete(c *gin.Context) {
@@ -876,6 +876,16 @@ func (h *ReviewHandler) Submit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
 		return
 	}
+	// 快捷评语映射
+	quickOptions := map[string]string{
+		"recommend":  "教学目标清晰，设计合理，推荐",
+		"improvable": "建议补充教学活动的具体实施细节",
+		"neutral":    "教案结构完整",
+	}
+	if req.QuickFeedback == "" {
+		req.QuickFeedback = quickOptions[req.Rating]
+	}
+
 	planID, _ := uuid.Parse(req.PlanID)
 	reviewerID, _ := uuid.Parse(c.GetString("user_id"))
 	review := &model.LessonReview{
@@ -886,7 +896,7 @@ func (h *ReviewHandler) Submit(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"code":409,"message":"您已评审过该教案"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code":200,"message":"评审提交成功"})
+	c.JSON(http.StatusOK, gin.H{"code":200,"message":"评审提交成功","quick_feedback":req.QuickFeedback})
 }
 
 func (h *ReviewHandler) ListByPlan(c *gin.Context) {

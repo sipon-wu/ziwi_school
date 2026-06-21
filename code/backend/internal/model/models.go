@@ -100,6 +100,7 @@ type LessonPlan struct {
 	ManualEdited        bool            `gorm:"default:false" json:"manual_edited"`
 	EditCount           int             `gorm:"default:0" json:"edit_count"`
 	Status              string          `gorm:"size:20;default:'draft';check:status IN ('draft','final')" json:"status"`
+	ReviewStatus        string          `gorm:"size:20;default:'none'" json:"review_status,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
 }
