@@ -853,3 +853,67 @@ func (h *TextbookHandler) CurriculumHint(c *gin.Context) {
 		"details":         items,
 	}})
 }
+
+// ── 互审机制 ──
+
+type ReviewHandler struct {
+	repo *repository.ReviewRepo
+}
+
+func NewReviewHandler(repo *repository.ReviewRepo) *ReviewHandler {
+	return &ReviewHandler{repo: repo}
+}
+
+func (h *ReviewHandler) Submit(c *gin.Context) {
+	var req struct {
+		PlanID         string `json:"plan_id"`
+		Rating         string `json:"rating"`
+		QuickFeedback  string `json:"quick_feedback"`
+		DetailFeedback string `json:"detail_feedback"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
+		return
+	}
+	planID, _ := uuid.Parse(req.PlanID)
+	reviewerID, _ := uuid.Parse(c.GetString("user_id"))
+	review := &model.LessonReview{
+		PlanID: planID, ReviewerID: reviewerID,
+		Rating: req.Rating, QuickFeedback: req.QuickFeedback, DetailFeedback: req.DetailFeedback,
+	}
+	if err := h.repo.Create(review); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"code":409,"message":"您已评审过该教案"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"message":"评审提交成功"})
+}
+
+func (h *ReviewHandler) ListByPlan(c *gin.Context) {
+	items, err := h.repo.ListByPlan(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":items})
+}
+
+func (h *ReviewHandler) PendingForMe(c *gin.Context) {
+	userID := c.GetString("user_id")
+	schoolID := c.GetString("school_id")
+	items, err := h.repo.ListPendingForTeacher(userID, schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":items})
+}
+
+func (h *ReviewHandler) Coverage(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	data, err := h.repo.GetCoverage(schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":data})
+}

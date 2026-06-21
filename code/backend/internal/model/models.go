@@ -270,3 +270,16 @@ type CurriculumMapping struct {
 }
 
 func (CurriculumMapping) TableName() string { return "curriculum_mapping" }
+
+// LessonReview 互审记录
+type LessonReview struct {
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	PlanID         uuid.UUID `gorm:"type:uuid;not null;index" json:"plan_id"`
+	ReviewerID     uuid.UUID `gorm:"type:uuid;not null;index" json:"reviewer_id"`
+	Rating         string    `gorm:"size:20;not null" json:"rating"`
+	QuickFeedback  string    `gorm:"size:200" json:"quick_feedback,omitempty"`
+	DetailFeedback string    `gorm:"type:text" json:"detail_feedback,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+func (LessonReview) TableName() string { return "lesson_reviews" }

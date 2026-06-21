@@ -91,6 +91,8 @@ func main() {
 	inspectionH := handler.NewInspectionHandler(classRepo)
 	textbookRepo := repository.NewTextbookRepo(db)
 	textbookH := handler.NewTextbookHandler(textbookRepo)
+	reviewRepo := repository.NewReviewRepo(db)
+	reviewH := handler.NewReviewHandler(reviewRepo)
 
 	// 路由
 	r := gin.New()
@@ -164,6 +166,12 @@ func main() {
 		protected.GET("/textbooks", textbookH.List)
 		protected.POST("/textbooks", textbookH.Upsert)
 		protected.GET("/textbooks/curriculum-hint", textbookH.CurriculumHint)
+
+		// 互审机制
+		protected.POST("/reviews", reviewH.Submit)
+		protected.GET("/lesson-plans/:id/reviews", reviewH.ListByPlan)
+		protected.GET("/reviews/pending", reviewH.PendingForMe)
+		protected.GET("/reviews/coverage", reviewH.Coverage)
 
 		// 工作台
 		protected.GET("/dashboard/home", dashH.Home)

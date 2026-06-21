@@ -1076,6 +1076,60 @@ func (r *TextbookRepo) LookupCurriculum(subject, grade, publisher string) ([]mod
 	return items, err
 }
 
+// ReviewRepo 互审记录
+type ReviewRepo struct { db *gorm.DB }
+func NewReviewRepo(db *gorm.DB) *ReviewRepo { return &ReviewRepo{db: db} }
+
+func (r *ReviewRepo) Create(review *model.LessonReview) error { return r.db.Create(review).Error }
+
+func (r *ReviewRepo) ListByPlan(planID string) ([]model.LessonReview, error) {
+	var items []model.LessonReview
+	err := r.db.Where("plan_id = ?", planID).Order("created_at DESC").Find(&items).Error
+	return items, err
+}
+
+type PendingReviewItem struct {
+	ID          string `json:"id"`
+	LessonTitle string `json:"lesson_title"`
+	Subject     string `json:"subject"`
+	Grade       string `json:"grade"`
+	Author      string `json:"author"`
+	CreatedAt   string `json:"created_at"`
+	ReviewCount int    `json:"review_count"`
+}
+
+func (r *ReviewRepo) ListPendingForTeacher(teacherID, schoolID string) ([]PendingReviewItem, error) {
+	var items []PendingReviewItem
+	dbErr := r.db.Raw(`
+		SELECT lp.id::text, lp.lesson_title, lp.subject, lp.grade, u.name AS author,
+		       lp.created_at::text, COALESCE(rc.cnt,0) AS review_count
+		FROM lesson_plans lp
+		JOIN users u ON u.id = lp.teacher_id
+		LEFT JOIN (SELECT plan_id, COUNT(*) AS cnt FROM lesson_reviews GROUP BY plan_id) rc ON rc.plan_id = lp.id
+		WHERE lp.school_id = ? AND lp.teacher_id != ? AND lp.status = 'final'
+		  AND lp.id NOT IN (SELECT plan_id FROM lesson_reviews WHERE reviewer_id = ?)
+		ORDER BY lp.created_at DESC LIMIT 30
+	`, schoolID, teacherID, teacherID).Scan(&items)
+	if dbErr.Error != nil { return nil, dbErr.Error }
+	return items, nil
+}
+
+type ReviewCoverage struct {
+	TotalPlans    int64   `json:"total_plans"`
+	ReviewedPlans int64   `json:"reviewed_plans"`
+	CoverageRate  float64 `json:"coverage_rate"`
+	RecommendRate float64 `json:"recommend_rate"`
+}
+
+func (r *ReviewRepo) GetCoverage(schoolID string) (*ReviewCoverage, error) {
+	c := &ReviewCoverage{}
+	r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id=? AND status='final'", schoolID).Scan(&c.TotalPlans)
+	r.db.Raw("SELECT COUNT(DISTINCT plan_id) FROM lesson_reviews lr JOIN lesson_plans lp ON lp.id=lr.plan_id WHERE lp.school_id=?", schoolID).Scan(&c.ReviewedPlans)
+	if c.TotalPlans > 0 { c.CoverageRate = float64(c.ReviewedPlans) / float64(c.TotalPlans) * 100 }
+	r.db.Raw("SELECT COALESCE(ROUND(100.0*SUM(CASE WHEN rating='recommend' THEN 1 ELSE 0 END)/NULLIF(COUNT(*),0),1),0) FROM lesson_reviews lr JOIN lesson_plans lp ON lp.id=lr.plan_id WHERE lp.school_id=?", schoolID).Scan(&c.RecommendRate)
+	return c, nil
+}
+
 func (r *StatsRepo) GetDashboardStats(teacherID, schoolID string) (*DashboardStats, error) {
 	stats := &DashboardStats{}
 	weekStart := time.Now().AddDate(0, 0, -int(time.Now().Weekday()))
