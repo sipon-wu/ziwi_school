@@ -53,6 +53,8 @@ type UserInfo struct {
 	Grade   string `json:"grade,omitempty"`
 	Subject string `json:"subject,omitempty"`
 	School  *SchoolBrief `json:"school,omitempty"`
+	WorkMode string `json:"work_mode,omitempty"`
+	AccountSource string `json:"account_source,omitempty"`
 }
 
 type SchoolBrief struct {
@@ -95,6 +97,8 @@ func (s *AuthService) Login(ctx context.Context, input *LoginInput) (*TokenPair,
 		return nil, fmt.Errorf("手机号或密码错误")
 	}
 
+	// 加载 School 关联获取 work_mode
+	user, _ = s.authRepo.FindByID(user.ID)
 	return s.generateTokenPair(user)
 }
 
@@ -104,18 +108,21 @@ func (s *AuthService) VerifyCodeLogin(ctx context.Context, phone, code string) (
 	}
 	s.authRepo.DeleteCode(ctx, phone)
 
-	// 如果用户不存在（首次登录），自动注册
+	// 如果用户不存在（首次登录），自动注册为体验模式
 	user, err := s.authRepo.FindByPhone(phone)
 	if err != nil {
 		user = &model.User{
-			Phone: phone,
-			Name:  "教师" + phone[7:],
-			Role:  "teacher",
+			Phone:         phone,
+			Name:          "用户" + phone[7:],
+			Role:          "teacher",
+			AccountSource: "self_registered",
 		}
 		if err := s.authRepo.CreateUser(user); err != nil {
 			return nil, fmt.Errorf("创建用户失败")
 		}
 	}
+	// 加载 School 关联获取 work_mode
+	user, _ = s.authRepo.FindByID(user.ID)
 	return s.generateTokenPair(user)
 }
 
@@ -129,8 +136,12 @@ func (s *AuthService) SendVerificationCode(ctx context.Context, phone string) er
 func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 	now := time.Now()
 	schoolID := ""
+	workMode := "trial" // 默认体验模式
 	if user.SchoolID != nil {
 		schoolID = user.SchoolID.String()
+	}
+	if user.School != nil {
+		workMode = user.School.WorkMode
 	}
 
 	claims := jwt.MapClaims{
@@ -138,6 +149,7 @@ func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 		"name":      user.Name,
 		"role":      user.Role,
 		"school_id": schoolID,
+		"work_mode": workMode,
 		"exp":       now.Add(s.cfg.TokenExpiry).Unix(),
 		"iat":       now.Unix(),
 	}
@@ -163,6 +175,8 @@ func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 		Phone:   user.Phone,
 		Grade:   user.Grade,
 		Subject: user.Subject,
+		WorkMode: workMode,
+		AccountSource: user.AccountSource,
 	}
 	if user.School != nil {
 		info.School = &SchoolBrief{ID: user.School.ID.String(), Name: user.School.Name}

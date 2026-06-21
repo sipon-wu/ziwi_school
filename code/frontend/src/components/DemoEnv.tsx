@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Eye, ChevronDown, RotateCcw, X, Sparkles, ArrowRight } from 'lucide-react'
+import { Eye, ChevronDown, RotateCcw, X, Sparkles, ArrowRight, Shield, Clock } from 'lucide-react'
+import api from '../lib/api'
+
+type WorkMode = 'demo' | 'trial' | 'formal'
+
+const MODE_CONFIG: Record<WorkMode, { label: string; color: string; description: string; showReset: boolean; showRoleSwitch: boolean }> = {
+  demo:   { label: '演示环境',   color: 'from-amber-500 to-orange-500', description: '数据每日 02:00 自动重置',                       showReset: true,  showRoleSwitch: true },
+  trial:  { label: '体验模式',   color: 'from-blue-500 to-cyan-500',    description: '14天体验期 · 数据保留 · 可申请正式使用',        showReset: false, showRoleSwitch: false },
+  formal: { label: '正式环境',   color: 'from-green-500 to-emerald-500', description: '学校正式生产环境',                               showReset: false, showRoleSwitch: false },
+}
 
 const ROLES = [
   { id: 'teacher', label: '教师视角', desc: '备课/出题/批改' },
@@ -16,6 +25,7 @@ const GUIDE_STEPS = [
 
 export default function DemoEnv() {
   const [role, setRole] = useState('teacher')
+  const [workMode, setWorkMode] = useState<WorkMode>('demo')
   const [showGuide, setShowGuide] = useState(false)
   const [guideStep, setGuideStep] = useState(0)
   const [showResetModal, setShowResetModal] = useState(false)
@@ -23,8 +33,15 @@ export default function DemoEnv() {
   const [showGuideChecked, setShowGuideChecked] = useState(!localStorage.getItem('demo_guide_done'))
 
   useEffect(() => {
-    if (showGuideChecked) setShowGuide(true)
+    // 从 API 获取 work_mode
+    api.auth.me().then((data: any) => {
+      if (data?.work_mode) setWorkMode(data.work_mode)
+    }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (showGuideChecked && workMode === 'demo') setShowGuide(true)
+  }, [workMode])
 
   const closeGuide = () => {
     setShowGuide(false)
@@ -44,44 +61,48 @@ export default function DemoEnv() {
 
   return (
     <>
-      {/* 顶部演示横幅 */}
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-1.5 flex items-center justify-between text-xs shrink-0">
+      {/* 顶部模式横幅 */}
+      <div className={`bg-gradient-to-r ${MODE_CONFIG[workMode].color} text-white px-4 py-1.5 flex items-center justify-between text-xs shrink-0`}>
         <div className="flex items-center gap-2">
-          <Eye size={13} />
-          <span className="font-medium">演示环境 · 示例学校</span>
-          <span className="text-white/60">|
-            数据每日 02:00 自动重置
-          </span>
+          {workMode === 'demo' ? <Eye size={13} /> : workMode === 'trial' ? <Clock size={13} /> : <Shield size={13} />}
+          <span className="font-medium">{MODE_CONFIG[workMode].label}</span>
+          <span className="text-white/60">| {MODE_CONFIG[workMode].description}</span>
         </div>
         <div className="flex items-center gap-3">
-          {/* 角色切换 */}
-          <div className="relative group">
-            <button className="flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded hover:bg-white/20">
-              当前: {ROLES.find(r=>r.id===role)?.label}
-              <ChevronDown size={11} />
-            </button>
-            <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[180px] hidden group-hover:block z-50">
-              {ROLES.map(r => (
-                <button key={r.id} onClick={() => setRole(r.id)}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${
-                    role === r.id ? 'text-[#1A3A6B] font-medium bg-blue-50' : 'text-gray-600'
-                  }`}>
-                  <div>{r.label}</div>
-                  <div className="text-[10px] text-gray-400">{r.desc}</div>
-                </button>
-              ))}
+          {/* 角色切换 (仅演示模式) */}
+          {MODE_CONFIG[workMode].showRoleSwitch && (
+            <div className="relative group">
+              <button className="flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded hover:bg-white/20">
+                当前: {ROLES.find(r=>r.id===role)?.label}
+                <ChevronDown size={11} />
+              </button>
+              <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[180px] hidden group-hover:block z-50">
+                {ROLES.map(r => (
+                  <button key={r.id} onClick={() => setRole(r.id)}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${
+                      role === r.id ? 'text-[#1A3A6B] font-medium bg-blue-50' : 'text-gray-600'
+                    }`}>
+                    <div>{r.label}</div>
+                    <div className="text-[10px] text-gray-400">{r.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          {/* 新手引导 */}
-          <button onClick={() => { setGuideStep(0); setShowGuide(true) }}
-            className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded hover:bg-white/20">
-            <Sparkles size={11} /> 引导
-          </button>
-          {/* 重置数据 */}
-          <button onClick={() => setShowResetModal(true)}
-            className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded hover:bg-red-400/30">
-            <RotateCcw size={11} /> 重置
-          </button>
+          )}
+          {/* 新手引导 (仅演示模式) */}
+          {workMode === 'demo' && (
+            <button onClick={() => { setGuideStep(0); setShowGuide(true) }}
+              className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded hover:bg-white/20">
+              <Sparkles size={11} /> 引导
+            </button>
+          )}
+          {/* 重置数据 (仅演示模式) */}
+          {MODE_CONFIG[workMode].showReset && (
+            <button onClick={() => setShowResetModal(true)}
+              className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded hover:bg-red-400/30">
+              <RotateCcw size={11} /> 重置
+            </button>
+          )}
         </div>
       </div>
 

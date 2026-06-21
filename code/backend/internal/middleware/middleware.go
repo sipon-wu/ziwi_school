@@ -22,6 +22,7 @@ const (
 	KeySchoolID  contextKey = "school_id"
 	KeyUserRole  contextKey = "user_role"
 	KeyUserName  contextKey = "user_name"
+	KeyWorkMode  contextKey = "work_mode"
 )
 
 // JWTAuth 验证 JWT Token 并注入用户信息到上下文
@@ -68,6 +69,11 @@ func JWTAuth(jwtSecret []byte, db *gorm.DB) gin.HandlerFunc {
 			c.Set(string(KeySchoolID), schoolID)
 			// PostgreSQL RLS: 设置当前会话的 school_id
 			db.Exec("SELECT set_config('app.current_school_id', $1, true)", schoolID)
+		}
+
+		// 注入 work_mode（演示/体验/正式）
+		if workMode, ok := claims["work_mode"].(string); ok {
+			c.Set(string(KeyWorkMode), workMode)
 		}
 
 		c.Next()

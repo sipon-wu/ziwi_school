@@ -7,15 +7,19 @@ import (
 )
 
 type School struct {
-	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Name              string    `gorm:"size:200;not null" json:"name"`
-	Region            string    `gorm:"size:100" json:"region"`
-	AIModelTier       string    `gorm:"size:50;default:'qwen-plus'" json:"ai_model_tier"`
-	AllowModelSwitch  bool      `gorm:"default:false" json:"allow_model_switch"`
-	ShowModelUI       bool      `gorm:"default:false" json:"show_model_ui"`
-	CreatedAt         time.Time `json:"created_at"`
-	Classes           []Class   `gorm:"foreignKey:SchoolID" json:"classes,omitempty"`
-	Users             []User    `gorm:"foreignKey:SchoolID" json:"users,omitempty"`
+	ID                uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name              string     `gorm:"size:200;not null" json:"name"`
+	Region            string     `gorm:"size:100" json:"region"`
+	AIModelTier       string     `gorm:"size:50;default:'qwen-plus'" json:"ai_model_tier"`
+	AllowModelSwitch  bool       `gorm:"default:false" json:"allow_model_switch"`
+	ShowModelUI       bool       `gorm:"default:false" json:"show_model_ui"`
+	WorkMode          string     `gorm:"size:20;default:'formal'" json:"work_mode"`
+	TrialDays         int        `gorm:"default:14" json:"trial_days,omitempty"`
+	TrialQuota        int64      `gorm:"default:100000" json:"trial_quota,omitempty"`
+	TrialStarted      *time.Time `json:"trial_started,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	Classes           []Class    `gorm:"foreignKey:SchoolID" json:"classes,omitempty"`
+	Users             []User     `gorm:"foreignKey:SchoolID" json:"users,omitempty"`
 }
 
 func (School) TableName() string { return "schools" }
@@ -25,12 +29,13 @@ type User struct {
 	SchoolID        *uuid.UUID `gorm:"type:uuid" json:"school_id,omitempty"`
 	Phone           string     `gorm:"size:20;uniqueIndex;not null" json:"phone"`
 	PasswordHash    string     `gorm:"size:255;not null" json:"-"`
-	Role            string     `gorm:"size:20;not null;check:role IN ('teacher','student','parent','admin')" json:"role"`
+	Role            string     `gorm:"size:20;not null;check:role IN ('teacher','student','parent','admin','it_admin','academic_admin','principal')" json:"role"`
 	Name            string     `gorm:"size:100;not null" json:"name"`
 	AvatarURL       string     `gorm:"size:500" json:"avatar_url,omitempty"`
 	Grade           string     `gorm:"size:20" json:"grade,omitempty"`
 	Subject         string     `gorm:"size:20" json:"subject,omitempty"`
 	ParentStudentID *uuid.UUID `gorm:"type:uuid" json:"parent_student_id,omitempty"`
+	AccountSource   string     `gorm:"size:20;default:'admin_created'" json:"account_source,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	// Associations
 	School       *School       `gorm:"foreignKey:SchoolID" json:"-"`
@@ -210,3 +215,20 @@ type ModelRate struct {
 }
 
 func (ModelRate) TableName() string { return "model_rates" }
+
+// DataScope 三模式数据作用域配置
+type DataScope struct {
+	ModeName             string `gorm:"size:20;primaryKey" json:"mode_name"`
+	Description          string `gorm:"size:200" json:"description"`
+	DemoSharedReadonly   bool   `gorm:"default:true" json:"demo_shared_readonly"`
+	SalesPersonalPart    bool   `gorm:"default:true" json:"sales_personal_part"`
+	TrialSharedReadonly  bool   `gorm:"default:true" json:"trial_shared_readonly"`
+	TrialUGCPerUser      bool   `gorm:"default:true" json:"trial_ugc_per_user"`
+	TenantPerTenant      bool   `gorm:"default:true" json:"tenant_per_tenant"`
+	TokenQuotaEnforced   bool   `gorm:"default:false" json:"token_quota_enforced"`
+	DataPersistent       bool   `gorm:"default:true" json:"data_persistent"`
+	DataResetDaily       bool   `gorm:"default:false" json:"data_reset_daily"`
+	AllowSelfRegister    bool   `gorm:"default:false" json:"allow_self_register"`
+}
+
+func (DataScope) TableName() string { return "data_scopes" }

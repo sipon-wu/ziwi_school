@@ -121,9 +121,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID := c.GetString("user_id")
 	userName := c.GetString("user_name")
+	workMode, _ := c.Get("work_mode")
 	c.JSON(http.StatusOK, gin.H{
-		"user_id": userID,
-		"name":    userName,
+		"user_id":   userID,
+		"name":      userName,
+		"work_mode": workMode,
 	})
 }
 
