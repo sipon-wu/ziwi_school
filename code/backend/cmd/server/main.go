@@ -93,6 +93,7 @@ func main() {
 	textbookH := handler.NewTextbookHandler(textbookRepo)
 	reviewRepo := repository.NewReviewRepo(db)
 	reviewH := handler.NewReviewHandler(reviewRepo)
+	auditH := handler.NewAuditHandler()
 
 	// 路由
 	r := gin.New()
@@ -172,6 +173,9 @@ func main() {
 		protected.GET("/lesson-plans/:id/reviews", reviewH.ListByPlan)
 		protected.GET("/reviews/pending", reviewH.PendingForMe)
 		protected.GET("/reviews/coverage", reviewH.Coverage)
+
+		// 内容安全审核
+		protected.POST("/audit/check", auditH.Check)
 
 		// 工作台
 		protected.GET("/dashboard/home", dashH.Home)

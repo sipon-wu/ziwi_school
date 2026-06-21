@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -916,4 +917,68 @@ func (h *ReviewHandler) Coverage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code":200,"data":data})
+}
+
+// ── 内容安全审核 ──
+
+type AuditHandler struct{}
+
+func NewAuditHandler() *AuditHandler { return &AuditHandler{} }
+
+// basicKeywords 基础敏感词库（MVP用，生产环境接云端API）
+var blockedKeywords = []string{
+	"色情", "赌博", "毒品", "暴力", "自杀", "枪支", "诈骗",
+}
+
+func containsAny(text string, keywords []string) (bool, []string) {
+	low := strings.ToLower(text)
+	var found []string
+	for _, kw := range keywords {
+		if strings.Contains(low, kw) {
+			found = append(found, kw)
+		}
+	}
+	return len(found) > 0, found
+}
+
+func clearString(s string) string {
+	r := strings.NewReplacer("\n", "", "\r", "", "\t", " ")
+	cleaned := r.Replace(s)
+	cleaned = strings.Join(strings.Fields(cleaned), " ")
+	if len([]rune(cleaned)) > 500 {
+		cleaned = string([]rune(cleaned)[:500]) + "..."
+	}
+	return cleaned
+}
+
+func (h *AuditHandler) Check(c *gin.Context) {
+	var req struct {
+		Content string `json:"content"`
+		Type    string `json:"type"` // text / image
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
+		return
+	}
+
+	result := gin.H{"result": "pass", "risk_score": 0, "risk_labels": []string{}}
+
+	if req.Type == "text" && req.Content != "" {
+		blocked, labels := containsAny(req.Content, blockedKeywords)
+		if blocked {
+			result["result"] = "block"
+			result["risk_score"] = 95
+			result["risk_labels"] = labels
+		}
+	} else if req.Type == "text" && len(req.Content) == 0 {
+		result["result"] = "block"
+		result["risk_labels"] = []string{"empty_content"}
+	}
+
+	// 记录审计日志
+	userID := c.GetString("user_id")
+	log := fmt.Sprintf("[AUDIT] user=%s type=%s result=%s", userID, req.Type, result["result"])
+	fmt.Println(log)
+
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":result})
 }
