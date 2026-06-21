@@ -1,0 +1,20 @@
+[
+  {
+    "id": "msg-1782023954423-tyas45",
+    "from": "team-lead",
+    "to": "QA_API",
+    "type": "message",
+    "content": "Phase 1 执行任务。直接对 http://193.112.163.147（Host: school.ziwi.cn）执行后端API全量测试。账号：教师13800000002/teacher123、IT 13800000003/admin123、校长13800000005/admin123。测试清单：1.认证(正确/错误/过期token) 2.管理接口CRUD 3.AI接口(chat/lesson-plan/exam) 4.业务接口(lesson-plans/reviews/inspection) 5.教材+课标 6.内容审核。结果发给 QA_Lead。",
+    "timestamp": "2026-06-21T06:39:14.423Z",
+    "read": true
+  },
+  {
+    "id": "msg-1782023960380-xdr4yf",
+    "from": "QA_Lead",
+    "to": "QA_API",
+    "type": "message",
+    "content": "## QA_API — Alpha v0.3.0 后端接口测试任务\n\n**基线：** API冒烟 27/27 全绿，单元测试 34/34，AI路由已修复。\n\n**测试环境：** http://193.112.163.147 (Host: school.ziwi.cn)\n\n**你的任务：**\n对以下 API 模块进行完整接口测试，覆盖正常流程 + 异常边界：\n\n### 1. 认证模块（P0）\n- TC-001: 手机号+密码登录 → 返回JWT + work_mode\n- TC-003: 错误密码登录 → 返回401 + \"手机号或密码错误\"\n- TC-004: Token过期访问 → 返回401\n- TC-002: 验证码登录（P1）\n\n### 2. 教案模块（P0）\n- TC-009: AI生成教案 POST /api/v1/ai/lesson-plan/generate\n- TC-012: 手动编辑教案\n- TC-013: 定稿教案\n- TC-010: 课标RAG对齐（P1）\n\n### 3. 出题模块（P0）\n- TC-015: AI出题 POST /api/v1/ai/exam/generate\n- TC-016: 调整难度分布（P2）\n\n### 4. 批阅模块（P0/P1）\n- TC-019: 客观题自动批改\n- TC-020: 低置信度复核\n- TC-021: 教师调整分数\n- TC-022: 作文四维评分\n\n### 5. 内容安全（P1）\n- TC-007: 提交正常文本\n- TC-008: 提交违规文本 → 应拦截\n\n### 6. IT负责人API（P0）\n- TC-048: 创建分校\n- TC-049: 创建班级\n- TC-051: 批量导入教师\n\n### 7. 管理员API（P0/P1）\n- TC-071: 查看学校列表\n- TC-072: 更新学校模型策略\n- TC-074: Token用量总览\n\n### 输出要求：\n- 独立子报告：包含每个接口的请求/响应截图、状态码、响应时间、是否通过\n- 缺陷列表：严重程度（Blocker/Critical/Major/Minor）、复现步骤、截图\n- 通过率统计：按优先级汇总\n\n**演示账号：**\n- 教师: 13800000002/teacher123\n- IT负责人: 13800000003/admin123\n- 管理员: 13800000001/admin123\n\n请立即开始，完成后将子报告发给 team-lead 并抄送我。",
+    "timestamp": "2026-06-21T06:39:20.380Z",
+    "read": true
+  }
+]

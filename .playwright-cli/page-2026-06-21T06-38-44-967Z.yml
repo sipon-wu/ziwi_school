@@ -1,0 +1,15 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - img "知微" [ref=e6]
+    - heading "知微教学" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 见微知著，知微教学
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]: 手机号
+      - textbox "请输入手机号" [ref=e12]: "13800000002"
+    - generic [ref=e13]:
+      - generic [ref=e14]: 验证码
+      - generic [ref=e15]:
+        - textbox "请输入验证码" [ref=e16]
+        - button "获取验证码" [active] [ref=e17] [cursor=pointer]
+    - button "请输入验证码" [disabled] [ref=e19]

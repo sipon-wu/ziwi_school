@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 
@@ -490,6 +491,7 @@ func (h *TrialHandler) ListTeachers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code":500})
 		return
 	}
+	for i := range items { items[i].Name = html.EscapeString(items[i].Name) }
 	c.JSON(http.StatusOK, gin.H{"items":items})
 }
 
@@ -510,6 +512,7 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code":500})
 		return
 	}
+	for i := range items { items[i].Name = html.EscapeString(items[i].Name) }
 	c.JSON(http.StatusOK, gin.H{"items":items,"total":total})
 }
 

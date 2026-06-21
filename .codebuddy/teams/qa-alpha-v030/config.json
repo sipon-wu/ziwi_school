@@ -1,0 +1,38 @@
+{
+  "name": "qa-alpha-v030",
+  "leadAgentId": "37f6c7fdf0fe4e4495f870d5f79a596e",
+  "workspacePath": "/Users/sipon/CodeBuddy/AI教案",
+  "createdAt": "2026-06-21T06:35:42.742Z",
+  "options": {
+    "workspacePath": "/Users/sipon/CodeBuddy/AI教案",
+    "isAutoTeam": false
+  },
+  "members": [
+    {
+      "memberId": "team-lead@qa-alpha-v030",
+      "name": "team-lead",
+      "role": "Team Lead - coordinates the team and interacts with the user"
+    },
+    {
+      "memberId": "QA_Lead@qa-alpha-v030",
+      "name": "QA_Lead",
+      "role": "QA Lead: 统筹测试计划"
+    },
+    {
+      "memberId": "QA_API@qa-alpha-v030",
+      "name": "QA_API",
+      "role": "QA API: 后端接口测试"
+    },
+    {
+      "memberId": "QA_Security@qa-alpha-v030",
+      "name": "QA_Security",
+      "role": "QA 安全: 安全审计测试"
+    },
+    {
+      "memberId": "QA_Frontend@qa-alpha-v030",
+      "name": "QA_Frontend",
+      "role": "QA 前端: 前端交互测试"
+    }
+  ],
+  "isAutoTeam": false
+}

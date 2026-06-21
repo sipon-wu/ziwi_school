@@ -210,28 +210,28 @@ func main() {
 		protected.GET("/parent-signatures", parentSignH.List)
 		protected.POST("/parent-signatures/:id/sign", parentSignH.Sign)
 
-		// License 管理
-		protected.GET("/license/schools", licenseH.ListSchools)
-		protected.GET("/license/heartbeats", licenseH.GetHeartbeats)
+		// License 管理 (admin only)
+		protected.GET("/license/schools", middleware.RequireRole("admin"), licenseH.ListSchools)
+		protected.GET("/license/heartbeats", middleware.RequireRole("admin"), licenseH.GetHeartbeats)
 
-		// 试用管理
-		protected.GET("/trial/config", trialH.GetConfig)
-		protected.PUT("/trial/config", trialH.UpdateConfig)
-		protected.GET("/trial/teachers", trialH.ListTeachers)
+		// 试用管理 (admin only)
+		protected.GET("/trial/config", middleware.RequireRole("admin"), trialH.GetConfig)
+		protected.PUT("/trial/config", middleware.RequireRole("admin"), trialH.UpdateConfig)
+		protected.GET("/trial/teachers", middleware.RequireRole("admin"), trialH.ListTeachers)
 
-		// Token 统计
+		// Token 统计 (admin + IT)
 		protected.GET("/token/summary", tokenH.GetSummary)
 		protected.GET("/token/trend", tokenH.GetTrend)
 		protected.GET("/token/tenants", tokenH.GetTenantRanking)
 
-		// 平台管理
-		protected.GET("/admin/users", adminH.ListUsers)
-		protected.POST("/admin/users/:id/block", adminH.BlockUser)
-		protected.POST("/admin/users/:id/unblock", adminH.UnblockUser)
-		protected.GET("/admin/health", adminH.GetHealth)
-		protected.GET("/admin/announcements", adminH.ListAnnouncements)
-		protected.POST("/admin/announcements", adminH.CreateAnnouncement)
-		protected.GET("/admin/audit-logs", adminH.ListAuditLogs)
+		// 平台管理 (admin only)
+		protected.GET("/admin/users", middleware.RequireRole("admin"), adminH.ListUsers)
+		protected.POST("/admin/users/:id/block", middleware.RequireRole("admin"), adminH.BlockUser)
+		protected.POST("/admin/users/:id/unblock", middleware.RequireRole("admin"), adminH.UnblockUser)
+		protected.GET("/admin/health", middleware.RequireRole("admin"), adminH.GetHealth)
+		protected.GET("/admin/announcements", middleware.RequireRole("admin"), adminH.ListAnnouncements)
+		protected.POST("/admin/announcements", middleware.RequireRole("admin"), adminH.CreateAnnouncement)
+		protected.GET("/admin/audit-logs", middleware.RequireRole("admin"), adminH.ListAuditLogs)
 
 		// 批阅结果
 		protected.GET("/grading", gradingH.List)

@@ -1,0 +1,360 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - link "知微" [ref=e3] [cursor=pointer]:
+      - /url: home.html
+      - img "知微" [ref=e4]
+    - generic [ref=e5]:
+      - link "关于知微" [ref=e6] [cursor=pointer]:
+        - /url: home.html#story
+      - link "解决方案" [ref=e7] [cursor=pointer]:
+        - /url: ziwi_pages.html#solutions-list
+      - link "产品体系" [ref=e8] [cursor=pointer]:
+        - /url: ziwi_pages.html#products-list
+      - link "新质力" [ref=e9] [cursor=pointer]:
+        - /url: ziwi_pages.html#service-detail
+      - link "案例" [ref=e10] [cursor=pointer]:
+        - /url: ziwi_pages.html#cases-list
+      - link "联系我们" [ref=e11] [cursor=pointer]:
+        - /url: ziwi_pages.html#form
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: 信息化 · 数字化 · 智能化
+      - heading "以数智重构 中国产业增长" [level=1] [ref=e16]:
+        - text: 以数智重构
+        - text: 中国产业增长
+      - paragraph [ref=e17]: 从数据治理到AI决策，让每一家企业都拥有世界级的数字化能力。
+      - generic [ref=e18]:
+        - link "预约咨询 →" [ref=e19] [cursor=pointer]:
+          - /url: ziwi_pages.html#form
+        - link "了解我们" [ref=e20] [cursor=pointer]:
+          - /url: "#story"
+    - img "知微数字化解决方案" [ref=e22]
+  - generic [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e26]: 50+
+      - generic [ref=e27]: 制造业客户
+    - generic [ref=e28]:
+      - generic [ref=e29]: 200+
+      - generic [ref=e30]: 数字化项目
+    - generic [ref=e31]:
+      - generic [ref=e32]: 95%
+      - generic [ref=e33]: 客户续约率
+    - generic [ref=e34]:
+      - generic [ref=e35]: "4"
+      - generic [ref=e36]: 行业板块
+  - generic [ref=e38]:
+    - generic [ref=e39]:
+      - generic [ref=e40]: 品牌叙事
+      - heading "见微知著 · 微言大谊" [level=2] [ref=e41]
+      - paragraph [ref=e42]: 在技术与产业之间，架一座桥。从细微处洞察趋势，以数智重构增长。
+    - generic [ref=e43]:
+      - generic [ref=e44]:
+        - generic [ref=e45]: "01"
+        - heading "看见" [level=3] [ref=e46]
+        - generic [ref=e47]: 洞察变革的脉搏
+        - paragraph [ref=e48]: 我们看见的不是技术的落后，而是连接的空缺——在技术与需求之间，缺一个懂行业的技术翻译。
+        - link "阅读更多 →" [ref=e49] [cursor=pointer]:
+          - /url: javascript:void(0)
+      - generic [ref=e50]:
+        - generic [ref=e51]: "02"
+        - heading "构建" [level=3] [ref=e52]
+        - generic [ref=e53]: 从信息化到AI赋能
+        - paragraph [ref=e54]: 从ERP/MES到数字孪生，从OA智能化到AI审计——覆盖数据采集、流程管理、AI决策的完整产品版图。
+        - link "阅读更多 →" [ref=e55] [cursor=pointer]:
+          - /url: javascript:void(0)
+      - generic [ref=e56]:
+        - generic [ref=e57]: "03"
+        - heading "赋能" [level=3] [ref=e58]
+        - generic [ref=e59]: 让技术转化为生产力
+        - paragraph [ref=e60]: 不是替代人，而是让人变得更强。排产从半天到半小时，审计从3天到3小时。
+        - link "阅读更多 →" [ref=e61] [cursor=pointer]:
+          - /url: javascript:void(0)
+  - generic [ref=e63]:
+    - generic [ref=e64]:
+      - generic [ref=e65]: 深耕领域
+      - heading "精准深耕，因需而变" [level=2] [ref=e66]
+      - paragraph [ref=e67]: 深入了解行业痛点，提供量身定制的解决方案。
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - img [ref=e71]
+        - heading "制造·数字化转型" [level=3] [ref=e73]
+        - generic [ref=e74]: 从车间到决策层的全栈数字化
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]: 80%
+            - generic [ref=e78]: 排产缩短
+          - generic [ref=e79]:
+            - generic [ref=e80]: 40%
+            - generic [ref=e81]: 呆滞减少
+        - generic [ref=e82]:
+          - generic [ref=e83]: ERP
+          - generic [ref=e84]: APS
+          - generic [ref=e85]: MES
+          - generic [ref=e86]: WMS
+          - generic [ref=e87]: QMS
+          - generic [ref=e88]: TPM
+          - generic [ref=e89]: 数字孪生
+        - link "了解更多 →" [ref=e91] [cursor=pointer]:
+          - /url: ziwi_pages.html#solutions-list
+      - generic [ref=e92]:
+        - img [ref=e94]
+        - heading "制造·AI赋能" [level=3] [ref=e97]
+        - generic [ref=e98]: AI渗透办公·质量·订单·生产
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - generic [ref=e101]: 70%
+            - generic [ref=e102]: 审批提升
+          - generic [ref=e103]:
+            - generic [ref=e104]: 80%
+            - generic [ref=e105]: 异常缩短
+        - generic [ref=e106]:
+          - generic [ref=e107]: OA协同AI
+          - generic [ref=e108]: 质量统计
+          - generic [ref=e109]: 订单管理
+          - generic [ref=e110]: 生产助手
+        - link "了解更多 →" [ref=e112] [cursor=pointer]:
+          - /url: ziwi_pages.html#products-list
+      - generic [ref=e113]:
+        - img [ref=e115]
+        - heading "AI助力审计" [level=3] [ref=e118]
+        - generic [ref=e119]: 凭证识别·底稿生成·报告输出
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - generic [ref=e122]: 2-3x
+            - generic [ref=e123]: 人均效能
+          - generic [ref=e124]:
+            - generic [ref=e125]: 50%
+            - generic [ref=e126]: 人力替代
+        - generic [ref=e127]:
+          - generic [ref=e128]: 凭证识别
+          - generic [ref=e129]: 底稿自动生成
+          - generic [ref=e130]: 异常标记
+          - generic [ref=e131]: 报告输出
+        - link "了解更多 →" [ref=e133] [cursor=pointer]:
+          - /url: ziwi_pages.html#cases-list
+      - generic [ref=e134]:
+        - img [ref=e136]
+        - heading "AI助力企业合规风控" [level=3] [ref=e138]
+        - generic [ref=e139]: 全量监控·双引擎预警·驾驶舱
+        - generic [ref=e140]:
+          - generic [ref=e141]:
+            - generic [ref=e142]: 65%
+            - generic [ref=e143]: 识别率提升
+          - generic [ref=e144]:
+            - generic [ref=e145]: 100%
+            - generic [ref=e146]: 审计覆盖
+        - generic [ref=e147]:
+          - generic [ref=e148]: 持续监控
+          - generic [ref=e149]: 双引擎预警
+          - generic [ref=e150]: 全量审计
+          - generic [ref=e151]: 驾驶舱
+        - link "了解更多 →" [ref=e153] [cursor=pointer]:
+          - /url: ziwi_pages.html#form
+  - generic [ref=e156]:
+    - generic:
+      - img "AI赋能智能制造场景"
+    - generic [ref=e157]:
+      - generic [ref=e158]: 制造 · AI赋能
+      - heading "AI正在重新定义制造企业的运营方式" [level=3] [ref=e159]
+      - paragraph [ref=e160]: 从OA审批智能流转到质量SPC在线监控，从订单自动处理到AI生产助手——让AI渗透到每一个制造场景。
+      - generic [ref=e161]:
+        - generic [ref=e162]:
+          - generic [ref=e163]: 70%
+          - generic [ref=e164]: 审批提升
+        - generic [ref=e165]:
+          - generic [ref=e166]: 80%
+          - generic [ref=e167]: 异常响应缩短
+        - generic [ref=e168]:
+          - generic [ref=e169]: 2h→2min
+          - generic [ref=e170]: 订单处理
+      - link "了解详情 →" [ref=e171] [cursor=pointer]:
+        - /url: ziwi_pages.html#products-list
+  - generic [ref=e173]:
+    - generic [ref=e174]:
+      - generic [ref=e175]: 产品体系
+      - heading "覆盖企业数智化全场景" [level=2] [ref=e176]
+      - paragraph [ref=e177]: 每一款产品都来自真实的行业需求，在落地中打磨。
+    - generic [ref=e178]:
+      - generic [ref=e179]:
+        - heading "知微智能" [level=3] [ref=e180]
+        - generic [ref=e181]: 制造企业数字化基石
+        - paragraph [ref=e182]: ERP+APS+MES+WMS+QMS+TPM+数字孪生，全链路数字化。
+        - generic [ref=e183]:
+          - generic [ref=e184]: ERP
+          - generic [ref=e185]: APS
+          - generic [ref=e186]: MES
+          - generic [ref=e187]: WMS
+          - generic [ref=e188]: QMS
+          - generic [ref=e189]: TPM
+          - generic [ref=e190]: 数字孪生
+        - link "详情 →" [ref=e192] [cursor=pointer]:
+          - /url: ziwi_pages.html#solutions-list
+      - generic [ref=e193]:
+        - heading "知微AI制造" [level=3] [ref=e194]
+        - generic [ref=e195]: 制造企业AI赋能平台
+        - paragraph [ref=e196]: OA协同·质量统计·订单管理·生产助手，AI注入每一场景。
+        - generic [ref=e197]:
+          - generic [ref=e198]: OA协同AI
+          - generic [ref=e199]: 质量统计
+          - generic [ref=e200]: 订单管理
+          - generic [ref=e201]: 生产助手
+        - link "详情 →" [ref=e203] [cursor=pointer]:
+          - /url: ziwi_pages.html#products-list
+      - generic [ref=e204]:
+        - heading "知微AI-审计AI · 事务所版" [level=3] [ref=e205]
+        - generic [ref=e206]: AI助力审计
+        - paragraph [ref=e207]: 凭证识别→底稿生成→异常标记→报告输出，替代50%+人力。
+        - generic [ref=e208]:
+          - generic [ref=e209]: 凭证识别
+          - generic [ref=e210]: 底稿生成
+          - generic [ref=e211]: 异常标记
+          - generic [ref=e212]: 报告输出
+        - link "详情 →" [ref=e214] [cursor=pointer]:
+          - /url: ziwi_pages.html#cases-list
+      - generic [ref=e215]:
+        - heading "知微AI-审计AI · 内审版" [level=3] [ref=e216]
+        - generic [ref=e217]: AI助力企业合规风控
+        - paragraph [ref=e218]: 全量监控·双引擎预警·驾驶舱，审计覆盖面从5%到100%。
+        - generic [ref=e219]:
+          - generic [ref=e220]: 持续监控
+          - generic [ref=e221]: 双引擎预警
+          - generic [ref=e222]: 全量审计
+          - generic [ref=e223]: 驾驶舱
+        - link "详情 →" [ref=e225] [cursor=pointer]:
+          - /url: ziwi_pages.html#form
+  - generic [ref=e228]:
+    - generic:
+      - img "数字化审计与合规风控场景"
+    - generic [ref=e229]:
+      - generic [ref=e230]: AI助力审计 · 合规风控
+      - heading "从抽样到全量，从事后到事前" [level=3] [ref=e231]
+      - paragraph [ref=e232]: 帮助会计师事务所释放50%+基础人力，帮助上市企业将审计覆盖面从5%提升至100%。
+      - generic [ref=e233]:
+        - generic [ref=e234]:
+          - generic [ref=e235]: 2-3x
+          - generic [ref=e236]: 人均效能
+        - generic [ref=e237]:
+          - generic [ref=e238]: 65%
+          - generic [ref=e239]: 识别率提升
+        - generic [ref=e240]:
+          - generic [ref=e241]: 100%
+          - generic [ref=e242]: 审计覆盖
+      - link "了解详情 →" [ref=e243] [cursor=pointer]:
+        - /url: ziwi_pages.html#cases-list
+  - generic [ref=e245]:
+    - generic [ref=e246]:
+      - generic [ref=e247]: 新质力服务
+      - heading "授人以鱼，不如授人以渔" [level=2] [ref=e248]
+      - paragraph [ref=e249]: 人才培养和精益咨询，才是技术真正落地的保障。
+    - generic [ref=e250]:
+      - generic [ref=e251]:
+        - heading "人才培养" [level=3] [ref=e252]
+        - generic [ref=e253]: 公开课 · 内训 · 工作坊 · 线上课程
+        - generic [ref=e254]:
+          - generic [ref=e255]: 数字化转型
+          - generic [ref=e257]: 智能制造
+          - generic [ref=e259]: AI与大数据
+          - generic [ref=e261]: 精益管理
+          - generic [ref=e263]: 数字孪生
+          - generic [ref=e265]: 审计数智化
+      - generic [ref=e267]:
+        - heading "精益咨询" [level=3] [ref=e268]
+        - generic [ref=e269]: 诊断 · 再造 · 改善 · 持续
+        - generic [ref=e270]:
+          - generic [ref=e271]: 精益诊断
+          - generic [ref=e273]: 流程再造
+          - generic [ref=e275]: 数字化精益
+          - generic [ref=e277]: 持续改进机制
+  - generic [ref=e280]:
+    - generic [ref=e281]:
+      - generic [ref=e282]: 客户案例
+      - heading "从车间到云端，从纸张到数据" [level=2] [ref=e283]
+      - paragraph [ref=e284]: 每一个案例，都是一次实践的印证。
+    - generic [ref=e285]:
+      - generic [ref=e286]:
+        - generic [ref=e287]:
+          - img [ref=e289]
+          - generic [ref=e292]: 制造业
+        - generic [ref=e293]:
+          - heading "智能排产升级" [level=4] [ref=e294]
+          - paragraph [ref=e295]: 某连接线企业：MES+APS实施，排产4h→4min，在制品减少35%。
+          - generic [ref=e296]: 效率提升 60x →
+      - generic [ref=e297]:
+        - generic [ref=e298]:
+          - img [ref=e300]
+          - generic [ref=e305]: 数字孪生
+        - generic [ref=e306]:
+          - heading "数字孪生仿真" [level=4] [ref=e307]
+          - paragraph [ref=e308]: 汽车零部件工厂：孪生模型模拟三个月生产，一次成功率>95%。
+          - generic [ref=e309]: 周期缩短 60% →
+      - generic [ref=e310]:
+        - generic [ref=e311]:
+          - img [ref=e313]
+          - generic [ref=e316]: 审计
+        - generic [ref=e317]:
+          - heading "AI审计平台" [level=4] [ref=e318]
+          - paragraph [ref=e319]: 某会计师事务所：AI底稿生成，审计周期缩短40%，错误率降低85%。
+          - generic [ref=e320]: 效率提升 2.5x →
+      - generic [ref=e321]:
+        - generic [ref=e322]:
+          - img [ref=e324]
+          - generic [ref=e327]: 合规风控
+        - generic [ref=e328]:
+          - heading "企业AI风控平台" [level=4] [ref=e329]
+          - paragraph [ref=e330]: A股上市公司：AI监控+双引擎预警，识别率提升65%，覆盖100%。
+          - generic [ref=e331]: 识别率提升 65% →
+  - generic [ref=e333]:
+    - heading "让技术真正转化为你的生产力" [level=2] [ref=e334]
+    - paragraph [ref=e335]: 预约专家，获取一对一诊断。
+    - generic [ref=e336]:
+      - link "预约演示 →" [ref=e337] [cursor=pointer]:
+        - /url: ziwi_pages.html#form
+      - link "咨询专家" [ref=e338] [cursor=pointer]:
+        - /url: ziwi_pages.html#form
+  - generic [ref=e340]:
+    - heading "与知微一起，重构增长" [level=2] [ref=e341]
+    - paragraph [ref=e342]: 从信息化筑基到智能化跃迁，知微全程陪伴。
+    - generic [ref=e343]:
+      - link "预约咨询 →" [ref=e344] [cursor=pointer]:
+        - /url: ziwi_pages.html#form
+      - link "获取方案白皮书" [ref=e345] [cursor=pointer]:
+        - /url: ziwi_pages.html#form
+  - contentinfo [ref=e346]:
+    - generic [ref=e347]:
+      - generic [ref=e348]:
+        - generic [ref=e349]: 知微网
+        - paragraph [ref=e350]:
+          - text: 见微知著 · 微言大谊
+          - text: 知微（重庆）信息技术有限公司
+      - generic [ref=e351]:
+        - heading "解决方案" [level=4] [ref=e352]
+        - link "制造·数字化转型" [ref=e353] [cursor=pointer]:
+          - /url: ziwi_pages.html#s1
+        - link "制造·AI赋能" [ref=e354] [cursor=pointer]:
+          - /url: ziwi_pages.html#s2
+        - link "AI助力审计" [ref=e355] [cursor=pointer]:
+          - /url: ziwi_pages.html#s3
+        - link "AI助力企业合规风控" [ref=e356] [cursor=pointer]:
+          - /url: ziwi_pages.html#s4
+      - generic [ref=e357]:
+        - heading "产品体系" [level=4] [ref=e358]
+        - link "知微智能" [ref=e359] [cursor=pointer]:
+          - /url: pages/product-digital.html
+        - link "知微AI制造" [ref=e360] [cursor=pointer]:
+          - /url: pages/product-ai-mfg.html
+        - link "知微AI-审计AI·事务所" [ref=e361] [cursor=pointer]:
+          - /url: pages/product-audit-firm.html
+        - link "知微AI-审计AI·内审" [ref=e362] [cursor=pointer]:
+          - /url: pages/product-audit-internal.html
+      - generic [ref=e363]:
+        - heading "关于" [level=4] [ref=e364]
+        - link "关于知微" [ref=e365] [cursor=pointer]:
+          - /url: ziwi_pages.html#about
+        - link "客户案例" [ref=e366] [cursor=pointer]:
+          - /url: ziwi_pages.html#cases-list
+        - link "合作咨询" [ref=e367] [cursor=pointer]:
+          - /url: ziwi_pages.html#form
+    - generic [ref=e368]:
+      - generic [ref=e369]: © 2026 知微（重庆）信息技术有限公司
+      - link "渝ICP备2026009247号-1" [ref=e370] [cursor=pointer]:
+        - /url: https://beian.miit.gov.cn/
