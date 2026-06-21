@@ -624,3 +624,70 @@ func (h *ParentSignHandler) Sign(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message":"签字成功"})
 }
+
+// ── 教师任教管理 (IT管理员 / 教务管理员) ──
+
+type TeachingHandler struct {
+	classRepo *repository.ClassRepo
+	authRepo  *repository.AuthRepo
+}
+
+func NewTeachingHandler(classRepo *repository.ClassRepo, authRepo *repository.AuthRepo) *TeachingHandler {
+	return &TeachingHandler{classRepo: classRepo, authRepo: authRepo}
+}
+
+// ListAssignments 查看全校教师任教关系
+func (h *TeachingHandler) ListAssignments(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	assignments, err := h.classRepo.ListTeacherAssignments(schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":assignments})
+}
+
+// AssignTeacher 配置教师任教关系
+func (h *TeachingHandler) AssignTeacher(c *gin.Context) {
+	var req struct {
+		TeacherPhone string `json:"teacher_phone"`
+		ClassID      string `json:"class_id"`
+		Subject      string `json:"subject"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
+		return
+	}
+	teacher, err := h.authRepo.FindByPhone(req.TeacherPhone)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code":404,"message":"教师不存在"})
+		return
+	}
+	classID, _ := uuid.Parse(req.ClassID)
+	schoolID := c.GetString("school_id")
+	if err := h.classRepo.AssignTeacherInSchool(teacher.ID, classID, req.Subject, schoolID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message":"任教关系配置成功"})
+}
+
+// ── 校长仪表盘 (只读全校数据) ──
+
+type PrincipalHandler struct {
+	statsRepo *repository.StatsRepo
+}
+
+func NewPrincipalHandler(statsRepo *repository.StatsRepo) *PrincipalHandler {
+	return &PrincipalHandler{statsRepo: statsRepo}
+}
+
+func (h *PrincipalHandler) Dashboard(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	data, err := h.statsRepo.GetPrincipalDashboard(schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":data})
+}

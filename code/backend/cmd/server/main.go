@@ -84,6 +84,8 @@ func main() {
 	trialH := handler.NewTrialHandler(trialRepo)
 	adminH := handler.NewAdminHandler(adminRepo)
 	tokenH := handler.NewTokenHandler(tokenRepo)
+	teachingH := handler.NewTeachingHandler(classRepo, authRepo)
+	principalH := handler.NewPrincipalHandler(statsRepo)
 
 	// 路由
 	r := gin.New()
@@ -137,6 +139,13 @@ func main() {
 		// 班级管理
 		protected.GET("/classes", classH.List)
 		protected.POST("/classes", classH.Create)
+
+		// 教师任教管理 (IT管理员/教务管理员)
+		protected.GET("/teaching/assignments", teachingH.ListAssignments)
+		protected.POST("/teaching/assign", teachingH.AssignTeacher)
+
+		// 校长仪表盘
+		protected.GET("/principal/dashboard", principalH.Dashboard)
 
 		// 工作台
 		protected.GET("/dashboard/home", dashH.Home)

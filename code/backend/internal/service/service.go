@@ -30,7 +30,7 @@ type RegisterInput struct {
 	Phone    string `json:"phone" validate:"required,len=11"`
 	Password string `json:"password" validate:"required,min=6"`
 	Name     string `json:"name" validate:"required"`
-	Role     string `json:"role" validate:"required,oneof=teacher student parent admin"`
+	Role     string `json:"role" validate:"required,oneof=teacher student parent admin it_admin academic_admin principal"`
 }
 
 type LoginInput struct {

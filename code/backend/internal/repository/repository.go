@@ -145,6 +145,48 @@ func (r *ClassRepo) AssignTeacher(teacherID, classID uuid.UUID, subject string) 
 	return r.db.Create(&tc).Error
 }
 
+// AssignTeacher 教务指定任教（含学校校验）
+func (r *ClassRepo) AssignTeacherInSchool(teacherID, classID uuid.UUID, subject, schoolID string) error {
+	// 校验班级属于该学校
+	var count int64
+	r.db.Model(&model.Class{}).Where("id = ? AND school_id = ?", classID, schoolID).Count(&count)
+	if count == 0 {
+		return fmt.Errorf("班级不属于该学校")
+	}
+	tc := model.TeacherClass{
+		TeacherID: teacherID,
+		ClassID:   classID,
+		Subject:   subject,
+	}
+	return r.db.Create(&tc).Error
+}
+
+// TeacherAssignmentItem 教师任教关系
+type TeacherAssignmentItem struct {
+	TeacherID   string `json:"teacher_id"   gorm:"column:teacher_id"`
+	TeacherName string `json:"teacher_name" gorm:"column:teacher_name"`
+	Phone       string `json:"phone"        gorm:"column:phone"`
+	ClassID     string `json:"class_id"     gorm:"column:class_id"`
+	ClassName   string `json:"class_name"   gorm:"column:class_name"`
+	Grade       string `json:"grade"        gorm:"column:grade"`
+	Subject     string `json:"subject"      gorm:"column:subject"`
+}
+
+func (r *ClassRepo) ListTeacherAssignments(schoolID string) ([]TeacherAssignmentItem, error) {
+	var items []TeacherAssignmentItem
+	err := r.db.Raw(`
+		SELECT u.id::text AS teacher_id, u.name AS teacher_name, u.phone,
+		       c.id::text AS class_id, c.name AS class_name, c.grade,
+		       tc.subject
+		FROM teacher_classes tc
+		JOIN users u ON u.id = tc.teacher_id
+		JOIN classes c ON c.id = tc.class_id
+		WHERE c.school_id = ?
+		ORDER BY u.name, c.grade, tc.subject
+	`, schoolID).Scan(&items).Error
+	return items, err
+}
+
 func (r *ClassRepo) EnrollStudent(studentID, classID uuid.UUID) error {
 	sc := model.StudentClass{
 		StudentID: studentID,
@@ -824,6 +866,76 @@ func (r *GradingRepo) BatchConfirm(teacherID, assignmentID string) error {
 			WHERE a.teacher_id = ? AND a.id = ?
 		)
 	`, teacherID, assignmentID).Error
+}
+
+// PrincipalDashboard 校长视图
+type PrincipalDashboard struct {
+	TotalTeachers     int64            `json:"total_teachers"`
+	TotalStudents     int64            `json:"total_students"`
+	TotalClasses      int64            `json:"total_classes"`
+	LessonPlansThisMonth int64         `json:"lesson_plans_this_month"`
+	LessonPlanDrafts  int64            `json:"lesson_plan_drafts"`
+	LessonPlanFinalized int64          `json:"lesson_plan_finalized"`
+	HomeworkCompletion float64         `json:"homework_completion"`
+	GradingCompletion float64          `json:"grading_completion"`
+	AvgClassScore     float64          `json:"avg_class_score"`
+	WeeklyTrend       []WeeklyDataPoint `json:"weekly_trend"`
+}
+
+type WeeklyDataPoint struct {
+	Date        string `json:"date"`
+	PlansCreated int64  `json:"plans_created"`
+	HomeworkDone int64  `json:"homework_done"`
+}
+
+func (r *StatsRepo) GetPrincipalDashboard(schoolID string) (*PrincipalDashboard, error) {
+	d := &PrincipalDashboard{}
+	// 基础统计
+	r.db.Raw("SELECT COUNT(*) FROM users WHERE school_id = ? AND role = 'teacher'", schoolID).Scan(&d.TotalTeachers)
+	r.db.Raw("SELECT COUNT(*) FROM users WHERE school_id = ? AND role = 'student'", schoolID).Scan(&d.TotalStudents)
+	r.db.Raw("SELECT COUNT(*) FROM classes WHERE school_id = ?", schoolID).Scan(&d.TotalClasses)
+	r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id = ? AND created_at >= date_trunc('month',CURRENT_DATE)", schoolID).Scan(&d.LessonPlansThisMonth)
+	r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id = ? AND status = 'draft'", schoolID).Scan(&d.LessonPlanDrafts)
+	r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id = ? AND status = 'final'", schoolID).Scan(&d.LessonPlanFinalized)
+	// 作业完成率
+	r.db.Raw(`
+		SELECT COALESCE(ROUND(100.0 * COUNT(s.id) /
+			NULLIF((SELECT COUNT(*) FROM assignments a2
+				JOIN student_classes sc2 ON sc2.class_id = a2.class_id
+				WHERE a2.school_id = ?), 0), 1), 0)
+		FROM submissions s
+		JOIN assignments a ON a.id = s.assignment_id
+		WHERE a.school_id = ?
+	`, schoolID, schoolID).Scan(&d.HomeworkCompletion)
+	// 批阅完成率
+	r.db.Raw(`
+		SELECT COALESCE(ROUND(100.0 * COUNT(gr.id) FILTER (WHERE gr.status='teacher_confirmed') /
+			NULLIF(COUNT(gr.id),0), 1), 0)
+		FROM grading_results gr
+		JOIN submissions s ON s.id = gr.submission_id
+		JOIN assignments a ON a.id = s.assignment_id
+		WHERE a.school_id = ?
+	`, schoolID).Scan(&d.GradingCompletion)
+	// 平均分
+	r.db.Raw(`
+		SELECT COALESCE(ROUND(AVG(gr.ai_score)::numeric, 1), 0)
+		FROM grading_results gr
+		JOIN submissions s ON s.id = gr.submission_id
+		JOIN assignments a ON a.id = s.assignment_id
+		WHERE a.school_id = ? AND gr.ai_score > 0
+	`, schoolID).Scan(&d.AvgClassScore)
+	// 周趋势
+	r.db.Raw(`
+		SELECT d::date::text,
+		       COALESCE(SUM(CASE WHEN lp.created_at::date = d::date THEN 1 ELSE 0 END),0) AS plans_created,
+		       COALESCE(SUM(CASE WHEN s.submitted_at::date = d::date THEN 1 ELSE 0 END),0) AS homework_done
+		FROM generate_series(CURRENT_DATE-6, CURRENT_DATE, '1 day') d
+		LEFT JOIN lesson_plans lp ON lp.created_at::date = d::date AND lp.school_id = ?
+		LEFT JOIN submissions s ON s.submitted_at::date = d::date
+			AND s.assignment_id IN (SELECT id FROM assignments WHERE school_id = ?)
+		GROUP BY d::date ORDER BY d::date
+	`, schoolID, schoolID).Scan(&d.WeeklyTrend)
+	return d, nil
 }
 
 func (r *StatsRepo) GetDashboardStats(teacherID, schoolID string) (*DashboardStats, error) {
