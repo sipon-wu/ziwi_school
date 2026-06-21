@@ -157,6 +157,13 @@ export const aiAPI = {
       method: 'POST',
       body: JSON.stringify(params),
     }),
+
+  /** 小微AI助手对话 */
+  chat: (params: { message: string; context: { teacher_name: string; subject: string; grade: string } }) =>
+    request<any>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
 }
 
 // ── 教案接口 ──

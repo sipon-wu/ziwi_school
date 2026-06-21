@@ -209,7 +209,7 @@ async def grade_composition(req: CompositionGradingRequest):
 
 @app.post("/api/chat")
 async def chat(payload: dict):
-    """小微AI助手对话，支持意图识别+快捷指令"""
+    """小微AI助手对话，支持意图识别+快捷指令（v0.4 扩容版）"""
     msg = payload.get("message", "")
     ctx = payload.get("context", {})
     teacher_name = ctx.get("teacher_name", "老师")
@@ -224,6 +224,10 @@ async def chat(payload: dict):
         reply = f"好的{teacher_name}，我马上帮您准备教案。请在教案备课页面输入课题名称，我就能自动生成啦！"
         suggestions = ["写《观潮》教案","写分数加减法教案","写My Day教案"]
 
+    elif intent == "teaching_design":
+        reply = f"{teacher_name}，教学设计我来帮您构思！请告诉我课题名称、年级和学科，我可以帮您梳理教学目标、重难点和教学流程。"
+        suggestions = ["四年级语文《观潮》教学设计","三年级数学《认识分数》教学设计","五年级英语 Unit3 教学设计"]
+
     elif intent == "exam":
         reply = f"收到{teacher_name}！请告诉我想出什么知识点的题目，以及难度和题量，我帮您组卷。"
         suggestions = ["10道分数题L2难度","5道语文选择题","20道英语词汇题"]
@@ -236,6 +240,26 @@ async def chat(payload: dict):
         reply = f"{teacher_name}，目前有12份作业待批阅，其中3份是作文需要您复核。还有3位家长尚未签字，其中2位已逾期。"
         suggestions = ["进入批阅工作台","查看低置信度列表","提醒家长签字"]
 
+    elif intent == "composition_grading":
+        reply = f"好的{teacher_name}！作文批阅是我的强项。请将学生作文提交到习作批阅模块，我可以从内容、结构、语言、书写四个维度给出点评。"
+        suggestions = ["批改一篇记叙文","查看作文批阅标准","批量批阅作文"]
+
+    elif intent == "class_activity":
+        reply = f"{teacher_name}，课堂活动创意来啦！根据{grade}{subject}的特点，我建议可以尝试：小组竞赛、角色扮演、思维导图共创、闯关游戏等形式。您想要哪种类型的活动方案？"
+        suggestions = ["小组竞赛活动方案","角色扮演教学设计","课堂闯关游戏设计"]
+
+    elif intent == "parent_communication":
+        reply = f"{teacher_name}，家长沟通我来帮您措辞。请告诉我是关于学生学习情况、行为表现还是活动通知？我会帮您生成得体的话术。"
+        suggestions = ["学生学习情况沟通","行为表现反馈话术","家长会发言提纲"]
+
+    elif intent == "class_meeting":
+        reply = f"{teacher_name}，班会方案我来策划！请告诉我班会主题（如安全教育、心理健康、学习方法等）和年级，我帮您设计完整的班会流程。"
+        suggestions = ["安全教育主题班会","学习方法分享班会","心理健康主题班会"]
+
+    elif intent == "teaching_reflection":
+        reply = f"{teacher_name}，教学反思是专业成长的重要环节。请告诉我您刚上完的课题和感受，我可以帮您从教学目标达成、课堂互动、改进方向等方面梳理反思总结。"
+        suggestions = ["帮我梳理教学反思","分析本节课优缺点","生成改进计划"]
+
     else:
         # 通用对话（调用 Qwen）
         if HAS_QWEN:
@@ -246,24 +270,50 @@ async def chat(payload: dict):
                 chat_model = payload.get("model", "qwen-turbo")
                 reply = qwen.chat(messages, model=chat_model, temperature=0.8)
             except:
-                reply = f"老师您好！我是小微。您可以试试问我：'帮我写教案'、'出10道题'、'看看学情'哦～"
+                reply = f"老师您好！我是小微。您可以试试问我：'帮我写教案'、'出10道题'、'设计课堂活动'、'写家长沟通话术'、'班会方案'、'教学反思'哦～"
         else:
-            reply = f"老师您好！我是小微👋 您可以试试问我：'帮我写教案'、'出10道题'、'看看学情'、'批改作业'～"
+            reply = f"老师您好！我是小微👋 您可以试试问我：'帮我写教案'、'出10道题'、'设计课堂活动'、'家长沟通'、'班会方案'、'教学反思'～"
 
     return {"reply": reply, "suggestions": suggestions, "intent": intent}
 
 
 def _detect_intent(msg: str) -> str:
-    """简单意图检测（按优先级：教案 > 出题 > 批阅 > 学情）"""
+    """意图检测（按优先级：教学设计 > 课堂活动 > 班会 > 作文批改 > 教案 > 出题 > 批阅 > 学情 > 家长沟通 > 教学反思）"""
     msg = msg.lower()
+
+    # 教学设计（区别于普通教案的关键词："教学设计"）
+    if any(kw in msg for kw in ["教学设计","教学方案"]): return "teaching_design"
+
+    # 课堂活动
+    if any(kw in msg for kw in ["课堂活动","活动方案","互动","游戏","竞赛","闯关","角色扮演"]): return "class_activity"
+
+    # 班会方案
+    if any(kw in msg for kw in ["班会","主题班会","班会课"]): return "class_meeting"
+
+    # 作文批改（先于普通批阅检测，避免"作文"落入 grading）
+    if any(kw in msg for kw in ["作文批改","批改作文","作文点评","批阅作文"]): return "composition_grading"
+
+    # 教案/备课
     if any(kw in msg for kw in ["教案","备课","写教案","生成教案"]): return "lesson_plan"
-    # 出题：题目/出题/组卷/计算题/试卷/测验/考试，排除"批改作业"中的"作业"
+
+    # 出题
     if any(kw in msg for kw in ["出题","组卷","题目","试卷","测验","考试","练习题","计算题"]): return "exam"
-    # 批阅：批改/批阅/签字，排除"作业情况"中的"情况"、"分析作业"中的"分析"
+
+    # 家长沟通
+    if any(kw in msg for kw in ["家长沟通","家长话术","家长会发言","跟家长","通知家长","家长"]): return "parent_communication"
+
+    # 教学反思
+    if any(kw in msg for kw in ["教学反思","反思总结","课后反思","改进计划","本节课反思"]): return "teaching_reflection"
+
+    # 批阅/批改
     if any(kw in msg for kw in ["批改","批阅","签字","作文"]): return "grading"
+
+    # 学情
     if any(kw in msg for kw in ["学情","班级","成绩","分析","数据","情况"]): return "analytics"
-    # 剩余"作业"归给grading（在学情之后检查，避免"作业情况"被学情拦截）
+
+    # 剩余"作业"归给grading
     if "作业" in msg: return "grading"
+
     return "general"
 
 
