@@ -130,7 +130,7 @@ func main() {
 
 		// 学校管理
 		protected.GET("/schools", schoolH.List)
-		protected.POST("/schools", schoolH.Create)
+		protected.POST("/schools", middleware.RequireRole("admin"), schoolH.Create)
 		protected.GET("/schools/:id", schoolH.Get)
 		protected.GET("/school/settings", schoolH.GetSettings)
 		protected.PUT("/schools/:id/settings", schoolH.UpdateSettings)
