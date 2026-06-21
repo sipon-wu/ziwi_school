@@ -778,3 +778,78 @@ func (h *InspectionHandler) Get(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code":200,"data":data})
 }
+
+// ── 教材版本配置 + 课标对标提示 ──
+
+type TextbookHandler struct {
+	repo *repository.TextbookRepo
+}
+
+func NewTextbookHandler(repo *repository.TextbookRepo) *TextbookHandler {
+	return &TextbookHandler{repo: repo}
+}
+
+func (h *TextbookHandler) List(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	items, err := h.repo.ListBySchool(schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":items})
+}
+
+func (h *TextbookHandler) Upsert(c *gin.Context) {
+	var req struct {
+		Subject       string `json:"subject"`
+		Grade         string `json:"grade"`
+		Publisher     string `json:"publisher"`
+		Version       string `json:"version"`
+		CurriculumRef string `json:"curriculum_ref"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
+		return
+	}
+	schoolID, _ := uuid.Parse(c.GetString("school_id"))
+	tv := &model.TextbookVersion{
+		SchoolID: schoolID, Subject: req.Subject, Grade: req.Grade,
+		Publisher: req.Publisher, Version: req.Version, CurriculumRef: req.CurriculumRef,
+	}
+	if err := h.repo.Upsert(tv); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":tv})
+}
+
+func (h *TextbookHandler) CurriculumHint(c *gin.Context) {
+	subject := c.Query("subject")
+	grade := c.Query("grade")
+	publisher := c.Query("publisher")
+	if subject == "" || grade == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"缺少学科或年级参数"})
+		return
+	}
+	items, err := h.repo.LookupCurriculum(subject, grade, publisher)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	covered := make([]string, 0)
+	truncate := func(s string, n int) string {
+		r := []rune(s)
+		if len(r) <= n { return s }
+		return string(r[:n]) + "..."
+	}
+	for _, m := range items {
+		covered = append(covered, fmt.Sprintf("[%s] %s", m.StandardCode, truncate(m.StandardContent, 60)))
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":gin.H{
+		"subject":         subject,
+		"grade":           grade,
+		"total_standards": len(items),
+		"covered_codes":   covered,
+		"details":         items,
+	}})
+}

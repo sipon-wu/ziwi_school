@@ -243,3 +243,30 @@ type DataScope struct {
 }
 
 func (DataScope) TableName() string { return "data_scopes" }
+
+// TextbookVersion 教材版本配置
+type TextbookVersion struct {
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID      uuid.UUID `gorm:"type:uuid;not null;index" json:"school_id"`
+	Subject       string    `gorm:"size:20;not null" json:"subject"`
+	Grade         string    `gorm:"size:20;not null" json:"grade"`
+	Publisher     string    `gorm:"size:100;not null" json:"publisher"`
+	Version       string    `gorm:"size:100" json:"version,omitempty"`
+	CurriculumRef string    `gorm:"size:50" json:"curriculum_ref,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (TextbookVersion) TableName() string { return "textbook_versions" }
+
+// CurriculumMapping 教材→课标对照
+type CurriculumMapping struct {
+	ID              string `gorm:"size:50;primaryKey" json:"id"`
+	Subject         string `gorm:"size:20;not null" json:"subject"`
+	Grade           string `gorm:"size:20;not null" json:"grade"`
+	Publisher       string `gorm:"size:100" json:"publisher"`
+	TextbookVersion string `gorm:"size:100" json:"textbook_version"`
+	StandardCode    string `gorm:"size:50;not null" json:"standard_code"`
+	StandardContent string `gorm:"type:text;not null" json:"standard_content"`
+}
+
+func (CurriculumMapping) TableName() string { return "curriculum_mapping" }

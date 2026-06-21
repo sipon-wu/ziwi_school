@@ -1045,6 +1045,37 @@ func (r *StatsRepo) GetPrincipalDashboard(schoolID string) (*PrincipalDashboard,
 	return d, nil
 }
 
+// TextbookRepo 教材版本
+type TextbookRepo struct {
+	db *gorm.DB
+}
+
+func NewTextbookRepo(db *gorm.DB) *TextbookRepo { return &TextbookRepo{db: db} }
+
+func (r *TextbookRepo) ListBySchool(schoolID string) ([]model.TextbookVersion, error) {
+	var items []model.TextbookVersion
+	err := r.db.Where("school_id = ?", schoolID).Order("subject, grade").Find(&items).Error
+	return items, err
+}
+
+func (r *TextbookRepo) Upsert(tv *model.TextbookVersion) error {
+	return r.db.Where("school_id = ? AND subject = ? AND grade = ?", tv.SchoolID, tv.Subject, tv.Grade).
+		Assign(tv).FirstOrCreate(tv).Error
+}
+
+func (r *TextbookRepo) Delete(id string) error {
+	return r.db.Delete(&model.TextbookVersion{}, "id = ?", id).Error
+}
+
+// CurriculumMappingLookup 课标对标提示
+func (r *TextbookRepo) LookupCurriculum(subject, grade, publisher string) ([]model.CurriculumMapping, error) {
+	var items []model.CurriculumMapping
+	query := r.db.Where("subject = ? AND grade = ?", subject, grade)
+	if publisher != "" { query = query.Where("publisher = ?", publisher) }
+	err := query.Order("standard_code").Find(&items).Error
+	return items, err
+}
+
 func (r *StatsRepo) GetDashboardStats(teacherID, schoolID string) (*DashboardStats, error) {
 	stats := &DashboardStats{}
 	weekStart := time.Now().AddDate(0, 0, -int(time.Now().Weekday()))

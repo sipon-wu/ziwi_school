@@ -89,6 +89,8 @@ func main() {
 	campusRepo := repository.NewCampusRepo(db)
 	campusH := handler.NewCampusHandler(campusRepo, classRepo)
 	inspectionH := handler.NewInspectionHandler(classRepo)
+	textbookRepo := repository.NewTextbookRepo(db)
+	textbookH := handler.NewTextbookHandler(textbookRepo)
 
 	// 路由
 	r := gin.New()
@@ -157,6 +159,11 @@ func main() {
 		protected.POST("/teachers/batch-import", campusH.BatchImportTeachers)
 		// 教学检查
 		protected.GET("/inspection", inspectionH.Get)
+
+		// 教材版本
+		protected.GET("/textbooks", textbookH.List)
+		protected.POST("/textbooks", textbookH.Upsert)
+		protected.GET("/textbooks/curriculum-hint", textbookH.CurriculumHint)
 
 		// 工作台
 		protected.GET("/dashboard/home", dashH.Home)
