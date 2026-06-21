@@ -34,7 +34,7 @@ export default function DemoEnv() {
 
   useEffect(() => {
     // 从 API 获取 work_mode
-    api.auth.me().then((data: any) => {
+    api.authAPI.me().then((data: any) => {
       if (data?.work_mode) setWorkMode(data.work_mode)
     }).catch(() => {})
   }, [])
