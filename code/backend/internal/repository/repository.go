@@ -124,6 +124,113 @@ func NewClassRepo(db *gorm.DB) *ClassRepo {
 	return &ClassRepo{db: db}
 }
 
+// CampusRepo 分校管理
+type CampusRepo struct {
+	db *gorm.DB
+}
+
+func NewCampusRepo(db *gorm.DB) *CampusRepo {
+	return &CampusRepo{db: db}
+}
+
+func (r *CampusRepo) ListBySchool(schoolID string) ([]model.Campus, error) {
+	var items []model.Campus
+	err := r.db.Where("school_id = ?", schoolID).Order("name").Find(&items).Error
+	return items, err
+}
+
+func (r *CampusRepo) Create(name, schoolID, grades string) (*model.Campus, error) {
+	sid, _ := uuid.Parse(schoolID)
+	campus := &model.Campus{Name: name, SchoolID: sid, Grades: grades}
+	err := r.db.Create(campus).Error
+	return campus, err
+}
+
+func (r *CampusRepo) Update(id string, name, grades string) error {
+	updates := map[string]interface{}{}
+	if name != "" { updates["name"] = name }
+	if grades != "" { updates["grades"] = grades }
+	return r.db.Model(&model.Campus{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *CampusRepo) Delete(id string) error {
+	return r.db.Delete(&model.Campus{}, "id = ?", id).Error
+}
+
+// BatchImportTeacher 批量导入教师
+func (r *CampusRepo) BatchCreateUsers(users []model.User) error {
+	return r.db.CreateInBatches(users, 50).Error
+}
+
+// TeachingInspection 教学检查数据
+type TeachingInspection struct {
+	LessonPlanQuality struct {
+		TotalThisWeek  int64   `json:"total_this_week"`
+		Finalized      int64   `json:"finalized"`
+		FinalizedRate  float64 `json:"finalized_rate"`
+		AvgAIAlignment float64 `json:"avg_ai_alignment"`
+	} `json:"lesson_plan_quality"`
+	HomeworkStats struct {
+		TotalAssigned  int64   `json:"total_assigned"`
+		TotalSubmitted int64   `json:"total_submitted"`
+		CompletionRate float64 `json:"completion_rate"`
+	} `json:"homework_stats"`
+	GradingStats struct {
+		TotalGraded    int64   `json:"total_graded"`
+		TeacherConfirmed int64 `json:"teacher_confirmed"`
+		ConfirmRate    float64 `json:"confirm_rate"`
+	} `json:"grading_stats"`
+	TeacherRanking []TeacherStats `json:"teacher_ranking"`
+}
+
+type TeacherStats struct {
+	TeacherName      string  `json:"teacher_name"`
+	Phone            string  `json:"phone"`
+	PlansCreated     int64   `json:"plans_created"`
+	HomeworkAssigned int64   `json:"homework_assigned"`
+	GradingCompleted int64   `json:"grading_completed"`
+	AvgScore         float64 `json:"avg_score"`
+}
+
+func (r *ClassRepo) GetTeachingInspection(schoolID string) (*TeachingInspection, error) {
+	t := &TeachingInspection{}
+	// 教案质量
+	r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id=? AND created_at >= date_trunc('week',CURRENT_DATE)", schoolID).Scan(&t.LessonPlanQuality.TotalThisWeek)
+	r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id=? AND status='final'", schoolID).Scan(&t.LessonPlanQuality.Finalized)
+	if t.LessonPlanQuality.TotalThisWeek > 0 {
+		r.db.Raw("SELECT COUNT(*) FROM lesson_plans WHERE school_id=? AND status='final' AND created_at >= date_trunc('week',CURRENT_DATE)", schoolID).Scan(&t.LessonPlanQuality.Finalized)
+		t.LessonPlanQuality.FinalizedRate = float64(t.LessonPlanQuality.Finalized) / float64(t.LessonPlanQuality.TotalThisWeek) * 100
+	}
+	t.LessonPlanQuality.AvgAIAlignment = 85.0 // mock
+	// 作业
+	r.db.Raw("SELECT COUNT(*) FROM assignments WHERE school_id=?", schoolID).Scan(&t.HomeworkStats.TotalAssigned)
+	r.db.Raw("SELECT COUNT(*) FROM submissions s JOIN assignments a ON a.id=s.assignment_id WHERE a.school_id=?", schoolID).Scan(&t.HomeworkStats.TotalSubmitted)
+	if t.HomeworkStats.TotalAssigned > 0 {
+		t.HomeworkStats.CompletionRate = float64(t.HomeworkStats.TotalSubmitted) / float64(t.HomeworkStats.TotalAssigned) * 100
+	}
+	// 批阅
+	r.db.Raw("SELECT COUNT(*) FROM grading_results gr JOIN submissions s ON s.id=gr.submission_id JOIN assignments a ON a.id=s.assignment_id WHERE a.school_id=?", schoolID).Scan(&t.GradingStats.TotalGraded)
+	r.db.Raw("SELECT COUNT(*) FROM grading_results gr JOIN submissions s ON s.id=gr.submission_id JOIN assignments a ON a.id=s.assignment_id WHERE a.school_id=? AND gr.status='teacher_confirmed'", schoolID).Scan(&t.GradingStats.TeacherConfirmed)
+	if t.GradingStats.TotalGraded > 0 {
+		t.GradingStats.ConfirmRate = float64(t.GradingStats.TeacherConfirmed) / float64(t.GradingStats.TotalGraded) * 100
+	}
+	// 教师排行
+	r.db.Raw(`
+		SELECT u.name AS teacher_name, u.phone,
+			COUNT(DISTINCT lp.id) AS plans_created,
+			COUNT(DISTINCT a.id) AS homework_assigned,
+			COUNT(DISTINCT gr.id) FILTER (WHERE gr.status='teacher_confirmed') AS grading_completed,
+			COALESCE(ROUND(AVG(gr.ai_score) FILTER (WHERE gr.ai_score>0)::numeric,1),0) AS avg_score
+		FROM users u
+		LEFT JOIN lesson_plans lp ON lp.teacher_id=u.id AND lp.school_id=?
+		LEFT JOIN assignments a ON a.teacher_id=u.id AND a.school_id=?
+		LEFT JOIN grading_results gr ON gr.submission_id IN (SELECT id FROM submissions WHERE assignment_id IN (SELECT id FROM assignments WHERE teacher_id=u.id))
+		WHERE u.school_id=? AND u.role='teacher'
+		GROUP BY u.id, u.name, u.phone ORDER BY plans_created DESC
+	`, schoolID, schoolID, schoolID).Scan(&t.TeacherRanking)
+	return t, nil
+}
+
 func (r *ClassRepo) ListBySchool(schoolID string) ([]model.Class, int64, error) {
 	var classes []model.Class
 	var total int64

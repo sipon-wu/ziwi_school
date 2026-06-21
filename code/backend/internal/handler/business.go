@@ -691,3 +691,90 @@ func (h *PrincipalHandler) Dashboard(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code":200,"data":data})
 }
+
+// ── 分校管理 ──
+
+type CampusHandler struct {
+	campusRepo   *repository.CampusRepo
+	classRepo    *repository.ClassRepo
+}
+
+func NewCampusHandler(campusRepo *repository.CampusRepo, classRepo *repository.ClassRepo) *CampusHandler {
+	return &CampusHandler{campusRepo: campusRepo, classRepo: classRepo}
+}
+
+func (h *CampusHandler) List(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	items, err := h.campusRepo.ListBySchool(schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":items})
+}
+
+func (h *CampusHandler) Create(c *gin.Context) {
+	var req struct {
+		Name   string   `json:"name" validate:"required"`
+		Grades []string `json:"grades"`
+	}
+	c.ShouldBindJSON(&req)
+	gradesJSON, _ := json.Marshal(req.Grades)
+	campus, err := h.campusRepo.Create(req.Name, c.GetString("school_id"), string(gradesJSON))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"code":200,"data":campus})
+}
+
+// BatchImportTeachers 批量导入教师
+func (h *CampusHandler) BatchImportTeachers(c *gin.Context) {
+	var req struct {
+		Teachers []struct {
+			Name    string `json:"name"`
+			Phone   string `json:"phone"`
+			Subject string `json:"subject"`
+			Grade   string `json:"grade"`
+		} `json:"teachers"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
+		return
+	}
+	schoolID, _ := uuid.Parse(c.GetString("school_id"))
+	var users []model.User
+	for _, t := range req.Teachers {
+		users = append(users, model.User{
+			Phone: t.Phone, Name: t.Name, Role: "teacher",
+			Subject: t.Subject, Grade: t.Grade,
+			SchoolID:      &schoolID,
+			AccountSource: "admin_created",
+		})
+	}
+	if err := h.campusRepo.BatchCreateUsers(users); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"message":fmt.Sprintf("成功导入%d位教师", len(users))})
+}
+
+// ── 教学检查 (教务专用) ──
+
+type InspectionHandler struct {
+	classRepo *repository.ClassRepo
+}
+
+func NewInspectionHandler(classRepo *repository.ClassRepo) *InspectionHandler {
+	return &InspectionHandler{classRepo: classRepo}
+}
+
+func (h *InspectionHandler) Get(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	data, err := h.classRepo.GetTeachingInspection(schoolID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":data})
+}

@@ -86,6 +86,9 @@ func main() {
 	tokenH := handler.NewTokenHandler(tokenRepo)
 	teachingH := handler.NewTeachingHandler(classRepo, authRepo)
 	principalH := handler.NewPrincipalHandler(statsRepo)
+	campusRepo := repository.NewCampusRepo(db)
+	campusH := handler.NewCampusHandler(campusRepo, classRepo)
+	inspectionH := handler.NewInspectionHandler(classRepo)
 
 	// 路由
 	r := gin.New()
@@ -146,6 +149,14 @@ func main() {
 
 		// 校长仪表盘
 		protected.GET("/principal/dashboard", principalH.Dashboard)
+
+		// 学校管理后台：分校
+		protected.GET("/campuses", campusH.List)
+		protected.POST("/campuses", campusH.Create)
+		// 批量导入教师
+		protected.POST("/teachers/batch-import", campusH.BatchImportTeachers)
+		// 教学检查
+		protected.GET("/inspection", inspectionH.Get)
 
 		// 工作台
 		protected.GET("/dashboard/home", dashH.Home)

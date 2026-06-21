@@ -56,6 +56,17 @@ type Class struct {
 
 func (Class) TableName() string { return "classes" }
 
+// Campus 分校
+type Campus struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID  uuid.UUID `gorm:"type:uuid;not null;index" json:"school_id"`
+	Name      string    `gorm:"size:200;not null" json:"name"`
+	Grades    string    `gorm:"type:jsonb;default:'[]'" json:"grades"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (Campus) TableName() string { return "campuses" }
+
 type TeacherClass struct {
 	TeacherID uuid.UUID `gorm:"type:uuid;primaryKey" json:"teacher_id"`
 	ClassID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"class_id"`
