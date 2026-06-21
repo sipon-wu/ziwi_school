@@ -238,16 +238,12 @@ func main() {
 		protected.POST("/grading/:id/confirm", gradingH.Confirm)
 		protected.POST("/grading/:id/adjust", gradingH.AdjustScore)
 		protected.POST("/grading/batch-confirm", gradingH.BatchConfirm)
-	}
 
-	// AI 生成接口限流
-	aiGroup := protected.Group("/ai")
-	// REMOVED: aiGroup.Use(middleware.RateLimit(10, time.Minute))
-	{
-		aiGroup.POST("/lesson-plan/generate", proxyAIWithModel(cfg, schoolRepo))
-		aiGroup.POST("/exam/generate", proxyAIWithModel(cfg, schoolRepo))
-		aiGroup.POST("/grading/auto", proxyAIWithModel(cfg, schoolRepo))
-		aiGroup.POST("/chat", proxyAIWithModel(cfg, schoolRepo))
+		// AI 生成接口
+		protected.POST("/ai/lesson-plan/generate", proxyAIWithModel(cfg, schoolRepo))
+		protected.POST("/ai/exam/generate", proxyAIWithModel(cfg, schoolRepo))
+		protected.POST("/ai/grading/auto", proxyAIWithModel(cfg, schoolRepo))
+		protected.POST("/ai/chat", proxyAIWithModel(cfg, schoolRepo))
 	}
 
 	port := cfg.Port
