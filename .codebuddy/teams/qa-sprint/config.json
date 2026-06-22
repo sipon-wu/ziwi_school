@@ -1,0 +1,33 @@
+{
+  "name": "qa-sprint",
+  "leadAgentId": "37f6c7fdf0fe4e4495f870d5f79a596e",
+  "workspacePath": "/Users/sipon/CodeBuddy/AI教案",
+  "createdAt": "2026-06-22T01:33:32.597Z",
+  "options": {
+    "workspacePath": "/Users/sipon/CodeBuddy/AI教案",
+    "isAutoTeam": false
+  },
+  "members": [
+    {
+      "memberId": "team-lead@qa-sprint",
+      "name": "team-lead",
+      "role": "Team Lead - coordinates the team and interacts with the user"
+    },
+    {
+      "memberId": "小Q@qa-sprint",
+      "name": "小Q",
+      "role": "QA全面内测-功能测试"
+    },
+    {
+      "memberId": "小艺@qa-sprint",
+      "name": "小艺",
+      "role": "UI/UX全面审查"
+    },
+    {
+      "memberId": "品姐@qa-sprint",
+      "name": "品姐",
+      "role": "产品体验评审"
+    }
+  ],
+  "isAutoTeam": false
+}

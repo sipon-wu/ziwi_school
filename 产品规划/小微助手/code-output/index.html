@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小微助教 - 知微 AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #EDEFF2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Noto Sans SC', 'Sarasa Gothic SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* ── 小微面板容器 ── */
+  .panel {
+    width: 420px;
+    height: 640px;
+    background: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ════════════ Header ════════════ */
+  .header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    gap: 10px;
+    height: 64px;
+    border-bottom: 1px solid #EEF0F4;
+    flex-shrink: 0;
+  }
+
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #E8ECF4;
+    flex-shrink: 0;
+  }
+
+  .agent-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .agent-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1A1A2E;
+    line-height: 1.2;
+  }
+  .agent-status {
+    font-size: 11px;
+    color: #52C41A;
+    line-height: 1.2;
+  }
+
+  .header-btns {
+    display: flex;
+    gap: 6px;
+  }
+  .header-btn {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    background: #F0F0F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .header-btn:hover { background: #E0E0E0; }
+  .header-btn.close:hover { background: #FFE0E0; color: #E02020; }
+
+  /* ════════════ 功能推荐 ════════════ */
+  .section-features {
+    background: #F5F6F9;
+    padding: 12px 16px 10px;
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #495677;
+    margin-bottom: 8px;
+  }
+
+  .cards-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .card {
+    flex: 1;
+    border-radius: 10px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  .card-icon { font-size: 22px; line-height: 1; }
+  .card-icon.c1 { color: #495677; }
+  .card-icon.c2 { color: #6D7792; }
+  .card-icon.c3 { color: #5A7A5A; }
+  .card-icon.c4 { color: #6D7792; }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1A1A2E;
+    line-height: 1.2;
+  }
+  .card-desc {
+    font-size: 10px;
+    color: #888;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .card.c1 { background: #E8ECF4; }
+  .card.c2 { background: #F0EDE8; }
+  .card.c3 { background: #EAF0E8; }
+  .card.c4 { background: #E8E8F0; }
+
+  /* ════════════ 快捷指令 ════════════ */
+  .section-commands {
+    background: #F5F6F9;
+    padding: 0 16px 12px;
+    flex-shrink: 0;
+  }
+
+  .cmd-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .cmd-btn {
+    padding: 12px 10px;
+    height: 44px;
+    border-radius: 10px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border: none;
+    font-family: inherit;
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .cmd-btn:hover { opacity: 0.85; transform: scale(1.02); }
+  .cmd-btn.primary {
+    background: #495677;
+    color: #FFFFFF;
+    font-weight: 500;
+    width: 88px;
+  }
+  .cmd-btn.outline {
+    background: transparent;
+    color: #1A1A2E;
+    border: 1px solid #D6DAE0;
+    width: 88px;
+  }
+  .cmd-btn.outline:hover {
+    background: #F0F2F5;
+    border-color: #495677;
+  }
+
+  /* ════════════ 聊天区域 ════════════ */
+  .chat-area {
+    flex: 1;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    background: #FFFFFF;
+  }
+
+  .msg-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    max-width: 340px;
+  }
+
+  .msg-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #E8ECF4;
+    flex-shrink: 0;
+  }
+
+  .msg-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .msg-bubble {
+    background: #F0F2F5;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #1A1A2E;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    color: #BBB;
+  }
+
+  .msg-row.user {
+    flex-direction: row-reverse;
+    align-self: flex-end;
+  }
+  .msg-row.user .msg-bubble {
+    background: #495677;
+    color: #FFFFFF;
+  }
+  .msg-row.user .msg-time {
+    text-align: right;
+  }
+
+  /* ════════════ 输入栏 ════════════ */
+  .input-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 16px;
+    border-top: 1px solid #EEF0F4;
+    flex-shrink: 0;
+    background: #FFFFFF;
+  }
+
+  .input-field {
+    flex: 1;
+    height: 40px;
+    border: 1px solid #D6DAE0;
+    border-radius: 20px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1A1A2E;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-field::placeholder { color: #AAA; }
+  .input-field:focus { border-color: #495677; }
+
+  .icon-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: #495677;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    color: #FFF;
+    font-size: 16px;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { opacity: 0.85; }
+  .icon-btn.send { background: #495677; }
+  .icon-btn.send:hover { opacity: 0.85; }
+
+  /* ════════════ 底部品牌标识 ════════════ */
+  .brand-tag {
+    text-align: center;
+    padding: 4px 0;
+    font-size: 9px;
+    color: #B0B5C0;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    border-top: 1px solid #EEF0F4;
+  }
+</style>
+</head>
+<body>
+
+<div class="panel">
+
+  <!-- ═══ Header ═══ -->
+  <div class="header">
+    <img class="avatar" src="./assets/xiaowei.png" alt="小微头像">
+    <div class="agent-info">
+      <span class="agent-name">小微</span>
+      <span class="agent-status">● 在线</span>
+    </div>
+    <div class="header-btns">
+      <div class="header-btn">─</div>
+      <div class="header-btn close">✕</div>
+    </div>
+  </div>
+
+  <!-- ═══ 功能推荐 ═══ -->
+  <div class="section-features">
+    <div class="section-title">✨ 功能推荐</div>
+    <div class="cards-row">
+      <div class="card c1">
+        <span class="card-icon c1">📝</span>
+        <span class="card-title">制作教案</span>
+        <span class="card-desc">AI 智能生成</span>
+      </div>
+      <div class="card c2">
+        <span class="card-icon c2">📖</span>
+        <span class="card-title">批改作文</span>
+        <span class="card-desc">逐句分析点评</span>
+      </div>
+      <div class="card c3">
+        <span class="card-icon c3">🎯</span>
+        <span class="card-title">课堂活动</span>
+        <span class="card-desc">互动创意方案</span>
+      </div>
+      <div class="card c4">
+        <span class="card-icon c4">📊</span>
+        <span class="card-title">学情分析</span>
+        <span class="card-desc">数据可视化</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 快捷指令 ═══ -->
+  <div class="section-commands">
+    <div class="section-title" style="margin-bottom:6px;">⚡ 快捷指令</div>
+    <div class="cmd-row">
+      <button class="cmd-btn primary">教学设计</button>
+      <button class="cmd-btn outline">出题助手</button>
+      <button class="cmd-btn outline">家长沟通</button>
+      <button class="cmd-btn outline">班会方案</button>
+      <button class="cmd-btn outline">教学反思</button>
+    </div>
+  </div>
+
+  <!-- ═══ 聊天区域 ═══ -->
+  <div class="chat-area">
+    <!-- AI 消息 -->
+    <div class="msg-row">
+      <img class="msg-avatar" src="./assets/xiaowei.png" alt="小微">
+      <div class="msg-content">
+        <div class="msg-bubble">
+          你好！我是小微助教，很高兴为你服务！<br>
+          有什么教学方面的需求可以随时问我 😊
+        </div>
+        <span class="msg-time">14:30</span>
+      </div>
+    </div>
+
+    <!-- 用户消息 -->
+    <div class="msg-row user">
+      <div class="msg-content">
+        <div class="msg-bubble">帮我设计一堂数学课教案</div>
+        <span class="msg-time">14:31</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 输入栏 ═══ -->
+  <div class="input-bar">
+    <input class="input-field" type="text" placeholder="输入你想了解的内容...">
+    <button class="icon-btn">🎤</button>
+    <button class="icon-btn send">↑</button>
+  </div>
+
+  <!-- ═══ 品牌标识 ═══ -->
+  <div class="brand-tag">知微 ziwi  ·  AI 助教</div>
+
+</div>
+
+<script>
+  // ── 发送模拟 ──
+  document.querySelectorAll('.icon-btn.send, .icon-btn:first-of-type').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.querySelector('.input-field');
+      const text = input.value.trim();
+      if (!text) return;
+
+      // 添加用户消息
+      const chat = document.querySelector('.chat-area');
+      const now = new Date();
+      const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
+      const userMsg = document.createElement('div');
+      userMsg.className = 'msg-row user';
+      userMsg.innerHTML = `
+        <div class="msg-content">
+          <div class="msg-bubble">${text}</div>
+          <span class="msg-time">${time}</span>
+        </div>
+      `;
+      chat.appendChild(userMsg);
+
+      input.value = '';
+      chat.scrollTop = chat.scrollHeight;
+
+      // 模拟 AI 回复
+      setTimeout(() => {
+        const aiMsg = document.createElement('div');
+        aiMsg.className = 'msg-row';
+        aiMsg.innerHTML = `
+          <img class="msg-avatar" src="./assets/xiaowei.png" alt="小微">
+          <div class="msg-content">
+            <div class="msg-bubble">收到你的问题啦！我来帮你处理一下 🤗</div>
+            <span class="msg-time">${time}</span>
+          </div>
+        `;
+        chat.appendChild(aiMsg);
+        chat.scrollTop = chat.scrollHeight;
+      }, 800);
+    });
+  });
+
+  // ── Enter 发送 ──
+  document.querySelector('.input-field').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.querySelector('.icon-btn.send').click();
+  });
+
+  // ── 关闭按钮 ──
+  document.querySelector('.header-btn.close').addEventListener('click', () => {
+    document.querySelector('.panel').style.display = 'none';
+  });
+</script>
+
+</body>
+</html>
