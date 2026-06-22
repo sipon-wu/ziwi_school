@@ -140,8 +140,6 @@ export default function ExerciseGenerator() {
     setGenerating(false)
   }
 
-  const gradeNum = GRADE_NAMES.indexOf(grade) + 1
-
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center gap-3">
@@ -232,7 +230,7 @@ export default function ExerciseGenerator() {
       {showGraph&&(
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100"><span className="text-sm font-semibold text-gray-700">知识点图谱 · {teaching.textbook_math} · {grade}{teaching.semester}学期</span><button onClick={()=>setShowGraph(false)} className="p-1 hover:bg-gray-200 rounded"><X size={14} className="text-gray-400"/></button></div>
-          <KnowledgeGraph data={knowledgeData} grade={gradeNum} subject={subject} selectedIds={selectedKnowledge} onSelect={setSelectedKnowledge} height={400} />
+          <KnowledgeGraph data={knowledgeData} subject={subject} selectedIds={selectedKnowledge} onSelect={setSelectedKnowledge} height={400} />
         </div>
       )}
     </div>
