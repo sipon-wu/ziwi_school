@@ -23,7 +23,7 @@ interface Props {
 const DIFFICULTY_COLORS: Record<string, string> = { L1: '#52C41A', L2: '#1890FF', L3: '#FA8C16', L4: '#F5222D' }
 const COGNITIVE_COLORS: Record<string, string> = { '记忆': '#B37FEB', '理解': '#5CDBD3', '应用': '#1890FF', '分析': '#FA8C16', '评价': '#F5222D', '创造': '#EB2F96' }
 
-function buildTreeData(nodes: KnowledgeNode[], rootId?: string): TreeGraphData {
+function buildTreeData(nodes: KnowledgeNode[]): TreeGraphData {
   const nodeMap = new Map(nodes.map(n => [n.id, { ...n }]))
   const childrenMap = new Map<string, KnowledgeNode[]>()
   const hasParent = new Set<string>()
@@ -89,7 +89,7 @@ export default function KnowledgeGraph({ data, grade = 4, subject = '数学', se
   }, [dimension])
 
   useEffect(() => {
-    if (!containerRef.current || !graphData.nodes.length) return
+    if (!containerRef.current || !graphData.nodes?.length) return
     if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null }
 
     const container = containerRef.current
@@ -118,7 +118,7 @@ export default function KnowledgeGraph({ data, grade = 4, subject = '数学', se
     // 构建数据
     let gData: any
     if (layout === 'tree') {
-      gData = buildTreeData(data.filter(n => graphData.nodes.some(gn => gn.id === n.id)), undefined)
+      gData = buildTreeData(data.filter(n => (graphData.nodes || []).some((gn: any) => gn.id === n.id)))
     } else {
       gData = graphData
     }
@@ -131,7 +131,7 @@ export default function KnowledgeGraph({ data, grade = 4, subject = '数学', se
     graph.render()
 
     // 自定义节点样式
-    graph.getNodes().forEach(node => {
+    graph.getNodes().forEach((node: any) => {
       const nd = node.getModel() as any
       const ndData = nd.data || data.find(n => n.id === nd.id)
       if (ndData) {
