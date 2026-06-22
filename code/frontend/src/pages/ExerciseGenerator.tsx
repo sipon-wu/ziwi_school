@@ -80,7 +80,7 @@ export default function ExerciseGenerator() {
   useEffect(() => { setGrade(GRADE_NAMES[teaching.grade - 1] || '四年级') }, [teaching.grade])
 
   // 同步表单 → TeachingContext
-  useEffect(() => { teaching.setSubject(subject as any) }, [subject])
+  useEffect(() => { teaching.setSubject(subject as '语文'|'数学'|'英语') }, [subject])
   useEffect(() => {
     const idx = GRADE_NAMES.indexOf(grade)
     if (idx >= 0) teaching.setGrade(idx + 1)
