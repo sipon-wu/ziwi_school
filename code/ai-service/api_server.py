@@ -322,61 +322,12 @@ def _detect_intent(msg: str) -> str:
 # ── 模拟（开发用）──
 
 def _mock_lesson_plan(req) -> str:
-    return f"""# {req.lesson_title}
-
-## 一、教学目标
-### 知识与技能
-- 理解课文的主要内容，掌握重点词句的含义
-- 能够正确、流利地朗读课文
-
-### 过程与方法
-- 通过自主阅读和小组讨论，培养学生的阅读理解能力
-- 运用思维导图等方法梳理文章结构
-
-### 情感态度与价值观
-- 感受作者表达的思想感情
-- 培养对{req.subject}学习的兴趣和热爱
-
-## 二、教学重点
-- 把握文章的主要内容
-- 体会重点句段的表达效果
-
-## 三、教学难点
-- 理解作者的思想感情
-- 学习本文的表达方法
-
-## 四、教学过程
-
-### 1. 导入环节（约5分钟）
-通过谈话、图片或视频创设情境，激发学生兴趣。
-
-### 2. 初读课文（约10分钟）
-学生自由朗读课文，解决生字词，整体感知。
-
-### 3. 精读研讨（约15分钟）
-教师引导学生品读重点句段，体会表达方法。
-
-### 4. 巩固拓展（约8分钟）
-完成课后练习，进行拓展阅读或写作练习。
-
-### 5. 课堂小结（约2分钟）
-师生共同总结本课学习收获。
-
-## 五、板书设计
-{req.lesson_title}
-├── 主要内容：...
-├── 重点词句：...
-└── 写作手法：...
-
-## 六、教学反思
-[课后填写]
-
-## 七、课标对齐说明
-| 教学目标 | 对应课标 | 领域 |
-|---------|---------|------|
-| 理解课文内容 | 课标X.X.X | 阅读与鉴赏 |
-| 体会思想感情 | 课标X.X.X | 阅读与鉴赏 |
-
----
-生成模型：知微小微AI (开发模式)
-"""
+    """生成分学科的模拟教案模板"""
+    subject = req.subject
+    title = req.lesson_title
+    subject_samples: dict = {
+        "语文": f"""# {title}\n\n## 一、教学目标\n### 知识与技能\n- 认识本课8个生字，会写12个生字，理解重点词语\n- 能正确、流利、有感情地朗读课文\n\n### 过程与方法\n- 通过自主阅读和小组合作探究，把握文章主要内容\n- 学习作者运用修辞手法（比喻/拟人/排比）表达情感的方法\n\n### 情感态度与价值观\n- 感受语言文字之美，激发对祖国语言文字的热爱\n- 体会课文表达的思想感情，获得审美体验\n\n## 二、教学重点\n- 品读重点段落，体会作者的语言表达特点\n- 理解文章主要内容，把握文章结构\n\n## 三、教学难点\n- 体会文章深层含义和思想感情\n- 学习并尝试运用课文中的写作方法\n\n## 四、教学过程\n### 1. 导入环节（约3分钟）\n播放与课文主题相关的图片/视频，创设情境，引出课题。\n### 2. 初读感知（约8分钟）\n自由朗读课文，圈画生字词，交流预习收获。\n### 3. 品读感悟（约15分钟）\n聚焦重点段落，通过朗读、讨论、想象画面等方式品味语言。\n### 4. 拓展延伸（约10分钟）\n仿写练笔或口语表达，学以致用。\n### 5. 课堂小结（约4分钟）\n师生共同总结本课学习内容和收获。\n\n## 五、板书设计\n{title}\n├── 生字词: ...\n├── 文章结构: ...\n└── 写作特色: ...\n\n## 六、课标对齐\n| 目标 | 课标 |\n|------|------|\n| 把握主要内容 | 第二学段·阅读3.2 |\n| 体会思想感情 | 第二学段·阅读3.4 |""",
+        "数学": f"""# {title}\n\n## 一、教学目标\n### 知识与技能\n- 理解{title}的算理/概念\n- 掌握{title}的基本计算方法/解题步骤\n- 能运用所学知识解决简单实际问题\n\n### 过程与方法\n- 经历探究过程，发展数学思维（数感/推理/建模）\n- 通过动手操作和小组讨论培养合作学习能力\n\n### 情感态度与价值观\n- 感受数学与生活的密切联系\n- 培养严谨认真的学习态度\n\n## 二、教学重点\n- 理解算理/概念的本质含义\n- 掌握正确的计算方法和解题策略\n\n## 三、教学难点\n- 理解抽象概念的形成过程\n- 灵活运用所学知识解决变式问题\n\n## 四、教学过程\n### 1. 情境导入（约5分钟）\n创设生活情境，引出数学问题，激发探究欲望。\n### 2. 探究新知（约12分钟）\n借助教具/课件演示，引导学生独立思考+小组讨论，发现规律。\n### 3. 巩固练习（约12分钟）\n分层练习：基础题（全体）+ 提高题（选做）+ 挑战题。\n### 4. 拓展应用（约8分钟）\n解决实际生活问题，培养应用意识。\n### 5. 课堂小结（约3分钟）\n回顾本节课知识要点，布置课后作业。\n\n## 五、板书设计\n{title}\n├── 情境导入: ...\n├── 新授环节: ...\n└── 练习: 课本题 + 补充题\n\n## 六、课标对齐\n| 目标 | 课标 |\n|------|------|\n| 理解算理 | 第二学段·数与代数 4.1 |\n| 解决问题 | 第二学段·综合实践 4.4 |""",
+        "英语": f"""# {title}\n\n## 一、Teaching Objectives\n### Knowledge & Skills\n- Students will be able to recognize, read and spell the target vocabulary\n- Students will be able to use the key sentence pattern in communication\n\n### Process & Methods\n- Through games, songs and role-play activities\n- Task-based language teaching approach\n\n### Emotion & Values\n- Develop interest in English learning\n- Understand cultural differences\n\n## 二、Key Points\n- Master the target vocabulary and sentence pattern\n- Use language in real communication contexts\n\n## 三、Difficult Points\n- Correct pronunciation of challenging sounds\n- Confident oral output in full sentences\n\n## 四、Teaching Procedure\n### 1. Warm-up (5 min)\nSing an English song / Play a quick word game\n### 2. Presentation (12 min)\nIntroduce new words with flashcards/PPT, model pronunciation\n### 3. Practice (15 min)\nPair work, group activities, role-play dialogues\n### 4. Production (8 min)\nStudents create their own dialogues/sentences using target language\n\n## 五、Board Design\n{title}\n├── New words: ...\n├── Key sentence: ...\n└── Game/Activity: ...""",
+    }
+    return subject_samples.get(subject, subject_samples.get("语文", ""))
