@@ -125,7 +125,7 @@ export default function ExerciseGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || '') },
         body: JSON.stringify({
-          subject, grade: teaching.grade, semester: teaching.semester,
+          subject, grade: GRADE_NAMES[teaching.grade - 1] || '四年级', semester: teaching.semester,
           knowledge_point: knowledgePoint || undefined, difficulty, count,
           purpose, question_types: selectedTypes,
           school_style: selectedSchool || undefined,
