@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   X, Sparkles, Mic,
   FileText, BookOpen, Target, BarChart3,
@@ -13,49 +14,53 @@ interface Message {
   time?: string
 }
 
-// 功能推荐卡片
+// 功能推荐卡片（P1-6: 增加导航路径）
 const FEATURE_CARDS = [
   {
     icon: FileText,
-    iconClass: 'text-[#495677]',
-    bgClass: 'bg-[#E8ECF4]',
+    iconClass: 'text-[#1A3A6B]',
+    bgClass: 'bg-brand/5',
     title: '制作教案',
     desc: 'AI 智能生成',
+    navigateTo: '/dashboard/lesson-plans/new',
     prompt: '帮我写一份教案',
   },
   {
     icon: BookOpen,
-    iconClass: 'text-[#6D7792]',
+    iconClass: 'text-[#2B5DA8]',
     bgClass: 'bg-[#F0EDE8]',
     title: '批改作文',
     desc: '逐句分析点评',
+    navigateTo: '/dashboard/grading',
     prompt: '帮我批改一篇作文',
   },
   {
     icon: Target,
-    iconClass: 'text-[#5A7A5A]',
+    iconClass: 'text-[#1A3A6B]',
     bgClass: 'bg-[#EAF0E8]',
     title: '课堂活动',
     desc: '互动创意方案',
+    navigateTo: null,
     prompt: '帮我设计一个课堂活动',
   },
   {
     icon: BarChart3,
-    iconClass: 'text-[#6D7792]',
+    iconClass: 'text-[#2B5DA8]',
     bgClass: 'bg-[#E8E8F0]',
     title: '学情分析',
     desc: '数据可视化',
+    navigateTo: '/dashboard/analytics',
     prompt: '看看班级学习情况',
   },
 ]
 
 // 快捷指令
 const QUICK_COMMANDS = [
-  { label: '教学设计', type: 'primary' as const, prompt: '帮我设计一堂课的教学设计' },
-  { label: '出题助手', type: 'outline' as const, prompt: '帮我出几道练习题' },
-  { label: '家长沟通', type: 'outline' as const, prompt: '帮我写一段家长沟通话术' },
-  { label: '班会方案', type: 'outline' as const, prompt: '帮我设计一个班会方案' },
-  { label: '教学反思', type: 'outline' as const, prompt: '帮我做一次教学反思总结' },
+  { label: '教学设计', type: 'primary' as const, prompt: '帮我设计一堂课的教学设计', navigateTo: '/dashboard/lesson-plans/new' },
+  { label: '出题助手', type: 'outline' as const, prompt: '帮我出几道练习题', navigateTo: '/dashboard/exercises/new' },
+  { label: '家长沟通', type: 'outline' as const, prompt: '帮我写一段家长沟通话术', navigateTo: null },
+  { label: '班会方案', type: 'outline' as const, prompt: '帮我设计一个班会方案', navigateTo: null },
+  { label: '教学反思', type: 'outline' as const, prompt: '帮我做一次教学反思总结', navigateTo: null },
 ]
 
 const AVATAR_SRC = '/xiaowei.png'
@@ -66,6 +71,7 @@ function getTimeString(): string {
 }
 
 export default function XiaoWeiChat() {
+  const navigate = useNavigate() // P1-6: 导航支持
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -218,7 +224,14 @@ export default function XiaoWeiChat() {
               {FEATURE_CARDS.map((card, i) => (
                 <button
                   key={i}
-                  onClick={() => sendMessage(card.prompt)}
+                  onClick={() => {
+                    if (card.navigateTo) {
+                      setOpen(false)
+                      navigate(card.navigateTo)
+                    } else {
+                      sendMessage(card.prompt)
+                    }
+                  }}
                   className={`flex-1 rounded-[10px] px-2 py-2.5 flex flex-col items-center gap-1 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md ${card.bgClass}`}
                 >
                   <card.icon size={22} className={card.iconClass} />
@@ -238,11 +251,18 @@ export default function XiaoWeiChat() {
               {QUICK_COMMANDS.map((cmd, i) => (
                 <button
                   key={i}
-                  onClick={() => sendMessage(cmd.prompt)}
+                  onClick={() => {
+                    if (cmd.navigateTo) {
+                      setOpen(false)
+                      navigate(cmd.navigateTo)
+                    } else {
+                      sendMessage(cmd.prompt)
+                    }
+                  }}
                   className={`h-[44px] w-[88px] rounded-[10px] text-xs flex items-center justify-center whitespace-nowrap transition-all hover:opacity-85 hover:scale-[1.02] ${
                     cmd.type === 'primary'
-                      ? 'bg-[#495677] text-white font-medium'
-                      : 'bg-transparent text-[#1A1A2E] border border-[#D6DAE0] hover:bg-[#F0F2F5] hover:border-[#495677]'
+                      ? 'bg-brand text-white font-medium'
+                      : 'bg-transparent text-[#1A1A2E] border border-[#D6DAE0] hover:bg-[#F0F2F5] hover:border-brand'
                   }`}
                 >
                   {cmd.label}
@@ -276,7 +296,7 @@ export default function XiaoWeiChat() {
                   <div
                     className={`rounded-xl px-3.5 py-3 text-[13px] leading-relaxed ${
                       m.role === 'user'
-                        ? 'bg-[#495677] text-white'
+                        ? 'bg-brand text-white'
                         : 'bg-[#F0F2F5] text-[#1A1A2E]'
                     }`}
                   >
@@ -348,11 +368,11 @@ export default function XiaoWeiChat() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="输入你想了解的内容..."
-              className="flex-1 h-10 border border-[#D6DAE0] rounded-full px-4 text-[13px] text-[#1A1A2E] placeholder-[#AAA] outline-none focus:border-[#495677] transition-colors"
+              className="flex-1 h-10 border border-[#D6DAE0] rounded-full px-4 text-[13px] text-[#1A1A2E] placeholder-[#AAA] outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors"
               disabled={loading}
             />
             <button
-              className="w-10 h-10 rounded-full bg-[#495677] flex items-center justify-center hover:opacity-85 transition-opacity shrink-0"
+              className="w-10 h-10 rounded-full bg-brand flex items-center justify-center hover:opacity-85 transition-opacity shrink-0"
               title="语音输入"
               disabled={loading}
             >
@@ -361,7 +381,7 @@ export default function XiaoWeiChat() {
             <button
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || loading}
-              className="w-10 h-10 rounded-full bg-[#495677] flex items-center justify-center hover:opacity-85 transition-opacity disabled:opacity-40 shrink-0"
+              className="w-10 h-10 rounded-full bg-brand flex items-center justify-center hover:opacity-85 transition-opacity disabled:opacity-40 shrink-0"
               title="发送"
             >
               <ArrowUp size={16} color="white" />

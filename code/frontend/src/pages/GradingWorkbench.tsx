@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Clock, AlertTriangle, Check, Edit3 } from 'lucide-react'
 import { useApi } from '../lib/useApi'
 import { ListSkeleton, EmptyState } from '../components/StateComponents'
@@ -10,6 +11,8 @@ const MOCK_GRADING_ITEMS: any[] = [
 ]
 
 export default function GradingWorkbench() {
+  const navigate = useNavigate() // P0-2: 添加导航
+
   const { data: apiData, loading } = useApi(async () => {
     const res = await fetch('/api/v1/grading',{headers:{Authorization:'Bearer '+localStorage.getItem('zhiwei_token')}})
     return res.json()
@@ -63,8 +66,8 @@ export default function GradingWorkbench() {
             </div>
             <span className="text-xs text-gray-400">AI 得分 70 / 8题中答对5题</span>
             <div className="flex gap-2">
-              <button className="px-3 py-1.5 text-xs bg-[#1A3A6B] text-white rounded-lg">进入批阅</button>
-              <button className="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg">跳过</button>
+              <button onClick={() => navigate('/dashboard/grading/3')} className="px-3 py-1.5 text-xs bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8]">进入批阅</button>
+              <button className="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">跳过</button>
             </div>
           </div>
         </div>
@@ -103,9 +106,12 @@ export default function GradingWorkbench() {
                   {item.status === 'pending' && <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded-full">待提交</span>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button className={`px-3 py-1.5 text-xs rounded-lg ${
-                    item.status === 'ai_graded' ? 'bg-[#1A3A6B] text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}>批阅</button>
+                  <button
+                    onClick={() => item.status === 'ai_graded' && navigate(`/dashboard/grading/${item.id}`)}
+                    className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                      item.status === 'ai_graded' ? 'bg-[#1A3A6B] text-white hover:bg-[#2B5DA8]' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >批阅</button>
                 </td>
               </tr>
             ))}

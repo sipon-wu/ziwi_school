@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { FileText, BookOpen, CheckSquare } from 'lucide-react'
 import { useApi } from '../lib/useApi'
 import { dashboardAPI } from '../lib/api'
@@ -17,6 +18,7 @@ const statusColors: Record<string, string> = {
 }
 
 export default function DashboardHome() {
+  const navigate = useNavigate() // P1-4: 导航支持
   const { data: dashData, loading } = useApi(() => dashboardAPI.home(), {
     stats: { pending_grading: 12, pending_sign: 3, overdue_sign: 2, draft_plans: 5 },
     recent_plans: recentPlansFallback
@@ -36,7 +38,7 @@ export default function DashboardHome() {
 
       {/* 三张统计卡片 */}
       <div className="grid grid-cols-3 gap-4 mb-5">
-        <div className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
+        <div onClick={() => navigate('/dashboard/grading')} className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[13px] text-gray-500">待批阅作业</span>
             <span className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
@@ -47,7 +49,7 @@ export default function DashboardHome() {
           <div className="text-[12px] text-gray-400">较昨日 <span className="text-red-500">+3</span></div>
         </div>
 
-        <div className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
+        <div onClick={() => navigate('/dashboard/parent-sign')} className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[13px] text-gray-500">家长未签字</span>
             <span className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
@@ -58,7 +60,7 @@ export default function DashboardHome() {
           <div className="text-[12px] text-gray-400">三年级2班 <span className="text-red-500">已逾期2人</span></div>
         </div>
 
-        <div className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
+        <div onClick={() => navigate('/dashboard/lesson-plans')} className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[13px] text-gray-500">教案草稿</span>
             <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -75,13 +77,13 @@ export default function DashboardHome() {
         <div className="bg-white rounded-xl p-5">
           <h3 className="text-[14px] font-semibold text-gray-800 mb-4">快捷入口</h3>
           <div className="space-y-2">
-            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-brand-light text-brand text-[13px] font-medium hover:bg-brand/10 transition-colors">
+            <button onClick={() => navigate('/dashboard/lesson-plans/new')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-brand-light text-brand text-[13px] font-medium hover:bg-brand/10 transition-colors">
               <FileText className="w-4 h-4" /> 新建教案
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-50 text-gray-700 text-[13px] hover:bg-gray-100 transition-colors">
+            <button onClick={() => navigate('/dashboard/exercises/new')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-50 text-gray-700 text-[13px] hover:bg-gray-100 transition-colors">
               <BookOpen className="w-4 h-4" /> 快速出题
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-50 text-gray-700 text-[13px] hover:bg-gray-100 transition-colors">
+            <button onClick={() => navigate('/dashboard/analytics')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-50 text-gray-700 text-[13px] hover:bg-gray-100 transition-colors">
               <CheckSquare className="w-4 h-4" /> 查看学情
             </button>
           </div>
@@ -99,11 +101,12 @@ export default function DashboardHome() {
         <div className="col-span-2 bg-white rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[14px] font-semibold text-gray-800">最近教案</h3>
-            <a href="#" className="text-[13px] text-brand hover:text-brand-hover">查看全部 →</a>
+            <button onClick={() => navigate('/dashboard/lesson-plans')} className="text-[13px] text-brand hover:text-brand-hover">查看全部 →</button>
           </div>
           <div>
             {plans.map((plan: any, i: number) => (
-              <div key={i} className={`flex items-center gap-4 py-3 px-3 -mx-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${i < plans.length - 1 ? 'border-b border-border' : ''}`}>
+              <div key={i} onClick={() => navigate(`/dashboard/lesson-plans/${plan.id || 'new'}/edit`)}
+                className={`flex items-center gap-4 py-3 px-3 -mx-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${i < plans.length - 1 ? 'border-b border-border' : ''}`}>
                 <div className="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5 text-brand" />
                 </div>
