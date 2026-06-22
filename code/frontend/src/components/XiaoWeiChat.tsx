@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-  MessageCircle, X, Sparkles, Mic,
+  X, Sparkles, Mic,
   FileText, BookOpen, Target, BarChart3,
   Minimize2, ArrowUp
 } from 'lucide-react'

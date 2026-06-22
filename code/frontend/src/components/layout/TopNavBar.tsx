@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, LogOut, User, Settings } from 'lucide-react'
+import { Bell, LogOut, Settings } from 'lucide-react'
 import { clearToken } from '@/lib/api'
 
 export default function TopNavBar() {
