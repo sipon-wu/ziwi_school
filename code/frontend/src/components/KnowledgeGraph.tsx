@@ -23,30 +23,48 @@ interface Props {
 const DIFFICULTY_COLORS: Record<string, string> = { L1: '#52C41A', L2: '#1890FF', L3: '#FA8C16', L4: '#F5222D' }
 const COGNITIVE_COLORS: Record<string, string> = { '记忆': '#B37FEB', '理解': '#5CDBD3', '应用': '#1890FF', '分析': '#FA8C16', '评价': '#F5222D', '创造': '#EB2F96' }
 
+/** 按 年级→学期→单元→知识点 构建四层树 */
 function buildTreeData(nodes: KnowledgeNode[]): TreeGraphData {
-  const nodeMap = new Map(nodes.map(n => [n.id, { ...n }]))
-  const childrenMap = new Map<string, KnowledgeNode[]>()
-  const hasParent = new Set<string>()
+  if (nodes.length === 0) return { id: 'root', label: '暂无数据', children: [] }
 
-  nodes.forEach(n => {
-    if (n.parent_id) {
-      hasParent.add(n.id)
-      if (!childrenMap.has(n.parent_id)) childrenMap.set(n.parent_id, [])
-      childrenMap.get(n.parent_id)!.push(n)
-    }
+  // 按年级分组
+  const byGrade = new Map<number, KnowledgeNode[]>()
+  nodes.forEach(n => { const g = n.grade || 1; if (!byGrade.has(g)) byGrade.set(g, []); byGrade.get(g)!.push(n) })
+
+  // 年级排序
+  const sortedGrades = Array.from(byGrade.keys()).sort((a, b) => a - b)
+  if (sortedGrades.length === 0) return { id: 'root', label: '知识图谱', children: [] }
+
+  const gradeChildren = sortedGrades.map(g => {
+    const gradeNodes = byGrade.get(g)!
+    // 按学期分组
+    const bySemester = new Map<string, KnowledgeNode[]>()
+    gradeNodes.forEach(n => { const s = n.semester || '上'; if (!bySemester.has(s)) bySemester.set(s, []); bySemester.get(s)!.push(n) })
+
+    const semesterChildren = Array.from(bySemester.keys()).map(s => {
+      const semNodes = bySemester.get(s)!
+      // 按单元分组
+      const byUnit = new Map<string, KnowledgeNode[]>()
+      semNodes.forEach(n => { const u = n.unit || '其他'; if (!byUnit.has(u)) byUnit.set(u, []); byUnit.get(u)!.push(n) })
+
+      const unitChildren = Array.from(byUnit.keys()).map(u => {
+        const kpNodes = byUnit.get(u)!
+        return {
+          id: `unit-${u}`,
+          label: u.length > 12 ? u.slice(0, 12) + '...' : u,
+          children: kpNodes.map(k => ({ id: k.id, label: k.name.length > 8 ? k.name.slice(0, 8) + '...' : k.name, data: k })),
+          style: { fill: '#5B8FF9', stroke: '#5B8FF9' },
+          type: 'rect' as const,
+          size: [120, 24],
+          labelCfg: { position: 'center' as const, style: { fill: '#fff', fontSize: 10 } },
+        }
+      })
+      return { id: `sem-${g}-${s}`, label: `${g}年级${s}学期`, children: unitChildren, style: { fill: '#F6BD16', stroke: '#F6BD16' }, type: 'rect', size: [120, 26], labelCfg: { position: 'center' as const, style: { fill: '#fff', fontSize: 11, fontWeight: 700 } } }
+    })
+    return { id: `grade-${g}`, label: `${g}年级`, children: semesterChildren, style: { fill: '#FF9845', stroke: '#FF9845' }, type: 'rect', size: [100, 28], labelCfg: { position: 'center' as const, style: { fill: '#fff', fontSize: 12, fontWeight: 700 } } }
   })
 
-  function buildNode(id: string): any {
-    const n = nodeMap.get(id)!
-    const children = (childrenMap.get(id) || []).map(c => buildNode(c.id))
-    return { id: n.id, label: n.name, children: children.length ? children : undefined, data: n }
-  }
-
-  // 找根节点：没有被 parent_id 引用的第一个节点
-  const roots = nodes.filter(n => !hasParent.has(n.id) && !n.parent_id)
-  if (roots.length === 0) return { id: 'root', label: '知识图谱', children: nodes.slice(0, 20).map(n => buildNode(n.id)) }
-
-  return { id: 'root', label: '知识图谱', children: roots.slice(0, 20).map(r => buildNode(r.id)) }
+  return { id: 'root', label: `${nodes[0]?.subject || ''}知识体系`, children: gradeChildren }
 }
 
 function buildGraphData(nodes: KnowledgeNode[], filterGrade?: number, filterSubject?: string): GraphData {
@@ -54,11 +72,11 @@ function buildGraphData(nodes: KnowledgeNode[], filterGrade?: number, filterSubj
   const nodeMap = new Map(filtered.map(n => [n.id, n]))
   const edges: any[] = []
   filtered.forEach(n => {
-    n.prerequisites?.forEach(p => { if (nodeMap.has(p)) edges.push({ source: p, target: n.id, style: { stroke: '#91D5FF', lineWidth: 1.5 } }) })
-    n.next?.forEach(t => { if (nodeMap.has(t)) edges.push({ source: n.id, target: t, style: { stroke: '#B7EB8F', lineWidth: 1.5 } }) })
+    n.prerequisites?.forEach(p => { if (nodeMap.has(p)) edges.push({ source: p, target: n.id, style: { stroke: '#5B8FF9', lineWidth: 1.5 } }) })
+    n.next?.forEach(t => { if (nodeMap.has(t)) edges.push({ source: n.id, target: t, style: { stroke: '#52C41A', lineWidth: 1.5, lineDash: [4, 2] } }) })
   })
   return {
-    nodes: filtered.map(n => ({ id: n.id, label: n.name, data: n })),
+    nodes: filtered.map(n => ({ id: n.id, label: n.name.length > 6 ? n.name.slice(0, 6) + '...' : n.name, data: n })),
     edges,
   }
 }
@@ -83,125 +101,117 @@ export default function KnowledgeGraph({ data, grade = 4, subject = '数学', se
     switch (dimension) {
       case 'difficulty': return DIFFICULTY_COLORS[node.difficulty] || '#1890FF'
       case 'cognitive': return COGNITIVE_COLORS[node.cognitive] || '#1890FF'
-      case 'curriculum': return node.curriculum_code ? '#722ED1' : '#1890FF'
-      default: return '#1890FF'
+      case 'curriculum': return '#722ED1'
+      default: return '#5B8FF9'
     }
   }, [dimension])
 
   useEffect(() => {
-    if (!containerRef.current || !graphData.nodes?.length) return
+    const nodes = data.filter(n => n.subject === subject)
+    if (!containerRef.current || nodes.length === 0) return
     if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null }
 
     const container = containerRef.current
-    const width = container.clientWidth
+    const w = container.clientWidth || 800
     const h = height || 500
 
     const graph = new G6.Graph({
       container,
-      width, height: h,
-      modes: {
-        default: ['drag-canvas', 'zoom-canvas', 'drag-node', 'click-select'],
-      },
-      layout: layout === 'tree' ? { type: 'compactBox', direction: 'TB', getId: (d: any) => d.id, getHeight: () => 36, getWidth: () => 140, getVGap: () => 10, getHGap: () => 60 }
-        : layout === 'circular' ? { type: 'circular', radius: Math.min(width, h) * 0.4 }
-        : { type: 'force', preventOverlap: true, nodeStrength: -50, edgeStrength: 0.1 },
+      width: w, height: h,
+      fitView: true,
+      fitViewPadding: [20, 40, 20, 40],
+      modes: { default: ['drag-canvas', 'zoom-canvas', 'drag-node', 'click-select'] },
+      layout: layout === 'tree'
+        ? { type: 'compactBox', direction: 'LR', getId: (d: any) => d.id, getHeight: () => 30, getWidth: (d: any) => d.size?.[0] || 100, getVGap: () => 6, getHGap: () => 40 }
+        : layout === 'circular'
+          ? { type: 'circular', radius: Math.min(w, h) * 0.38, divisions: 5, ordering: 'topology' }
+          : { type: 'force', preventOverlap: true, nodeStrength: -120, edgeStrength: 0.05, nodeSpacing: 60 },
       defaultNode: {
-        type: 'circle', size: 28,
-        style: { fill: '#1890FF', stroke: '#fff', lineWidth: 2, cursor: 'pointer' },
-        labelCfg: { position: 'bottom', offset: 6, style: { fill: '#333', fontSize: 11 } },
+        size: 26,
+        style: { fill: '#5B8FF9', stroke: '#fff', lineWidth: 2, cursor: 'pointer' },
+        labelCfg: { position: 'bottom', offset: 5, style: { fill: '#333', fontSize: 10 } },
       },
-      defaultEdge: { type: 'polyline', style: { stroke: '#91D5FF', lineWidth: 1.5, endArrow: { path: G6.Arrow.triangle(4, 6, 0), fill: '#91D5FF' } } },
+      // 曲线连线
+      defaultEdge: {
+        type: layout === 'tree' ? 'cubic-vertical' : 'cubic',
+        style: { stroke: '#A0A0A0', lineWidth: 1.2, endArrow: { path: G6.Arrow.triangle(3, 5, 0), fill: '#A0A0A0' } },
+      },
       animate: true,
-      minZoom: 0.3, maxZoom: 3,
+      minZoom: 0.2, maxZoom: 3,
     })
 
-    // 构建数据
-    let gData: any
-    if (layout === 'tree') {
-      gData = buildTreeData(data.filter(n => (graphData.nodes || []).some((gn: any) => gn.id === n.id)))
-    } else {
-      gData = graphData
-    }
+    // 树状：用层级数据；其他：用平铺图数据
+    const gData = layout === 'tree' ? buildTreeData(nodes) : graphData
 
-    // 按维度着色
+    // 颜色映射
     const colorMap = new Map<string, string>()
-    data.forEach(n => colorMap.set(n.id, colorByDimension(n)))
+    nodes.forEach(n => colorMap.set(n.id, colorByDimension(n)))
 
     graph.data(gData as any)
     graph.render()
 
-    // 自定义节点样式
-    graph.getNodes().forEach((node: any) => {
-      const nd = node.getModel() as any
-      const ndData = nd.data || data.find(n => n.id === nd.id)
-      if (ndData) {
-        const color = colorMap.get(ndData.id) || '#1890FF'
-        graph.updateItem(node, {
-          style: { fill: color },
-          label: ndData.name?.length > 6 ? ndData.name.slice(0, 6) + '...' : ndData.name,
-        })
-      }
-    })
+    // 自定义叶子节点颜色
+    if (layout === 'tree') {
+      graph.getNodes().forEach((node: any) => {
+        const model = node.getModel() as any
+        if (model.data) {
+          const c = colorMap.get(model.data.id) || '#5B8FF9'
+          graph.updateItem(node, { style: { fill: c }, label: model.data.name?.length > 8 ? model.data.name.slice(0, 8) + '...' : model.data.name })
+        }
+      })
+    } else {
+      graph.getNodes().forEach((node: any) => {
+        const model = node.getModel() as any
+        if (model.data) {
+          const c = colorMap.get(model.data.id) || '#5B8FF9'
+          graph.updateItem(node, { style: { fill: c }, label: model.data.name?.length > 6 ? model.data.name.slice(0, 6) + '...' : model.data.name })
+        }
+      })
+    }
 
-    // 悬停提示
     graph.on('node:mouseenter', (e: any) => {
-      const nd = e.item?.getModel() as any
-      const ndData = nd?.data || data.find(n => n.id === nd?.id)
-      if (ndData) {
+      const m = e.item?.getModel() as any
+      if (m?.data) {
         graph.updateItem(e.item, { style: { stroke: '#1890FF', lineWidth: 3, shadowColor: '#1890FF', shadowBlur: 8 } })
       }
     })
     graph.on('node:mouseleave', (e: any) => {
-      graph.updateItem(e.item, { style: { stroke: '#fff', lineWidth: 2, shadowBlur: 0 } })
+      const m = e.item?.getModel() as any
+      if (m?.data) graph.updateItem(e.item, { style: { stroke: '#fff', lineWidth: 2, shadowBlur: 0 } })
     })
-
-    // 单击选中
     graph.on('node:click', (e: any) => {
-      const nd = e.item?.getModel() as any
-      const ndData = nd?.data || data.find(n => n.id === nd?.id)
-      if (ndData) {
-        setSelectedNode(ndData)
-        const newSelected = selectedIds.includes(ndData.id)
-          ? selectedIds.filter(id => id !== ndData.id)
-          : [...selectedIds, ndData.id]
-        onSelect?.(newSelected)
-      }
-    })
-
-    // 双击缩放至节点
-    graph.on('node:dblclick', (e: any) => {
-      const nd = e.item?.getModel() as any
-      if (nd?.x && nd?.y) {
-        graph.moveTo(nd.x, nd.y, true, { duration: 300 })
-        graph.zoomTo(1.5, { x: nd.x, y: nd.y }, true, { duration: 300 })
+      const m = e.item?.getModel() as any
+      if (m?.data) {
+        setSelectedNode(m.data)
+        const ns = selectedIds.includes(m.data.id) ? selectedIds.filter(id => id !== m.data.id) : [...selectedIds, m.data.id]
+        onSelect?.(ns)
       }
     })
 
     graphRef.current = graph
 
-    const resizeHandler = () => {
+    const onResize = () => {
       if (graphRef.current && containerRef.current) {
         graphRef.current.changeSize(containerRef.current.clientWidth, height || 500)
+        graphRef.current.fitView(20)
       }
     }
-    window.addEventListener('resize', resizeHandler)
-
+    window.addEventListener('resize', onResize)
     return () => {
-      window.removeEventListener('resize', resizeHandler)
+      window.removeEventListener('resize', onResize)
       if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null }
     }
-  }, [graphData, layout, dimension, colorByDimension, height, selectedIds, onSelect, data])
+  }, [graphData, layout, dimension, colorByDimension, height, selectedIds, onSelect, data, subject])
 
   const handleFit = () => graphRef.current?.fitView(20)
   const handleReset = () => graphRef.current?.zoomTo(1, { x: 0, y: 0 })
 
   return (
     <div className={`relative bg-white rounded-xl border border-gray-200 overflow-hidden ${className}`}>
-      {/* 工具栏 */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
         <div className="flex gap-1 bg-white/90 rounded-lg p-1 shadow-sm border border-gray-100">
           {(['tree', 'circular', 'force'] as LayoutMode[]).map(m => (
-            <button key={m} onClick={() => setLayout(m)} className={`px-2 py-1 text-[11px] rounded transition-colors ${layout === m ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+            <button key={m} onClick={() => { setDimension('knowledge'); setLayout(m) }} className={`px-2 py-1 text-[11px] rounded transition-colors ${layout === m ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
               {m === 'tree' ? '树状' : m === 'circular' ? '环状' : '网状'}
             </button>
           ))}
@@ -215,42 +225,37 @@ export default function KnowledgeGraph({ data, grade = 4, subject = '数学', se
         </div>
       </div>
 
-      {/* 难度过滤滑块 */}
       <div className="absolute top-2 right-2 z-10 bg-white/90 rounded-lg px-3 py-2 shadow-sm border border-gray-100 flex items-center gap-2 text-[11px]">
         <span className="text-gray-400">L1</span>
-        <input type="range" min={1} max={4} value={difficultyRange[0]} onChange={e => setDifficultyRange([Number(e.target.value), Math.max(Number(e.target.value), difficultyRange[1])])} className="w-16 h-1 accent-brand" />
+        <input type="range" min={1} max={4} value={difficultyRange[0]} onChange={e => setDifficultyRange([Number(e.target.value), Math.max(Number(e.target.value), difficultyRange[1])])} className="w-12 h-1 accent-brand" />
         <span className="text-gray-400">—</span>
-        <input type="range" min={1} max={4} value={difficultyRange[1]} onChange={e => setDifficultyRange([Math.min(difficultyRange[0], Number(e.target.value)), Number(e.target.value)])} className="w-16 h-1 accent-brand" />
+        <input type="range" min={1} max={4} value={difficultyRange[1]} onChange={e => setDifficultyRange([Math.min(difficultyRange[0], Number(e.target.value)), Number(e.target.value)])} className="w-12 h-1 accent-brand" />
         <span className="text-gray-400">L4</span>
       </div>
 
-      {/* 图谱画布 */}
       <div ref={containerRef} style={{ width: '100%', height: height || 500 }} />
 
-      {/* 底部操作栏 */}
       <div className="absolute bottom-2 right-2 z-10 flex gap-1">
         <button onClick={handleFit} className="px-2 py-1 text-[11px] bg-white/90 rounded shadow-sm border border-gray-100 hover:bg-gray-50">适应画布</button>
         <button onClick={handleReset} className="px-2 py-1 text-[11px] bg-white/90 rounded shadow-sm border border-gray-100 hover:bg-gray-50">重置</button>
       </div>
 
-      {/* 悬浮节点详情 */}
       {selectedNode && (
         <div className="absolute bottom-2 left-2 z-10 bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-w-[240px] text-xs">
           <div className="font-semibold text-sm text-gray-900 mb-1">{selectedNode.name}</div>
           <div className="text-gray-500 space-y-0.5">
-            <div>{selectedNode.grade}年级 · {selectedNode.semester}学期 · {selectedNode.unit}</div>
-            <div>难度: <span style={{ color: DIFFICULTY_COLORS[selectedNode.difficulty] }}>{selectedNode.difficulty}</span></div>
-            <div>认知: {selectedNode.cognitive}</div>
-            {selectedNode.curriculum_code && <div>课标: {selectedNode.curriculum_code}</div>}
+            <div>{selectedNode.grade}年级·{selectedNode.semester}学期·{selectedNode.unit}</div>
+            <div>难度:<span style={{color:DIFFICULTY_COLORS[selectedNode.difficulty]}}>{selectedNode.difficulty}</span></div>
+            <div>认知:{selectedNode.cognitive}</div>
+            {selectedNode.curriculum_code&&<div>课标:{selectedNode.curriculum_code}</div>}
           </div>
         </div>
       )}
 
-      {/* 图例 */}
       {dimension !== 'knowledge' && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex gap-2 text-[10px] bg-white/90 rounded-lg px-2 py-1 shadow-sm border border-gray-100">
-          {dimension === 'difficulty' && Object.entries(DIFFICULTY_COLORS).map(([k, v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} />{k}</span>)}
-          {dimension === 'cognitive' && Object.entries(COGNITIVE_COLORS).slice(0, 4).map(([k, v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} />{k}</span>)}
+          {dimension === 'difficulty' && Object.entries(DIFFICULTY_COLORS).map(([k,v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{background:v}}/>{k}</span>)}
+          {dimension === 'cognitive' && Object.entries(COGNITIVE_COLORS).slice(0,4).map(([k,v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{background:v}}/>{k}</span>)}
         </div>
       )}
     </div>
