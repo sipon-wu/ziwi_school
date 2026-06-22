@@ -64,7 +64,7 @@ function buildTreeData(nodes: KnowledgeNode[]): TreeGraphData {
     return { id: `grade-${g}`, label: `${g}年级`, children: semesterChildren, style: { fill: '#FF9845', stroke: '#FF9845' }, type: 'rect', size: [100, 28], labelCfg: { position: 'center' as const, style: { fill: '#fff', fontSize: 12, fontWeight: 700 } } }
   })
 
-  return { id: 'root', label: `${nodes[0]?.subject || ''}知识体系`, children: gradeChildren }
+  return { id: 'root', label: `${nodes[0]?.subject || ''}知识体系`, children: gradeChildren as any }
 }
 
 function buildGraphData(nodes: KnowledgeNode[], filterGrade?: number, filterSubject?: string): GraphData {
