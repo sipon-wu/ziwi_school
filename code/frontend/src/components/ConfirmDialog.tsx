@@ -26,7 +26,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = '�
         </div>
         <p className="text-sm text-gray-500 mb-6 ml-[52px]">{message}</p>
         <div className="flex gap-2 justify-end">
-          <button onClick={onCancel} disabled={loading} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">取消</button>
+          <button onClick={onCancel} disabled={loading} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{cancelLabel}</button>
           <button onClick={onConfirm} disabled={loading}
             className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 flex items-center gap-2 ${
               danger ? 'bg-red-500 hover:bg-red-600' : 'bg-[#1A3A6B] hover:bg-[#2B5DA8]'
