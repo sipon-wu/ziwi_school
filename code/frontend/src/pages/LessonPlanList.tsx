@@ -142,7 +142,7 @@ export default function LessonPlanList() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {paginated.map(plan => (
-                  <tr key={plan.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr key={plan.id} onClick={() => navigate(`/dashboard/lesson-plans/${plan.id}/edit`)} className="hover:bg-gray-50/50 transition-colors group cursor-pointer">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <BookOpen size={16} className="text-gray-400 flex-shrink-0" />
