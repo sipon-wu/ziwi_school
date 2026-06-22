@@ -1,9 +1,14 @@
+import { useState, useEffect } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, BookOpen, PenLine,
   CheckSquare, BarChart3, UserCheck,
   FileSearch, TrendingUp
 } from 'lucide-react'
+
+function getAvatar(): string {
+  return localStorage.getItem('zhiwei_avatar') || ''
+}
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: '工作台' },
@@ -19,6 +24,13 @@ const navItems = [
 
 export default function SideBar() {
   const { pathname } = useLocation()
+  const [avatarUrl, setAvatarUrl] = useState(getAvatar)
+
+  useEffect(() => {
+    const handler = (e: Event) => setAvatarUrl((e as CustomEvent).detail)
+    window.addEventListener('avatar-updated', handler)
+    return () => window.removeEventListener('avatar-updated', handler)
+  }, [])
 
   return (
     <aside className="w-[200px] bg-sidebar flex flex-col shrink-0">
@@ -51,8 +63,12 @@ export default function SideBar() {
 
       {/* User Info */}
       <div className="h-[52px] flex items-center gap-2 px-4 border-t border-white/5">
-        <div className="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center text-xs font-medium">
-          张
+        <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="头像" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-brand text-white flex items-center justify-center text-xs font-medium">张</div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[13px] text-white truncate">张老师</div>

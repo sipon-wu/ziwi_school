@@ -3,6 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Bell, LogOut, Settings } from 'lucide-react'
 import { clearToken } from '@/lib/api'
 
+// 读取已保存头像
+function getAvatar(): string {
+  return localStorage.getItem('zhiwei_avatar') || ''
+}
+
 const BREADCRUMB_MAP: Record<string, string> = {
   '/dashboard': '工作台',
   '/dashboard/lesson-plans': '教案备课',
@@ -41,11 +46,19 @@ function getBreadcrumbs(pathname: string): string[] {
 
 export default function TopNavBar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(getAvatar)
   const menuRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname])
+
+  // 监听头像更新事件
+  useEffect(() => {
+    const handler = (e: Event) => setAvatarUrl((e as CustomEvent).detail)
+    window.addEventListener('avatar-updated', handler)
+    return () => window.removeEventListener('avatar-updated', handler)
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -88,7 +101,13 @@ export default function TopNavBar() {
         </button>
 
         <div className="relative" ref={menuRef}>
-          <button onClick={() => setMenuOpen(!menuOpen)} className="w-7 h-7 rounded-full bg-brand/20 text-brand text-xs font-medium flex items-center justify-center hover:ring-2 hover:ring-brand/30 transition-all">张</button>
+          <button onClick={() => setMenuOpen(!menuOpen)} className="w-7 h-7 rounded-full overflow-hidden hover:ring-2 hover:ring-brand/30 transition-all">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="头像" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-brand/20 text-brand text-xs font-medium flex items-center justify-center">张</div>
+            )}
+          </button>
           {menuOpen && (
             <div className="absolute right-0 top-9 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
               <button onClick={() => { setMenuOpen(false); navigate('/dashboard/settings') }} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors">

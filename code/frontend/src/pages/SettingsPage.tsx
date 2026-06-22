@@ -1,11 +1,18 @@
-import { useState } from 'react'
-import { User, Lock, Bell, Shield, ChevronRight, BookOpen, Save } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { User, Lock, Bell, Shield, ChevronRight, BookOpen, Save, Camera } from 'lucide-react'
+
+// 读取已保存头像
+function getSavedAvatar(): string {
+  return localStorage.getItem('zhiwei_avatar') || ''
+}
 
 export default function SettingsPage() {
   const [name, setName] = useState('张老师')
   const [phone] = useState('138****8888')
   const [grade, setGrade] = useState('四年级')
   const [subject, setSubject] = useState('语文')
+  const [avatar, setAvatar] = useState(getSavedAvatar)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // P2: 密码修改
   const [showPwdModal, setShowPwdModal] = useState(false)
@@ -22,6 +29,22 @@ export default function SettingsPage() {
 
   const [saved, setSaved] = useState(false)
 
+  // 头像上传
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { alert('头像大小不能超过2MB'); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      setAvatar(base64)
+      localStorage.setItem('zhiwei_avatar', base64)
+      // 触发全局事件通知其他组件更新
+      window.dispatchEvent(new CustomEvent('avatar-updated', { detail: base64 }))
+    }
+    reader.readAsDataURL(file)
+  }
+
   // P2: 保存基本信息
   const handleSave = async () => {
     try {
@@ -31,7 +54,7 @@ export default function SettingsPage() {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || ''),
         },
-        body: JSON.stringify({ name, grade, subject }),
+        body: JSON.stringify({ name, grade, subject, avatar_url: avatar }),
       })
       localStorage.setItem('zhiwei_user', JSON.stringify({ name, grade, subject }))
     } catch { /* 演示模式降级 */ }
@@ -77,6 +100,25 @@ export default function SettingsPage() {
           <span className="text-sm font-medium text-gray-700">基本信息</span>
         </div>
         <div className="p-6 space-y-4">
+          {/* 头像上传 */}
+          <div className="flex items-center gap-4">
+            <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
+              {avatar ? (
+                <img src={avatar} alt="头像" className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-brand/20 flex items-center justify-center text-2xl font-bold text-brand border-2 border-gray-200">张</div>
+              )}
+              <div className="absolute inset-0 rounded-full bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera size={18} className="text-white" />
+              </div>
+            </div>
+            <div>
+              <button onClick={() => fileRef.current?.click()} className="text-sm text-brand hover:underline">更换头像</button>
+              <p className="text-xs text-gray-400 mt-0.5">支持 JPG/PNG，最大 2MB</p>
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="settings-name" className="block text-xs font-medium text-gray-500 mb-1">姓名</label>
