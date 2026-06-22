@@ -92,6 +92,8 @@ export default function LessonPlanEditor() {
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-between">
           <div className="text-xs text-gray-400">{genTime > 0 ? `生成耗时: ${genTime}ms | 模型: ${modelVersion||'qwen-plus'}` : ''}</div>
           <div className="flex items-center gap-2">
+            {/* P2: 教案→一键发布作业 */}
+            <button onClick={() => navigate(`/dashboard/exercises/new?from_plan=${planId}&title=${encodeURIComponent(lessonTitle)}&subject=${subject}&grade=${grade}`)} className="px-4 py-2 text-sm text-brand border border-brand/30 rounded-lg hover:bg-brand/5"><Send size={14} className="inline mr-1" />发布作业</button>
             <button onClick={handleGenerate} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-white">重新生成</button>
             <button onClick={() => setShowFinalizeConfirm(true)} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-sm bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm disabled:opacity-50"><Send size={15}/>{saving?'定稿中...':'定稿并保存'}</button>
           </div>

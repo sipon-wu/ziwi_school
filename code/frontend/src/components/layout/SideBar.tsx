@@ -1,7 +1,8 @@
 import { useLocation, Link } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, BookOpen, PenLine,
-  CheckSquare, BarChart3, UserCheck
+  CheckSquare, BarChart3, UserCheck,
+  FileSearch, TrendingUp
 } from 'lucide-react'
 
 const navItems = [
@@ -10,6 +11,8 @@ const navItems = [
   { to: '/dashboard/exercises', icon: BookOpen, label: '出题组卷' },
   { to: '/dashboard/compositions', icon: PenLine, label: '习作指导' },
   { to: '/dashboard/grading', icon: CheckSquare, label: '批阅管理' },
+  { to: '/dashboard/reviews', icon: FileSearch, label: '教案互审' },
+  { to: '/dashboard/principal', icon: TrendingUp, label: '校长仪表盘' },
   { to: '/dashboard/analytics', icon: BarChart3, label: '班级学情' },
   { to: '/dashboard/parent-sign', icon: UserCheck, label: '家长签字' },
 ]

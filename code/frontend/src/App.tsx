@@ -15,6 +15,9 @@ import ClassAnalytics from './pages/ClassAnalytics'
 import ParentSignList from './pages/ParentSignList'
 import SettingsPage from './pages/SettingsPage'
 import LicenseAdmin from './pages/LicenseAdmin'
+import ReviewList from './pages/ReviewList'
+import ReviewDetail from './pages/ReviewDetail'
+import PrincipalDashboard from './pages/PrincipalDashboard'
 
 // WAP 移动端
 import MobileLayout from './components/layout/MobileLayout'
@@ -57,6 +60,9 @@ export default function App() {
           <Route path="parent-sign" element={<ParentSignList />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="admin" element={<LicenseAdmin />} />
+          <Route path="reviews" element={<ReviewList />} />
+          <Route path="review/:id" element={<ReviewDetail />} />
+          <Route path="principal" element={<PrincipalDashboard />} />
         </Route>
 
         {/* ── WAP 学生端 ── */}
