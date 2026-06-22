@@ -14,6 +14,7 @@ export interface TeachingState {
   progress_percent: number
 }
 
+// 演示环境默认配置 (四年级数学)
 const DEFAULT_STATE: TeachingState = {
   subject: '数学',
   grade: 4,

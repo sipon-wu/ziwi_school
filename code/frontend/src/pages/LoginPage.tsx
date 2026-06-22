@@ -152,6 +152,7 @@ export default function LoginPage() {
           )}
 
           <button
+            data-testid="login-submit"
             onClick={handleLogin}
             disabled={loading}
             className="w-full h-10 bg-brand hover:bg-brand-hover disabled:opacity-50 text-white rounded-lg text-[14px] font-medium transition-colors"
