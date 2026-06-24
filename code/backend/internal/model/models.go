@@ -7,41 +7,48 @@ import (
 )
 
 type School struct {
-	ID                uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Name              string     `gorm:"size:200;not null" json:"name"`
-	Region            string     `gorm:"size:100" json:"region"`
-	AIModelTier       string     `gorm:"size:50;default:'qwen-plus'" json:"ai_model_tier"`
-	AllowModelSwitch  bool       `gorm:"default:false" json:"allow_model_switch"`
-	ShowModelUI       bool       `gorm:"default:false" json:"show_model_ui"`
-	WorkMode          string     `gorm:"size:20;default:'formal'" json:"work_mode"`
-	TrialDays         int        `gorm:"default:14" json:"trial_days,omitempty"`
-	TrialQuota        int64      `gorm:"default:100000" json:"trial_quota,omitempty"`
-	TrialStarted      *time.Time `json:"trial_started,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	Classes           []Class    `gorm:"foreignKey:SchoolID" json:"classes,omitempty"`
-	Users             []User     `gorm:"foreignKey:SchoolID" json:"users,omitempty"`
+	ID                     uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name                   string     `gorm:"size:200;not null" json:"name"`
+	Region                 string     `gorm:"size:100" json:"region"`
+	AIModelTier            string     `gorm:"size:50;default:'qwen-plus'" json:"ai_model_tier"`
+	AllowModelSwitch       bool       `gorm:"default:false" json:"allow_model_switch"`
+	ShowModelUI            bool       `gorm:"default:false" json:"show_model_ui"`
+	WorkMode               string     `gorm:"size:20;default:'formal'" json:"work_mode"`
+	TrialDays              int        `gorm:"default:14" json:"trial_days,omitempty"`
+	TrialQuota             int64      `gorm:"default:100000" json:"trial_quota,omitempty"`
+	TrialStarted           *time.Time `json:"trial_started,omitempty"`
+	EnableKnowledgeGraph   bool       `gorm:"default:false" json:"enable_knowledge_graph"`
+	DefaultTokenQuota      int64      `gorm:"default:0" json:"default_token_quota"`
+	CreatedAt              time.Time  `json:"created_at"`
+	Classes                []Class    `gorm:"foreignKey:SchoolID" json:"classes,omitempty"`
+	Users                  []User     `gorm:"foreignKey:SchoolID" json:"users,omitempty"`
 }
 
 func (School) TableName() string { return "schools" }
 
 type User struct {
-	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	SchoolID        *uuid.UUID `gorm:"type:uuid" json:"school_id,omitempty"`
-	Phone           string     `gorm:"size:20;uniqueIndex;not null" json:"phone"`
-	PasswordHash    string     `gorm:"size:255;not null" json:"-"`
-	Role            string     `gorm:"size:20;not null;check:role IN ('teacher','student','parent','admin','it_admin','academic_admin','principal')" json:"role"`
-	Name            string     `gorm:"size:100;not null" json:"name"`
-	AvatarURL       string     `gorm:"size:500" json:"avatar_url,omitempty"`
-	Grade           string     `gorm:"size:20" json:"grade,omitempty"`
-	Subject         string     `gorm:"size:20" json:"subject,omitempty"`
-	ParentStudentID *uuid.UUID `gorm:"type:uuid" json:"parent_student_id,omitempty"`
-	AccountSource   string     `gorm:"size:20;default:'admin_created'" json:"account_source,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID           *uuid.UUID `gorm:"type:uuid" json:"school_id,omitempty"`
+	Phone              string     `gorm:"size:20;uniqueIndex" json:"phone"`
+	Username           string     `gorm:"size:100;uniqueIndex" json:"username,omitempty"`
+	PasswordHash       string     `gorm:"size:255;not null" json:"-"`
+	Role               string     `gorm:"size:20;not null;check:role IN ('teacher','student','parent','admin','it_admin','academic_admin','principal')" json:"role"`
+	Name               string     `gorm:"size:100;not null" json:"name"`
+	AvatarURL          string     `gorm:"size:500" json:"avatar_url,omitempty"`
+	Grade              string     `gorm:"size:20" json:"grade,omitempty"`
+	Subject            string     `gorm:"size:20" json:"subject,omitempty"`
+	ParentStudentID    *uuid.UUID `gorm:"type:uuid" json:"parent_student_id,omitempty"`
+	AccountSource      string     `gorm:"size:20;default:'admin_created'" json:"account_source,omitempty"`
+	TokenQuotaMonthly  int64      `gorm:"default:0" json:"token_quota_monthly,omitempty"`
+	TokenQuotaCustom   bool       `gorm:"default:false" json:"token_quota_custom"`
+	TokenUsedMonthly   int64      `gorm:"default:0" json:"token_used_monthly,omitempty"`
+	TokenResetDate     *time.Time `json:"token_reset_date,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
 	// Associations
-	School       *School       `gorm:"foreignKey:SchoolID" json:"-"`
-	TeacherClasses []TeacherClass `gorm:"foreignKey:TeacherID" json:"-"`
-	StudentClasses []StudentClass `gorm:"foreignKey:StudentID" json:"-"`
-	LessonPlans   []LessonPlan   `gorm:"foreignKey:TeacherID" json:"-"`
+	School         *School         `gorm:"foreignKey:SchoolID" json:"-"`
+	TeacherClasses []TeacherClass  `gorm:"foreignKey:TeacherID" json:"-"`
+	StudentClasses []StudentClass  `gorm:"foreignKey:StudentID" json:"-"`
+	LessonPlans    []LessonPlan    `gorm:"foreignKey:TeacherID" json:"-"`
 }
 
 func (User) TableName() string { return "users" }
@@ -93,6 +100,7 @@ type LessonPlan struct {
 	Period              int             `gorm:"default:1" json:"period"`
 	Content             string          `gorm:"type:jsonb;not null;default:'{}'" json:"content"`
 	CurriculumAlignments string         `gorm:"type:jsonb;default:'[]'" json:"curriculum_alignments,omitempty"`
+	KnowledgeNodeIDs    string          `gorm:"type:jsonb;default:'[]'" json:"knowledge_node_ids,omitempty"`
 	FormatTemplate      string          `gorm:"size:50;default:'core_literacy'" json:"format_template"`
 	AIGenerated         bool            `gorm:"default:false" json:"ai_generated"`
 	AIModelVersion      string          `gorm:"size:50" json:"ai_model_version,omitempty"`
@@ -123,8 +131,9 @@ type Assignment struct {
 	Title          string    `gorm:"size:300;not null" json:"title"`
 	Type           string    `gorm:"size:20;not null;check:type IN ('exercise','composition','exam','writing_game')" json:"type"`
 	Questions      string    `gorm:"type:jsonb;not null;default:'[]'" json:"questions"`
-	DifficultyLevel string   `gorm:"size:5;default:'L2'" json:"difficulty_level"`
-	DueDate        *time.Time `json:"due_date,omitempty"`
+	DifficultyLevel  string    `gorm:"size:5;default:'L2'" json:"difficulty_level"`
+	KnowledgeNodeIDs string    `gorm:"type:jsonb;default:'[]'" json:"knowledge_node_ids,omitempty"`
+	DueDate         *time.Time `json:"due_date,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 }
 

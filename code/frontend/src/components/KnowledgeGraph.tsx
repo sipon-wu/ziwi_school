@@ -1,255 +1,419 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import G6, { type Graph, type GraphData, type TreeGraph } from '@antv/g6'
+import { Graph, treeToGraphData } from '@antv/g6'
 
 export interface KnowledgeNode {
   id: string; name: string; subject: string; grade: number; semester: string
   unit: string; difficulty: string; cognitive: string; curriculum_code: string
   parent_id: string | null; prerequisites: string[]; next: string[]
+  [key: string]: unknown
 }
 
-type LayoutMode = 'tree' | 'circular' | 'force'
+type LayoutMode = 'tree' | 'spiral' | 'mesh'
 type Dimension = 'knowledge' | 'cognitive' | 'difficulty' | 'curriculum'
 
-interface Props { data: KnowledgeNode[]; subject?: string; selectedIds?: string[]; onSelect?: (ids: string[]) => void; className?: string; height?: number }
+interface Props {
+  data: KnowledgeNode[]
+  subject?: string
+  grade?: number
+  semester?: string
+  textbook?: string
+  selectedIds?: string[]
+  onSelect?: (ids: string[]) => void
+  onClose?: () => void
+  inline?: boolean
+  height?: number
+  layoutMode?: LayoutMode; onLayoutChange?: (m: LayoutMode) => void
+  colorDimension?: Dimension; onDimensionChange?: (d: Dimension) => void
+  diffRange?: [number, number]; onDiffRangeChange?: (r: [number, number]) => void
+}
 
 const DIFFICULTY_COLORS: Record<string, string> = { L1: '#52C41A', L2: '#1890FF', L3: '#FA8C16', L4: '#F5222D' }
 const COGNITIVE_COLORS: Record<string, string> = { '记忆': '#B37FEB', '理解': '#5CDBD3', '应用': '#1890FF', '分析': '#FA8C16', '评价': '#F5222D', '创造': '#EB2F96' }
-const DIM_COLORS: Record<string, string> = { tree: '#5B8FF9', circular: '#1890FF', force: '#1890FF' }
-const FONT_SIZES = [14, 12, 11, 9, 8] // 层级字号递减
+const GRADE_NAMES = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级']
 
-/** 树数据：年级→学期→单元→知识点 四层 */
-function buildTreeData(nodes: KnowledgeNode[]): any {
-  if (!nodes?.length) return { id: 'root', label: '暂无数据', children: [] }
-  const byGrade = new Map<number, KnowledgeNode[]>()
-  nodes.forEach(n => { const g = n.grade || 1; if (!byGrade.has(g)) byGrade.set(g, []); byGrade.get(g)!.push(n) })
-  const sorted = Array.from(byGrade.keys()).sort((a, b) => a - b)
-  return {
-    id: 'root', label: nodes[0]?.subject || '',
-    children: sorted.map(g => ({
-      id: `g-${g}`, label: `${g}年级`, children:
-        (() => { const bySem = new Map<string, KnowledgeNode[]>(); byGrade.get(g)!.forEach(n => { const s = n.semester || '上'; if (!bySem.has(s)) bySem.set(s, []); bySem.get(s)!.push(n) })
-          return Array.from(bySem.keys()).map(s => ({ id: `s-${g}-${s}`, label: `${s}`, children:
-            (() => { const byUnit = new Map<string, KnowledgeNode[]>(); bySem.get(s)!.forEach(n => { const u = n.unit || '其他'; if (!byUnit.has(u)) byUnit.set(u, []); byUnit.get(u)!.push(n) })
-              return Array.from(byUnit.keys()).map(u => ({ id: `u-${g}-${s}-${u.slice(0,4)}`, label: u, children: byUnit.get(u)!.map(k => ({ id: k.id, label: k.name, data: k })), type: 'rect', size: [Math.min(u.length * 12 + 20, 160), 24], style: { fill: '#E8F0FE', stroke: '#5B8FF9', radius: 6 } }))
-            })()
-          , type: 'rect', size: [50, 20], style: { fill: '#F6BD16', stroke: '#F6BD16', radius: 6, fillOpacity: 0.9 } }))
-        })()
-    , type: 'rect', size: [70, 24], style: { fill: '#FF9845', stroke: '#FF9845', radius: 6, fillOpacity: 0.9 } })),
+/** 构建纯知识点依赖树 */
+function buildKnowledgeTree(nodes: KnowledgeNode[]): any {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  const childrenMap = new Map<string, KnowledgeNode[]>()
+  const visited = new Set<string>()
+
+  nodes.forEach(n => {
+    ;(n.prerequisites || []).forEach(p => {
+      if (nodeMap.has(p)) {
+        if (!childrenMap.has(p)) childrenMap.set(p, [])
+        if (!childrenMap.get(p)!.find(c => c.id === n.id)) childrenMap.get(p)!.push(n)
+      }
+    })
+  })
+
+  const roots = nodes.filter(n => !(n.prerequisites || []).some(p => nodeMap.has(p)))
+
+  const build = (node: KnowledgeNode): any => {
+    if (visited.has(node.id)) return null
+    visited.add(node.id)
+    const children = (childrenMap.get(node.id) || []).map(c => build(c)).filter(Boolean)
+    return { id: node.id, children: children.length > 0 ? children : undefined }
   }
+
+  const tree = roots.map(r => build(r)).filter(Boolean)
+  return { id: '__virtual_root__', children: tree.length > 0 ? tree : nodes.slice(0, 1).map(n => ({ id: n.id })) }
 }
 
-/** 图数据：节点+边 */
-function buildGraphData(nodes: KnowledgeNode[]): GraphData {
+/** 构建图数据 */
+function buildGraphData(nodes: KnowledgeNode[]) {
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
-  const edges: any[] = []
+  const edges: { source: string; target: string; weight: number }[] = []
   const added = new Set<string>()
   nodes.forEach(n => {
-    n.next?.forEach(t => { if (nodeMap.has(t) && !added.has(n.id + t)) { edges.push({ source: n.id, target: t }); added.add(n.id + t) } })
-    n.prerequisites?.forEach(p => { if (nodeMap.has(p) && !added.has(p + n.id)) { edges.push({ source: p, target: n.id }); added.add(p + n.id) } })
+    ;(n.next || []).forEach(t => { if (nodeMap.has(t) && !added.has(n.id + t)) { edges.push({ source: n.id, target: t, weight: 1 }); added.add(n.id + t) } })
+    ;(n.prerequisites || []).forEach(p => { if (nodeMap.has(p) && !added.has(p + n.id)) { edges.push({ source: p, target: n.id, weight: 1 }); added.add(p + n.id) } })
   })
-  // 计算关联度作为边权重
   const deg = new Map<string, number>()
   edges.forEach(e => { deg.set(e.source, (deg.get(e.source) || 0) + 1); deg.set(e.target, (deg.get(e.target) || 0) + 1) })
   return {
-    nodes: nodes.map(n => ({ id: n.id, label: n.name, data: n, degree: deg.get(n.id) || 0 })),
-    edges: edges.map(e => {
-      const w = Math.max(0.3, 1 - ((deg.get(e.source) || 0) + (deg.get(e.target) || 0)) / 10)
-      return { ...e, weight: w }
-    }),
+    nodes: nodes.map(n => ({ id: n.id, data: n, degree: deg.get(n.id) || 0 })),
+    edges: edges.map(e => ({ source: e.source, target: e.target, weight: Math.max(0.3, 1 - ((deg.get(e.source) || 0) + (deg.get(e.target) || 0)) / 10) })),
   }
 }
 
-export default function KnowledgeGraph({ data = [], subject = '数学', selectedIds = [], onSelect, className = '', height = 500 }: Props) {
+export default function KnowledgeGraph({
+  data = [], subject = '数学', grade, semester, textbook,
+  selectedIds = [], onSelect, onClose, inline = false, height,
+  layoutMode, onLayoutChange,
+  colorDimension, onDimensionChange,
+  diffRange, onDiffRangeChange,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const graphRef = useRef<Graph | TreeGraph | null>(null)
-  const [layout, setLayout] = useState<LayoutMode>('tree')
-  const [dimension, setDimension] = useState<Dimension>('knowledge')
-  const [difficultyRange, setDifficultyRange] = useState<[number, number]>([1, 4])
+  const graphRef = useRef<Graph | null>(null)
+  const [layout, setLayout] = useState<LayoutMode>(layoutMode || 'tree')
+  const [dimension, setDimension] = useState<Dimension>(colorDimension || 'knowledge')
+  const [difficultyRange, setDifficultyRange] = useState<[number, number]>(diffRange || [1, 4])
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | null>(null)
-  const [ready, setReady] = useState(false)
+  const graphHeight = height || 600
+
+  // 受控模式：同步外部状态
+  useEffect(() => { if (layoutMode) setLayout(layoutMode) }, [layoutMode])
+  useEffect(() => { if (colorDimension) setDimension(colorDimension) }, [colorDimension])
+  useEffect(() => { if (diffRange) setDifficultyRange(diffRange) }, [diffRange])
+
+  const handleLayout = (m: LayoutMode) => { setLayout(m); onLayoutChange?.(m) }
+  const handleDimension = (d: Dimension) => { setDimension(d); onDimensionChange?.(d) }
+  const handleDiffRange = (r: [number, number]) => { setDifficultyRange(r); onDiffRangeChange?.(r) }
 
   const visibleNodes = useMemo(() =>
-    data.filter(n => n.subject === subject).filter(n => { const d = parseInt(n.difficulty.replace('L', '')); return d >= difficultyRange[0] && d <= difficultyRange[1] }),
-  [data, subject, difficultyRange])
+    data
+      .filter(n => n.subject === subject)
+      .filter(n => {
+        if (grade == null) return true
+        const sv = (s: string) => s === '上' ? 1 : 2
+        const cs = semester ? sv(semester) : 2
+        if (n.grade < grade) return true
+        if (n.grade === grade) return sv(n.semester) <= cs
+        return false
+      })
+      .filter(n => { const d = parseInt(n.difficulty.replace('L', '')); return d >= difficultyRange[0] && d <= difficultyRange[1] }),
+  [data, subject, grade, semester, difficultyRange])
 
-  const colorByDimension = useCallback((node: KnowledgeNode): string => {
+  const getColor = useCallback((node: KnowledgeNode): string => {
     if (dimension === 'difficulty') return DIFFICULTY_COLORS[node.difficulty] || '#1890FF'
     if (dimension === 'cognitive') return COGNITIVE_COLORS[node.cognitive] || '#1890FF'
     if (dimension === 'curriculum') return '#722ED1'
-    return DIM_COLORS[layout] || '#5B8FF9'
-  }, [dimension, layout])
+    return '#5B8FF9'
+  }, [dimension])
 
-  useEffect(() => { if (data.length > 0) setReady(true) }, [data])
-
-  // 环形动态密度计算
-  const calcCircularRadius = useCallback((count: number, w: number, h: number) => {
-    // 节点越多半径越大，保证不重叠
-    const baseR = Math.min(w, h) * 0.35
-    const extraPerNode = 1.5
-    return Math.min(baseR + count * extraPerNode, Math.min(w, h) * 0.6)
-  }, [])
+  // 已选节点详情
+  const selectedNodes = useMemo(() => data.filter(n => selectedIds.includes(n.id)), [data, selectedIds])
+  const removeSelected = (id: string) => onSelect?.(selectedIds.filter(i => i !== id))
 
   useEffect(() => {
     if (!containerRef.current || visibleNodes.length === 0) return
     if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null }
 
     const w = containerRef.current.clientWidth || 800
-    const h = height || 500
+    const h = graphHeight
     const colorMap = new Map<string, string>()
-    visibleNodes.forEach(n => colorMap.set(n.id, colorByDimension(n)))
+    visibleNodes.forEach(n => colorMap.set(n.id, getColor(n)))
 
-    let graph: Graph | TreeGraph
+    let graph: Graph
 
     if (layout === 'tree') {
-      // ── 思维导图模式 ──
-      const treeData = buildTreeData(visibleNodes)
-      graph = new G6.TreeGraph({
-        container: containerRef.current, width: w, height: h,
-        fitView: true, fitViewPadding: [30, 60, 30, 60],
-        modes: { default: ['drag-canvas', 'zoom-canvas', 'click-select'] },
-        layout: {
-          type: 'mindmap', direction: 'H',
-          getHeight: () => 28, getWidth: (d: any) => (d.label?.length || 4) * 12 + 20,
-          getVGap: () => 4, getHGap: () => 60,
+      const treeJson = buildKnowledgeTree(visibleNodes)
+      const gData = treeToGraphData(treeJson)
+
+      graph = new Graph({
+        container: containerRef.current, width: w, height: h, autoFit: 'view', data: gData,
+        node: {
+          type: 'rect',
+          style: (d: any) => {
+            const node = visibleNodes.find(n => n.id === d.id)
+            const label = d.id === '__virtual_root__' ? '知识点' : node?.name || d.id
+            const w2 = Math.max(label.length * 14 + 36, 72)
+            return {
+              labelText: label,
+              labelPlacement: 'center',
+              labelFontSize: 12,
+              labelFill: '#fff',
+              size: [w2, 30],
+              fill: colorMap.get(d.id) || '#5B8FF9',
+              stroke: '#fff',
+              lineWidth: 1.5,
+              radius: 8,
+              cursor: 'pointer',
+            }
+          },
+          animation: { enter: false },
         },
-        defaultNode: {
-          type: 'rect', size: [100, 28], style: { fill: '#5B8FF9', stroke: '#fff', lineWidth: 1.5, radius: 8, cursor: 'pointer', fillOpacity: 0.9 },
-          labelCfg: { position: 'center', style: { fill: '#fff', fontSize: 11, fontFamily: 'PingFang SC' } },
+        edge: {
+          type: 'cubic-horizontal',
+          style: { stroke: '#C0C8D4', lineWidth: 1.5, opacity: 0.5 },
+          animation: { enter: false },
         },
-        defaultEdge: { type: 'cubic-horizontal', style: { stroke: '#91A0B0', lineWidth: 0.5, opacity: 0.25 } },
-        animate: true, minZoom: 0.2, maxZoom: 3,
+        layout: { type: 'mindmap', direction: 'H', getHeight: () => 32, getWidth: (d: any) => (d.id === '__virtual_root__' ? 100 : (visibleNodes.find(n => n.id === d.id)?.name?.length || 4) * 13 + 32), getHGap: () => 40, getVGap: () => 6 },
+        behaviors: ['drag-canvas', 'zoom-canvas', 'collapse-expand'],
       })
-      graph.data(treeData)
       graph.render()
-      // 递归设置层级字号
-      const setLevelStyle = (nodeId: string, level: number) => {
-        const node = graph.findById(nodeId)
-        if (!node) return
-        const fontSize = FONT_SIZES[Math.min(level, FONT_SIZES.length - 1)]
-        const isLeaf = !(node.getModel() as any).children?.length
-        if (isLeaf) {
-          graph.updateItem(node, { size: [(node.getModel() as any).label?.length * 12 + 24 || 80, 24], style: { fill: colorMap.get(nodeId) || '#5B8FF9', stroke: '#fff', fillOpacity: 0.9 }, labelCfg: { style: { fontSize } } })
-        } else {
-          graph.updateItem(node, { style: { fill: level === 1 ? '#FF9845' : level === 2 ? '#F6BD16' : '#5B8FF9' }, labelCfg: { style: { fontSize: FONT_SIZES[level] } } })
-        }
-        const children = (node.getModel() as any).children
-        if (children) children.forEach((c: any) => setLevelStyle(c.id, level + 1))
-      }
-      setLevelStyle('root', 0)
+      setTimeout(() => graph.fitView(), 100)
     } else {
-      // ── 环状 / 网状 ──
       const gData = buildGraphData(visibleNodes)
-      const count = visibleNodes.length
-      const r = calcCircularRadius(count, w, h)
+      const isSpiral = layout === 'spiral'
 
-      const layoutCfg = layout === 'circular'
-        ? {
-            type: 'circular' as const,
-            radius: r,
-            divisions: Math.ceil(count / 3),
-            ordering: 'degree' as const,
-          }
-        : {
-            type: 'force' as const,
-            preventOverlap: true,
-            nodeStrength: (d: any) => -30 - 10 * (d.data?.degree || 0),
-            edgeStrength: 0.02,
-            linkDistance: (d: any) => 30 + 40 * (1 - d.weight),
-            nodeSpacing: 15,
-            animate: true,
-            alphaDecay: 0.005,
-          }
-
-      graph = new G6.Graph({
-        container: containerRef.current, width: w, height: h,
-        fitView: true, fitViewPadding: [30, 40, 30, 40],
-        modes: { default: ['drag-canvas', 'zoom-canvas', 'drag-node', 'click-select'] },
-        layout: layoutCfg,
-        defaultNode: { size: 22, type: 'circle', style: { fill: '#5B8FF9', stroke: '#fff', lineWidth: 1.5, cursor: 'pointer' }, labelCfg: { position: 'bottom', offset: 4, style: { fill: '#333', fontSize: 9 } } },
-        defaultEdge: { type: 'cubic', style: { stroke: '#91A0B0', lineWidth: 0.5, opacity: 0.25 } },
-        animate: layout === 'force',
-        minZoom: 0.2, maxZoom: 5,
+      graph = new Graph({
+        container: containerRef.current, width: w, height: h, data: gData, autoFit: 'view',
+        node: {
+          style: (d: any) => {
+            const name = d.data?.name || d.id
+            return {
+              labelText: name,
+              labelPlacement: 'bottom',
+              labelOffsetY: 4,
+              labelFontSize: 12,
+              labelFill: '#333',
+              size: 28,
+              fill: colorMap.get(d.id) || '#5B8FF9',
+              stroke: '#fff',
+              lineWidth: 1.5,
+              cursor: 'pointer',
+            }
+          },
+        },
+        edge: { style: { stroke: '#C0C8D4', lineWidth: (d: any) => Math.max(0.3, d.weight * 0.8), opacity: 0.35 } },
+        layout: isSpiral
+          ? { type: 'circular', startRadius: 20, endRadius: Math.max(200, Math.min(visibleNodes.length * 18, Math.min(w, h) * 0.45)) }
+          : {
+              type: 'd3-force',
+              collide: { radius: 20 },
+              linkDistance: (d: any) => 60 + 60 * (1 - (d.weight || 0.5)),
+              nodeStrength: (d: any) => -40 - 10 * (d.degree || 0),
+              edgeStrength: 0.02,
+              alphaDecay: 0.003,
+            },
+        behaviors: isSpiral ? ['drag-canvas', 'zoom-canvas', 'drag-element'] : ['drag-canvas', 'zoom-canvas', 'drag-element'],
       })
-      graph.data(gData)
       graph.render()
+    }
 
-      // 延迟着色
-      const paintNodes = () => {
-        graph.getNodes().forEach((node: any) => {
-          const m = node.getModel() as any
-          if (m?.data) graph.updateItem(node, { style: { fill: colorMap.get(m.data.id) || '#5B8FF9' } })
-        })
+    graph.on('node:click', (evt: any) => {
+      const id = evt.target?.id
+      if (!id || id === '__virtual_root__') return
+      const node = visibleNodes.find(n => n.id === id)
+      if (node) {
+        setSelectedNode(node)
+        onSelect?.(selectedIds.includes(id) ? selectedIds.filter(i => i !== id) : [...selectedIds, id])
       }
-      if (layout === 'force') setTimeout(paintNodes, 300)
-      else paintNodes()
+    })
 
-      // 缩放事件：动态调整标签大小
-      graph.on('viewportchange', () => {
-        const zoom = graph.getZoom()
-        const labelVisible = zoom > 0.4
-        graph.getNodes().forEach((node: any) => {
-          const m = node.getModel() as any
-          if (m?.data) {
-            graph.updateItem(node, {
-              label: labelVisible ? (m?.data?.name?.length > 6 ? m.data.name.slice(0, 6) + '…' : m.data.name) : '',
-              labelCfg: { style: { fontSize: Math.max(7, Math.min(11, 9 * zoom)) } },
-            })
-          }
-        })
-      })
-    }
+    graphRef.current = graph
 
-    // 通用事件
-    const commonEvents = (g: Graph | TreeGraph) => {
-      g.on('node:mouseenter', (e: any) => { const m = e.item?.getModel() as any; if (m?.data) g.updateItem(e.item, { style: { stroke: '#1890FF', lineWidth: 2, shadowBlur: 6 } }) })
-      g.on('node:mouseleave', (e: any) => { const m = e.item?.getModel() as any; if (m?.data) g.updateItem(e.item, { style: { stroke: '#fff', lineWidth: 1.5, shadowBlur: 0 } }) })
-      g.on('node:click', (e: any) => {
-        const m = e.item?.getModel() as any
-        if (m?.data) { setSelectedNode(m.data); onSelect?.(selectedIds.includes(m.data.id) ? selectedIds.filter(id => id !== m.data.id) : [...selectedIds, m.data.id]) }
-      })
-    }
-    commonEvents(graph)
-    graphRef.current = graph as any
-
-    const onResize = () => {
-      if (graphRef.current && containerRef.current) {
-        graphRef.current.changeSize(containerRef.current.clientWidth, height || 500)
-        graphRef.current.fitView(20)
+    if (!inline) {
+      const onResize = () => {
+        if (graphRef.current && containerRef.current)
+          graphRef.current.setSize(containerRef.current.clientWidth, window.innerHeight - 180)
       }
+      window.addEventListener('resize', onResize)
+      return () => { window.removeEventListener('resize', onResize); graphRef.current?.destroy(); graphRef.current = null }
     }
-    window.addEventListener('resize', onResize)
-    return () => { window.removeEventListener('resize', onResize); graphRef.current?.destroy(); graphRef.current = null }
-  }, [visibleNodes, layout, dimension, colorByDimension, height, selectedIds, onSelect, ready, calcCircularRadius])
+    return () => { graphRef.current?.destroy(); graphRef.current = null }
+  }, [visibleNodes, layout, dimension, getColor, selectedIds, onSelect, graphHeight, inline])
 
-  const allNodes = data.filter(n => n.subject === subject)
+  const gradeLabel = grade ? GRADE_NAMES[grade - 1] || '' : ''
+  const summary = `${subject || ''} · ${gradeLabel}${semester || ''}学期 · ${textbook || ''}`
 
-  return (
-    <div className={`relative bg-white rounded-xl border border-gray-200 overflow-hidden ${className}`}>
-      <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-        <div className="flex gap-1 bg-white/90 rounded-lg p-1 shadow-sm border border-gray-100">
-          {(['tree', 'circular', 'force'] as LayoutMode[]).map(m => (
-            <button key={m} onClick={() => { setDimension('knowledge'); setLayout(m) }} className={`px-2 py-1 text-[11px] rounded transition-colors ${layout === m ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{m === 'tree' ? '思维导图' : m === 'circular' ? '环状' : '网状'}</button>
-          ))}
-        </div>
-        <div className="flex gap-1 bg-white/90 rounded-lg p-1 shadow-sm border border-gray-100">
-          {(['knowledge', 'cognitive', 'difficulty', 'curriculum'] as Dimension[]).map(d => (
-            <button key={d} onClick={() => setDimension(d)} className={`px-2 py-1 text-[11px] rounded transition-colors ${dimension === d ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{d === 'knowledge' ? '知识点' : d === 'cognitive' ? '能力' : d === 'difficulty' ? '难度' : '课标'}</button>
-          ))}
-        </div>
+  // 工具栏
+  const toolbar = (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-1 bg-white/95 rounded-lg p-1 shadow-sm border border-gray-100">
+        {(['tree', 'spiral', 'mesh'] as LayoutMode[]).map(m => (
+          <button key={m} onClick={() => { handleDimension('knowledge'); handleLayout(m) }} className={`px-2 py-1 text-[11px] rounded transition-colors ${layout === m ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+            {m === 'tree' ? '树状' : m === 'spiral' ? '螺旋' : '网状'}
+          </button>
+        ))}
       </div>
-      <div className="absolute top-2 right-2 z-10 bg-white/90 rounded-lg px-2 py-1.5 shadow-sm border border-gray-100 flex items-center gap-1.5 text-[11px]">
-        <span className="text-gray-400">L1</span><input type="range" min={1} max={4} value={difficultyRange[0]} onChange={e => setDifficultyRange([Number(e.target.value), Math.max(Number(e.target.value), difficultyRange[1])])} className="w-12 h-1 accent-brand" />
-        <span className="text-gray-400">—</span><input type="range" min={1} max={4} value={difficultyRange[1]} onChange={e => setDifficultyRange([Math.min(difficultyRange[0], Number(e.target.value)), Number(e.target.value)])} className="w-12 h-1 accent-brand" />
-        <span className="text-gray-400">L4</span>
+      <div className="flex gap-1 bg-white/95 rounded-lg p-1 shadow-sm border border-gray-100">
+        {(['knowledge', 'cognitive', 'difficulty', 'curriculum'] as Dimension[]).map(d => (
+          <button key={d} onClick={() => handleDimension(d)} className={`px-2 py-1 text-[11px] rounded transition-colors ${dimension === d ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+            {d === 'knowledge' ? '知识点' : d === 'cognitive' ? '能力' : d === 'difficulty' ? '难度' : '课标'}
+          </button>
+        ))}
       </div>
-      <div ref={containerRef} style={{ width: '100%', height: height || 500 }} />
-      <div className="absolute bottom-2 right-2 z-10 flex gap-1">
-        <button onClick={() => graphRef.current?.fitView(20)} className="px-2 py-1 text-[11px] bg-white/90 rounded shadow-sm border border-gray-100 hover:bg-gray-50">适应画布</button>
-        <button onClick={() => graphRef.current?.zoomTo(1, { x: 0, y: 0 })} className="px-2 py-1 text-[11px] bg-white/90 rounded shadow-sm border border-gray-100 hover:bg-gray-50">重置</button>
-      </div>
-      {allNodes.length === 0 && (<div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">加载中...</div>)}
-      {selectedNode && (<div className="absolute bottom-2 left-2 z-10 bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-w-[240px] text-xs"><div className="font-semibold text-sm text-gray-900 mb-1">{selectedNode.name}</div><div className="text-gray-500 space-y-0.5"><div>{selectedNode.grade}年级·{selectedNode.semester}学期·{selectedNode.unit}</div><div>难度:<span style={{color:DIFFICULTY_COLORS[selectedNode.difficulty]}}>{selectedNode.difficulty}</span></div><div>认知:{selectedNode.cognitive}</div></div></div>)}
-      {dimension !== 'knowledge' && (<div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex gap-2 text-[10px] bg-white/90 rounded-lg px-2 py-1 shadow-sm border border-gray-100">{dimension === 'difficulty' && Object.entries(DIFFICULTY_COLORS).map(([k,v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{background:v}}/>{k}</span>)}{dimension === 'cognitive' && Object.entries(COGNITIVE_COLORS).slice(0,4).map(([k,v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{background:v}}/>{k}</span>)}</div>)}
     </div>
+  )
+
+  // 难度范围：纯手写拖拽双滑块
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [dragSide, setDragSide] = useState<'left' | 'right' | null>(null)
+  const leftPct = (difficultyRange[0] - 1) / 3
+  const rightPct = (difficultyRange[1] - 1) / 3
+
+  // 拖拽视觉位置（不取整，丝滑）
+  const [dragPct, setDragPct] = useState<number | null>(null)
+  // 全局拖拽事件
+  useEffect(() => {
+    if (!dragSide || !trackRef.current) return
+    const track = trackRef.current
+    const onMove = (e: MouseEvent) => {
+      const rect = track.getBoundingClientRect()
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+      setDragPct(pct)
+      const raw = 1 + Math.round(pct * 3)
+      if (dragSide === 'left') {
+        if (raw < difficultyRange[1]) handleDiffRange([raw, difficultyRange[1]])
+      } else {
+        if (raw > difficultyRange[0]) handleDiffRange([difficultyRange[0], raw])
+      }
+    }
+    const onUp = () => { setDragSide(null); setDragPct(null) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [dragSide, difficultyRange, handleDiffRange])
+
+  const diffSlider = (
+    <div ref={trackRef} className="bg-white/95 rounded-lg px-5 py-3 shadow-sm border border-gray-100 w-[200px] select-none" onMouseLeave={() => setDragSide(null)}>
+      <div className="relative" style={{ height: 32 }}>
+        {/* 刻度线（下层） */}
+        <div className="absolute w-px bg-gray-300 pointer-events-none" style={{ left: 0, top: 5, height: 14 }} />
+        <div className="absolute w-px bg-gray-300 pointer-events-none" style={{ left: `${100}%`, top: 5, height: 14 }} />
+        <div className="absolute w-px bg-gray-300 pointer-events-none" style={{ left: `${33.33}%`, top: 9, height: 6 }} />
+        <div className="absolute w-px bg-gray-300 pointer-events-none" style={{ left: `${66.67}%`, top: 9, height: 6 }} />
+
+        {/* 轴（上层） */}
+        <div className="absolute left-0 right-0 bg-gray-200 rounded-full pointer-events-none" style={{ top: 12, height: 1 }} />
+        {/* 选中区间高亮 */}
+        <div className="absolute bg-brand rounded-full pointer-events-none" style={{ left: `${leftPct * 100}%`, right: `${(1 - rightPct) * 100}%`, top: 12, height: 1 }} />
+
+        {/* 标签 */}
+        <span className="absolute text-[10px] text-gray-400 pointer-events-none" style={{ left: -16, top: 18 }}>L1</span>
+        <span className="absolute text-[10px] text-gray-400 pointer-events-none" style={{ right: -16, top: 18 }}>L4</span>
+
+        {/* 左三角滑块 */}
+        <div className="absolute cursor-grab transition-[left] duration-75 ease-out"
+          style={{ left: `calc(${(dragSide === 'left' && dragPct != null ? dragPct : leftPct) * 100}% - 6px)`, top: -1, width: 12, height: 18 }}
+          onMouseDown={e => { e.preventDefault(); setDragSide('left') }}>
+          <svg width="12" height="8" style={{ display: 'block', margin: '0 auto' }}>
+            <polygon points="0,0 12,0 6,8" fill={dragSide === 'left' ? '#2B5DA8' : '#A0A0A0'} />
+          </svg>
+        </div>
+
+        {/* 右三角滑块 */}
+        <div className="absolute cursor-grab transition-[left] duration-75 ease-out"
+          style={{ left: `calc(${(dragSide === 'right' && dragPct != null ? dragPct : rightPct) * 100}% - 6px)`, top: -1, width: 12, height: 18 }}
+          onMouseDown={e => { e.preventDefault(); setDragSide('right') }}>
+          <svg width="12" height="8" style={{ display: 'block', margin: '0 auto' }}>
+            <polygon points="0,0 12,0 6,8" fill={dragSide === 'right' ? '#2B5DA8' : '#A0A0A0'} />
+          </svg>
+        </div>
+      </div>
+    </div>
+  )
+
+  // 画布内容
+  const canvas = (
+    <>
+      <div ref={containerRef} className="w-full h-full min-h-[300px]" />
+      {dimension !== 'knowledge' && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex gap-2 text-[10px] bg-white/95 rounded-lg px-2 py-1 shadow-sm border border-gray-100">
+          {dimension === 'difficulty' && Object.entries(DIFFICULTY_COLORS).map(([k, v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} />{k}</span>)}
+          {dimension === 'cognitive' && Object.entries(COGNITIVE_COLORS).slice(0, 4).map(([k, v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} />{k}</span>)}
+        </div>
+      )}
+      <div className="absolute bottom-3 right-3 z-10 flex gap-1">
+        <button onClick={() => graphRef.current?.fitView()} className="px-2.5 py-1.5 text-[11px] bg-white/95 rounded-lg shadow-sm border border-gray-100 hover:bg-gray-50">适应画布</button>
+        <button onClick={() => graphRef.current?.zoomTo(1)} className="px-2.5 py-1.5 text-[11px] bg-white/95 rounded-lg shadow-sm border border-gray-100 hover:bg-gray-50">重置</button>
+      </div>
+      {selectedNode && (
+        <div className="absolute bottom-3 left-3 z-10 bg-white rounded-xl shadow-lg border border-gray-200 p-3 max-w-[240px] text-xs">
+          <div className="font-semibold text-sm text-gray-900 mb-1">{selectedNode.name}</div>
+          <div className="text-gray-500 space-y-0.5">
+            <div>{selectedNode.grade}年级·{selectedNode.semester}学期·{selectedNode.unit}</div>
+            <div>难度:<span style={{ color: DIFFICULTY_COLORS[selectedNode.difficulty] }}>{selectedNode.difficulty}</span></div>
+            <div>认知:{selectedNode.cognitive}</div>
+          </div>
+        </div>
+      )}
+      {visibleNodes.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">当前筛选条件下暂无知识点</div>}
+    </>
+  )
+
+  // ── 内嵌模式 ──
+  if (inline) {
+    return (
+      <div className="relative bg-gray-50/50" style={{ height: graphHeight || 420 }}>
+        <div className="absolute top-3 left-3 z-10">{toolbar}</div>
+        <div className="absolute top-3 right-3 z-10">{diffSlider}</div>
+        {canvas}
+      </div>
+    )
+  }
+
+  // ── 弹窗模式 ──
+  return (
+    <>
+      <style>{'.xw-chat-btn{display:none!important}'}</style>
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full h-full max-w-[1400px] max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* 顶部栏 */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-gray-800">知识点图谱</span>
+            <span className="text-[12px] text-gray-400">|</span>
+            <span className="text-[12px] text-gray-500">{summary}</span>
+            <span className="text-[12px] text-gray-400">|</span>
+            <span className="text-[12px] text-gray-500">难度 {difficultyRange[0] === difficultyRange[1] ? `L${difficultyRange[0]}` : `L${difficultyRange[0]}–L${difficultyRange[1]}`}</span>
+            <span className="text-[12px] text-gray-400">|</span>
+            <span className="text-[12px] text-gray-500">{visibleNodes.length} 个知识点</span>
+            {selectedIds.length > 0 && <><span className="text-[12px] text-gray-400">|</span><span className="text-[12px] text-brand font-medium">已选 {selectedIds.length} 个</span></>}
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-200 rounded-lg">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="#999" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 relative bg-gray-50/50">
+          {/* 左侧工具栏 */}
+          <div className="absolute top-3 left-3 z-10">{toolbar}</div>
+
+          {/* 右侧：难度+已选考点 */}
+          <div className="absolute top-3 right-3 z-10 flex flex-col gap-2 items-end">
+            {diffSlider}
+            {selectedNodes.length > 0 && (
+              <div className="bg-white/95 rounded-lg shadow-sm border border-gray-100 p-2 max-h-[200px] overflow-y-auto min-w-[160px]">
+                <div className="text-[11px] font-semibold text-gray-600 mb-1.5 px-1">已选考点</div>
+                <div className="space-y-1">
+                  {selectedNodes.map(n => (
+                    <div key={n.id} className="flex items-center gap-1.5 text-xs py-1 px-1.5 bg-brand/5 rounded group">
+                      <span className="text-gray-700 truncate flex-1">{n.name.length > 8 ? n.name.slice(0, 8) + '…' : n.name}</span>
+                      <button onClick={() => removeSelected(n.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {canvas}
+        </div>
+      </div>
+    </div>
+    </>
   )
 }

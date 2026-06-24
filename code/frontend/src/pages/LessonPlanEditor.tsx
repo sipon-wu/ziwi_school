@@ -1,15 +1,26 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Maximize2, Target } from 'lucide-react'
 import { aiAPI, lessonPlanAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
+import KnowledgeGraph from '../components/KnowledgeGraph'
+import { useTeaching } from '../lib/TeachingContext'
+import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 
 export default function LessonPlanEditor() {
   const navigate = useNavigate()
-  const { id } = useParams()  // P0-1: 读取 URL 参数
+  const { id } = useParams()
   const isEditing = Boolean(id)
-  const [subject, setSubject] = useState('语文')
-  const [grade, setGrade] = useState('四年级')
+  const teaching = useTeaching()
+
+  // 共享知识点选取器
+  const picker = useKnowledgePicker({ autoSelect: true })
+
+  // 已保存教案的知识节点 ID（编辑模式回显）
+  const [savedKnowledgeIds, setSavedKnowledgeIds] = useState<string[]>([])
+
+  const [subject, setSubject] = useState(teaching.subject)
+  const [grade, setGrade] = useState(['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'][teaching.grade - 1] || '四年级')
   const [lessonTitle, setLessonTitle] = useState('')
   const [textbookUnit, setTextbookUnit] = useState('')
   const [period, setPeriod] = useState(1)
@@ -24,7 +35,7 @@ export default function LessonPlanEditor() {
   const [loadingExisting, setLoadingExisting] = useState(false)
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
 
-  // P0-1: 编辑模式加载已有教案
+  // 编辑模式加载已有教案
   useEffect(() => {
     if (!id) return
     setLoadingExisting(true)
@@ -41,29 +52,70 @@ export default function LessonPlanEditor() {
         try { setCurriculum(JSON.parse(data.curriculum_alignments)) } catch { setCurriculum([]) }
       }
       setModelVersion(data.ai_model_version || '')
+      // 回显已保存的知识点
+      if (data.knowledge_node_ids) {
+        try {
+          const ids = JSON.parse(data.knowledge_node_ids)
+          if (Array.isArray(ids)) {
+            setSavedKnowledgeIds(ids)
+            picker.setSelectedIds(ids)
+          }
+        } catch { /* ignore */ }
+      }
     }).catch(() => {
       // 加载失败仍可用空白表单
     }).finally(() => setLoadingExisting(false))
   }, [id])
 
+  // 当前使用的知识点 ID（编辑已有内容时用保存的，新建时用选取器最新的）
+  const currentKnowledgeIds = content ? savedKnowledgeIds : picker.selectedIds
+
   const handleGenerate = async () => {
     if (!lessonTitle.trim()) return
+    // 必填校验：自动预选已满足缺省值，但用户主动清空时需拦截
+    if (picker.selectedIds.length === 0) {
+      alert('请先在知识图谱中选取本课知识点')
+      return
+    }
     setGenerating(true)
     try {
-      const res = await aiAPI.generateLessonPlan({ subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period, format_template:template })
+      const knowledgeNodeIds = JSON.stringify(picker.selectedIds)
+      const res = await aiAPI.generateLessonPlan({
+        subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period, format_template:template,
+        selected_knowledge_ids: picker.selectedIds,
+      })
       setContent(res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
       if (!planId) {
-        const saved = await lessonPlanAPI.create({ subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period, content:res.content, format_template:template, curriculum_alignments:JSON.stringify(res.curriculum_alignments||[]), ai_generated:true, ai_model_version:res.model||'qwen-plus', generation_time_ms:res.generation_time_ms })
+        const saved = await lessonPlanAPI.create({
+          subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period,
+          content:res.content, format_template:template,
+          curriculum_alignments:JSON.stringify(res.curriculum_alignments||[]),
+          knowledge_node_ids: knowledgeNodeIds,
+          ai_generated:true, ai_model_version:res.model||'qwen-plus', generation_time_ms:res.generation_time_ms,
+        })
         setPlanId(saved.id)
+        setSavedKnowledgeIds(picker.selectedIds)
       } else {
-        await lessonPlanAPI.update(planId, { content: res.content })
+        await lessonPlanAPI.update(planId, { content: res.content, knowledge_node_ids: knowledgeNodeIds })
       }
     } catch(e:any) { alert('AI 生成失败: '+(e.message||'未知错误')) }
     setGenerating(false)
   }
 
-  const handleFinalize = async () => { if(!planId)return; setSaving(true); try{ await lessonPlanAPI.update(planId,{content}); await lessonPlanAPI.finalize(planId); navigate('/dashboard/lesson-plans') } catch(e:any){ alert('定稿失败') }; setSaving(false) }
-  const handleSaveDraft = async () => { if(!planId)return; try{ await lessonPlanAPI.update(planId,{content}) } catch{} }
+  const handleFinalize = async () => {
+    if(!planId)return; setSaving(true)
+    try {
+      await lessonPlanAPI.update(planId, { content, knowledge_node_ids: JSON.stringify(currentKnowledgeIds) })
+      await lessonPlanAPI.finalize(planId)
+      navigate('/dashboard/lesson-plans')
+    } catch(e:any){ alert('定稿失败') }
+    setSaving(false)
+  }
+
+  const handleSaveDraft = async () => {
+    if(!planId)return
+    try { await lessonPlanAPI.update(planId, { content, knowledge_node_ids: JSON.stringify(currentKnowledgeIds) }) } catch {}
+  }
 
   if (loadingExisting) {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-[#1A3A6B]/20 border-t-[#1A3A6B] rounded-full animate-spin" /></div>
@@ -92,8 +144,8 @@ export default function LessonPlanEditor() {
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-between">
           <div className="text-xs text-gray-400">{genTime > 0 ? `生成耗时: ${genTime}ms | 模型: ${modelVersion||'qwen-plus'}` : ''}</div>
           <div className="flex items-center gap-2">
-            {/* P2: 教案→一键发布作业 */}
-            <button onClick={() => navigate(`/dashboard/exercises/new?from_plan=${planId}&title=${encodeURIComponent(lessonTitle)}&subject=${subject}&grade=${grade}`)} className="px-4 py-2 text-sm text-brand border border-brand/30 rounded-lg hover:bg-brand/5"><Send size={14} className="inline mr-1" />发布作业</button>
+            {/* 教案→出题联动 */}
+            <button onClick={() => navigate('/dashboard/exercise-generator', { state: { preSelectedNodes: currentKnowledgeIds } })} className="px-4 py-2 text-sm text-brand border border-brand/30 rounded-lg hover:bg-brand/5"><Send size={14} className="inline mr-1" />基于此教案出题</button>
             <button onClick={handleGenerate} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-white">重新生成</button>
             <button onClick={() => setShowFinalizeConfirm(true)} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-sm bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm disabled:opacity-50"><Send size={15}/>{saving?'定稿中...':'定稿并保存'}</button>
           </div>
@@ -103,16 +155,78 @@ export default function LessonPlanEditor() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">教案基本信息</h2>
         <div className="grid grid-cols-3 gap-4">
-          <div><label htmlFor="plan-subject" className="block text-sm font-medium text-gray-700 mb-1.5">学科</label><select id="plan-subject" value={subject} onChange={e=>setSubject(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"><option>语文</option><option>数学</option><option>英语</option></select></div>
-          <div><label htmlFor="plan-grade" className="block text-sm font-medium text-gray-700 mb-1.5">年级</label><select id="plan-grade" value={grade} onChange={e=>setGrade(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20">{['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].map(g=><option key={g}>{g}</option>)}</select></div>
+          <div><label htmlFor="plan-subject" className="block text-sm font-medium text-gray-700 mb-1.5">学科</label><select id="plan-subject" value={subject} onChange={e=>{ const v = e.target.value as '语文'|'数学'|'英语'; setSubject(v); if (!isEditing) teaching.setSubject(v) }} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"><option>语文</option><option>数学</option><option>英语</option></select></div>
+          <div><label htmlFor="plan-grade" className="block text-sm font-medium text-gray-700 mb-1.5">年级</label><select id="plan-grade" value={grade} onChange={e=>{ const v = e.target.value; setGrade(v); if (!isEditing) { const idx = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].indexOf(v); if (idx >= 0) teaching.setGrade(idx + 1) } }} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20">{['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].map(g=><option key={g}>{g}</option>)}</select></div>
           <div><label htmlFor="plan-period" className="block text-sm font-medium text-gray-700 mb-1.5">课时</label><select id="plan-period" value={period} onChange={e=>setPeriod(Number(e.target.value))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20">{[1,2,3,4,5].map(n=><option key={n} value={n}>第{n}课时</option>)}</select></div>
           <div className="col-span-2"><label htmlFor="plan-title" className="block text-sm font-medium text-gray-700 mb-1.5">课题名称 <span className="text-red-500">*</span></label><input id="plan-title" type="text" value={lessonTitle} onChange={e=>setLessonTitle(e.target.value)} placeholder="例如：《观潮》第一课时" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"/></div>
           <div><label htmlFor="plan-unit" className="block text-sm font-medium text-gray-700 mb-1.5">教材单元</label><input id="plan-unit" type="text" value={textbookUnit} onChange={e=>setTextbookUnit(e.target.value)} placeholder="部编版四上第一单元" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"/></div>
           <div><label htmlFor="plan-template" className="block text-sm font-medium text-gray-700 mb-1.5">教案模板</label><select id="plan-template" value={template} onChange={e=>setTemplate(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"><option value="core_literacy">核心素养模板</option><option value="3d_objective">三维目标模板</option><option value="unit_teaching">单元教学模板</option></select></div>
         </div>
         <div className="mt-6 pt-6 border-t border-gray-100">
-          <button onClick={handleGenerate} disabled={!lessonTitle.trim()||generating} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#1A3A6B] to-[#2B5DA8] text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 shadow-sm">
-            {generating?<><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>AI 正在生成教案...</>:<><Sparkles size={18}/>AI 生成教案</>}
+          {/* 关联知识点 — 知识图谱选取 */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                <Target size={14} className="text-brand"/>关联知识点 <span className="text-red-500 text-xs font-normal">*必选</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                {picker.selectedIds.length > 0 && (
+                  <span className="text-[11px] text-gray-400">已选 {picker.selectedIds.length} 个</span>
+                )}
+                <button onClick={() => picker.setShowGraph(!picker.showGraph)} className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-brand bg-brand/5 rounded-lg border border-brand/10 hover:bg-brand/10">
+                  <BookOpen size={13}/>{picker.showGraph ? '收起图谱' : '展开知识图谱'}
+                </button>
+              </div>
+            </div>
+
+            {picker.showGraph && (
+              <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-100">
+                  <span className="text-xs font-medium text-gray-600">知识点图谱 · {teaching.textbook_math} · {grade}{teaching.semester}学期</span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => picker.setShowGraphModal(true)} className="flex items-center gap-1 px-2 py-1 text-[11px] text-brand hover:bg-brand/5 rounded-lg" title="独立弹窗"><Maximize2 size={12}/>独立弹窗</button>
+                    <button onClick={() => picker.setShowGraph(false)} className="p-1 hover:bg-gray-200 rounded"><X size={13} className="text-gray-400"/></button>
+                  </div>
+                </div>
+                <KnowledgeGraph
+                  data={picker.knowledgeData}
+                  subject={teaching.subject}
+                  grade={teaching.grade}
+                  semester={teaching.semester}
+                  textbook={teaching.textbook_math}
+                  selectedIds={picker.selectedIds}
+                  onSelect={picker.setSelectedIds}
+                  inline
+                  height={380}
+                  layoutMode={picker.graphLayout as any}
+                  onLayoutChange={picker.setGraphLayout as any}
+                  colorDimension={picker.graphDimension as any}
+                  onDimensionChange={picker.setGraphDimension as any}
+                  diffRange={picker.diffRange}
+                  onDiffRangeChange={picker.setDiffRange as any}
+                />
+              </div>
+            )}
+
+            {/* 已选考点预览 */}
+            {picker.selectedNodes.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {picker.selectedNodes.map(n => (
+                  <span key={n.id} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-brand/5 text-brand rounded-full border border-brand/10">
+                    {n.name}
+                    <button onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} className="text-brand/40 hover:text-red-500"><X size={10}/></button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {picker.selectedIds.length === 0 && !picker.showGraph && (
+              <p className="text-[12px] text-gray-400">点击"展开知识图谱"选取本课涉及的知识点，AI 将以此为核心生成教案</p>
+            )}
+          </div>
+
+          <button onClick={handleGenerate} disabled={!lessonTitle.trim()||generating||picker.selectedIds.length===0} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#1A3A6B] to-[#2B5DA8] text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 shadow-sm">
+            {generating?<><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>AI 正在生成教案...</>:<><Sparkles size={18}/>{picker.selectedIds.length===0?'请先选取知识点':'AI 生成教案'}</>}
           </button>
           <span className="ml-3 text-xs text-gray-400">预计 15-30 秒，自动对齐课标</span>
         </div>
@@ -121,7 +235,27 @@ export default function LessonPlanEditor() {
 
     {generating&&<div className="bg-white rounded-xl border border-gray-200 p-8 text-center"><div className="w-12 h-12 mx-auto mb-4 border-4 border-[#1A3A6B]/20 border-t-[#1A3A6B] rounded-full animate-spin"/><p className="text-sm text-gray-500">小微正在生成教案...</p><p className="text-xs text-gray-400 mt-1">正在检索课标要求、匹配知识点</p></div>}
 
-    {/* P1-2: 定稿确认弹窗 */}
+    {/* 知识图谱全屏弹窗 */}
+    {picker.showGraphModal && (
+      <KnowledgeGraph
+        data={picker.knowledgeData}
+        subject={teaching.subject}
+        grade={teaching.grade}
+        semester={teaching.semester}
+        textbook={teaching.textbook_math}
+        selectedIds={picker.selectedIds}
+        onSelect={picker.setSelectedIds}
+        onClose={() => picker.setShowGraphModal(false)}
+        layoutMode={picker.graphLayout as any}
+        onLayoutChange={picker.setGraphLayout as any}
+        colorDimension={picker.graphDimension as any}
+        onDimensionChange={picker.setGraphDimension as any}
+        diffRange={picker.diffRange}
+        onDiffRangeChange={picker.setDiffRange as any}
+      />
+    )}
+
+    {/* 定稿确认弹窗 */}
     <ConfirmDialog
       open={showFinalizeConfirm}
       title="确认定稿"

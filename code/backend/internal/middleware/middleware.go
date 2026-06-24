@@ -197,6 +197,67 @@ func getString(v interface{}) string {
 	return ""
 }
 
+// TokenQuotaGuard AI 路由 Token 配额守卫
+// 3 级预警：剩余<20%黄色、<10%橙色、=0阻断
+func TokenQuotaGuard(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, _ := c.Get(string(KeyUserID))
+		if userID == "" {
+			c.Next()
+			return
+		}
+
+		var user model.User
+		if err := db.Preload("School").First(&user, "id = ?", userID).Error; err != nil {
+			c.Next()
+			return
+		}
+
+		// 确定有效配额
+		quota := user.TokenQuotaMonthly
+		if !user.TokenQuotaCustom && user.School != nil {
+			quota = user.School.DefaultTokenQuota
+		}
+
+		// quota=0 表示不限
+		if quota <= 0 {
+			c.Next()
+			return
+		}
+
+		used := user.TokenUsedMonthly
+
+		// 已超配额 → 阻断
+		if used >= quota {
+			c.JSON(429, gin.H{
+				"code":    429,
+				"message": "本月Token配额已用完，请联系学校管理员",
+				"quota":   quota,
+				"used":    used,
+			})
+			c.Abort()
+			return
+		}
+
+		// 注入配额信息到上下文供后续使用
+		c.Set("token_quota_total", quota)
+		c.Set("token_quota_used", used)
+		c.Next()
+	}
+}
+
+// DeployModeGuard 私有部署模式下禁用 SaaS 专属路由
+func DeployModeGuard(deployMode string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if deployMode == "private" {
+			c.JSON(403, gin.H{"code": 403, "message": "私有部署模式下此功能不可用"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 func parseUUID(s string) uuid.UUID {
 	parsed, _ := uuid.Parse(s)
 	return parsed

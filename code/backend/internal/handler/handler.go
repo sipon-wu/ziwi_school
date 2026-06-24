@@ -30,6 +30,21 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误", "detail": err.Error()})
 		return
 	}
+
+	// 部署模式校验
+	isPrivate := h.authSvc.GetDeployMode() == "private"
+	if isPrivate {
+		if input.Username == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "私有部署模式下用户名不能为空"})
+			return
+		}
+	} else {
+		if input.Phone == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "手机号不能为空"})
+			return
+		}
+	}
+
 	if err := validate.Struct(input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数验证失败", "detail": err.Error()})
 		return
@@ -47,6 +62,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var input service.LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	// 部署模式校验：私有模式不校验 phone，SaaS 模式不校验 username
+	isPrivate := h.authSvc.GetDeployMode() == "private"
+	if isPrivate && input.Username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "私有部署模式下用户名不能为空"})
+		return
+	}
+	if !isPrivate && input.Phone == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "手机号不能为空"})
 		return
 	}
 
@@ -122,11 +148,46 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	userID := c.GetString("user_id")
 	userName := c.GetString("user_name")
 	workMode, _ := c.Get("work_mode")
-	c.JSON(http.StatusOK, gin.H{
-		"user_id":   userID,
-		"name":      userName,
-		"work_mode": workMode,
-	})
+	userRole, _ := c.Get("user_role")
+
+	// 从 DB 获取完整用户信息
+	user, err := h.authSvc.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"user_id":   userID,
+			"name":      userName,
+			"role":      userRole,
+			"work_mode": workMode,
+		})
+		return
+	}
+
+	info := service.UserInfo{
+		ID:                user.ID.String(),
+		Name:              user.Name,
+		Username:          user.Username,
+		Role:              user.Role,
+		Phone:             user.Phone,
+		Grade:             user.Grade,
+		Subject:           user.Subject,
+		WorkMode:          workMode.(string),
+		AccountSource:     user.AccountSource,
+		TokenQuotaMonthly: user.TokenQuotaMonthly,
+		TokenUsedMonthly:  user.TokenUsedMonthly,
+		TokenQuotaCustom:  user.TokenQuotaCustom,
+		DeployMode:        h.authSvc.GetDeployMode(),
+	}
+	if user.School != nil {
+		info.School = &service.SchoolBrief{ID: user.School.ID.String(), Name: user.School.Name}
+		info.SchoolConfig = &service.SchoolConfigBrief{
+			EnableKnowledgeGraph: user.School.EnableKnowledgeGraph,
+			DefaultTokenQuota:    user.School.DefaultTokenQuota,
+			AllowModelSwitch:     user.School.AllowModelSwitch,
+			ShowModelUI:          user.School.ShowModelUI,
+			AIModelTier:          user.School.AIModelTier,
+		}
+	}
+	c.JSON(http.StatusOK, info)
 }
 
 // SchoolHandler 学校管理
@@ -195,9 +256,10 @@ func (h *SchoolHandler) GetSettings(c *gin.Context) {
 // UpdateSettings 运营端更新学校模型策略
 func (h *SchoolHandler) UpdateSettings(c *gin.Context) {
 	var req struct {
-		AIModelTier      string `json:"ai_model_tier"`
-		AllowModelSwitch bool   `json:"allow_model_switch"`
-		ShowModelUI      bool   `json:"show_model_ui"`
+		AIModelTier          string `json:"ai_model_tier"`
+		AllowModelSwitch     bool   `json:"allow_model_switch"`
+		ShowModelUI          bool   `json:"show_model_ui"`
+		EnableKnowledgeGraph *bool  `json:"enable_knowledge_graph,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
@@ -212,7 +274,46 @@ func (h *SchoolHandler) UpdateSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
 		return
 	}
+
+	// 如果传了 enable_knowledge_graph，单独更新
+	if req.EnableKnowledgeGraph != nil {
+		if err := h.schoolSvc.UpdateKnowledgeGraph(schoolID, *req.EnableKnowledgeGraph); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
+}
+
+// FeatureRequest 教师申请开启学校功能
+func (h *SchoolHandler) FeatureRequest(c *gin.Context) {
+	var req struct {
+		Feature string `json:"feature" validate:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	// 白名单校验：仅允许申请已支持的功能
+	allowedFeatures := map[string]bool{
+		"knowledge_graph": true,
+	}
+	if !allowedFeatures[req.Feature] {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "不支持的功能申请"})
+		return
+	}
+
+	schoolID := c.GetString("school_id")
+	teacherID := c.GetString("user_id")
+	teacherName := c.GetString("user_name")
+
+	if err := h.schoolSvc.FeatureRequest(schoolID, teacherID, teacherName, req.Feature); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "申请提交失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "申请已提交，等待校方管理员审核"})
 }
 
 // ClassHandler 班级管理

@@ -27,14 +27,16 @@ func NewAuthService(cfg *config.Config, authRepo *repository.AuthRepo) *AuthServ
 }
 
 type RegisterInput struct {
-	Phone    string `json:"phone" validate:"required,len=11"`
+	Phone    string `json:"phone"`
+	Username string `json:"username"`
 	Password string `json:"password" validate:"required,min=6"`
 	Name     string `json:"name" validate:"required"`
 	Role     string `json:"role" validate:"required,oneof=teacher student parent admin it_admin academic_admin principal"`
 }
 
 type LoginInput struct {
-	Phone    string `json:"phone" validate:"required,len=11"`
+	Phone    string `json:"phone"`
+	Username string `json:"username"`
 	Password string `json:"password" validate:"required"`
 }
 
@@ -46,15 +48,21 @@ type TokenPair struct {
 }
 
 type UserInfo struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Role    string `json:"role"`
-	Phone   string `json:"phone,omitempty"`
-	Grade   string `json:"grade,omitempty"`
-	Subject string `json:"subject,omitempty"`
-	School  *SchoolBrief `json:"school,omitempty"`
-	WorkMode string `json:"work_mode,omitempty"`
-	AccountSource string `json:"account_source,omitempty"`
+	ID               string       `json:"id"`
+	Name             string       `json:"name"`
+	Username         string       `json:"username,omitempty"`
+	Role             string       `json:"role"`
+	Phone            string       `json:"phone,omitempty"`
+	Grade            string       `json:"grade,omitempty"`
+	Subject          string       `json:"subject,omitempty"`
+	School           *SchoolBrief `json:"school,omitempty"`
+	SchoolConfig     *SchoolConfigBrief `json:"school_config,omitempty"`
+	WorkMode         string       `json:"work_mode,omitempty"`
+	AccountSource    string       `json:"account_source,omitempty"`
+	TokenQuotaMonthly int64       `json:"token_quota_monthly,omitempty"`
+	TokenUsedMonthly  int64       `json:"token_used_monthly,omitempty"`
+	TokenQuotaCustom  bool        `json:"token_quota_custom"`
+	DeployMode        string      `json:"deploy_mode,omitempty"`
 }
 
 type SchoolBrief struct {
@@ -62,14 +70,49 @@ type SchoolBrief struct {
 	Name string `json:"name"`
 }
 
+type SchoolConfigBrief struct {
+	EnableKnowledgeGraph bool  `json:"enable_knowledge_graph"`
+	DefaultTokenQuota    int64 `json:"default_token_quota"`
+	AllowModelSwitch     bool  `json:"allow_model_switch"`
+	ShowModelUI          bool  `json:"show_model_ui"`
+	AIModelTier          string `json:"ai_model_tier"`
+}
+
+func (s *AuthService) GetDeployMode() string {
+	return s.cfg.DeployMode
+}
+
+func (s *AuthService) GetUserByID(userID string) (*model.User, error) {
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.authRepo.FindByID(id)
+}
+
 func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*model.User, error) {
-	// 检查手机号是否已注册
-	existing, _ := s.authRepo.FindByPhone(input.Phone)
-	if existing != nil && existing.ID != uuid.Nil {
-		return nil, fmt.Errorf("该手机号已注册")
+	isPrivate := s.cfg.DeployMode == "private"
+
+	if isPrivate {
+		// 私有部署：用户名必填
+		if input.Username == "" {
+			return nil, fmt.Errorf("用户名不能为空")
+		}
+		existing, _ := s.authRepo.FindByUsername(input.Username)
+		if existing != nil && existing.ID != uuid.Nil {
+			return nil, fmt.Errorf("该用户名已存在")
+		}
+	} else {
+		// SaaS：手机号必填
+		if input.Phone == "" || len(input.Phone) != 11 {
+			return nil, fmt.Errorf("手机号格式错误")
+		}
+		existing, _ := s.authRepo.FindByPhone(input.Phone)
+		if existing != nil && existing.ID != uuid.Nil {
+			return nil, fmt.Errorf("该手机号已注册")
+		}
 	}
 
-	// 密码哈希
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 	if err != nil {
 		return nil, fmt.Errorf("密码加密失败")
@@ -77,6 +120,7 @@ func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*mode
 
 	user := &model.User{
 		Phone:        input.Phone,
+		Username:     input.Username,
 		PasswordHash: string(hash),
 		Name:         input.Name,
 		Role:         input.Role,
@@ -88,13 +132,31 @@ func (s *AuthService) Register(ctx context.Context, input *RegisterInput) (*mode
 }
 
 func (s *AuthService) Login(ctx context.Context, input *LoginInput) (*TokenPair, error) {
-	user, err := s.authRepo.FindByPhone(input.Phone)
+	var user *model.User
+	var err error
+
+	isPrivate := s.cfg.DeployMode == "private"
+
+	if isPrivate {
+		// 私有部署：用户名登录
+		if input.Username == "" {
+			return nil, fmt.Errorf("请输入用户名")
+		}
+		user, err = s.authRepo.FindByUsername(input.Username)
+	} else {
+		// SaaS：手机号登录
+		if input.Phone == "" {
+			return nil, fmt.Errorf("请输入手机号")
+		}
+		user, err = s.authRepo.FindByPhone(input.Phone)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("手机号或密码错误")
+		return nil, fmt.Errorf("账号或密码错误")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
-		return nil, fmt.Errorf("手机号或密码错误")
+		return nil, fmt.Errorf("账号或密码错误")
 	}
 
 	// 加载 School 关联获取 work_mode
@@ -169,17 +231,29 @@ func (s *AuthService) generateTokenPair(user *model.User) (*TokenPair, error) {
 	refreshStr, _ := refreshToken.SignedString([]byte(s.cfg.JWTPrivateKey))
 
 	info := UserInfo{
-		ID:      user.ID.String(),
-		Name:    user.Name,
-		Role:    user.Role,
-		Phone:   user.Phone,
-		Grade:   user.Grade,
-		Subject: user.Subject,
-		WorkMode: workMode,
-		AccountSource: user.AccountSource,
+		ID:                user.ID.String(),
+		Name:              user.Name,
+		Username:          user.Username,
+		Role:              user.Role,
+		Phone:             user.Phone,
+		Grade:             user.Grade,
+		Subject:           user.Subject,
+		WorkMode:          workMode,
+		AccountSource:     user.AccountSource,
+		TokenQuotaMonthly: user.TokenQuotaMonthly,
+		TokenUsedMonthly:  user.TokenUsedMonthly,
+		TokenQuotaCustom:  user.TokenQuotaCustom,
+		DeployMode:        s.cfg.DeployMode,
 	}
 	if user.School != nil {
 		info.School = &SchoolBrief{ID: user.School.ID.String(), Name: user.School.Name}
+		info.SchoolConfig = &SchoolConfigBrief{
+			EnableKnowledgeGraph: user.School.EnableKnowledgeGraph,
+			DefaultTokenQuota:    user.School.DefaultTokenQuota,
+			AllowModelSwitch:     user.School.AllowModelSwitch,
+			ShowModelUI:          user.School.ShowModelUI,
+			AIModelTier:          user.School.AIModelTier,
+		}
 	}
 
 	return &TokenPair{
@@ -234,9 +308,12 @@ func (s *SchoolService) GetSettings(schoolID string) (map[string]interface{}, er
 		return nil, err
 	}
 	return map[string]interface{}{
-		"ai_model_tier":      school.AIModelTier,
-		"allow_model_switch": school.AllowModelSwitch,
-		"show_model_ui":      school.ShowModelUI,
+		"ai_model_tier":           school.AIModelTier,
+		"allow_model_switch":      school.AllowModelSwitch,
+		"show_model_ui":           school.ShowModelUI,
+		"enable_knowledge_graph":  school.EnableKnowledgeGraph,
+		"default_token_quota":     school.DefaultTokenQuota,
+		"work_mode":               school.WorkMode,
 	}, nil
 }
 
@@ -249,6 +326,77 @@ func (s *SchoolService) UpdateSettings(schoolID string, aiModelTier string, allo
 	updates["allow_model_switch"] = allowSwitch
 	updates["show_model_ui"] = showUI
 	return s.schoolRepo.UpdateSettings(schoolID, updates)
+}
+
+// FeatureRequest 教师申请开启学校功能
+func (s *SchoolService) FeatureRequest(schoolID, teacherID, teacherName, feature string) error {
+	// 记录到 audit_log（供管理员审核）
+	return s.schoolRepo.CreateFeatureRequest(schoolID, teacherID, teacherName, feature)
+}
+
+// UpdateKnowledgeGraph 更新学校知识图谱开关
+func (s *SchoolService) UpdateKnowledgeGraph(schoolID string, enabled bool) error {
+	return s.schoolRepo.UpdateSettings(schoolID, map[string]interface{}{
+		"enable_knowledge_graph": enabled,
+	})
+}
+
+// ListTeachers 获取学校教师列表（含配额信息）
+func (s *SchoolService) ListTeachers(schoolID string) ([]model.User, error) {
+	return s.schoolRepo.ListTeachersBySchool(schoolID)
+}
+
+// BatchUpdateQuota 批量更新教师配额
+func (s *SchoolService) BatchUpdateQuota(teacherIDs []string, quota int64, custom bool) error {
+	return s.schoolRepo.BatchUpdateTokenQuota(teacherIDs, quota, custom)
+}
+
+// GetTeacherQuota 获取教师配额详情（含分类消耗）
+func (s *SchoolService) GetTeacherQuota(teacherID string) (map[string]interface{}, error) {
+	user, err := s.schoolRepo.FindUserByID(teacherID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 计算各类 API 消耗
+	type apiBreakdown struct {
+		APIType string `json:"api_type"`
+		Tokens  int64  `json:"tokens"`
+	}
+	var breakdown []apiBreakdown
+	s.schoolRepo.GetQuotaBreakdown(teacherID, &breakdown)
+
+	// 判断等级
+	quota := user.TokenQuotaMonthly
+	// 如果教师没有自定义配额，使用学校默认
+	if !user.TokenQuotaCustom && user.School != nil {
+		quota = user.School.DefaultTokenQuota
+	}
+	used := user.TokenUsedMonthly
+	usagePct := 0.0
+	if quota > 0 {
+		usagePct = float64(used) / float64(quota) * 100
+	}
+
+	level := "normal"
+	if quota > 0 {
+		if used >= quota {
+			level = "blocked"
+		} else if usagePct >= 90 {
+			level = "danger"
+		} else if usagePct >= 80 {
+			level = "warning"
+		}
+	}
+
+	return map[string]interface{}{
+		"quota_monthly": quota,
+		"used_monthly":  used,
+		"remaining":     quota - used,
+		"usage_pct":     usagePct,
+		"level":         level,
+		"breakdown":     breakdown,
+	}, nil
 }
 
 // ClassService 班级管理

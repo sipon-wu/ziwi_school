@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -26,6 +27,12 @@ func NewAuthRepo(db *gorm.DB, rdb *redis.Client) *AuthRepo {
 func (r *AuthRepo) FindByPhone(phone string) (*model.User, error) {
 	var user model.User
 	err := r.db.Where("phone = ?", phone).First(&user).Error
+	return &user, err
+}
+
+func (r *AuthRepo) FindByUsername(username string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("username = ?", username).First(&user).Error
 	return &user, err
 }
 
@@ -88,6 +95,65 @@ func (r *SchoolRepo) FindByID(id string) (*model.School, error) {
 
 func (r *SchoolRepo) UpdateSettings(id string, updates map[string]interface{}) error {
 	return r.db.Model(&model.School{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// CreateFeatureRequest 教师申请开启学校功能（记录到 audit_log）
+func (r *SchoolRepo) CreateFeatureRequest(schoolID, teacherID, teacherName, feature string) error {
+	sid, _ := uuid.Parse(schoolID)
+	tid, _ := uuid.Parse(teacherID)
+	detail, _ := json.Marshal(map[string]string{
+		"feature":      feature,
+		"teacher_name": teacherName,
+	})
+	audit := &model.AuditLog{
+		SchoolID:     sid,
+		UserID:       tid,
+		UserRole:     "teacher",
+		Action:       "feature_request",
+		ResourceType: "school",
+		ResourceID:   sid,
+		Detail:       string(detail),
+	}
+	return r.db.Create(audit).Error
+}
+
+// ListTeachersBySchool 获取学校所有教师（用于配额管理）
+func (r *SchoolRepo) ListTeachersBySchool(schoolID string) ([]model.User, error) {
+	var users []model.User
+	err := r.db.Where("school_id = ? AND role = ?", schoolID, "teacher").
+		Order("name").Find(&users).Error
+	return users, err
+}
+
+// BatchUpdateTokenQuota 批量更新教师配额
+func (r *SchoolRepo) BatchUpdateTokenQuota(teacherIDs []string, quota int64, custom bool) error {
+	if len(teacherIDs) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.User{}).
+		Where("id IN ?", teacherIDs).
+		Updates(map[string]interface{}{
+			"token_quota_monthly": quota,
+			"token_quota_custom":  custom,
+			"token_reset_date":    time.Now().AddDate(0, 1, -time.Now().Day()+1),
+		}).Error
+}
+
+// FindUserByID 按 ID 查用户（含 School 关联）
+func (r *SchoolRepo) FindUserByID(userID string) (*model.User, error) {
+	var user model.User
+	err := r.db.Preload("School").First(&user, "id = ?", userID).Error
+	return &user, err
+}
+
+// GetQuotaBreakdown 获取教师各类 API 的 Token 消耗
+func (r *SchoolRepo) GetQuotaBreakdown(teacherID string, dest interface{}) error {
+	return r.db.Raw(`
+		SELECT api_type, COALESCE(SUM(total_tokens),0) AS tokens
+		FROM token_usage
+		WHERE user_id = ? AND created_at >= date_trunc('month', CURRENT_DATE)
+		GROUP BY api_type ORDER BY tokens DESC
+	`, teacherID).Scan(dest).Error
 }
 
 // ModelRateRepo 模型费率数据操作
@@ -876,6 +942,41 @@ type TenantTokenRow struct {
 	TotalTokens int64 `json:"total_tokens"`
 	MonthCost  float64 `json:"month_cost"`
 	Calls      int64  `json:"calls"`
+}
+
+// GetUserQuota 获取用户配额信息（含 School 关联）
+func (r *TokenRepo) GetUserQuota(userID string, dest *model.User) error {
+	return r.db.Preload("School").First(dest, "id = ?", userID).Error
+}
+
+// GetQuotaBreakdown 获取教师各类 API 的 Token 消耗
+func (r *TokenRepo) GetQuotaBreakdown(teacherID string, dest interface{}) error {
+	return r.db.Raw(`
+		SELECT api_type, COALESCE(SUM(total_tokens),0) AS tokens
+		FROM token_usage
+		WHERE user_id = ? AND created_at >= date_trunc('month', CURRENT_DATE)
+		GROUP BY api_type ORDER BY tokens DESC
+	`, teacherID).Scan(dest).Error
+}
+
+// ListTeachersForQuota 获取学校教师列表（配额管理用，含 School 关联）
+func (r *TokenRepo) ListTeachersForQuota(schoolID string, dest *[]model.User) error {
+	return r.db.Where("school_id = ? AND role = 'teacher'", schoolID).
+		Order("name").Find(dest).Error
+}
+
+// BatchUpdateQuota 批量更新教师配额
+func (r *TokenRepo) BatchUpdateQuota(teacherIDs []string, quota int64, custom bool) error {
+	if len(teacherIDs) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.User{}).
+		Where("id IN ?", teacherIDs).
+		Updates(map[string]interface{}{
+			"token_quota_monthly": quota,
+			"token_quota_custom":  custom,
+			"token_reset_date":    time.Now().AddDate(0, 1, -time.Now().Day()+1),
+		}).Error
 }
 
 func (r *TokenRepo) GetTenantRanking() ([]TenantTokenRow, error) {

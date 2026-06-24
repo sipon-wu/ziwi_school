@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen } from 'lucide-react'
-import KnowledgeGraph, { type KnowledgeNode } from '../components/KnowledgeGraph'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Maximize2 } from 'lucide-react'
+import KnowledgeGraph from '../components/KnowledgeGraph'
 import { useTeaching, getRecommendedDefaults } from '../lib/TeachingContext'
+import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 
 const PURPOSES = [
   { id: 'classwork', label: '课堂练习', icon: '📝', desc: '当堂巩固', count: [3, 5], difficulty: 'L1', time: '5-8分钟' },
@@ -38,68 +39,38 @@ const GRADE_NAMES = ['一年级','二年级','三年级','四年级','五年级'
 
 export default function ExerciseGenerator() {
   const navigate = useNavigate()
+  const location = useLocation()
   const teaching = useTeaching()
 
-  // 从 TeachingContext 初始化 + AI 推荐缺省值
-  const defaults = useMemo(() => getRecommendedDefaults(teaching), [teaching.subject, teaching.grade, teaching.textbook_math])
-  
-  const [subject, setSubject] = useState(teaching.subject)
-  const [grade, setGrade] = useState(GRADE_NAMES[teaching.grade - 1] || '四年级')
+  // 联动：从教案传来的预选知识点
+  const preSelectedNodes = (location.state as any)?.preSelectedNodes as string[] | undefined
+
+  // 共享知识点选取器
+  const picker = useKnowledgePicker({ preSelectedNodes, autoSelect: true })
+
+  // 从 TeachingContext 读取全局配置
+  const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
+
+  // AI 推荐缺省值（跟随 TeachingContext 自动更新）
   const [knowledgePoint, setKnowledgePoint] = useState(teaching.current_lesson_name || '')
-  const [difficulty, setDifficulty] = useState(defaults.difficulty)
-  const [count, setCount] = useState(defaults.count)
-  const [purpose, setPurpose] = useState(defaults.purpose)
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(defaults.defaultTypes)
+  const [difficulty, setDifficulty] = useState('L2')
+  const [count, setCount] = useState(10)
+  const [purpose, setPurpose] = useState('classwork')
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(['choice', 'fill', 'calculation'])
   const [selectedSchool, setSelectedSchool] = useState('')
-  const [selectedKnowledge, setSelectedKnowledge] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<any[]>([])
   const [totalCount, setTotalCount] = useState(0)
-  const [showGraph, setShowGraph] = useState(false)
 
-  // 从 TeachingContext 加载教材单元
-  const [textbookData, setTextbookData] = useState<any>(null)
-  const [selectedUnit, setSelectedUnit] = useState('')
+  // TeachingContext 学科/年级变更时自动更新推荐缺省值
   useEffect(() => {
-    fetch('/textbook-math.json').then(r => r.json()).then(data => {
-      setTextbookData(data)
-      // 自动选择当前单元
-      const version = data[teaching.textbook_math]
-      const gradeUnits = version?.[String(teaching.grade)]?.[teaching.semester]
-      if (gradeUnits?.length > 0) {
-        setSelectedUnit(gradeUnits[0].unit)
-        // 自动勾选当前单元知识点
-        const kps = gradeUnits[0].kps || []
-        setSelectedKnowledge(kps)
-      }
-    }).catch(() => {})
-  }, [teaching.textbook_math, teaching.grade, teaching.semester])
-
-  // 同步 TeachingContext → 表单
-  useEffect(() => { setSubject(teaching.subject) }, [teaching.subject])
-  useEffect(() => { setGrade(GRADE_NAMES[teaching.grade - 1] || '四年级') }, [teaching.grade])
-
-  // 同步表单 → TeachingContext
-  useEffect(() => { teaching.setSubject(subject as '语文'|'数学'|'英语') }, [subject])
-  useEffect(() => {
-    const idx = GRADE_NAMES.indexOf(grade)
-    if (idx >= 0) teaching.setGrade(idx + 1)
-  }, [grade])
-
-  // 知识图谱数据
-  const [knowledgeData, setKnowledgeData] = useState<KnowledgeNode[]>([])
-  useEffect(() => {
-    fetch('/knowledge-graph.json').then(r => r.json()).then(setKnowledgeData).catch(() => {})
-  }, [])
-
-  const selectedNodes = useMemo(() => knowledgeData.filter(n => selectedKnowledge.includes(n.id)), [knowledgeData, selectedKnowledge])
-
-  // 有教材数据时，获取当前单元列表
-  const currentUnits = useMemo(() => {
-    if (!textbookData) return []
-    const version = textbookData[teaching.textbook_math] || {}
-    return version[String(teaching.grade)]?.[teaching.semester] || []
-  }, [textbookData, teaching.textbook_math, teaching.grade, teaching.semester])
+    const d = getRecommendedDefaults(teaching)
+    setDifficulty(d.difficulty)
+    setCount(d.count)
+    setPurpose(d.purpose)
+    setSelectedTypes(d.defaultTypes)
+    setKnowledgePoint(teaching.current_lesson_name || '')
+  }, [teaching.subject, teaching.grade, teaching.textbook_math])
 
   const handlePurposeChange = (pId: string) => {
     setPurpose(pId)
@@ -111,25 +82,19 @@ export default function ExerciseGenerator() {
     setSelectedTypes(prev => prev.includes(typeId) ? prev.filter(t => t !== typeId) : [...prev, typeId])
   }
 
-  const handleUnitChange = (unitName: string) => {
-    setSelectedUnit(unitName)
-    const unit = currentUnits.find((u: any) => u.unit === unitName)
-    if (unit?.kps) setSelectedKnowledge(unit.kps)
-  }
-
   const handleGenerate = async () => {
-    if (!knowledgePoint.trim() && selectedKnowledge.length === 0) return
+    if (!knowledgePoint.trim() && picker.selectedIds.length === 0) return
     setGenerating(true)
     try {
       const res = await fetch('/api/v1/ai/exam/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || '') },
         body: JSON.stringify({
-          subject, grade: GRADE_NAMES[teaching.grade - 1] || '四年级', semester: teaching.semester,
+          subject: teaching.subject, grade: gradeName, semester: teaching.semester,
           knowledge_point: knowledgePoint || undefined, difficulty, count,
           purpose, question_types: selectedTypes,
           school_style: selectedSchool || undefined,
-          selected_knowledge_ids: selectedKnowledge,
+          selected_knowledge_ids: picker.selectedIds,
           textbook_version: teaching.textbook_math,
         }),
       })
@@ -144,7 +109,7 @@ export default function ExerciseGenerator() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} className="text-gray-500" /></button>
-        <div><h1 className="text-xl font-bold text-gray-900">新建出题</h1><p className="text-sm text-gray-500 mt-0.5">{teaching.textbook_math} · {grade}{teaching.semester}学期 · {teaching.current_unit_name || '选择单元'}</p></div>
+        <div><h1 className="text-xl font-bold text-gray-900">新建出题</h1><p className="text-sm text-gray-500 mt-0.5">{teaching.textbook_math} · {gradeName}{teaching.semester}学期 · {teaching.current_unit_name || '选择单元'}</p></div>
       </div>
 
       {/* 教学进度 + 单元选择 */}
@@ -155,9 +120,9 @@ export default function ExerciseGenerator() {
             <div className="h-full bg-brand rounded-full transition-all" style={{ width: teaching.progress_percent + '%' }} />
           </div>
           <span className="text-xs text-gray-400">{teaching.progress_percent}%</span>
-          {currentUnits.length > 0 && (
-            <select value={selectedUnit} onChange={e => handleUnitChange(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand">
-              {currentUnits.map((u: any) => <option key={u.unit} value={u.unit}>{u.unit}</option>)}
+          {picker.currentUnits.length > 0 && (
+            <select value={picker.selectedUnit} onChange={e => picker.handleUnitChange(e.target.value)} className="text-[12px] border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand">
+              {picker.currentUnits.map((u: any) => <option key={u.unit} value={u.unit}>{u.unit}</option>)}
             </select>
           )}
         </div>
@@ -184,15 +149,15 @@ export default function ExerciseGenerator() {
           {questions.length === 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="grid grid-cols-3 gap-3 mb-4">
-                <div><label className="block text-xs font-medium text-gray-500 mb-1">学科</label><select value={subject} onChange={e => setSubject(e.target.value as '语文'|'数学'|'英语')} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20"><option>语文</option><option>数学</option><option>英语</option></select></div>
-                <div><label className="block text-xs font-medium text-gray-500 mb-1">年级</label><select value={grade} onChange={e => setGrade(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">{GRADE_NAMES.slice(2, 6).map(g => <option key={g}>{g}</option>)}</select></div>
+                <div><label className="block text-xs font-medium text-gray-500 mb-1">学科</label><select value={teaching.subject} onChange={e => teaching.setSubject(e.target.value as '语文'|'数学'|'英语')} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20"><option>语文</option><option>数学</option><option>英语</option></select></div>
+                <div><label className="block text-xs font-medium text-gray-500 mb-1">年级</label><select value={gradeName} onChange={e => { const idx = GRADE_NAMES.indexOf(e.target.value); if (idx >= 0) teaching.setGrade(idx + 1) }} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">{GRADE_NAMES.map(g => <option key={g}>{g}</option>)}</select></div>
                 <div><label className="block text-xs font-medium text-gray-500 mb-1">难度</label><select value={difficulty} onChange={e => setDifficulty(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20"><option value="L1">L1-基础</option><option value="L2">L2-中等</option><option value="L3">L3-进阶</option><option value="L4">L4-挑战</option></select></div>
                 <div className="col-span-2"><label className="block text-xs font-medium text-gray-500 mb-1">知识点（选填，默认取当前单元）</label><input type="text" value={knowledgePoint} onChange={e => setKnowledgePoint(e.target.value)} placeholder={teaching.current_lesson_name || '如：分数加减法'} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" /></div>
                 <div><label className="block text-xs font-medium text-gray-500 mb-1">题量</label><select value={count} onChange={e => setCount(Number(e.target.value))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">{[3,5,8,10,15,20,25,30,35].map(n=><option key={n} value={n}>{n}题</option>)}</select></div>
               </div>
 
               <div className="mb-4"><label className="block text-xs font-medium text-gray-500 mb-2">题型（已选 {selectedTypes.length} 种）</label><div className="flex flex-wrap gap-1.5">
-                {[{id:'choice',label:'选择'},{id:'fill',label:'填空'},{id:'calculation',label:'计算'},...ADVANCED_TYPES.filter(t=>t.subjects.includes(subject))].map(t=>(<button key={t.id} onClick={()=>toggleType(t.id)} className={`px-2.5 py-1 text-[12px] rounded-lg border transition-colors ${selectedTypes.includes(t.id)?'bg-brand/10 text-brand border-brand/30':'border-gray-200 text-gray-500 hover:border-gray-300'}`}>{t.label}</button>))}
+                {[{id:'choice',label:'选择'},{id:'fill',label:'填空'},{id:'calculation',label:'计算'},...ADVANCED_TYPES.filter(t=>t.subjects.includes(teaching.subject))].map(t=>(<button key={t.id} onClick={()=>toggleType(t.id)} className={`px-2.5 py-1 text-[12px] rounded-lg border transition-colors ${selectedTypes.includes(t.id)?'bg-brand/10 text-brand border-brand/30':'border-gray-200 text-gray-500 hover:border-gray-300'}`}>{t.label}</button>))}
               </div></div>
 
               <div className="mb-4"><label className="block text-xs font-medium text-gray-500 mb-2">名校风格（可选）</label><div className="flex flex-wrap gap-1.5">
@@ -200,7 +165,7 @@ export default function ExerciseGenerator() {
                 {SCHOOLS.map(s=>(<button key={s.id} onClick={()=>setSelectedSchool(s.id)} className={`px-2 py-1 text-[11px] rounded-lg border transition-colors ${selectedSchool===s.id?'bg-brand/10 text-brand border-brand/30':'border-gray-200 text-gray-500 hover:border-gray-300'}`}>{s.name}</button>))}
               </div>{selectedSchool&&<p className="text-[11px] text-gray-400 mt-1.5">"{SCHOOLS.find(s=>s.id===selectedSchool)?.desc}"</p>}</div>
 
-              <button onClick={handleGenerate} disabled={generating||(!knowledgePoint.trim()&&selectedKnowledge.length===0)} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#1A3A6B] to-[#2B5DA8] text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 shadow-sm">
+              <button onClick={handleGenerate} disabled={generating||(!knowledgePoint.trim()&&picker.selectedIds.length===0)} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#1A3A6B] to-[#2B5DA8] text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 shadow-sm">
                 {generating?<><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>AI 正在出题...</>:<><Sparkles size={18}/>AI 智能出题</>}
               </button>
             </div>
@@ -219,19 +184,29 @@ export default function ExerciseGenerator() {
         {/* 右侧：已选考点 */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1"><Target size={14} className="text-brand"/>已选考点</h3>{selectedKnowledge.length>0&&<button onClick={()=>setSelectedKnowledge([])} className="text-[11px] text-gray-400 hover:text-red-500">清除</button>}</div>
-            {selectedNodes.length===0?<p className="text-xs text-gray-400">点击下方图谱节点选择出题范围</p>:<div className="space-y-1.5 max-h-[200px] overflow-y-auto">{selectedNodes.map(n=>(<div key={n.id} className="flex items-center justify-between text-xs py-1 px-2 bg-brand/5 rounded"><span className="text-gray-700">{n.name}</span><span className="text-[10px] text-gray-400">{n.difficulty}</span></div>))}</div>}
-            {selectedKnowledge.length>0&&<button onClick={handleGenerate} disabled={generating} className="mt-3 w-full flex items-center justify-center gap-1 py-2 text-xs bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"><Send size={12}/>用选中考点出题</button>}
+            <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1"><Target size={14} className="text-brand"/>已选考点</h3>{picker.selectedIds.length>0&&<button onClick={()=>picker.setSelectedIds([])} className="text-[11px] text-gray-400 hover:text-red-500">清除</button>}</div>
+            {picker.selectedNodes.length===0?<p className="text-xs text-gray-400">点击下方图谱节点选择出题范围</p>:<div className="space-y-1.5 max-h-[200px] overflow-y-auto">{picker.selectedNodes.map(n=>(<div key={n.id} className="flex items-center justify-between text-xs py-1 px-2 bg-brand/5 rounded"><span className="text-gray-700">{n.name}</span><span className="text-[10px] text-gray-400">{n.difficulty}</span></div>))}</div>}
+            {picker.selectedIds.length>0&&<button onClick={handleGenerate} disabled={generating} className="mt-3 w-full flex items-center justify-center gap-1 py-2 text-xs bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"><Send size={12}/>用选中考点出题</button>}
           </div>
-          <button onClick={()=>setShowGraph(!showGraph)} className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-brand bg-brand/5 rounded-xl border border-brand/10 hover:bg-brand/10"><span className="flex items-center gap-2"><BookOpen size={14}/>知识图谱</span><span className="text-[11px] text-gray-400">{showGraph?'收起':'展开'}</span></button>
+          <button onClick={()=>picker.setShowGraph(!picker.showGraph)} className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-brand bg-brand/5 rounded-xl border border-brand/10 hover:bg-brand/10"><span className="flex items-center gap-2"><BookOpen size={14}/>知识图谱</span><span className="text-[11px] text-gray-400">{picker.showGraph?'收起':'展开'}</span></button>
         </div>
       </div>
 
-      {showGraph&&(
+      {picker.showGraph&&(
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100"><span className="text-sm font-semibold text-gray-700">知识点图谱 · {teaching.textbook_math} · {grade}{teaching.semester}学期</span><button onClick={()=>setShowGraph(false)} className="p-1 hover:bg-gray-200 rounded"><X size={14} className="text-gray-400"/></button></div>
-          <KnowledgeGraph data={knowledgeData} subject={subject} selectedIds={selectedKnowledge} onSelect={setSelectedKnowledge} height={400} />
+          <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+            <span className="text-sm font-semibold text-gray-700">知识点图谱 · {teaching.textbook_math} · {gradeName}{teaching.semester}学期</span>
+            <div className="flex items-center gap-1">
+              <button onClick={()=>picker.setShowGraphModal(true)} className="flex items-center gap-1 px-2 py-1 text-[11px] text-brand hover:bg-brand/5 rounded-lg transition-colors" title="独立弹窗"><Maximize2 size={13}/>独立弹窗</button>
+              <button onClick={()=>picker.setShowGraph(false)} className="p-1 hover:bg-gray-200 rounded"><X size={14} className="text-gray-400"/></button>
+            </div>
+          </div>
+          <KnowledgeGraph data={picker.knowledgeData} subject={teaching.subject} grade={teaching.grade} semester={teaching.semester} textbook={teaching.textbook_math} selectedIds={picker.selectedIds} onSelect={picker.setSelectedIds} inline height={420} layoutMode={picker.graphLayout as any} onLayoutChange={picker.setGraphLayout as any} colorDimension={picker.graphDimension as any} onDimensionChange={picker.setGraphDimension as any} diffRange={picker.diffRange} onDiffRangeChange={picker.setDiffRange as any} />
         </div>
+      )}
+
+      {picker.showGraphModal&&(
+        <KnowledgeGraph data={picker.knowledgeData} subject={teaching.subject} grade={teaching.grade} semester={teaching.semester} textbook={teaching.textbook_math} selectedIds={picker.selectedIds} onSelect={picker.setSelectedIds} onClose={()=>picker.setShowGraphModal(false)} layoutMode={picker.graphLayout as any} onLayoutChange={picker.setGraphLayout as any} colorDimension={picker.graphDimension as any} onDimensionChange={picker.setGraphDimension as any} diffRange={picker.diffRange} onDiffRangeChange={picker.setDiffRange as any} />
       )}
     </div>
   )

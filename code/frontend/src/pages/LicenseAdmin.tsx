@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Shield, Plus, Search, Download, Bell, RefreshCw, TrendingUp, AlertTriangle, Wifi, WifiOff, Settings, Users, Clock, Zap, Activity, Megaphone, FileSearch, ShieldCheck, BarChart3, PieChart } from 'lucide-react'
+import { tokenQuotaAPI } from '../lib/api'
 
 const SCHOOLS = [
   { id:'S001',name:'示例小学',contact:'张校长',phone:'138****0001',status:'active',tokens:'85,000/100,000',lastHeartbeat:'2026-06-18 22:00',expiresAt:'2027-06-16' },
@@ -17,7 +18,12 @@ const TOKEN_PACKAGES = [
 ]
 
 export default function LicenseAdmin() {
-  const [tab, setTab] = useState<'schools'|'license'|'monitor'|'trial'|'users'|'system'|'announce'|'logs'|'token'>('schools')
+  const [tab, setTab] = useState<'schools'|'license'|'monitor'|'trial'|'users'|'system'|'announce'|'logs'|'token'|'quota'>('schools')
+  const [quotaTeachers, setQuotaTeachers] = useState<any[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [quotaValue, setQuotaValue] = useState(500000)
+  const [quotaCustom, setQuotaCustom] = useState(true)
+  const [quotaLoading, setQuotaLoading] = useState(false)
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -40,6 +46,7 @@ export default function LicenseAdmin() {
           { key:'announce',label:'平台公告',icon:Megaphone },
           { key:'logs',label:'操作日志',icon:FileSearch },
           { key:'token',label:'Token分析',icon:PieChart },
+          { key:'quota',label:'配额管理',icon:TrendingUp },
         ].map(t => (
           <button key={t.key} onClick={()=>setTab(t.key as any)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -553,6 +560,130 @@ export default function LicenseAdmin() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Token 配额管理 */}
+      {tab === 'quota' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-700">教师配额批量设置</h3>
+              <button
+                onClick={async () => {
+                  try {
+                    setQuotaLoading(true)
+                    const res = await tokenQuotaAPI.listTeachers()
+                    setQuotaTeachers(res?.data || [])
+                    setSelectedIds(new Set())
+                  } catch { /* ignore */ }
+                  setQuotaLoading(false)
+                }}
+                disabled={quotaLoading}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={quotaLoading ? 'animate-spin' : ''} />
+                {quotaTeachers.length > 0 ? '刷新' : '加载教师'}
+              </button>
+            </div>
+
+            {quotaTeachers.length > 0 ? (
+              <>
+                {/* 工具栏 */}
+                <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-3 bg-gray-50">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <input type="checkbox" checked={selectedIds.size === quotaTeachers.length}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedIds(new Set(quotaTeachers.map((t: any) => t.id)))
+                        else setSelectedIds(new Set())
+                      }}
+                    />
+                    全选
+                  </label>
+                  <span className="text-xs text-gray-400">|</span>
+                  <span className="text-xs text-gray-500">配额</span>
+                  <input type="number" value={quotaValue} onChange={e => setQuotaValue(Number(e.target.value))}
+                    className="w-28 px-2 py-1 text-xs border border-gray-200 rounded" min={0} step={10000}
+                  />
+                  <label className="flex items-center gap-1 text-xs text-gray-500">
+                    <input type="checkbox" checked={quotaCustom} onChange={e => setQuotaCustom(e.target.checked)} />
+                    个性化
+                  </label>
+                  <button
+                    onClick={async () => {
+                      if (selectedIds.size === 0) { alert('请选择教师'); return }
+                      try {
+                        await tokenQuotaAPI.batchUpdateQuota(Array.from(selectedIds), quotaValue, quotaCustom)
+                        alert(`已更新 ${selectedIds.size} 位教师配额`)
+                      } catch { alert('更新失败') }
+                    }}
+                    className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    应用 ({selectedIds.size})
+                  </button>
+                </div>
+
+                {/* 表格 */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium w-8"></th>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium">姓名</th>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium">学科</th>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium">月配额</th>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium">已消耗</th>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium">使用率</th>
+                        <th className="text-left px-4 py-2 text-gray-500 font-medium">类型</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {quotaTeachers.map((t: any) => {
+                        const pct = t.token_quota_monthly > 0 ? (t.token_used_monthly / t.token_quota_monthly * 100) : 0
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2">
+                              <input type="checkbox" checked={selectedIds.has(t.id)}
+                                onChange={e => {
+                                  const next = new Set(selectedIds)
+                                  e.target.checked ? next.add(t.id) : next.delete(t.id)
+                                  setSelectedIds(next)
+                                }}
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-gray-800">{t.name}</td>
+                            <td className="px-4 py-2 text-gray-500">{t.subject || '-'}</td>
+                            <td className="px-4 py-2 text-gray-700">{(t.token_quota_monthly || 0).toLocaleString()}</td>
+                            <td className="px-4 py-2 text-gray-700">{(t.token_used_monthly || 0).toLocaleString()}</td>
+                            <td className="px-4 py-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${pct >= 90 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                    style={{ width: `${Math.min(pct, 100)}%` }} />
+                                </div>
+                                <span className={pct >= 90 ? 'text-red-500' : pct >= 80 ? 'text-amber-500' : 'text-gray-400'}>
+                                  {pct.toFixed(0)}%
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${t.token_quota_custom ? 'bg-purple-50 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>
+                                {t.token_quota_custom ? '自定义' : '默认'}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="px-4 py-12 text-center text-sm text-gray-400">
+                点击"加载教师"获取学校教师配额列表
+              </div>
+            )}
           </div>
         </div>
       )}

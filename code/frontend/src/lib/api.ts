@@ -61,11 +61,11 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
 // ── 认证接口 ──
 
 export const authAPI = {
-  /** 密码登录 */
-  login: (phone: string, password: string) =>
+  /** 密码登录（SaaS=phone，私有部署=username） */
+  login: (phone: string, password: string, username?: string) =>
     request<any>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify(username ? { username, password } : { phone, password }),
     }),
 
   /** 验证码登录 */
@@ -132,6 +132,7 @@ export const aiAPI = {
     textbook_unit?: string
     period?: number
     format_template?: string
+    selected_knowledge_ids?: string[]
   }) =>
     request<any>('/ai/lesson-plan/generate', {
       method: 'POST',
@@ -201,4 +202,35 @@ export const parentAPI = {
     }),
 }
 
-export default { authAPI, schoolAPI, classAPI, dashboardAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI }
+// ── 学校配置接口 ──
+
+export const schoolConfigAPI = {
+  /** 获取学校配置（含 knowledge_graph 开关） */
+  fetch: () => request<any>('/school/settings'),
+
+  /** 教师申请开启知识图谱 */
+  featureRequest: (feature: string) =>
+    request<any>('/schools/feature-request', {
+      method: 'POST',
+      body: JSON.stringify({ feature }),
+    }),
+}
+
+// ── Token 配额接口 ──
+
+export const tokenQuotaAPI = {
+  /** 获取我的配额消耗 */
+  myQuota: () => request<any>('/token/my-quota'),
+
+  /** 获取学校教师列表（含配额，管理员用） */
+  listTeachers: () => request<any>('/admin/teachers'),
+
+  /** 批量更新教师配额 */
+  batchUpdateQuota: (teacherIDs: string[], quota: number, custom: boolean) =>
+    request<any>('/admin/teachers/quota', {
+      method: 'PUT',
+      body: JSON.stringify({ teacher_ids: teacherIDs, quota, custom }),
+    }),
+}
+
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, dashboardAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI }

@@ -12,6 +12,7 @@ export interface TeachingState {
   current_unit_name: string
   current_lesson_name: string
   progress_percent: number
+  knowledgeGraphEnabled: boolean
 }
 
 // 演示环境默认配置 (四年级数学)
@@ -25,6 +26,7 @@ const DEFAULT_STATE: TeachingState = {
   current_unit_name: '第三单元: 运算定律',
   current_lesson_name: '第2课时: 乘法分配律',
   progress_percent: 37,
+  knowledgeGraphEnabled: true,
 }
 
 // ── 存储 Key ──
@@ -50,6 +52,7 @@ interface TeachingCtxValue extends TeachingState {
   setSemester: (s: TeachingState['semester']) => void
   setTextbookMath: (v: string) => void
   setTextbookEnglish: (v: string) => void
+  setKnowledgeGraphEnabled: (v: boolean) => void
   setProgress: (unit: string, lesson: string, pct: number) => void
   reset: () => void
 }
@@ -66,12 +69,13 @@ export function TeachingProvider({ children }: { children: ReactNode }) {
   const setSemester = useCallback((s: TeachingState['semester']) => setState(prev => ({ ...prev, semester: s })), [])
   const setTextbookMath = useCallback((v: string) => setState(prev => ({ ...prev, textbook_math: v })), [])
   const setTextbookEnglish = useCallback((v: string) => setState(prev => ({ ...prev, textbook_english: v })), [])
+  const setKnowledgeGraphEnabled = useCallback((v: boolean) => setState(prev => ({ ...prev, knowledgeGraphEnabled: v })), [])
   const setProgress = useCallback((unit: string, lesson: string, pct: number) =>
     setState(prev => ({ ...prev, current_unit_name: unit, current_lesson_name: lesson, progress_percent: pct })), [])
   const reset = useCallback(() => setState(DEFAULT_STATE), [])
 
   return (
-    <TeachingCtx.Provider value={{ ...state, setSubject, setGrade, setSemester, setTextbookMath, setTextbookEnglish, setProgress, reset }}>
+    <TeachingCtx.Provider value={{ ...state, setSubject, setGrade, setSemester, setTextbookMath, setTextbookEnglish, setKnowledgeGraphEnabled, setProgress, reset }}>
       {children}
     </TeachingCtx.Provider>
   )

@@ -18,6 +18,7 @@ type Config struct {
 	JWTPublicKey   string
 	TokenExpiry    time.Duration
 	RefreshExpiry  time.Duration
+	DeployMode     string // "saas" or "private"
 }
 
 func Load() *Config {
@@ -33,6 +34,7 @@ func Load() *Config {
 		JWTPrivateKey:  getEnv("JWT_PRIVATE_KEY", "zhiwei-dev-key-2026"),
 		TokenExpiry:    2 * time.Hour,
 		RefreshExpiry:  7 * 24 * time.Hour,
+		DeployMode:     getEnv("DEPLOY_MODE", "saas"),
 	}
 	return cfg
 }

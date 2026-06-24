@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Bell, LogOut, Settings, BookOpen } from 'lucide-react'
-import { clearToken } from '@/lib/api'
+import { Bell, LogOut, Settings, BookOpen, CircuitBoard } from 'lucide-react'
+import { clearToken, schoolConfigAPI, tokenQuotaAPI } from '@/lib/api'
 import { useTeaching, ALL_MATH_TEXTBOOKS, PROVINCE_TO_TEXTBOOK_MATH } from '@/lib/TeachingContext'
 
 function getAvatar(): string {
@@ -29,12 +29,37 @@ export default function TopNavBar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(getAvatar)
   const [showProvince, setShowProvince] = useState(false)
+  const [showApplyModal, setShowApplyModal] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const teaching = useTeaching()
 
+  // 学校配置（知识图谱总开关）— 初始false避免API返回前闪烁
+  const [schoolEnableKG, setSchoolEnableKG] = useState(false)
+  // Token 配额
+  const [tokenQuota, setTokenQuota] = useState({ used: 0, total: 0, pct: 0, level: 'normal' as string })
+
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname])
+
+  // 加载学校配置 + 配额
+  useEffect(() => {
+    schoolConfigAPI.fetch().then((res: any) => {
+      if (res?.data?.enable_knowledge_graph !== undefined) {
+        setSchoolEnableKG(res.data.enable_knowledge_graph)
+      }
+    }).catch(() => {})
+    tokenQuotaAPI.myQuota().then((res: any) => {
+      if (res?.data) {
+        setTokenQuota({
+          used: res.data.used_monthly || 0,
+          total: res.data.quota_monthly || 0,
+          pct: res.data.usage_pct || 0,
+          level: res.data.level || 'normal',
+        })
+      }
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const h = (e: Event) => setAvatarUrl((e as CustomEvent).detail)
@@ -46,6 +71,27 @@ export default function TopNavBar() {
     const h = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  // 图谱开关切换
+  const handleKGToggle = useCallback(() => {
+    if (!schoolEnableKG) {
+      // 学校未开启 → 弹出申请弹窗
+      setShowApplyModal(true)
+      return
+    }
+    teaching.setKnowledgeGraphEnabled(!teaching.knowledgeGraphEnabled)
+  }, [schoolEnableKG, teaching])
+
+  // 提交申请
+  const handleApplyFeature = useCallback(async () => {
+    try {
+      await schoolConfigAPI.featureRequest('knowledge_graph')
+      setShowApplyModal(false)
+      alert('已向校方提交知识图谱功能开启申请，请等待管理员审核')
+    } catch {
+      alert('申请提交失败，请稍后重试')
+    }
   }, [])
 
   const handleLogout = () => { clearToken(); navigate('/login', { replace: true }) }
@@ -104,6 +150,41 @@ export default function TopNavBar() {
         </div>
       </div>
 
+        {/* 知识图谱开关 */}
+        <button
+          onClick={handleKGToggle}
+          disabled={!schoolEnableKG}
+          title={schoolEnableKG ? (teaching.knowledgeGraphEnabled ? '已开启知识图谱' : '点击开启知识图谱') : '学校未开启知识图谱，点击申请'}
+          className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border transition-colors ${
+            teaching.knowledgeGraphEnabled
+              ? 'bg-brand/10 text-brand border-brand/30'
+              : schoolEnableKG
+                ? 'text-gray-400 border-gray-200 hover:border-brand/30'
+                : 'text-gray-300 border-gray-200 cursor-not-allowed opacity-60'
+          }`}
+        >
+          <CircuitBoard size={12} />
+          <span>图谱</span>
+        </button>
+
+        {/* Token 进度环 */}
+        {tokenQuota.total > 0 && (
+          <div className="relative flex items-center" title={`本月Token: ${tokenQuota.used.toLocaleString()} / ${tokenQuota.total.toLocaleString()}`}>
+            <svg className="w-5 h-5 -rotate-90" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="#E5E7EB" strokeWidth="3" />
+              <circle cx="12" cy="12" r="10" fill="none"
+                stroke={tokenQuota.level === 'blocked' ? '#DC2626' : tokenQuota.level === 'danger' ? '#EF4444' : tokenQuota.level === 'warning' ? '#F59E0B' : '#3B82F6'}
+                strokeWidth="3" strokeLinecap="round"
+                strokeDasharray={`${Math.min(tokenQuota.pct, 100) * 0.628} 62.8`}
+              />
+            </svg>
+            <span className={`text-[9px] font-medium ml-0.5 ${
+              tokenQuota.level === 'blocked' ? 'text-red-600' : tokenQuota.level === 'danger' ? 'text-red-500' : tokenQuota.level === 'warning' ? 'text-amber-500' : 'text-blue-500'
+            }`}>{Math.round(tokenQuota.pct)}%</span>
+          </div>
+        )}
+      </div>
+
       {/* 右侧 */}
       <div className="flex items-center gap-3">
         <button className="relative p-1 text-gray-500 hover:text-brand" title="通知"><Bell className="w-4 h-4" /><span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[12px] rounded-full bg-[#DC3545] text-white text-[9px] font-medium flex items-center justify-center leading-none">3</span></button>
@@ -119,6 +200,20 @@ export default function TopNavBar() {
           )}
         </div>
       </div>
+
+      {/* 知识图谱申请弹窗 */}
+      {showApplyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowApplyModal(false)}>
+          <div className="bg-white rounded-2xl p-6 mx-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">申请开启知识图谱</h3>
+            <p className="text-[13px] text-gray-500 mb-4">贵校尚未开启知识图谱功能。是否向校方管理员提交开启申请？</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowApplyModal(false)} className="flex-1 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
+              <button onClick={handleApplyFeature} className="flex-1 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-hover">确认申请</button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

@@ -48,6 +48,7 @@ func (h *LessonPlanHandler) Create(c *gin.Context) {
 		Content             string `json:"content"`
 		FormatTemplate      string `json:"format_template,omitempty"`
 		CurriculumAlignments string `json:"curriculum_alignments,omitempty"`
+		KnowledgeNodeIDs    string `json:"knowledge_node_ids,omitempty"`
 		AIGenerated         bool   `json:"ai_generated"`
 		AIModelVersion      string `json:"ai_model_version,omitempty"`
 		GenerationTimeMs    *int   `json:"generation_time_ms,omitempty"`
@@ -66,6 +67,8 @@ func (h *LessonPlanHandler) Create(c *gin.Context) {
 	if content == "" { content = "{}" }
 	curriculum := req.CurriculumAlignments
 	if curriculum == "" { curriculum = "[]" }
+	knowledgeNodeIDs := req.KnowledgeNodeIDs
+	if knowledgeNodeIDs == "" { knowledgeNodeIDs = "[]" }
 
 	plan := &model.LessonPlan{
 		TeacherID:           teacherID,
@@ -78,6 +81,7 @@ func (h *LessonPlanHandler) Create(c *gin.Context) {
 		Content:             content,
 		FormatTemplate:      req.FormatTemplate,
 		CurriculumAlignments: curriculum,
+		KnowledgeNodeIDs:    knowledgeNodeIDs,
 		AIGenerated:         req.AIGenerated,
 		AIModelVersion:      req.AIModelVersion,
 		Status:              "draft",
@@ -160,12 +164,13 @@ func (h *AssignmentHandler) List(c *gin.Context) {
 
 func (h *AssignmentHandler) Create(c *gin.Context) {
 	var req struct {
-		ClassID         string `json:"class_id"`
-		Subject         string `json:"subject"`
-		Title           string `json:"title"`
-		Type            string `json:"type"`
-		Questions       string `json:"questions"`
-		DifficultyLevel string `json:"difficulty_level"`
+		ClassID          string `json:"class_id"`
+		Subject          string `json:"subject"`
+		Title            string `json:"title"`
+		Type             string `json:"type"`
+		Questions        string `json:"questions"`
+		DifficultyLevel  string `json:"difficulty_level"`
+		KnowledgeNodeIDs string `json:"knowledge_node_ids,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
@@ -177,15 +182,18 @@ func (h *AssignmentHandler) Create(c *gin.Context) {
 
 	if req.DifficultyLevel == "" { req.DifficultyLevel = "L2" }
 
+	knowledgeNodeIDs := req.KnowledgeNodeIDs
+	if knowledgeNodeIDs == "" { knowledgeNodeIDs = "[]" }
 	assignment := &model.Assignment{
-		TeacherID:       teacherID,
-		ClassID:         classID,
-		SchoolID:        schoolID,
-		Subject:         req.Subject,
-		Title:           req.Title,
-		Type:            req.Type,
-		Questions:       req.Questions,
-		DifficultyLevel: req.DifficultyLevel,
+		TeacherID:        teacherID,
+		ClassID:          classID,
+		SchoolID:         schoolID,
+		Subject:          req.Subject,
+		Title:            req.Title,
+		Type:             req.Type,
+		Questions:        req.Questions,
+		DifficultyLevel:  req.DifficultyLevel,
+		KnowledgeNodeIDs: knowledgeNodeIDs,
 	}
 	if err := h.repo.Create(assignment); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":"创建作业失败"})
@@ -606,6 +614,115 @@ func (h *TokenHandler) GetTenantRanking(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items":items})
+}
+
+// GetMyQuota 教师查看自己的配额消耗
+func (h *TokenHandler) GetMyQuota(c *gin.Context) {
+	teacherID := c.GetString("user_id")
+	// 从 service 层获取配额详情
+	var user model.User
+	if err := h.repo.GetUserQuota(teacherID, &user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":"获取配额失败"})
+		return
+	}
+
+	// 计算有效配额
+	quota := user.TokenQuotaMonthly
+	if !user.TokenQuotaCustom && user.School != nil {
+		quota = user.School.DefaultTokenQuota
+	}
+
+	type apiBreakdown struct {
+		APIType string `json:"api_type"`
+		Tokens  int64  `json:"tokens"`
+	}
+	var breakdown []apiBreakdown
+	h.repo.GetQuotaBreakdown(teacherID, &breakdown)
+
+	used := user.TokenUsedMonthly
+	usagePct := 0.0
+	if quota > 0 {
+		usagePct = float64(used) / float64(quota) * 100
+	}
+
+	level := "normal"
+	if quota > 0 {
+		if used >= quota {
+			level = "blocked"
+		} else if usagePct >= 90 {
+			level = "danger"
+		} else if usagePct >= 80 {
+			level = "warning"
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"quota_monthly": quota,
+			"used_monthly":  used,
+			"remaining":     quota - used,
+			"usage_pct":     usagePct,
+			"level":         level,
+			"breakdown":     breakdown,
+			"quota_custom":  user.TokenQuotaCustom,
+		},
+	})
+}
+
+// ListTeachers 获取学校教师列表（含配额信息，校管理端用）
+func (h *TokenHandler) ListTeachers(c *gin.Context) {
+	schoolID := c.GetString("school_id")
+	// 复用 repository 的方法
+	var users []model.User
+	if err := h.repo.ListTeachersForQuota(schoolID, &users); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":"获取教师列表失败"})
+		return
+	}
+
+	type teacherItem struct {
+		ID                 string `json:"id"`
+		Name               string `json:"name"`
+		Phone              string `json:"phone"`
+		Subject            string `json:"subject"`
+		TokenQuotaMonthly  int64  `json:"token_quota_monthly"`
+		TokenQuotaCustom   bool   `json:"token_quota_custom"`
+		TokenUsedMonthly   int64  `json:"token_used_monthly"`
+		DefaultQuota       int64  `json:"default_quota"`
+	}
+
+	var items []teacherItem
+	for _, u := range users {
+		items = append(items, teacherItem{
+			ID:                u.ID.String(),
+			Name:              u.Name,
+			Phone:             u.Phone,
+			Subject:           u.Subject,
+			TokenQuotaMonthly: u.TokenQuotaMonthly,
+			TokenQuotaCustom:  u.TokenQuotaCustom,
+			TokenUsedMonthly:  u.TokenUsedMonthly,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code":200,"data":items})
+}
+
+// BatchUpdateQuota 批量更新教师配额
+func (h *TokenHandler) BatchUpdateQuota(c *gin.Context) {
+	var req struct {
+		TeacherIDs []string `json:"teacher_ids" validate:"required"`
+		Quota      int64    `json:"quota" validate:"required,min=0"`
+		Custom     bool     `json:"custom"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
+		return
+	}
+	if err := h.repo.BatchUpdateQuota(req.TeacherIDs, req.Quota, req.Custom); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":"更新配额失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code":200,"message":fmt.Sprintf("已更新 %d 位教师配额", len(req.TeacherIDs))})
 }
 
 func (h *AdminHandler) ListAuditLogs(c *gin.Context) {

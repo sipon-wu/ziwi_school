@@ -1,16 +1,21 @@
-import { useState, useRef } from 'react'
-import { User, Lock, Bell, Shield, ChevronRight, BookOpen, Save, Camera } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { User, Lock, Bell, Shield, ChevronRight, BookOpen, Save, Camera, PieChart } from 'lucide-react'
+import { useTeaching, ALL_MATH_TEXTBOOKS, ALL_ENGLISH_TEXTBOOKS } from '../lib/TeachingContext'
+import { tokenQuotaAPI } from '../lib/api'
 
 // 读取已保存头像
 function getSavedAvatar(): string {
   return localStorage.getItem('zhiwei_avatar') || ''
 }
 
+const GRADE_NAMES = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级']
+
 export default function SettingsPage() {
+  const teaching = useTeaching()
   const [name, setName] = useState('张老师')
   const [phone] = useState('138****8888')
-  const [grade, setGrade] = useState('四年级')
-  const [subject, setSubject] = useState('语文')
+  const [grade, setGrade] = useState(GRADE_NAMES[teaching.grade - 1] || '四年级')
+  const [subject, setSubject] = useState(teaching.subject)
   const [avatar, setAvatar] = useState(getSavedAvatar)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -24,10 +29,32 @@ export default function SettingsPage() {
 
   // P2: 教材版本配置
   const [showTextbook, setShowTextbook] = useState(false)
-  const [textbookSubject, setTextbookSubject] = useState('语文')
-  const [textbookVersion, setTextbookVersion] = useState('部编版')
+  const [textbookSubject, setTextbookSubject] = useState(teaching.subject)
+  const [textbookVersion, setTextbookVersion] = useState(
+    teaching.subject === '英语' ? teaching.textbook_english : teaching.textbook_math
+  )
 
   const [saved, setSaved] = useState(false)
+
+  // Token 配额
+  const [quota, setQuota] = useState({ monthly: 0, used: 0, remaining: 0, pct: 0, level: 'normal' as string, custom: false })
+  const [breakdown, setBreakdown] = useState<{ api_type: string; tokens: number }[]>([])
+
+  useEffect(() => {
+    tokenQuotaAPI.myQuota().then((res: any) => {
+      if (res?.data) {
+        setQuota({
+          monthly: res.data.quota_monthly || 0,
+          used: res.data.used_monthly || 0,
+          remaining: res.data.remaining || 0,
+          pct: res.data.usage_pct || 0,
+          level: res.data.level || 'normal',
+          custom: res.data.quota_custom || false,
+        })
+        setBreakdown(res.data.breakdown || [])
+      }
+    }).catch(() => {})
+  }, [])
 
   // 头像上传
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,6 +74,10 @@ export default function SettingsPage() {
 
   // P2: 保存基本信息
   const handleSave = async () => {
+    // 同步到全局 TeachingContext
+    teaching.setSubject(subject as '语文' | '数学' | '英语')
+    const gradeIdx = GRADE_NAMES.indexOf(grade)
+    if (gradeIdx >= 0) teaching.setGrade(gradeIdx + 1)
     try {
       await fetch('/api/v1/auth/me', {
         method: 'PUT',
@@ -131,12 +162,12 @@ export default function SettingsPage() {
             <div>
               <label htmlFor="settings-grade" className="block text-xs font-medium text-gray-500 mb-1">任教年级</label>
               <select id="settings-grade" value={grade} onChange={e => setGrade(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
-                {['一年级','二年级','三年级','四年级','五年级','六年级'].map(g => <option key={g}>{g}</option>)}
+                {GRADE_NAMES.map(g => <option key={g}>{g}</option>)}
               </select>
             </div>
             <div>
               <label htmlFor="settings-subject" className="block text-xs font-medium text-gray-500 mb-1">任教学科</label>
-              <select id="settings-subject" value={subject} onChange={e => setSubject(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+              <select id="settings-subject" value={subject} onChange={e => setSubject(e.target.value as '语文'|'数学'|'英语')} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
                 <option>语文</option><option>数学</option><option>英语</option>
               </select>
             </div>
@@ -163,17 +194,84 @@ export default function SettingsPage() {
           </div>
           {showTextbook && (
             <div className="mt-4 flex gap-3">
-              <select value={textbookSubject} onChange={e => setTextbookSubject(e.target.value)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">
+              <select value={textbookSubject} onChange={e => { setTextbookSubject(e.target.value as '语文'|'数学'|'英语'); setTextbookVersion(e.target.value === '英语' ? 'PEP' : e.target.value === '语文' ? '部编版' : '人教版') }} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">
                 <option>语文</option><option>数学</option><option>英语</option>
               </select>
               <select value={textbookVersion} onChange={e => setTextbookVersion(e.target.value)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">
-                <option>部编版</option><option>人教版</option><option>北师大版</option><option>苏教版</option><option>外研版</option>
+                {textbookSubject === '语文' && <option>部编版</option>}
+                {textbookSubject === '数学' && ALL_MATH_TEXTBOOKS.map(v => <option key={v}>{v}</option>)}
+                {textbookSubject === '英语' && ALL_ENGLISH_TEXTBOOKS.map(v => <option key={v}>{v}</option>)}
               </select>
-              <button onClick={() => { setShowTextbook(false); alert('教材版本已更新') }} className="px-3 py-1.5 text-sm bg-brand text-white rounded-lg hover:bg-brand-hover">确认</button>
+              <button onClick={() => {
+                setShowTextbook(false)
+                // 同步教材版本到 TeachingContext
+                if (textbookSubject === '数学') teaching.setTextbookMath(textbookVersion)
+                else if (textbookSubject === '英语') teaching.setTextbookEnglish(textbookVersion)
+                alert('教材版本已更新')
+              }} className="px-3 py-1.5 text-sm bg-brand text-white rounded-lg hover:bg-brand-hover">确认</button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Token 配额 */}
+      {quota.monthly > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <PieChart size={16} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">本月 Token 配额</span>
+            {quota.level !== 'normal' && (
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                quota.level === 'danger' ? 'bg-red-100 text-red-600' : quota.level === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'
+              }`}>
+                {quota.level === 'danger' ? '严重不足' : quota.level === 'warning' ? '即将用尽' : '已用尽'}
+              </span>
+            )}
+          </div>
+          <div className="p-6 space-y-4">
+            {/* 进度条 */}
+            <div>
+              <div className="flex justify-between text-[13px] mb-2">
+                <span className="text-gray-600">已消耗</span>
+                <span className="font-medium">{quota.used.toLocaleString()} / {quota.monthly.toLocaleString()} Token</span>
+              </div>
+              <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${
+                  quota.pct >= 90 ? 'bg-red-500' : quota.pct >= 80 ? 'bg-amber-500' : 'bg-blue-500'
+                }`} style={{ width: `${Math.min(quota.pct, 100)}%` }} />
+              </div>
+              <div className="flex justify-between text-[11px] text-gray-400 mt-1">
+                <span>已用 {quota.pct.toFixed(1)}%</span>
+                <span>{quota.custom ? '个性化配额' : '校默认配额'}</span>
+              </div>
+            </div>
+
+            {/* 分类消耗 */}
+            {breakdown.length > 0 && (
+              <div>
+                <h4 className="text-[12px] font-medium text-gray-600 mb-2">分类消耗</h4>
+                <div className="space-y-1.5">
+                  {breakdown.map((b, i) => {
+                    const nameMap: Record<string, string> = {
+                      'lesson-plan': '教案生成', 'exam': '出题组卷', 'grading': '自动批阅', 'chat': '小微对话',
+                    }
+                    const bPct = quota.monthly > 0 ? (b.tokens / quota.monthly * 100) : 0
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-[11px] text-gray-500 w-16 shrink-0">{nameMap[b.api_type] || b.api_type}</span>
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-brand/40 rounded-full" style={{ width: `${Math.min(bPct, 100)}%` }} />
+                        </div>
+                        <span className="text-[10px] text-gray-400">{b.tokens.toLocaleString()}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 安全设置 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

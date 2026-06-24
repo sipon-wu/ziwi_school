@@ -114,8 +114,11 @@ func main() {
 	{
 		auth.POST("/register", authH.Register)
 		auth.POST("/login", authH.Login)
-		auth.POST("/send-code", authH.SendCode)
-		auth.POST("/code-login", authH.CodeLogin)
+		// SaaS 模式专属：验证码登录
+		if cfg.DeployMode != "private" {
+			auth.POST("/send-code", authH.SendCode)
+			auth.POST("/code-login", authH.CodeLogin)
+		}
 	}
 
 	// 需要鉴权的接口
@@ -134,6 +137,8 @@ func main() {
 		protected.GET("/schools/:id", schoolH.Get)
 		protected.GET("/school/settings", schoolH.GetSettings)
 		protected.PUT("/schools/:id/settings", schoolH.UpdateSettings)
+		// 功能申请（教师端）
+		protected.POST("/schools/feature-request", schoolH.FeatureRequest)
 
 		// 模型费率（前端展示用）
 		protected.GET("/model-rates", func(c *gin.Context) {
@@ -223,6 +228,10 @@ func main() {
 		protected.GET("/token/summary", tokenH.GetSummary)
 		protected.GET("/token/trend", tokenH.GetTrend)
 		protected.GET("/token/tenants", tokenH.GetTenantRanking)
+		// Token 配额管理（教师个人 + 校管理端）
+		protected.GET("/token/my-quota", tokenH.GetMyQuota)
+		protected.GET("/admin/teachers", middleware.RequireRole("admin", "it_admin"), tokenH.ListTeachers)
+		protected.PUT("/admin/teachers/quota", middleware.RequireRole("admin", "it_admin"), tokenH.BatchUpdateQuota)
 
 		// 平台管理 (admin only)
 		protected.GET("/admin/users", middleware.RequireRole("admin"), adminH.ListUsers)
@@ -240,11 +249,11 @@ func main() {
 		protected.POST("/grading/:id/adjust", gradingH.AdjustScore)
 		protected.POST("/grading/batch-confirm", gradingH.BatchConfirm)
 
-		// AI 生成接口
-		protected.POST("/ai/lesson-plan/generate", proxyAIWithModel(cfg, schoolRepo))
-		protected.POST("/ai/exam/generate", proxyAIWithModel(cfg, schoolRepo))
-		protected.POST("/ai/grading/auto", proxyAIWithModel(cfg, schoolRepo))
-		protected.POST("/ai/chat", proxyAIWithModel(cfg, schoolRepo))
+		// AI 生成接口（TokenQuotaGuard 校验配额）
+		protected.POST("/ai/lesson-plan/generate", middleware.TokenQuotaGuard(db), proxyAIWithModel(cfg, schoolRepo))
+		protected.POST("/ai/exam/generate", middleware.TokenQuotaGuard(db), proxyAIWithModel(cfg, schoolRepo))
+		protected.POST("/ai/grading/auto", middleware.TokenQuotaGuard(db), proxyAIWithModel(cfg, schoolRepo))
+		protected.POST("/ai/chat", middleware.TokenQuotaGuard(db), proxyAIWithModel(cfg, schoolRepo))
 	}
 
 	port := cfg.Port
