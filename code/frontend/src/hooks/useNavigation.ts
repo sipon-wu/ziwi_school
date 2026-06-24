@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import {
   LayoutDashboard, FileText, PenLine, FileSearch,
   BookOpen, CheckSquare, UserCheck,
-  BarChart3, TrendingUp, Settings,
+  BarChart3, TrendingUp, Settings, Shield,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 

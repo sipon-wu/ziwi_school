@@ -11,7 +11,13 @@ import time, json, logging, asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("zhiwei-ai")
 
-from rag.curriculum_rag import curriculum_rag
+# RAG 课标检索（PostgreSQL 不可用时降级为空检索）
+try:
+    from rag.curriculum_rag import curriculum_rag
+    HAS_RAG = True
+except Exception:
+    HAS_RAG = False
+    logger.warning("课标RAG未初始化（PostgreSQL不可用），将跳过课标对齐")
 
 # 通义千问客户端
 try:
@@ -54,7 +60,8 @@ class CompositionGradingRequest(BaseModel):
 
 @app.get("/health")
 async def health():
-    return {"status":"ok","service":"ai-service","version":"0.2.0-sprint3","rag":len(curriculum_rag.search("语文","四年级","测试")) > 0}
+    rag_ok = HAS_RAG and len(curriculum_rag.search("语文","四年级","测试")) > 0 if HAS_RAG else False
+    return {"status":"ok","service":"ai-service","version":"0.2.0-sprint3","rag":rag_ok, "qwen": HAS_QWEN}
 
 @app.get("/ping")
 async def ping():
@@ -68,9 +75,11 @@ async def generate_lesson_plan(req: LessonPlanRequest):
     """AI 教案生成 + 课标 RAG 对齐"""
     t0 = time.time()
 
-    # 1. RAG 检索课标
-    standards = curriculum_rag.search(req.subject, req.grade, req.lesson_title, top_k=5)
-    logger.info(f"课标检索: {len(standards)} 条匹配")
+    # 1. RAG 检索课标（降级为空）
+    standards = []
+    if HAS_RAG:
+        standards = curriculum_rag.search(req.subject, req.grade, req.lesson_title, top_k=5)
+        logger.info(f"课标检索: {len(standards)} 条匹配")
 
     # 2. 构建课标文本
     std_text = ""
@@ -115,8 +124,10 @@ async def generate_lesson_plan(req: LessonPlanRequest):
     else:
         content = _mock_lesson_plan(req)
 
-    # 6. 课标对齐校验
-    alignments = curriculum_rag.validate_alignment(content, req.subject, req.grade)
+    # 6. 课标对齐校验（降级处理）
+    alignments = []
+    if HAS_RAG:
+        alignments = curriculum_rag.validate_alignment(content, req.subject, req.grade)
 
     elapsed = int((time.time() - t0) * 1000)
     logger.info(f"教案生成完成: {elapsed}ms, 课标对齐 {sum(1 for a in alignments if a['aligned'])}/{len(alignments)}")
