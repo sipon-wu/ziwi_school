@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTeaching, type TeachingState } from '../lib/TeachingContext'
 import type { KnowledgeNode } from '../components/KnowledgeGraph'
 
@@ -107,8 +107,8 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   const [diffRange, setDiffRange] = useState<[number, number]>([1, 4])
 
   // ── 自动预选：首次加载 + 教材版本/年级/学期变更时 ——
-  const prevPreSelectedRef = React.useRef<string[] | undefined>(undefined)
-  const autoSelectInitRef = React.useRef(false)
+  const prevPreSelectedRef = useRef<string[] | undefined>(undefined)
+  const autoSelectInitRef = useRef(false)
   useEffect(() => {
     // preSelectedNodes 优先级最高（联动传入）
     if (preSelectedNodes && preSelectedNodes.length > 0) {

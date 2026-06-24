@@ -148,7 +148,6 @@ export default function TopNavBar() {
             </div>
           )}
         </div>
-      </div>
 
         {/* 知识图谱开关 */}
         <button
