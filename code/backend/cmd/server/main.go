@@ -321,8 +321,8 @@ func proxyAIWithModel(cfg *config.Config, schoolRepo *repository.SchoolRepo) gin
 
 		// 3. 重新序列化并转发给 AI 服务
 		modifiedBody, _ := json.Marshal(payload)
-		targetPath := strings.Replace(c.Request.URL.Path, "/api/v1/ai/", "/api/", 1) + "/"
-	targetURL := cfg.AIServiceURL + targetPath
+		targetPath := strings.Replace(c.Request.URL.Path, "/api/v1/ai/", "/api/", 1)
+	targetURL := strings.TrimRight(cfg.AIServiceURL, "/") + "/" + strings.TrimLeft(targetPath, "/")
 
 		resp, err := http.Post(targetURL, "application/json", bytes.NewReader(modifiedBody))
 		if err != nil {

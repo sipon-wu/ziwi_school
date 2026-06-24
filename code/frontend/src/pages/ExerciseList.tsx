@@ -127,12 +127,12 @@ export default function ExerciseList() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">作业标题</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">学科</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">类型</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">难度</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">题目数</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">创建时间</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase">作业标题</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase">学科</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden lg:table-cell">类型</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase">难度</th>
+                  <th className="text-center px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden lg:table-cell">题目数</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden lg:table-cell">创建时间</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -149,7 +149,7 @@ export default function ExerciseList() {
                         'bg-green-100 text-green-700'
                       }`}>{item.subject}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{TYPE_LABELS[item.type] || item.type}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">{TYPE_LABELS[item.type] || item.type}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                         item.difficulty_level === 'L1' ? 'bg-green-50 text-green-600' :
@@ -157,8 +157,8 @@ export default function ExerciseList() {
                         'bg-red-50 text-red-600'
                       }`}>{item.difficulty_level || '-'}</span>
                     </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-600">{questionCount(item)}题</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-center text-sm text-gray-600 hidden lg:table-cell">{questionCount(item)}题</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 hidden lg:table-cell">
                       {item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}
                     </td>
                   </tr>

@@ -373,10 +373,26 @@ export default function KnowledgeGraph({
   // ── 内嵌模式 ──
   if (inline) {
     return (
-      <div className="relative bg-gray-50/50" style={{ height: graphHeight || 420 }}>
-        <div className="absolute top-3 left-3 z-10">{toolbar}</div>
-        <div className="absolute top-3 right-3 z-10">{diffSlider}</div>
-        {canvas}
+      <div className={`relative bg-gray-50/50 ${isMobile ? 'flex flex-col' : ''}`} style={{ height: isMobile ? 'auto' : (graphHeight || 420) }}>
+        {isMobile ? (
+          /* 移动端：工具栏 + 滑块上下堆叠，图在下方 */
+          <>
+            <div className="flex items-start gap-2 px-2 pt-2 shrink-0">
+              <div className="flex-shrink-0">{toolbar}</div>
+              <div className="flex-1 min-w-0">{diffSlider}</div>
+            </div>
+            <div className="flex-1 relative min-h-[300px]">
+              {canvas}
+            </div>
+          </>
+        ) : (
+          /* 桌面端：左右浮动 */
+          <>
+            <div className="absolute top-3 left-3 z-10">{toolbar}</div>
+            <div className="absolute top-3 right-3 z-10">{diffSlider}</div>
+            {canvas}
+          </>
+        )}
       </div>
     )
   }
@@ -423,8 +439,9 @@ export default function KnowledgeGraph({
           {/* 右侧/底部：难度+已选考点 */}
           {isMobile ? (
             <>
-              {/* 移动端：难度滑块浮在右上方 */}
-              <div className="absolute top-2 right-2 z-10" style={{ width: 'calc(100% - 180px)', minWidth: 160 }}>
+              {/* 移动端：工具栏左侧紧凑 + 滑块右侧全宽 */}
+              <div className="absolute top-2 left-2 z-10">{toolbar}</div>
+              <div className="absolute top-2 right-2 z-10" style={{ width: 'calc(100% - 195px)', minWidth: 140 }}>
                 {diffSlider}
               </div>
               {/* 移动端底部分页签 */}
@@ -462,8 +479,8 @@ export default function KnowledgeGraph({
               )}
             </>
           ) : (
-            /* 桌面端：右侧浮动面板 */
-            <div className="absolute top-3 right-3 z-10 flex flex-col gap-2 items-end">
+            /* 桌面端：右侧浮动面板（在工具栏下方避免重叠） */
+            <div className="absolute top-16 right-3 z-10 flex flex-col gap-2 items-end">
               {diffSlider}
               {selectedNodes.length > 0 && (
                 <div className="bg-white/95 rounded-lg shadow-sm border border-gray-100 p-2 max-h-[200px] overflow-y-auto min-w-[160px]">

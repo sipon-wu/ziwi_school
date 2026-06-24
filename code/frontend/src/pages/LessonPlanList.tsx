@@ -131,13 +131,13 @@ export default function LessonPlanList() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">教案标题</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">学科</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">年级</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">模板</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">更新时间</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">教案标题</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">学科</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">年级</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">模板</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
+                  <th className="text-left px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">更新时间</th>
+                  <th className="text-right px-3 lg:px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -154,8 +154,8 @@ export default function LessonPlanList() {
                         {plan.subject}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{plan.grade}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">{plan.grade}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 hidden lg:table-cell">
                       {plan.format_template === 'core_literacy' ? '核心素养' : plan.format_template === '3d_objective' ? '三维目标' : '单元教学'}
                     </td>
                     <td className="px-4 py-3">

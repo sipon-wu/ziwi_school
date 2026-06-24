@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
-import { useLocation, Link } from 'react-router-dom'
-import { X, LayoutDashboard, FileText, BookOpen, PenLine, CheckSquare, BarChart3, UserCheck, FileSearch, TrendingUp } from 'lucide-react'
+import { useLocation, Link, useNavigate } from 'react-router-dom'
+import { clearToken } from '@/lib/api'
+import { X, LogOut, LayoutDashboard, FileText, BookOpen, PenLine, CheckSquare, BarChart3, UserCheck, FileSearch, TrendingUp } from 'lucide-react'
 import { useTeaching } from '@/lib/TeachingContext'
 
 interface Props {
@@ -23,6 +24,8 @@ const navItems = [
 
 export default function HamburgerSheet({ open, onClose }: Props) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const handleLogout = () => { clearToken(); navigate('/login', { replace: true }) }
   const teaching = useTeaching()
 
   // 路由变化自动关闭
@@ -55,7 +58,7 @@ export default function HamburgerSheet({ open, onClose }: Props) {
 
       {/* 抽屉面板 */}
       <div
-        className={`fixed top-0 left-0 bottom-0 w-[280px] max-w-[85vw] bg-[#1A3A6B] z-50 flex flex-col transition-transform duration-300 ease-out safe-top safe-bottom ${
+        className={`fixed top-0 left-0 bottom-0 w-[280px] max-w-[75vw] bg-[#1A3A6B] z-50 flex flex-col transition-transform duration-300 ease-out safe-top safe-bottom ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -96,7 +99,7 @@ export default function HamburgerSheet({ open, onClose }: Props) {
 
         {/* 底部用户信息 */}
         <div className="px-4 py-3 border-t border-white/10">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-medium">
               张
             </div>
@@ -105,6 +108,12 @@ export default function HamburgerSheet({ open, onClose }: Props) {
               <div className="text-[11px] text-white/50">{subjectLabel} · {gradeLabel}</div>
             </div>
           </div>
+          <button
+            onClick={() => { handleLogout(); onClose() }}
+            className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] text-red-300 hover:bg-white/10 rounded-lg active:bg-white/20"
+          >
+            <LogOut size={14} />退出登录
+          </button>
         </div>
       </div>
     </>
