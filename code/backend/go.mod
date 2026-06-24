@@ -1,6 +1,6 @@
 module github.com/zhiwei/backend
 
-go 1.25
+go 1.22
 
 require (
 	github.com/gin-gonic/gin v1.9.1
