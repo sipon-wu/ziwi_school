@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Save, Check, AlertTriangle, Edit3 } from 'lucide-react'
+import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Save, Check, AlertTriangle } from 'lucide-react'
 import { useTeaching, getRecommendedDefaults } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'

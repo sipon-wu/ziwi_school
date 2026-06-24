@@ -24,7 +24,6 @@ function NavGroupSection({
   onToggle: () => void
 }) {
   const { icon: GroupIcon } = group
-  const anyActive = group.items.some(item => pathname === item.to || (item.to !== '/dashboard' && pathname.startsWith(item.to)))
 
   return (
     <div className="mb-0.5">

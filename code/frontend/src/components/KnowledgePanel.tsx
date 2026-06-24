@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
-import { X, Search, Maximize, Trash2, GripHorizontal, ChevronDown } from 'lucide-react'
+import { useState, useCallback, useRef } from 'react'
+import { X, Search, Maximize, Trash2, GripHorizontal } from 'lucide-react'
 import KnowledgeGraph from './KnowledgeGraph'
 import { useTeaching } from '@/lib/TeachingContext'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -112,10 +112,7 @@ export default function KnowledgePanel({ picker, onClose }: Props) {
   const teaching = useTeaching()
   const isMobile = useIsMobile()
   const {
-    knowledgeData, selectedIds, setSelectedIds, selectedNodes,
-    graphLayout, setGraphLayout,
-    graphDimension, setGraphDimension,
-    diffRange, setDiffRange,
+    setSelectedIds, selectedNodes,
     currentUnits, selectedUnit, handleUnitChange,
   } = picker
 

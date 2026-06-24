@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Menu, Bell, BookOpen, LogOut, User, MessageSquare } from 'lucide-react'
+import { Menu, Bell, BookOpen, LogOut, MessageSquare } from 'lucide-react'
 import BottomNavBar from './BottomNavBar'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 

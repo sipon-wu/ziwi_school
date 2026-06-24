@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Edit3, Check } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target } from 'lucide-react'
 import { aiAPI, lessonPlanAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import AiPreviewBadge from '../components/AiPreviewBadge'

@@ -72,8 +72,6 @@ export default function SidePanel() {
   // 仅 >=xl 且在非移动端显示
   if (isMobile) return null
 
-  const svgLen = 62.8 // 2 * PI * 10
-
   return (
     <aside className="hidden xl:block w-[280px] shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
       <div className="p-4 space-y-5">

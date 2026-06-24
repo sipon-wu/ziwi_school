@@ -1,0 +1,21 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - img "知微" [ref=e6]
+    - heading "知微教学" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 见微知著，知微教学
+  - generic [ref=e9]:
+    - button "密码登录" [ref=e10] [cursor=pointer]
+    - button "验证码登录" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: 手机号
+      - textbox "手机号" [ref=e15]:
+        - /placeholder: 请输入手机号
+    - generic [ref=e16]:
+      - generic [ref=e17]: 密码
+      - textbox "密码" [ref=e18]:
+        - /placeholder: 请输入密码
+    - button "登录" [ref=e19] [cursor=pointer]
+  - generic [ref=e20]:
+    - generic [ref=e21]: 还没有账号？申请开通
+    - generic [ref=e22] [cursor=pointer]: 忘记密码
