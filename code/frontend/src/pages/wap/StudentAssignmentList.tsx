@@ -64,6 +64,7 @@ export default function StudentAssignmentList() {
             </div>
           </div>
         ))}
+      </div>
     </>
   )
 }

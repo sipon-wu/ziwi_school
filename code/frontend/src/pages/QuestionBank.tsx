@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Star, User, Building2, Filter, Send, Check, AlertTriangle, BookOpen } from 'lucide-react'
+import { Search, Star, User, Building2, Filter, Send, Check, BookOpen, Sparkles } from 'lucide-react'
 import { questionBankAPI } from '../lib/api'
-import { useTeaching } from '../lib/TeachingContext'
+
 
 const TYPE_LABELS: Record<string, string> = {
   choice: '选择', fill: '填空', calculation: '计算', judge: '判断',
@@ -37,7 +37,6 @@ type QuestionItem = {
 
 export default function QuestionBankPage() {
   const navigate = useNavigate()
-  const teaching = useTeaching()
   const [tab, setTab] = useState<'personal' | 'school'>('personal')
   const [items, setItems] = useState<QuestionItem[]>([])
   const [total, setTotal] = useState(0)
@@ -50,7 +49,7 @@ export default function QuestionBankPage() {
   const [showRate, setShowRate] = useState<string | null>(null)
   const [rateScore, setRateScore] = useState(4)
   const [rateTags, setRateTags] = useState<string[]>([])
-  const [rateComment, setRateComment] = useState('')
+  const [_rateComment, setRateComment] = useState('')
   const [stats, setStats] = useState<any>({})
 
   const fetchQuestions = useCallback(async () => {
@@ -101,7 +100,7 @@ export default function QuestionBankPage() {
     } catch (e: any) { alert('贡献失败: ' + (e.message || '')) }
   }
 
-  const handleRate = async (questionId: string) => {
+  const handleRate = async (_questionId: string) => {
     if (!rateScore) return
     // 评分需要关联真实批阅记录（用过才有资格评）
     // 当前评分功能需在批阅流程打通后启用
