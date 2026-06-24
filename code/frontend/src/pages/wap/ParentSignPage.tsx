@@ -60,7 +60,7 @@ export default function ParentSignPage() {
   }
 
   if(signed) return (
-    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center p-6">
+    <div className="bg-[#F5F5F5] flex items-center justify-center p-6">
       <div className="text-center w-full">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 size={40} className="text-green-500"/>
@@ -68,13 +68,13 @@ export default function ParentSignPage() {
         <h2 className="text-lg font-bold text-gray-900 mb-1">签字成功</h2>
         <p className="text-sm text-gray-500 mb-2">作业确认已完成</p>
         <p className="text-xs text-gray-400 mb-6">老师将收到您已签字的通知</p>
-        <button onClick={()=>nav('/m/parent')} className="w-full py-3 bg-[#1A3A6B] text-white rounded-xl text-sm shadow-md active:bg-[#2B5DA8]">返回作业列表</button>
+        <button onClick={()=>nav('/parent')} className="w-full py-3 bg-[#1A3A6B] text-white rounded-xl text-sm shadow-md active:bg-[#2B5DA8]">返回作业列表</button>
       </div>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] pb-6">
+    <div className="bg-[#F5F5F5] pb-6">
       {/* 作业信息 */}
       <div className="bg-white px-4 py-5 border-b border-gray-100">
         <h3 className="text-base font-semibold text-gray-900 mb-2">作业确认签字</h3>

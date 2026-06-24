@@ -59,6 +59,7 @@ func main() {
 	adminRepo := repository.NewAdminRepo(db)
 	tokenRepo := repository.NewTokenRepo(db)
 	modelRateRepo := repository.NewModelRateRepo(db)
+	questionRepo := repository.NewQuestionRepo(db)
 
 	// 依赖注入 - Service 层
 	authSvc := service.NewAuthService(cfg, authRepo)
@@ -74,7 +75,7 @@ func main() {
 	classH := handler.NewClassHandler(classSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
 	planH := handler.NewLessonPlanHandler(lessonPlanRepo)
-	assignmentH := handler.NewAssignmentHandler(assignmentRepo)
+	assignmentH := handler.NewAssignmentHandler(assignmentRepo, questionRepo)
 	submissionH := handler.NewSubmissionHandler(submissionRepo)
 	parentSignH := handler.NewParentSignHandler(parentSignRepo)
 	gradingH := handler.NewGradingHandler(gradingRepo)
@@ -94,6 +95,7 @@ func main() {
 	textbookH := handler.NewTextbookHandler(textbookRepo)
 	reviewRepo := repository.NewReviewRepo(db)
 	reviewH := handler.NewReviewHandler(reviewRepo)
+	questionH := handler.NewQuestionHandler(questionRepo)
 	auditH := handler.NewAuditHandler()
 
 	// 路由
@@ -241,6 +243,23 @@ func main() {
 		protected.GET("/admin/announcements", middleware.RequireRole("admin"), adminH.ListAnnouncements)
 		protected.POST("/admin/announcements", middleware.RequireRole("admin"), adminH.CreateAnnouncement)
 		protected.GET("/admin/audit-logs", middleware.RequireRole("admin"), adminH.ListAuditLogs)
+
+		// 题库
+		protected.GET("/questions/personal", questionH.ListPersonal)
+		protected.GET("/questions/school", questionH.ListSchool)
+		protected.GET("/questions/search", questionH.Search)
+		protected.GET("/questions/stats", questionH.Stats)
+		protected.POST("/questions", questionH.Save)
+		protected.GET("/questions/:id", questionH.Get)
+		protected.PUT("/questions/:id", questionH.Update)
+		protected.DELETE("/questions/:id", questionH.Delete)
+		protected.POST("/questions/:id/contribute", questionH.Contribute)
+		protected.POST("/questions/:id/rate", questionH.Rate)
+		protected.GET("/questions/:id/ratings", questionH.ListRatings)
+		protected.POST("/questions/check-duplicate", questionH.CheckDupForClass)
+		// 校本题库审核（教研组长）
+		protected.GET("/questions/audits/pending", middleware.RequireRole("admin", "academic_admin"), questionH.PendingAudits)
+		protected.POST("/questions/:id/audit", middleware.RequireRole("admin", "academic_admin"), questionH.Audit)
 
 		// 批阅结果
 		protected.GET("/grading", gradingH.List)

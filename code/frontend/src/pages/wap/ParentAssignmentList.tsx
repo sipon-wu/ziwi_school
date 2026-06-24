@@ -24,7 +24,7 @@ export default function ParentAssignmentList() {
   const signed = items.filter((a: any)=>a.status==='signed')
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
+    <div className="bg-[#F5F5F5]">
       {/* 顶部概览 */}
       <div className="bg-white px-4 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-3">
@@ -84,7 +84,7 @@ export default function ParentAssignmentList() {
                 </div>
                 {item.status==='unsigned'?(
                   <button
-                    onClick={()=>nav(`/m/parent/sign/${item.id}`)}
+                    onClick={()=>nav(`/parent/sign/${item.id}`)}
                     className="px-3 py-1.5 bg-[#1A3A6B] text-white rounded-lg text-xs font-medium flex-shrink-0 active:bg-[#2B5DA8] mt-2"
                   >去签字</button>
                 ):(

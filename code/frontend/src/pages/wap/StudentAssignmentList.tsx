@@ -26,8 +26,8 @@ export default function StudentAssignmentList() {
   const list=allItems.filter((a: any)=>tab==='todo'?!a.submitted:a.submitted)
   const getIcon=(t:string)=>t==='composition'?'bg-purple-50 text-purple-500':t==='writing_game'?'bg-green-50 text-green-500':'bg-blue-50 text-blue-500'
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-100">
+    <>
+      <div className="sticky top-0 z-40 bg-white border-b border-gray-100 lg:rounded-t-xl">
         <div className="flex">
           {[{k:'todo',l:'待完成'},{k:'done',l:'已完成'}].map(t=>{const c=MOCK.filter(a=>t.k==='todo'?!a.submitted:a.submitted).length
             return <button key={t.k} onClick={()=>setTab(t.k as any)}
@@ -41,7 +41,7 @@ export default function StudentAssignmentList() {
       <div className="px-3 py-3 space-y-2.5">
         {list.length===0?<EmptyState title={tab==='todo'?'暂无待完成作业':'暂无已完成作业'} description={tab==='todo'?'老师还没有布置新的作业':'还没有提交过作业'}/>
         :list.map(item=>(
-          <div key={item.id} onClick={()=>nav(item.submitted?`/m/student/grading/${item.id}`:`/m/student/${item.id}`)}
+          <div key={item.id} onClick={()=>nav(item.submitted?`/student/grading/${item.id}`:`/student/${item.id}`)}
             className="bg-white rounded-xl p-4 border border-gray-100 active:bg-gray-50 shadow-sm">
             <div className="flex items-start gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getIcon(item.type)}`}>
@@ -64,7 +64,6 @@ export default function StudentAssignmentList() {
             </div>
           </div>
         ))}
-      </div>
-    </div>
+    </>
   )
 }

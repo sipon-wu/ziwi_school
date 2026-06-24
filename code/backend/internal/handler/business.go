@@ -145,11 +145,12 @@ func (h *LessonPlanHandler) Delete(c *gin.Context) {
 // ── Assignment Handler ──
 
 type AssignmentHandler struct {
-	repo *repository.AssignmentRepo
+	repo        *repository.AssignmentRepo
+	questionRepo *repository.QuestionRepo
 }
 
-func NewAssignmentHandler(repo *repository.AssignmentRepo) *AssignmentHandler {
-	return &AssignmentHandler{repo: repo}
+func NewAssignmentHandler(repo *repository.AssignmentRepo, questionRepo *repository.QuestionRepo) *AssignmentHandler {
+	return &AssignmentHandler{repo: repo, questionRepo: questionRepo}
 }
 
 func (h *AssignmentHandler) List(c *gin.Context) {
@@ -164,13 +165,14 @@ func (h *AssignmentHandler) List(c *gin.Context) {
 
 func (h *AssignmentHandler) Create(c *gin.Context) {
 	var req struct {
-		ClassID          string `json:"class_id"`
-		Subject          string `json:"subject"`
-		Title            string `json:"title"`
-		Type             string `json:"type"`
-		Questions        string `json:"questions"`
-		DifficultyLevel  string `json:"difficulty_level"`
-		KnowledgeNodeIDs string `json:"knowledge_node_ids,omitempty"`
+		ClassID          string   `json:"class_id"`
+		Subject          string   `json:"subject"`
+		Title            string   `json:"title"`
+		Type             string   `json:"type"`
+		Questions        string   `json:"questions"`          // 兼容旧版 JSONB
+		QuestionIDs      []string `json:"question_ids"`       // 新版：题目ID列表
+		DifficultyLevel  string   `json:"difficulty_level"`
+		KnowledgeNodeIDs string   `json:"knowledge_node_ids,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code":400,"message":"参数错误"})
@@ -184,6 +186,46 @@ func (h *AssignmentHandler) Create(c *gin.Context) {
 
 	knowledgeNodeIDs := req.KnowledgeNodeIDs
 	if knowledgeNodeIDs == "" { knowledgeNodeIDs = "[]" }
+
+	questionsJSON := req.Questions
+
+	// 新版：从题目ID列表构建 questions JSONB 并做查重
+	if len(req.QuestionIDs) > 0 && questionsJSON == "" {
+		// 查重
+		if h.questionRepo != nil {
+			dupes, _ := h.questionRepo.CheckDuplicateByClass(req.ClassID, req.QuestionIDs)
+			if len(dupes) > 0 {
+				c.JSON(http.StatusConflict, gin.H{
+					"code":       409,
+					"message":    "部分题目已在该班级布置过",
+					"duplicates": dupes,
+				})
+				return
+			}
+		}
+		// 构建兼容的 questions JSONB
+		questions := make([]map[string]interface{}, 0)
+		for _, qid := range req.QuestionIDs {
+			if h.questionRepo != nil {
+				q, err := h.questionRepo.FindByID(qid)
+				if err == nil {
+					questions = append(questions, map[string]interface{}{
+						"content":     q.Content,
+						"type":        q.Type,
+						"question_id": q.ID.String(),
+						"difficulty":  q.Difficulty,
+						"answer":      q.Answer,
+						"options":     q.Options,
+					})
+				}
+			}
+		}
+		b, _ := json.Marshal(questions)
+		questionsJSON = string(b)
+	}
+
+	if questionsJSON == "" { questionsJSON = "[]" }
+
 	assignment := &model.Assignment{
 		TeacherID:        teacherID,
 		ClassID:          classID,
@@ -191,7 +233,7 @@ func (h *AssignmentHandler) Create(c *gin.Context) {
 		Subject:          req.Subject,
 		Title:            req.Title,
 		Type:             req.Type,
-		Questions:        req.Questions,
+		Questions:        questionsJSON,
 		DifficultyLevel:  req.DifficultyLevel,
 		KnowledgeNodeIDs: knowledgeNodeIDs,
 	}
@@ -199,7 +241,16 @@ func (h *AssignmentHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code":500,"message":"创建作业失败"})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message":"作业已发布","id":assignment.ID.String()})
+
+	// 新版：创建作业-题目关联
+	if len(req.QuestionIDs) > 0 && h.questionRepo != nil {
+		if err := h.questionRepo.LinkAssignmentQuestions(assignment.ID.String(), req.QuestionIDs, nil); err != nil {
+			// 非致命，记录日志
+			fmt.Printf("[WARN] link assignment questions failed: %v\n", err)
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message":"作业已发布","id":assignment.ID.String(),"question_count":len(req.QuestionIDs)})
 }
 
 

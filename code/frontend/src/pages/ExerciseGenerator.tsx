@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Maximize2 } from 'lucide-react'
+import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Maximize2, Save, Check, AlertTriangle } from 'lucide-react'
 import KnowledgeGraph from '../components/KnowledgeGraph'
 import { useTeaching, getRecommendedDefaults } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
+import { questionBankAPI, assignmentAPI } from '../lib/api'
 
 const PURPOSES = [
   { id: 'classwork', label: '课堂练习', icon: '📝', desc: '当堂巩固', count: [3, 5], difficulty: 'L1', time: '5-8分钟' },
@@ -61,6 +62,17 @@ export default function ExerciseGenerator() {
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<any[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  // 保存/发布状态
+  const [saving, setSaving] = useState(false)
+  const [savedIds, setSavedIds] = useState<string[]>([])
+  const [saveMsg, setSaveMsg] = useState('')
+  const [publishing, setPublishing] = useState(false)
+  const [selectedClass, setSelectedClass] = useState('')
+  const [assignmentTitle, setAssignmentTitle] = useState('')
+  const [assignmentType, setAssignmentType] = useState('homework')
+  const [duplicates, setDuplicates] = useState<any[]>([])
+  const [showPublishPanel, setShowPublishPanel] = useState(false)
+  const [classes, setClasses] = useState<any[]>([])
 
   // TeachingContext 学科/年级变更时自动更新推荐缺省值
   useEffect(() => {
@@ -85,6 +97,7 @@ export default function ExerciseGenerator() {
   const handleGenerate = async () => {
     if (!knowledgePoint.trim() && picker.selectedIds.length === 0) return
     setGenerating(true)
+    setSavedIds([]); setSaveMsg(''); setShowPublishPanel(false)
     try {
       const res = await fetch('/api/v1/ai/exam/generate', {
         method: 'POST',
@@ -104,6 +117,81 @@ export default function ExerciseGenerator() {
     } catch (e: any) { alert('出题失败: ' + (e.message || '网络错误')) }
     setGenerating(false)
   }
+
+  // 保存题目到个人题库
+  const handleSaveToBank = async () => {
+    if (questions.length === 0) return
+    setSaving(true); setSaveMsg('')
+    try {
+      const kps = picker.selectedNodes.map((n: any) => n.name)
+      const res = await questionBankAPI.save({
+        questions: questions.map((q: any) => ({
+          type: q.type || 'choice',
+          content: q.content,
+          difficulty: difficulty,
+          knowledge_points: kps,
+        })),
+        subject: teaching.subject,
+        grade: gradeName,
+        semester: teaching.semester,
+        textbook_version: teaching.textbook_math,
+        chapter_unit: teaching.current_unit_name || teaching.current_lesson_name || '',
+        source: 'ai_generated',
+        source_prompt: `出题: ${knowledgePoint}, 用途: ${purpose}, 题型: ${selectedTypes.join(',')}`,
+      })
+      setSavedIds(res.question_ids || [])
+      setSaveMsg(`已保存 ${res.count || res.question_ids?.length || 0} 道题目到个人题库`)
+    } catch (e: any) {
+      alert('保存失败: ' + (e.message || '网络错误'))
+    }
+    setSaving(false)
+  }
+
+  // 保存并发布作业
+  const handlePublish = async () => {
+    if (!selectedClass || !assignmentTitle.trim()) {
+      alert('请选择班级和作业标题')
+      return
+    }
+    setPublishing(true)
+    try {
+      // 先查重
+      const dupRes = await questionBankAPI.checkDuplicate(selectedClass, savedIds)
+      if (dupRes.has_duplicate) {
+        setDuplicates(Object.values(dupRes.duplicates).flat())
+        setPublishing(false)
+        return
+      }
+      // 创建作业
+      await assignmentAPI.create({
+        class_id: selectedClass,
+        subject: teaching.subject,
+        title: assignmentTitle,
+        type: assignmentType,
+        question_ids: savedIds,
+        difficulty_level: difficulty,
+        knowledge_node_ids: JSON.stringify(picker.selectedIds),
+      })
+      alert('作业已发布！')
+      navigate('/dashboard/exercises')
+    } catch (e: any) {
+      if (e.message?.includes('已经在该班级布置过') || e.message?.includes('409')) {
+        setDuplicates(e.duplicates || [])
+      } else {
+        alert('发布失败: ' + (e.message || '网络错误'))
+      }
+    }
+    setPublishing(false)
+  }
+
+  // 加载班级列表
+  useEffect(() => {
+    import('../lib/api').then(({ classAPI }) => {
+      classAPI.list().then((res: any) => {
+        setClasses(res.items || [])
+      }).catch(() => {})
+    })
+  }, [])
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -131,7 +219,7 @@ export default function ExerciseGenerator() {
       {/* 命题用途 */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">命题用途 <span className="text-[11px] text-brand font-normal ml-1">(AI推荐: {PURPOSES.find(p=>p.id===purpose)?.label})</span></h3>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
           {PURPOSES.map(p => (
             <button key={p.id} onClick={() => handlePurposeChange(p.id)}
               className={`text-left p-3 rounded-lg border-2 transition-all ${purpose === p.id ? 'border-brand bg-brand/5' : 'border-gray-100 hover:border-gray-200'}`}>
@@ -144,11 +232,11 @@ export default function ExerciseGenerator() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
           {questions.length === 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3 mb-4">
                 <div><label className="block text-xs font-medium text-gray-500 mb-1">学科</label><select value={teaching.subject} onChange={e => teaching.setSubject(e.target.value as '语文'|'数学'|'英语')} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20"><option>语文</option><option>数学</option><option>英语</option></select></div>
                 <div><label className="block text-xs font-medium text-gray-500 mb-1">年级</label><select value={gradeName} onChange={e => { const idx = GRADE_NAMES.indexOf(e.target.value); if (idx >= 0) teaching.setGrade(idx + 1) }} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">{GRADE_NAMES.map(g => <option key={g}>{g}</option>)}</select></div>
                 <div><label className="block text-xs font-medium text-gray-500 mb-1">难度</label><select value={difficulty} onChange={e => setDifficulty(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20"><option value="L1">L1-基础</option><option value="L2">L2-中等</option><option value="L3">L3-进阶</option><option value="L4">L4-挑战</option></select></div>
@@ -174,9 +262,86 @@ export default function ExerciseGenerator() {
           {generating&&<div className="bg-white rounded-xl border border-gray-200 p-8 text-center"><div className="w-12 h-12 mx-auto mb-4 border-4 border-[#1A3A6B]/20 border-t-[#1A3A6B] rounded-full animate-spin"/><p className="text-sm text-gray-500">小微正在生成{selectedTypes.length}种题型...</p></div>}
 
           {questions.length>0&&!generating&&(
-            <div className="bg-white rounded-xl border border-gray-200">
-              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center justify-between"><span className="font-medium text-gray-900 text-sm">{knowledgePoint||'知识图谱选题'} · {difficulty} · {totalCount}题</span><button onClick={handleGenerate} className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-white"><RefreshCw size={14}/>重新生成</button></div>
-              <div className="p-5 space-y-2.5">{questions.map((q:any,i:number)=>(<div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"><span className="text-sm font-medium text-brand w-6 shrink-0">{i+1}.</span><div className="flex-1"><span className="text-sm text-gray-800">{q.content}</span>{q.type&&<span className="ml-2 text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-400">{q.type==='choice'?'选择':q.type==='fill'?'填空':q.type==='calculation'?'计算':q.type}</span>}</div></div>))}</div>
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-gray-200">
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center justify-between"><span className="font-medium text-gray-900 text-sm">{knowledgePoint||'知识图谱选题'} · {difficulty} · {totalCount}题</span><button onClick={handleGenerate} className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-white"><RefreshCw size={14}/>重新生成</button></div>
+                <div className="p-5 space-y-2.5">{questions.map((q:any,i:number)=>(<div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"><span className="text-sm font-medium text-brand w-6 shrink-0">{i+1}.</span><div className="flex-1"><span className="text-sm text-gray-800">{q.content}</span>{q.type&&<span className="ml-2 text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-400">{q.type==='choice'?'选择':q.type==='fill'?'填空':q.type==='calculation'?'计算':q.type}</span>}</div></div>))}</div>
+              </div>
+
+              {/* 操作按钮：保存 / 发布 */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button onClick={handleSaveToBank} disabled={saving || savedIds.length > 0}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl border font-medium transition-all ${
+                      savedIds.length > 0
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-white text-brand border-brand hover:bg-brand/5'
+                    } disabled:opacity-60`}>
+                    {savedIds.length > 0 ? <><Check size={16}/>{saveMsg}</> : saving ? <><div className="w-4 h-4 border-2 border-brand/30 border-t-brand rounded-full animate-spin"/>保存中...</> : <><Save size={16}/>保存到个人题库</>}
+                  </button>
+                  {savedIds.length > 0 && !showPublishPanel && (
+                    <button onClick={() => { setShowPublishPanel(true); setAssignmentTitle(knowledgePoint + ' - ' + PURPOSES.find(p=>p.id===purpose)?.label || '') }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-[#1A3A6B] text-white text-sm rounded-xl hover:bg-[#2B5DA8] transition-colors shadow-sm">
+                      <Send size={16}/>保存并布置为作业
+                    </button>
+                  )}
+                </div>
+
+                {/* 发布面板 */}
+                {showPublishPanel && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                    {duplicates.length > 0 && (
+                      <div className="flex items-start gap-2 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
+                        <div className="text-sm text-red-700">
+                          <p className="font-medium">部分题目已在该班级布置过：</p>
+                          {duplicates.map((d: any, i: number) => (
+                            <p key={i} className="text-xs mt-1">· 题目 {(i+1)} 已在「{d.assignment_title}」中使用</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">选择班级</label>
+                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">
+                          <option value="">请选择班级</option>
+                          {classes.map((c: any) => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.grade})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">作业类型</label>
+                        <select value={assignmentType} onChange={e => setAssignmentType(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20">
+                          <option value="homework">课后作业</option>
+                          <option value="exercise">课堂练习</option>
+                          <option value="exam">单元检测/考试</option>
+                          <option value="composition">作文</option>
+                          <option value="writing_game">写作游戏</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">作业标题</label>
+                        <input type="text" value={assignmentTitle} onChange={e => setAssignmentTitle(e.target.value)}
+                          placeholder="输入作业标题" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={handlePublish} disabled={publishing || !selectedClass || !assignmentTitle.trim()}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] transition-colors disabled:opacity-50 text-sm font-medium shadow-sm">
+                        {publishing ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>发布中...</> : <><Check size={16}/>确认发布</>}
+                      </button>
+                      <button onClick={() => { setShowPublishPanel(false); setDuplicates([]) }}
+                        className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -188,7 +353,17 @@ export default function ExerciseGenerator() {
             {picker.selectedNodes.length===0?<p className="text-xs text-gray-400">点击下方图谱节点选择出题范围</p>:<div className="space-y-1.5 max-h-[200px] overflow-y-auto">{picker.selectedNodes.map(n=>(<div key={n.id} className="flex items-center justify-between text-xs py-1 px-2 bg-brand/5 rounded"><span className="text-gray-700">{n.name}</span><span className="text-[10px] text-gray-400">{n.difficulty}</span></div>))}</div>}
             {picker.selectedIds.length>0&&<button onClick={handleGenerate} disabled={generating} className="mt-3 w-full flex items-center justify-center gap-1 py-2 text-xs bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"><Send size={12}/>用选中考点出题</button>}
           </div>
-          <button onClick={()=>picker.setShowGraph(!picker.showGraph)} className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-brand bg-brand/5 rounded-xl border border-brand/10 hover:bg-brand/10"><span className="flex items-center gap-2"><BookOpen size={14}/>知识图谱</span><span className="text-[11px] text-gray-400">{picker.showGraph?'收起':'展开'}</span></button>
+          <button onClick={()=>picker.setShowGraph(!picker.showGraph)}
+            disabled={!teaching.knowledgeGraphEnabled}
+            title={teaching.knowledgeGraphEnabled ? (picker.showGraph?'收起图谱':'展开知识图谱') : '学校未开启知识图谱功能'}
+            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm rounded-xl border transition-colors ${
+              teaching.knowledgeGraphEnabled
+                ? 'text-brand bg-brand/5 border-brand/10 hover:bg-brand/10'
+                : 'text-gray-300 bg-gray-50 border-gray-200 cursor-not-allowed'
+            }`}>
+            <span className="flex items-center gap-2"><BookOpen size={14}/>知识图谱</span>
+            <span className="text-[11px] text-gray-400">{picker.showGraph?'收起':'展开'}</span>
+          </button>
         </div>
       </div>
 

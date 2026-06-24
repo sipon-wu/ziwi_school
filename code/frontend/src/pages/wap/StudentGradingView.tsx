@@ -20,7 +20,7 @@ export default function StudentGradingView() {
   const correct = questions.filter(q=>q.correct).length
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] pb-6">
+    <div className="bg-[#F5F5F5] pb-6">
       {/* 成绩卡片 */}
       <div className="bg-gradient-to-b from-[#1A3A6B] to-[#2B5DA8] px-4 py-8 text-white text-center">
         <p className="text-sm text-white/70 mb-1">你的得分</p>

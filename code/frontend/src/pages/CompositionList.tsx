@@ -26,18 +26,18 @@ export default function CompositionList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">习作指导</h1>
+          <h1 className="text-lg lg:text-xl font-bold text-gray-900">习作指导</h1>
           <p className="text-sm text-gray-500 mt-1">学生拍照上传作文，AI 自动批改 + 四维评分</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm">
+        <button className="flex items-center gap-2 px-4 py-2.5 bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm text-sm">
           <Plus size={18} /> 布置作文
         </button>
       </div>
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200">
-        <div className="flex-1 relative">
+      <div className="flex flex-wrap items-center gap-2 lg:gap-3 bg-white p-3 rounded-xl border border-gray-200">
+        <div className="flex-1 relative min-w-[160px]">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input id="comp-search" type="text" placeholder="搜索作文..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); goTo(1) }} className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" />
         </div>
@@ -49,7 +49,7 @@ export default function CompositionList() {
       {filtered.length === 0 ? (
         <EmptyState title="暂无匹配的作文" description="尝试调整筛选条件" />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">

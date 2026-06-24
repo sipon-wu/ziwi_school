@@ -60,7 +60,7 @@ export default function LicenseAdmin() {
       {/* 学校管理 */}
       {tab === 'schools' && (
         <>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             {[
               { label:'活跃学校',value:'3',icon:Wifi,color:'text-green-600 bg-green-50' },
               { label:'即将到期',value:'1',icon:AlertTriangle,color:'text-yellow-600 bg-yellow-50' },
@@ -121,7 +121,7 @@ export default function LicenseAdmin() {
 
       {/* License签发 */}
       {tab === 'license' && (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-base font-semibold text-gray-900 mb-4">Token 套餐</h3>
             <div className="space-y-3">
@@ -148,7 +148,7 @@ export default function LicenseAdmin() {
                   {SCHOOLS.map(s=><option key={s.id}>{s.name}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><label className="text-xs text-gray-500 mb-1 block">购买时长</label>
                   <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"><option>1年</option><option>3年</option></select>
                 </div>
@@ -171,7 +171,7 @@ export default function LicenseAdmin() {
       {tab === 'trial' && (
         <div className="space-y-6">
           {/* 试用统计 */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             {[
               { label:'正在试用',value:'12',sub:'教师',icon:Users,color:'text-blue-600 bg-blue-50' },
               { label:'已转化',value:'3',sub:'加入学校',icon:TrendingUp,color:'text-green-600 bg-green-50' },
@@ -192,7 +192,7 @@ export default function LicenseAdmin() {
           {/* 试用配置 */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2"><Settings size={18} className="text-[#1A3A6B]"/>试用参数配置</h3>
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4 mb-6">
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">试用开关</label>
                 <div className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg">
@@ -316,7 +316,7 @@ export default function LicenseAdmin() {
       {/* 系统健康 */}
       {tab === 'system' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             {[
               {label:'数据库',value:'正常',icon:ShieldCheck,color:'text-green-600 bg-green-50',detail:'pgvector 16'},
               {label:'Redis',value:'正常',icon:Activity,color:'text-green-600 bg-green-50',detail:'7.0-alpine'},
@@ -330,7 +330,7 @@ export default function LicenseAdmin() {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 mb-2">CPU</div><div className="text-lg font-bold">34%</div><div className="w-full h-2 bg-gray-100 rounded-full mt-2"><div className="h-full bg-green-500 rounded-full w-[34%]"/></div></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 mb-2">内存</div><div className="text-lg font-bold">62%</div><div className="w-full h-2 bg-gray-100 rounded-full mt-2"><div className="h-full bg-yellow-500 rounded-full w-[62%]"/></div></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 mb-2">磁盘</div><div className="text-lg font-bold">45%</div><div className="w-full h-2 bg-gray-100 rounded-full mt-2"><div className="h-full bg-blue-500 rounded-full w-[45%]"/></div></div>
@@ -415,7 +415,7 @@ export default function LicenseAdmin() {
           {/* 模型方总览 */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2"><BarChart3 size={16} className="text-[#1A3A6B]"/>模型方总览（通义千问 API 消耗）</h3>
-            <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4">
               {[
                 {label:'今日消耗',value:'12.5k',sub:'≈¥0.05',color:'text-blue-600'},
                 {label:'本月消耗',value:'452k',sub:'≈¥1.81',color:'text-[#1A3A6B]'},
@@ -430,7 +430,7 @@ export default function LicenseAdmin() {
               ))}
             </div>
             {/* 按API类型分布 */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <div className="text-xs text-gray-500 mb-2">按 API 类型</div>
                 <div className="space-y-2">
@@ -510,7 +510,7 @@ export default function LicenseAdmin() {
       {/* 用量监控 */}
       {tab === 'monitor' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4">
             {[
               { label:'本月Token消耗',value:'45,200',sub:'环比 ↑12%',color:'text-[#1A3A6B]' },
               { label:'本月新增学校',value:'2',sub:'累计 4 所',color:'text-green-600' },

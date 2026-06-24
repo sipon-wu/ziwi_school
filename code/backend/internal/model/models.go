@@ -293,3 +293,65 @@ type LessonReview struct {
 }
 
 func (LessonReview) TableName() string { return "lesson_reviews" }
+
+// ── 题库模型 ──
+
+// Question 独立题目实体（可复用）
+type Question struct {
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	TeacherID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"teacher_id"`
+	SchoolID        uuid.UUID  `gorm:"type:uuid;not null;index" json:"school_id"`
+	Subject         string     `gorm:"size:20;not null" json:"subject"`
+	Grade           string     `gorm:"size:20;not null" json:"grade"`
+	Semester        string     `gorm:"size:10;default:'上学期'" json:"semester"`
+	TextbookVersion string     `gorm:"size:100" json:"textbook_version,omitempty"`
+	ChapterUnit     string     `gorm:"size:200" json:"chapter_unit,omitempty"`
+	KnowledgePoints string     `gorm:"type:jsonb;not null;default:'[]'" json:"knowledge_points"`
+	Type            string     `gorm:"size:20;not null" json:"type"`
+	Difficulty      string     `gorm:"size:5;not null;default:'L2'" json:"difficulty"`
+	Content         string     `gorm:"type:text;not null" json:"content"`
+	Options         string     `gorm:"type:jsonb;default:'[]'" json:"options,omitempty"`
+	Answer          string     `gorm:"type:text" json:"answer,omitempty"`
+	AnswerDetail    string     `gorm:"type:text" json:"answer_detail,omitempty"`
+	Source          string     `gorm:"size:20;not null;default:'ai_generated'" json:"source"`
+	SourcePrompt    string     `gorm:"type:text" json:"source_prompt,omitempty"`
+	IsPublic        bool       `gorm:"not null;default:false" json:"is_public"`
+	AuditStatus     string     `gorm:"size:20;not null;default:'none'" json:"audit_status"`
+	AuditorID       *uuid.UUID `gorm:"type:uuid" json:"auditor_id,omitempty"`
+	ContributedAt   *time.Time `json:"contributed_at,omitempty"`
+	UsageCount      int        `gorm:"not null;default:0" json:"usage_count"`
+	AvgRating       float64    `gorm:"type:decimal(3,2);not null;default:0" json:"avg_rating"`
+	RatingCount     int        `gorm:"not null;default:0" json:"rating_count"`
+	CorrectRate     *float64   `gorm:"type:decimal(5,2)" json:"correct_rate,omitempty"`
+	AutoTags        string     `gorm:"type:jsonb;not null;default:'[]'" json:"auto_tags"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	// 关联
+	Teacher *User `gorm:"foreignKey:TeacherID" json:"teacher,omitempty"`
+}
+
+func (Question) TableName() string { return "questions" }
+
+// QuestionRating 题目评分
+type QuestionRating struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	QuestionID   uuid.UUID `gorm:"type:uuid;not null;index" json:"question_id"`
+	TeacherID    uuid.UUID `gorm:"type:uuid;not null" json:"teacher_id"`
+	AssignmentID uuid.UUID `gorm:"type:uuid;not null" json:"assignment_id"`
+	Score        int       `gorm:"not null" json:"score"`
+	Tags         string    `gorm:"type:jsonb;not null;default:'[]'" json:"tags"`
+	Comment      string    `gorm:"type:text" json:"comment,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+func (QuestionRating) TableName() string { return "question_ratings" }
+
+// AssignmentQuestion 作业-题目关联
+type AssignmentQuestion struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	AssignmentID uuid.UUID `gorm:"type:uuid;not null;index" json:"assignment_id"`
+	QuestionID   uuid.UUID `gorm:"type:uuid;not null;index" json:"question_id"`
+	SortOrder    int       `gorm:"not null;default:0" json:"sort_order"`
+}
+
+func (AssignmentQuestion) TableName() string { return "assignment_questions" }

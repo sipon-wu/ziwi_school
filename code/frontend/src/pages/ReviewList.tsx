@@ -33,7 +33,7 @@ export default function ReviewList() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: '待我评审', value: '2', icon: Clock, color: 'text-orange-600 bg-orange-50' },
           { label: '我已提交', value: '1', icon: FileSearch, color: 'text-blue-600 bg-blue-50' },

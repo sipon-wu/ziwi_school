@@ -31,13 +31,13 @@ export default function DashboardHome() {
   return (
     <>
       {/* 欢迎横幅 */}
-      <div className="bg-gradient-to-br from-[#1A3A6B] via-[#2B5DA8] to-[#1E3A5F] rounded-xl px-6 py-5 mb-5 text-white">
-        <h2 className="text-base font-semibold mb-1">下午好，张老师 👋</h2>
-        <p className="text-[13px] text-white/80">今天还有 12 份作业待批阅，3 位家长未签字</p>
+      <div className="bg-gradient-to-br from-[#1A3A6B] via-[#2B5DA8] to-[#1E3A5F] rounded-xl px-4 lg:px-6 py-4 lg:py-5 mb-5 text-white">
+        <h2 className="text-sm lg:text-base font-semibold mb-1">下午好，张老师 👋</h2>
+        <p className="text-[12px] lg:text-[13px] text-white/80">今天还有 12 份作业待批阅，3 位家长未签字</p>
       </div>
 
       {/* 三张统计卡片 */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4 mb-5">
         <div onClick={() => navigate('/dashboard/grading')} className="bg-white rounded-xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[13px] text-gray-500">待批阅作业</span>
@@ -73,8 +73,8 @@ export default function DashboardHome() {
       </div>
 
       {/* 快捷入口 + 最近教案 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+        <div className="bg-white rounded-xl p-4 lg:p-5">
           <h3 className="text-[14px] font-semibold text-gray-800 mb-4">快捷入口</h3>
           <div className="space-y-2">
             <button onClick={() => navigate('/dashboard/lesson-plans/new')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-brand-light text-brand text-[13px] font-medium hover:bg-brand/10 transition-colors">
@@ -98,7 +98,7 @@ export default function DashboardHome() {
           </div>
         </div>
 
-        <div className="col-span-2 bg-white rounded-xl p-5">
+        <div className="lg:col-span-2 bg-white rounded-xl p-4 lg:p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[14px] font-semibold text-gray-800">最近教案</h3>
             <button onClick={() => navigate('/dashboard/lesson-plans')} className="text-[13px] text-brand hover:text-brand-hover">查看全部 →</button>

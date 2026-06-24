@@ -62,7 +62,7 @@ export default function LessonPlanList() {
   return (
     <div className="space-y-6">
       {/* 页面标题 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">教案备课</h1>
           <p className="text-sm text-gray-500 mt-1">管理您的所有教案，支持 AI 生成和手动编辑</p>
@@ -77,8 +77,8 @@ export default function LessonPlanList() {
       </div>
 
       {/* 搜索和筛选 */}
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200">
-        <div className="flex-1 relative">
+      <div className="flex flex-wrap items-center gap-2 lg:gap-3 bg-white p-3 rounded-xl border border-gray-200">
+        <div className="flex-1 relative min-w-[140px]">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             id="plan-search"

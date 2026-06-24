@@ -122,10 +122,10 @@ export default function LessonPlanEditor() {
   }
 
   return (<div className="space-y-6 max-w-5xl">
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
       <div className="flex items-center gap-3">
         <button onClick={()=>navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} className="text-gray-500"/></button>
-        <div><h1 className="text-xl font-bold text-gray-900">{isEditing ? '编辑教案' : '新建教案'}</h1><p className="text-sm text-gray-500 mt-0.5">AI 辅助生成结构化教案，支持课标自动对齐</p></div>
+        <div><h1 className="text-lg lg:text-xl font-bold text-gray-900">{isEditing ? '编辑教案' : '新建教案'}</h1><p className="text-xs lg:text-sm text-gray-500 mt-0.5">AI 辅助生成结构化教案，支持课标自动对齐</p></div>
       </div>
       <div className="flex items-center gap-2">
         <button onClick={handleSaveDraft} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"><Save size={16}/>保存草稿</button>
@@ -154,11 +154,11 @@ export default function LessonPlanEditor() {
     ) : (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">教案基本信息</h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-4">
           <div><label htmlFor="plan-subject" className="block text-sm font-medium text-gray-700 mb-1.5">学科</label><select id="plan-subject" value={subject} onChange={e=>{ const v = e.target.value as '语文'|'数学'|'英语'; setSubject(v); if (!isEditing) teaching.setSubject(v) }} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"><option>语文</option><option>数学</option><option>英语</option></select></div>
           <div><label htmlFor="plan-grade" className="block text-sm font-medium text-gray-700 mb-1.5">年级</label><select id="plan-grade" value={grade} onChange={e=>{ const v = e.target.value; setGrade(v); if (!isEditing) { const idx = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].indexOf(v); if (idx >= 0) teaching.setGrade(idx + 1) } }} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20">{['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].map(g=><option key={g}>{g}</option>)}</select></div>
           <div><label htmlFor="plan-period" className="block text-sm font-medium text-gray-700 mb-1.5">课时</label><select id="plan-period" value={period} onChange={e=>setPeriod(Number(e.target.value))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20">{[1,2,3,4,5].map(n=><option key={n} value={n}>第{n}课时</option>)}</select></div>
-          <div className="col-span-2"><label htmlFor="plan-title" className="block text-sm font-medium text-gray-700 mb-1.5">课题名称 <span className="text-red-500">*</span></label><input id="plan-title" type="text" value={lessonTitle} onChange={e=>setLessonTitle(e.target.value)} placeholder="例如：《观潮》第一课时" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"/></div>
+          <div className="md:col-span-2"><label htmlFor="plan-title" className="block text-sm font-medium text-gray-700 mb-1.5">课题名称 <span className="text-red-500">*</span></label><input id="plan-title" type="text" value={lessonTitle} onChange={e=>setLessonTitle(e.target.value)} placeholder="例如：《观潮》第一课时" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"/></div>
           <div><label htmlFor="plan-unit" className="block text-sm font-medium text-gray-700 mb-1.5">教材单元</label><input id="plan-unit" type="text" value={textbookUnit} onChange={e=>setTextbookUnit(e.target.value)} placeholder="部编版四上第一单元" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"/></div>
           <div><label htmlFor="plan-template" className="block text-sm font-medium text-gray-700 mb-1.5">教案模板</label><select id="plan-template" value={template} onChange={e=>setTemplate(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1A3A6B]/20"><option value="core_literacy">核心素养模板</option><option value="3d_objective">三维目标模板</option><option value="unit_teaching">单元教学模板</option></select></div>
         </div>
@@ -173,7 +173,14 @@ export default function LessonPlanEditor() {
                 {picker.selectedIds.length > 0 && (
                   <span className="text-[11px] text-gray-400">已选 {picker.selectedIds.length} 个</span>
                 )}
-                <button onClick={() => picker.setShowGraph(!picker.showGraph)} className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-brand bg-brand/5 rounded-lg border border-brand/10 hover:bg-brand/10">
+                <button onClick={() => picker.setShowGraph(!picker.showGraph)}
+                  disabled={!teaching.knowledgeGraphEnabled}
+                  title={teaching.knowledgeGraphEnabled ? (picker.showGraph ? '收起图谱' : '展开知识图谱') : '学校未开启知识图谱功能'}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-[12px] rounded-lg border transition-colors ${
+                    teaching.knowledgeGraphEnabled
+                      ? 'text-brand bg-brand/5 border-brand/10 hover:bg-brand/10'
+                      : 'text-gray-300 bg-gray-50 border-gray-200 cursor-not-allowed'
+                  }`}>
                   <BookOpen size={13}/>{picker.showGraph ? '收起图谱' : '展开知识图谱'}
                 </button>
               </div>
@@ -236,7 +243,7 @@ export default function LessonPlanEditor() {
     {generating&&<div className="bg-white rounded-xl border border-gray-200 p-8 text-center"><div className="w-12 h-12 mx-auto mb-4 border-4 border-[#1A3A6B]/20 border-t-[#1A3A6B] rounded-full animate-spin"/><p className="text-sm text-gray-500">小微正在生成教案...</p><p className="text-xs text-gray-400 mt-1">正在检索课标要求、匹配知识点</p></div>}
 
     {/* 知识图谱全屏弹窗 */}
-    {picker.showGraphModal && (
+    {picker.showGraphModal && teaching.knowledgeGraphEnabled && (
       <KnowledgeGraph
         data={picker.knowledgeData}
         subject={teaching.subject}

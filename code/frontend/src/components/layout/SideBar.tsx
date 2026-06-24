@@ -15,6 +15,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: '工作台' },
   { to: '/dashboard/lesson-plans', icon: FileText, label: '教案备课' },
   { to: '/dashboard/exercises', icon: BookOpen, label: '出题组卷' },
+  { to: '/dashboard/question-bank', icon: BookOpen, label: '题库管理' },
   { to: '/dashboard/compositions', icon: PenLine, label: '习作指导' },
   { to: '/dashboard/grading', icon: CheckSquare, label: '批阅管理' },
   { to: '/dashboard/reviews', icon: FileSearch, label: '教案互审' },

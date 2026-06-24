@@ -31,7 +31,7 @@ export default function ClassAnalytics() {
       </div>
 
       {/* 概览卡片 */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: '班级平均分', value: '85分', sub: '较上次↑2分', icon: TrendingUp, color: 'bg-blue-50 text-blue-600' },
           { label: '作业完成率', value: '92%', sub: '38/40人按时提交', icon: FileCheck, color: 'bg-green-50 text-green-600' },
@@ -49,7 +49,7 @@ export default function ClassAnalytics() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 知识点掌握度 */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">

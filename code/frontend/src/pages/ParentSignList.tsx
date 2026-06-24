@@ -33,7 +33,7 @@ export default function ParentSignList() {
       </div>
 
       {/* 统计 */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-1.5 rounded-lg bg-green-50"><CheckCircle size={16} className="text-green-600" /></div>

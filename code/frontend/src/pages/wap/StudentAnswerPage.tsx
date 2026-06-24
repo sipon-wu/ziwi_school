@@ -38,7 +38,7 @@ export default function StudentAnswerPage() {
   const isWritingGame = id === '3'
 
   if (isWritingGame && mode !== 'submit') {
-    return <div className="min-h-screen bg-[#F5F5F5] px-4 py-4">
+    return <div className="bg-[#F5F5F5] px-4 py-4">
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4">
           <Play size={16} className="text-green-500"/>
@@ -88,7 +88,7 @@ export default function StudentAnswerPage() {
 
   // 作文模式
   if (mode === 'camera' || mode === 'submit') {
-    return <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center p-6">
+    return <div className="bg-[#F5F5F5] flex items-center justify-center p-6">
       {mode === 'submit' ? (
         <div className="text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -96,7 +96,7 @@ export default function StudentAnswerPage() {
           </div>
           <h2 className="text-lg font-bold text-gray-900 mb-1">提交成功</h2>
           <p className="text-sm text-gray-500 mb-4">老师正在批阅，请耐心等待</p>
-          <button onClick={()=>nav('/m/student')} className="px-8 py-2.5 bg-[#1A3A6B] text-white rounded-xl text-sm">返回作业列表</button>
+          <button onClick={()=>nav('/student')} className="px-8 py-2.5 bg-[#1A3A6B] text-white rounded-xl text-sm">返回作业列表</button>
         </div>
       ) : (
         <div className="text-center w-full">
@@ -118,7 +118,7 @@ export default function StudentAnswerPage() {
   const progress = ((currentQ + (answers[q.id] ? 1 : 0)) / EXERCISE_QUESTIONS.length) * 100
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] pb-24">
+    <div className="bg-[#F5F5F5] pb-24">
       <div className="sticky top-0 bg-white border-b border-gray-100 z-40 px-4 py-2">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs text-gray-400">{`${currentQ+1}/${EXERCISE_QUESTIONS.length}题`}</span>

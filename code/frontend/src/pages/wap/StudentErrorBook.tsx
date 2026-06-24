@@ -25,7 +25,7 @@ export default function StudentErrorBook() {
   if(selected) {
     const e = ERRORS.find(x=>x.id===selected)!
     return (
-      <div className="min-h-screen bg-[#F5F5F5] p-4">
+      <div className="bg-[#F5F5F5] p-4">
         <button onClick={()=>setSelected(null)} className="mb-4 flex items-center gap-1 text-xs text-[#1A3A6B]">← 返回</button>
         <div className="bg-white rounded-2xl p-5 border border-red-100 shadow-sm">
           <span className="text-[10px] px-2 py-0.5 bg-red-50 text-red-500 rounded-full mb-2 inline-block">复习模式</span>
@@ -52,7 +52,7 @@ export default function StudentErrorBook() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
+    <div className="bg-[#F5F5F5]">
       {/* 顶部统计 */}
       <div className="bg-white px-4 py-4 border-b border-gray-100">
         <div className="flex items-center gap-4">
