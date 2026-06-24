@@ -60,7 +60,7 @@ export default function GradingDetail() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
         <div className="flex items-center gap-3">
           <button onClick={()=>nav(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} className="text-gray-500"/></button>

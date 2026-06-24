@@ -1,32 +1,75 @@
 import { useEffect } from 'react'
 import { useLocation, Link, useNavigate } from 'react-router-dom'
 import { clearToken } from '@/lib/api'
-import { X, LogOut, LayoutDashboard, FileText, BookOpen, PenLine, CheckSquare, BarChart3, UserCheck, FileSearch, TrendingUp } from 'lucide-react'
+import { X, LogOut, ChevronDown } from 'lucide-react'
 import { useTeaching } from '@/lib/TeachingContext'
+import { useNavigation } from '@/hooks/useNavigation'
+import type { NavGroup } from '@/hooks/useNavigation'
 
 interface Props {
   open: boolean
   onClose: () => void
 }
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: '工作台' },
-  { to: '/dashboard/lesson-plans', icon: FileText, label: '教案备课' },
-  { to: '/dashboard/exercises', icon: BookOpen, label: '出题组卷' },
-  { to: '/dashboard/question-bank', icon: BookOpen, label: '题库管理' },
-  { to: '/dashboard/compositions', icon: PenLine, label: '习作指导' },
-  { to: '/dashboard/grading', icon: CheckSquare, label: '批阅管理' },
-  { to: '/dashboard/reviews', icon: FileSearch, label: '教案互审' },
-  { to: '/dashboard/principal', icon: TrendingUp, label: '校长仪表盘' },
-  { to: '/dashboard/analytics', icon: BarChart3, label: '班级学情' },
-  { to: '/dashboard/parent-sign', icon: UserCheck, label: '家长签字' },
-]
+/** 单组手风琴（移动端） */
+function MobileNavGroup({
+  group,
+  pathname,
+  expanded,
+  onToggle,
+}: {
+  group: NavGroup
+  pathname: string
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const { icon: GroupIcon } = group
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 h-10 text-[11px] uppercase tracking-wider text-white/50 px-4"
+      >
+        <GroupIcon className="w-4 h-4 shrink-0" />
+        <span className="flex-1 text-left">{group.label}</span>
+        <ChevronDown
+          size={12}
+          className={`shrink-0 transition-transform duration-200 ${expanded ? 'rotate-0' : '-rotate-90'}`}
+        />
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-out ${
+          expanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {group.items.map(({ to, icon: Icon, label }) => {
+          const active = pathname === to || (to !== '/dashboard' && pathname.startsWith(to))
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`flex items-center gap-3 h-11 text-[13px] pl-8 pr-4 transition-all duration-150 ${
+                active
+                  ? 'bg-brand/30 text-white border-l-[3px] border-brand'
+                  : 'text-white/70 hover:bg-white/10 border-l-[3px] border-transparent'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span>{label}</span>
+            </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export default function HamburgerSheet({ open, onClose }: Props) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const handleLogout = () => { clearToken(); navigate('/login', { replace: true }) }
   const teaching = useTeaching()
+  const { groups, workbench, settings, isExpanded, toggleGroup } = useNavigation()
 
   // 路由变化自动关闭
   useEffect(() => {
@@ -78,23 +121,46 @@ export default function HamburgerSheet({ open, onClose }: Props) {
 
         {/* 导航菜单 */}
         <nav className="flex-1 py-2 overflow-y-auto">
-          {navItems.map(({ to, icon: Icon, label }) => {
-            const active = pathname === to || (to !== '/dashboard' && pathname.startsWith(to))
-            return (
-              <Link
-                key={to}
-                to={to}
-                className={`flex items-center gap-3 h-11 text-[13px] px-4 transition-all duration-150 ${
-                  active
-                    ? 'bg-brand/30 text-white border-l-[3px] border-brand'
-                    : 'text-white/70 hover:bg-white/10 border-l-[3px] border-transparent'
-                }`}
-              >
-                <Icon className="w-5 h-5 shrink-0" />
-                <span>{label}</span>
-              </Link>
-            )
-          })}
+          {/* 工作台 */}
+          <Link
+            to={workbench.to}
+            className={`flex items-center gap-3 h-11 text-[13px] font-medium px-4 transition-all duration-150 ${
+              pathname === '/dashboard'
+                ? 'bg-brand/30 text-white border-l-[3px] border-brand'
+                : 'text-white/80 hover:bg-white/10 border-l-[3px] border-transparent'
+            }`}
+          >
+            <workbench.icon className="w-5 h-5 shrink-0" />
+            <span>{workbench.label}</span>
+          </Link>
+
+          <div className="mx-4 my-1.5 border-t border-white/5" />
+
+          {/* 四组手风琴 */}
+          {groups.map(group => (
+            <MobileNavGroup
+              key={group.id}
+              group={group}
+              pathname={pathname}
+              expanded={isExpanded(group.id)}
+              onToggle={() => toggleGroup(group.id)}
+            />
+          ))}
+
+          <div className="mx-4 my-1.5 border-t border-white/5" />
+
+          {/* 个人设置 */}
+          <Link
+            to={settings.to}
+            className={`flex items-center gap-3 h-11 text-[13px] px-4 transition-all duration-150 ${
+              pathname === '/dashboard/settings'
+                ? 'bg-brand/30 text-white border-l-[3px] border-brand'
+                : 'text-white/50 hover:bg-white/10 border-l-[3px] border-transparent'
+            }`}
+          >
+            <settings.icon className="w-4 h-4 shrink-0" />
+            <span>{settings.label}</span>
+          </Link>
         </nav>
 
         {/* 底部用户信息 */}

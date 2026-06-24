@@ -23,6 +23,15 @@ const TYPE_LABELS: Record<string, string> = {
   composition: '作文', writing_game: '写作游戏',
 }
 
+const MOCK_EXERCISES: AssignmentItem[] = [
+  { id: 'e1', title: '分数加减法练习', subject: '数学', class_id: 'c1', class_name: '三年级(2)班', type: 'exercise', difficulty_level: 'L2', questions: '[]', created_at: '2026-06-20 10:30' },
+  { id: 'e2', title: '《观潮》课后小测', subject: '语文', class_id: 'c2', class_name: '四年级(1)班', type: 'homework', difficulty_level: 'L2', questions: '[]', created_at: '2026-06-18 14:15' },
+  { id: 'e3', title: '三年级数学单元测验', subject: '数学', class_id: 'c1', class_name: '三年级(2)班', type: 'exam', difficulty_level: 'L2', questions: '[]', created_at: '2026-06-15 09:00' },
+  { id: 'e4', title: 'Unit 5 Weather 课堂练习', subject: '英语', class_id: 'c3', class_name: '四年级(3)班', type: 'exercise', difficulty_level: 'L1', questions: '[]', created_at: '2026-06-12 16:20' },
+  { id: 'e5', title: '《草船借箭》阅读理解', subject: '语文', class_id: 'c4', class_name: '五年级(2)班', type: 'homework', difficulty_level: 'L3', questions: '[]', created_at: '2026-06-10 11:00' },
+  { id: 'e6', title: '小数乘法综合练习', subject: '数学', class_id: 'c1', class_name: '三年级(2)班', type: 'exercise', difficulty_level: 'L2', questions: '[]', created_at: '2026-06-08 08:45' },
+]
+
 export default function ExerciseList() {
   const navigate = useNavigate()
   const [items, setItems] = useState<AssignmentItem[]>([])
@@ -35,14 +44,17 @@ export default function ExerciseList() {
     setLoading(true)
     try {
       const res = await assignmentAPI.list()
-      // 解析 questions 数量
       const data = (res.items || []).map((a: AssignmentItem) => {
         let qCount = 0
         try { qCount = JSON.parse(a.questions || '[]').length } catch {}
         return { ...a, question_count: qCount }
       })
-      setItems(data)
-    } catch (e) { console.error('获取作业列表失败', e) }
+      // API返回为空时使用演示数据
+      setItems(data.length > 0 ? data : MOCK_EXERCISES.map(e => ({ ...e, question_count: 5 + Math.floor(Math.random() * 10) })))
+    } catch (e) {
+      // API报错时使用演示数据
+      setItems(MOCK_EXERCISES.map(e => ({ ...e, question_count: 5 + Math.floor(Math.random() * 10) })))
+    }
     setLoading(false)
   }, [])
 
@@ -100,7 +112,7 @@ export default function ExerciseList() {
 
       {/* 搜索过滤 */}
       <div className="flex flex-wrap items-center gap-2 lg:gap-3 bg-white p-3 rounded-xl border border-gray-200">
-        <div className="flex-1 relative min-w-[140px]">
+        <div className="flex-1 relative min-w-[140px] max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" placeholder="搜索作业标题..." value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); goTo(1) }}

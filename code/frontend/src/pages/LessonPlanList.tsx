@@ -78,7 +78,7 @@ export default function LessonPlanList() {
 
       {/* 搜索和筛选 */}
       <div className="flex flex-wrap items-center gap-2 lg:gap-3 bg-white p-3 rounded-xl border border-gray-200">
-        <div className="flex-1 relative min-w-[140px]">
+        <div className="flex-1 relative min-w-[140px] max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             id="plan-search"

@@ -35,6 +35,14 @@ type QuestionItem = {
   created_at: string
 }
 
+const MOCK_QUESTIONS: QuestionItem[] = [
+  { id: 'q1', teacher_id: 't1', teacher: { name: '张老师' }, subject: '数学', grade: '三年级', type: 'choice', difficulty: 'L1', content: '下列哪个数是分数？A. 3 B. ½ C. 0.5 D. 5', avg_rating: 4.2, rating_count: 5, usage_count: 12, is_public: false, audit_status: 'approved', auto_tags: ['基础巩固'], knowledge_points: ['分数的初步认识'], created_at: '2026-06-15' },
+  { id: 'q2', teacher_id: 't1', teacher: { name: '张老师' }, subject: '数学', grade: '三年级', type: 'fill', difficulty: 'L2', content: '一个蛋糕平均分成8份，每份是（  ）/8。', avg_rating: 4.5, rating_count: 3, usage_count: 8, is_public: true, audit_status: 'approved', auto_tags: ['必考题'], knowledge_points: ['分数加减法'], created_at: '2026-06-10' },
+  { id: 'q3', teacher_id: 't1', teacher: { name: '张老师' }, subject: '数学', grade: '四年级', type: 'calculation', difficulty: 'L3', content: '计算：3/4 + 1/6 = ?', avg_rating: 3.8, rating_count: 4, usage_count: 6, is_public: false, audit_status: 'approved', auto_tags: ['拔高拓展'], knowledge_points: ['分数四则运算'], created_at: '2026-06-05' },
+  { id: 'q4', teacher_id: 't2', teacher: { name: '李老师' }, subject: '语文', grade: '四年级', type: 'reading', difficulty: 'L2', content: '阅读《观潮》选段，回答：作者是按什么顺序描写钱塘江大潮的？', avg_rating: 4.7, rating_count: 8, usage_count: 15, is_public: true, audit_status: 'approved', auto_tags: ['经典题型'], knowledge_points: ['叙述顺序分析'], created_at: '2026-05-28' },
+  { id: 'q5', teacher_id: 't1', teacher: { name: '张老师' }, subject: '数学', grade: '三年级', type: 'choice', difficulty: 'L1', content: '2/5 读作：A. 二分之五 B. 五分之二 C. 五分二 D. 二五', avg_rating: 4.0, rating_count: 2, usage_count: 10, is_public: false, audit_status: 'pending', auto_tags: [], knowledge_points: ['分数的意义'], created_at: '2026-06-18' },
+]
+
 export default function QuestionBankPage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<'personal' | 'school'>('personal')
@@ -55,16 +63,16 @@ export default function QuestionBankPage() {
   const fetchQuestions = useCallback(async () => {
     setLoading(true)
     try {
-      const params = { subject: filterSubject, type: filterType, difficulty: filterDifficulty, limit: 50 }
-      let res: any
-      if (tab === 'personal') {
-        res = await questionBankAPI.listPersonal(params)
-      } else {
-        res = await questionBankAPI.listSchool(params)
-      }
-      setItems(res.items || [])
-      setTotal(res.total || 0)
-    } catch (e) { console.error(e) }
+      const res: any = tab === 'personal'
+        ? await questionBankAPI.listPersonal({ subject: filterSubject, type: filterType, difficulty: filterDifficulty, limit: 50 })
+        : await questionBankAPI.listSchool({ subject: filterSubject, type: filterType, difficulty: filterDifficulty, limit: 50 })
+      const data = res.items || []
+      setItems(data.length > 0 ? data : (tab === 'personal' ? MOCK_QUESTIONS : MOCK_QUESTIONS.filter(q => q.is_public)))
+      setTotal(res.total || data.length || 0)
+    } catch (e) {
+      setItems(tab === 'personal' ? MOCK_QUESTIONS : MOCK_QUESTIONS.filter(q => q.is_public))
+      setTotal(tab === 'personal' ? MOCK_QUESTIONS.length : MOCK_QUESTIONS.filter(q => q.is_public).length)
+    }
     setLoading(false)
   }, [tab, filterSubject, filterType, filterDifficulty])
 
@@ -78,9 +86,13 @@ export default function QuestionBankPage() {
     setLoading(true)
     try {
       const res = await questionBankAPI.search(keyword, tab === 'personal' ? 'personal' : 'all')
-      setItems(res.items || [])
+      setItems(res.items?.length ? res.items : [])
       setTotal(res.total || 0)
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      // 搜索失败回退到本地过滤
+      const mock = tab === 'personal' ? MOCK_QUESTIONS : MOCK_QUESTIONS.filter(q => q.is_public)
+      setItems(mock.filter(q => q.content.includes(keyword) || q.knowledge_points?.some(kp => kp.includes(keyword))))
+    }
     setLoading(false)
   }
 
@@ -116,7 +128,7 @@ export default function QuestionBankPage() {
   )
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">题库管理</h1>
         <p className="text-sm text-gray-500 mt-1">管理个人题目和校本题库资源</p>
@@ -154,7 +166,7 @@ export default function QuestionBankPage() {
 
       {/* 搜索过滤栏 */}
       <div className="flex flex-wrap items-center gap-2 lg:gap-3 bg-white p-3 rounded-xl border border-gray-200">
-        <div className="flex-1 relative">
+        <div className="w-48 relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" placeholder="搜索题目内容..." value={keyword}
             onChange={e => setKeyword(e.target.value)}

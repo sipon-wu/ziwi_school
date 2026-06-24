@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Maximize2, Target } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Edit3, Check } from 'lucide-react'
 import { aiAPI, lessonPlanAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
-import KnowledgeGraph from '../components/KnowledgeGraph'
+import AiPreviewBadge from '../components/AiPreviewBadge'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
+import { useKGContext } from '../lib/KnowledgeGraphContext'
 
 export default function LessonPlanEditor() {
   const navigate = useNavigate()
@@ -15,6 +16,13 @@ export default function LessonPlanEditor() {
 
   // 共享知识点选取器
   const picker = useKnowledgePicker({ autoSelect: true })
+  const { setPicker: setKGPicker } = useKGContext()
+
+  // 注册 picker 到 KnowledgePanel
+  useEffect(() => {
+    setKGPicker(picker as any)
+    return () => setKGPicker(null)
+  }, [picker])
 
   // 已保存教案的知识节点 ID（编辑模式回显）
   const [savedKnowledgeIds, setSavedKnowledgeIds] = useState<string[]>([])
@@ -31,6 +39,9 @@ export default function LessonPlanEditor() {
   const [saving, setSaving] = useState(false)
   const [curriculum, setCurriculum] = useState<any[]>([])
   const [modelVersion, setModelVersion] = useState('')
+  // AI 预览态
+  const [aiPreview, setAiPreview] = useState(false)
+  const [aiConfirmed, setAiConfirmed] = useState(false)
   const [genTime, setGenTime] = useState(0)
   const [loadingExisting, setLoadingExisting] = useState(false)
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
@@ -79,25 +90,15 @@ export default function LessonPlanEditor() {
     }
     setGenerating(true)
     try {
-      const knowledgeNodeIds = JSON.stringify(picker.selectedIds)
       const res = await aiAPI.generateLessonPlan({
         subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period, format_template:template,
         selected_knowledge_ids: picker.selectedIds,
       })
+      // 仅设置预览内容，不自动保存（等用户确认后手动保存）
       setContent(res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
-      if (!planId) {
-        const saved = await lessonPlanAPI.create({
-          subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period,
-          content:res.content, format_template:template,
-          curriculum_alignments:JSON.stringify(res.curriculum_alignments||[]),
-          knowledge_node_ids: knowledgeNodeIds,
-          ai_generated:true, ai_model_version:res.model||'qwen-plus', generation_time_ms:res.generation_time_ms,
-        })
-        setPlanId(saved.id)
-        setSavedKnowledgeIds(picker.selectedIds)
-      } else {
-        await lessonPlanAPI.update(planId, { content: res.content, knowledge_node_ids: knowledgeNodeIds })
-      }
+      setPlanId(null) // 确保走新建流程，不误覆盖已有教案
+      setAiPreview(true)
+      setAiConfirmed(false)
     } catch(e:any) { alert('AI 生成失败: '+(e.message||'未知错误')) }
     setGenerating(false)
   }
@@ -113,15 +114,34 @@ export default function LessonPlanEditor() {
   }
 
   const handleSaveDraft = async () => {
-    if(!planId)return
-    try { await lessonPlanAPI.update(planId, { content, knowledge_node_ids: JSON.stringify(currentKnowledgeIds) }) } catch {}
+    if (!content) return
+    setSaving(true)
+    try {
+      const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
+      const knowledgeNodeIds = JSON.stringify(kIds)
+      if (!planId) {
+        // 首次保存：创建教案
+        const saved = await lessonPlanAPI.create({
+          subject, grade, lesson_title: lessonTitle, textbook_unit: textbookUnit, period,
+          content, format_template: template,
+          curriculum_alignments: JSON.stringify(curriculum),
+          knowledge_node_ids: knowledgeNodeIds,
+          ai_generated: true, ai_model_version: modelVersion || 'qwen-plus', generation_time_ms: genTime,
+        })
+        setPlanId(saved.id)
+        setSavedKnowledgeIds(kIds)
+      } else {
+        await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds })
+      }
+    } catch (e: any) { alert('保存失败: ' + (e.message || '网络错误')) }
+    setSaving(false)
   }
 
   if (loadingExisting) {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-[#1A3A6B]/20 border-t-[#1A3A6B] rounded-full animate-spin" /></div>
   }
 
-  return (<div className="space-y-6 max-w-5xl">
+  return (<div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
       <div className="flex items-center gap-3">
         <button onClick={()=>navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} className="text-gray-500"/></button>
@@ -135,22 +155,49 @@ export default function LessonPlanEditor() {
 
     {/* 已有内容时显示编辑区（编辑模式跳过基本信息表单） */}
     {content ? (
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
-          <div className="flex items-center gap-3"><BookOpen size={18} className="text-[#1A3A6B]"/><span className="font-medium text-gray-900">{lessonTitle}</span><span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">{modelVersion ? 'AI 生成' : '手动录入'}</span></div>
-          <div className="flex items-center gap-2 text-xs text-gray-400">{curriculum.length > 0 && <span>课标对齐: {curriculum.filter((a:any)=>a.aligned).length}/{curriculum.length} 项</span>}</div>
-        </div>
-        <div className="p-6"><textarea value={content} onChange={e=>setContent(e.target.value)} className="w-full min-h-[400px] text-sm p-0 border-0 focus:outline-none resize-y font-mono text-gray-800" style={{lineHeight:'1.8'}}/></div>
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-between">
-          <div className="text-xs text-gray-400">{genTime > 0 ? `生成耗时: ${genTime}ms | 模型: ${modelVersion||'qwen-plus'}` : ''}</div>
-          <div className="flex items-center gap-2">
-            {/* 教案→出题联动 */}
-            <button onClick={() => navigate('/dashboard/exercise-generator', { state: { preSelectedNodes: currentKnowledgeIds } })} className="px-4 py-2 text-sm text-brand border border-brand/30 rounded-lg hover:bg-brand/5"><Send size={14} className="inline mr-1" />基于此教案出题</button>
-            <button onClick={handleGenerate} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-white">重新生成</button>
-            <button onClick={() => setShowFinalizeConfirm(true)} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-sm bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm disabled:opacity-50"><Send size={15}/>{saving?'定稿中...':'定稿并保存'}</button>
+      <AiPreviewBadge
+        preview={aiPreview && !aiConfirmed}
+        confirmed={aiConfirmed}
+        onConfirm={() => setAiConfirmed(true)}
+        onEdit={() => setAiConfirmed(true)}
+        confirmLabel="确认教案"
+        className="mb-0"
+      >
+        <div className={`bg-white rounded-xl border-0 ${!planId ? '' : ''}`}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
+            <div className="flex items-center gap-3">
+              <BookOpen size={18} className="text-[#1A3A6B]"/>
+              <span className="font-medium text-gray-900">{lessonTitle}</span>
+              {aiPreview && !aiConfirmed ? (
+                <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium flex items-center gap-1">
+                  <Sparkles size={10} />AI 预览
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">{modelVersion ? 'AI 生成' : '手动录入'}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-400">{curriculum.length > 0 && <span>课标对齐: {curriculum.filter((a:any)=>a.aligned).length}/{curriculum.length} 项</span>}</div>
+          </div>
+          <div className="p-6">
+            <textarea value={content} onChange={e=>setContent(e.target.value)}
+              className="w-full min-h-[400px] text-sm p-0 border-0 focus:outline-none resize-y font-mono text-gray-800"
+              style={{lineHeight:'1.8'}}
+            />
+          </div>
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-between">
+            <div className="text-xs text-gray-400">{genTime > 0 ? `生成耗时: ${genTime}ms | 模型: ${modelVersion||'qwen-plus'}` : ''}</div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/dashboard/exercises/new', { state: { preSelectedNodes: picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds } })} className="px-4 py-2 text-sm text-brand border border-brand/30 rounded-lg hover:bg-brand/5"><Send size={14} className="inline mr-1" />基于此教案出题</button>
+              <button onClick={handleGenerate} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-white">重新生成</button>
+              {!planId ? (
+                <button onClick={handleSaveDraft} disabled={saving} className="flex items-center gap-2 px-5 py-2 text-sm bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm disabled:opacity-50"><Save size={15}/>{saving ? '保存中...' : '保存草稿'}</button>
+              ) : (
+                <button onClick={() => setShowFinalizeConfirm(true)} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-sm bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm disabled:opacity-50"><Send size={15}/>{saving ? '定稿中...' : '定稿并保存'}</button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </AiPreviewBadge>
     ) : (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">教案基本信息</h2>
@@ -173,51 +220,20 @@ export default function LessonPlanEditor() {
                 {picker.selectedIds.length > 0 && (
                   <span className="text-[11px] text-gray-400">已选 {picker.selectedIds.length} 个</span>
                 )}
-                <button onClick={() => picker.setShowGraph(!picker.showGraph)}
-                  disabled={!teaching.knowledgeGraphEnabled}
-                  title={teaching.knowledgeGraphEnabled ? (picker.showGraph ? '收起图谱' : '展开知识图谱') : '学校未开启知识图谱功能'}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-[12px] rounded-lg border transition-colors ${
-                    teaching.knowledgeGraphEnabled
-                      ? 'text-brand bg-brand/5 border-brand/10 hover:bg-brand/10'
-                      : 'text-gray-300 bg-gray-50 border-gray-200 cursor-not-allowed'
-                  }`}>
-                  <BookOpen size={13}/>{picker.showGraph ? '收起图谱' : '展开知识图谱'}
+                <button
+                  onClick={() => teaching.setKnowledgeGraphEnabled(!teaching.knowledgeGraphEnabled)}
+                  disabled={!teaching.knowledgeGraphEnabled && false} // always clickable
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] rounded-lg border border-brand/10 text-brand bg-brand/5 hover:bg-brand/10 transition-colors"
+                >
+                  <BookOpen size={13}/>
+                  {teaching.knowledgeGraphEnabled ? '关闭图谱面板' : '展开知识图谱'}
                 </button>
               </div>
             </div>
 
-            {picker.showGraph && (
-              <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-100">
-                  <span className="text-xs font-medium text-gray-600">知识点图谱 · {teaching.textbook_math} · {grade}{teaching.semester}学期</span>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => picker.setShowGraphModal(true)} className="flex items-center gap-1 px-2 py-1 text-[11px] text-brand hover:bg-brand/5 rounded-lg" title="独立弹窗"><Maximize2 size={12}/>独立弹窗</button>
-                    <button onClick={() => picker.setShowGraph(false)} className="p-1 hover:bg-gray-200 rounded"><X size={13} className="text-gray-400"/></button>
-                  </div>
-                </div>
-                <KnowledgeGraph
-                  data={picker.knowledgeData}
-                  subject={teaching.subject}
-                  grade={teaching.grade}
-                  semester={teaching.semester}
-                  textbook={teaching.textbook_math}
-                  selectedIds={picker.selectedIds}
-                  onSelect={picker.setSelectedIds}
-                  inline
-                  height={380}
-                  layoutMode={picker.graphLayout as any}
-                  onLayoutChange={picker.setGraphLayout as any}
-                  colorDimension={picker.graphDimension as any}
-                  onDimensionChange={picker.setGraphDimension as any}
-                  diffRange={picker.diffRange}
-                  onDiffRangeChange={picker.setDiffRange as any}
-                />
-              </div>
-            )}
-
             {/* 已选考点预览 */}
             {picker.selectedNodes.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {picker.selectedNodes.map(n => (
                   <span key={n.id} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-brand/5 text-brand rounded-full border border-brand/10">
                     {n.name}
@@ -227,8 +243,8 @@ export default function LessonPlanEditor() {
               </div>
             )}
 
-            {picker.selectedIds.length === 0 && !picker.showGraph && (
-              <p className="text-[12px] text-gray-400">点击"展开知识图谱"选取本课涉及的知识点，AI 将以此为核心生成教案</p>
+            {picker.selectedIds.length === 0 && (
+              <p className="text-[12px] text-gray-400 mb-3">点击"展开知识图谱"在右侧面板选取本课涉及的知识点</p>
             )}
           </div>
 
@@ -241,26 +257,6 @@ export default function LessonPlanEditor() {
     )}
 
     {generating&&<div className="bg-white rounded-xl border border-gray-200 p-8 text-center"><div className="w-12 h-12 mx-auto mb-4 border-4 border-[#1A3A6B]/20 border-t-[#1A3A6B] rounded-full animate-spin"/><p className="text-sm text-gray-500">小微正在生成教案...</p><p className="text-xs text-gray-400 mt-1">正在检索课标要求、匹配知识点</p></div>}
-
-    {/* 知识图谱全屏弹窗 */}
-    {picker.showGraphModal && teaching.knowledgeGraphEnabled && (
-      <KnowledgeGraph
-        data={picker.knowledgeData}
-        subject={teaching.subject}
-        grade={teaching.grade}
-        semester={teaching.semester}
-        textbook={teaching.textbook_math}
-        selectedIds={picker.selectedIds}
-        onSelect={picker.setSelectedIds}
-        onClose={() => picker.setShowGraphModal(false)}
-        layoutMode={picker.graphLayout as any}
-        onLayoutChange={picker.setGraphLayout as any}
-        colorDimension={picker.graphDimension as any}
-        onDimensionChange={picker.setGraphDimension as any}
-        diffRange={picker.diffRange}
-        onDiffRangeChange={picker.setDiffRange as any}
-      />
-    )}
 
     {/* 定稿确认弹窗 */}
     <ConfirmDialog

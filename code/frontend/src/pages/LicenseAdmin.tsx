@@ -26,7 +26,7 @@ export default function LicenseAdmin() {
   const [quotaLoading, setQuotaLoading] = useState(false)
 
   return (
-    <div className="space-y-6 max-w-7xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">License 管理后台</h1>

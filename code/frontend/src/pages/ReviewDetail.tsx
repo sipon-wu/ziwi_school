@@ -13,7 +13,7 @@ export default function ReviewDetail() {
   const detail = MOCK_DETAIL
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <button onClick={() => nav(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} className="text-gray-500" /></button>
         <div><h1 className="text-xl font-bold text-gray-900">教案评审</h1><p className="text-sm text-gray-500">{detail.plan.title} · {detail.plan.author}</p></div>

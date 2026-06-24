@@ -17,11 +17,15 @@ const ROLES = [
   { id: 'parent', label: '家长视角', desc: '孩子作业情况' },
 ]
 
-// 演示环境引导 (面向快速体验)
+// 演示环境引导 (面向快速体验，7步覆盖完整教学链路)
 const DEMO_GUIDE = [
-  { title: '新建一份AI教案', desc: '进入教案备课页面，输入课题名称，AI 自动生成结构化教案', target: '/dashboard/lesson-plans/new' },
-  { title: '体验AI出题', desc: '进入出题组卷，选择知识点和难度，AI 一键生成练习题', target: '/dashboard/exercises/new' },
-  { title: '查看批阅结果', desc: '进入批阅管理，查看 AI 自动批阅结果，教师可复核调整', target: '/dashboard/grading' },
+  { title: '工作台概览', desc: '进入教学驾驶舱，一览教案、作业、班级数据总览，快速上手', target: '/dashboard' },
+  { title: '探索知识图谱', desc: '查看学科知识体系，按难度/能力/课标多维度切换着色视角', target: '/dashboard/exercises/new?tab=graph' },
+  { title: 'AI生成教案', desc: '输入课题名称，AI 自动生成结构化教案，支持二次编辑调整', target: '/dashboard/lesson-plans/new' },
+  { title: 'AI智能出题', desc: '选择知识点和难度范围，AI 一键生成配套练习题与组卷', target: '/dashboard/exercises/new' },
+  { title: '布置发布作业', desc: '将组好的试卷发布到班级，学生端即时接收并作答', target: '/dashboard/exercises' },
+  { title: 'AI批阅管理', desc: '查看 AI 自动批阅结果，支持教师复核、评分与评语调整', target: '/dashboard/grading' },
+  { title: '学情数据分析', desc: '查看班级成绩分布、知识点掌握度、学生个体分析报表', target: '/dashboard/analytics' },
 ]
 
 // 试用环境引导 (面向实际体验)

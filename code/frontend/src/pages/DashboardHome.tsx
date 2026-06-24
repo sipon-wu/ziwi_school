@@ -14,7 +14,7 @@ const recentPlansFallback = [
 
 const statusColors: Record<string, string> = {
   '已定稿': 'bg-green-50 text-green-600',
-  '草稿': 'bg-orange-50 text-orange-600',
+  '草稿': 'bg-yellow-50 text-yellow-700',
 }
 
 export default function DashboardHome() {

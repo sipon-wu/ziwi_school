@@ -80,8 +80,11 @@ export default function XiaoWeiChat() {
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-  // ── 权限检测 ──
+  // ── 权限检测（仅移动端主动探测，PC端按需请求）──
   useEffect(() => {
+    // PC端不主动请求权限，按钮保持可见（hasMicPerm/hasCameraPerm 保持 null）
+    // 用户点击录音/拍照时由浏览器自然触发权限请求
+    if (!isMobile) return
     if (navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => { stream.getTracks().forEach(t => t.stop()); setHasMicPerm(true) })
@@ -97,7 +100,7 @@ export default function XiaoWeiChat() {
     } else {
       setHasCameraPerm(false)
     }
-  }, [])
+  }, [isMobile])
 
   // 自动滚动
   useEffect(() => {

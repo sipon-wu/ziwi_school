@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Maximize2, Save, Check, AlertTriangle } from 'lucide-react'
-import KnowledgeGraph from '../components/KnowledgeGraph'
+import { ArrowLeft, Sparkles, Send, RefreshCw, X, Target, BookOpen, Save, Check, AlertTriangle, Edit3 } from 'lucide-react'
 import { useTeaching, getRecommendedDefaults } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
+import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { questionBankAPI, assignmentAPI } from '../lib/api'
+import AiPreviewBadge from '../components/AiPreviewBadge'
 
 const PURPOSES = [
   { id: 'classwork', label: '课堂练习', icon: '📝', desc: '当堂巩固', count: [3, 5], difficulty: 'L1', time: '5-8分钟' },
@@ -48,6 +49,13 @@ export default function ExerciseGenerator() {
 
   // 共享知识点选取器
   const picker = useKnowledgePicker({ preSelectedNodes, autoSelect: true })
+  const { setPicker: setKGPicker } = useKGContext()
+
+  // 注册 picker 到 KnowledgePanel
+  useEffect(() => {
+    setKGPicker(picker as any)
+    return () => setKGPicker(null)
+  }, [picker])
 
   // 从 TeachingContext 读取全局配置
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
@@ -57,11 +65,17 @@ export default function ExerciseGenerator() {
   const [difficulty, setDifficulty] = useState('L2')
   const [count, setCount] = useState(10)
   const [purpose, setPurpose] = useState('classwork')
+  const [showPurposeGrid, setShowPurposeGrid] = useState(true)
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['choice', 'fill', 'calculation'])
   const [selectedSchool, setSelectedSchool] = useState('')
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<any[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  // AI 预览态：生成后需教师确认
+  const [aiPreview, setAiPreview] = useState(false)
+  const [confirmedSet, setConfirmedSet] = useState<Set<number>>(new Set())
+  const [editingQuestion, setEditingQuestion] = useState<number|null>(null)
+  const [editContent, setEditContent] = useState('')
   // 保存/发布状态
   const [saving, setSaving] = useState(false)
   const [savedIds, setSavedIds] = useState<string[]>([])
@@ -86,6 +100,7 @@ export default function ExerciseGenerator() {
 
   const handlePurposeChange = (pId: string) => {
     setPurpose(pId)
+    setShowPurposeGrid(false) // 选后收起为摘要条
     const p = PURPOSES.find(x => x.id === pId)
     if (p) { setCount(Math.round((p.count[0] + p.count[1]) / 2)); setDifficulty(p.difficulty.includes('-') ? p.difficulty.split('-')[0] : p.difficulty) }
   }
@@ -114,6 +129,9 @@ export default function ExerciseGenerator() {
       const data = await res.json()
       setQuestions(data.questions || [])
       setTotalCount(data.total_questions || 0)
+      setAiPreview(true)
+      setConfirmedSet(new Set())
+      setEditingQuestion(null)
     } catch (e: any) { alert('出题失败: ' + (e.message || '网络错误')) }
     setGenerating(false)
   }
@@ -194,7 +212,7 @@ export default function ExerciseGenerator() {
   }, [])
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} className="text-gray-500" /></button>
         <div><h1 className="text-xl font-bold text-gray-900">新建出题</h1><p className="text-sm text-gray-500 mt-0.5">{teaching.textbook_math} · {gradeName}{teaching.semester}学期 · {teaching.current_unit_name || '选择单元'}</p></div>
@@ -216,20 +234,38 @@ export default function ExerciseGenerator() {
         </div>
       </div>
 
-      {/* 命题用途 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">命题用途 <span className="text-[11px] text-brand font-normal ml-1">(AI推荐: {PURPOSES.find(p=>p.id===purpose)?.label})</span></h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
-          {PURPOSES.map(p => (
-            <button key={p.id} onClick={() => handlePurposeChange(p.id)}
-              className={`text-left p-3 rounded-lg border-2 transition-all ${purpose === p.id ? 'border-brand bg-brand/5' : 'border-gray-100 hover:border-gray-200'}`}>
-              <div className="text-lg mb-0.5">{p.icon}</div>
-              <div className="text-[13px] font-semibold text-gray-800">{p.label}</div>
-              <div className="text-[11px] text-gray-400">{p.desc} · {p.time}</div>
-              <div className="text-[10px] text-gray-300 mt-0.5">{p.count[0]}-{p.count[1]}题 · {p.difficulty}</div>
+      {/* 命题用途 — 选后收起为摘要条 */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        {showPurposeGrid ? (
+          <div className="p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">命题用途</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3 max-h-[400px] transition-all duration-300">
+              {PURPOSES.map(p => (
+                <button key={p.id} onClick={() => handlePurposeChange(p.id)}
+                  className={`text-left p-3 rounded-lg border-2 transition-all ${purpose === p.id ? 'border-brand bg-brand/5' : 'border-gray-100 hover:border-gray-200'}`}>
+                  <div className="text-lg mb-0.5">{p.icon}</div>
+                  <div className="text-[13px] font-semibold text-gray-800">{p.label}</div>
+                  <div className="text-[11px] text-gray-400">{p.desc} · {p.time}</div>
+                  <div className="text-[10px] text-gray-300 mt-0.5">{p.count[0]}-{p.count[1]}题 · {p.difficulty}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 px-4 h-11 border-l-[3px] border-brand bg-brand/5 rounded-xl">
+            <span className="text-lg">{PURPOSES.find(p=>p.id===purpose)?.icon}</span>
+            <span className="text-[13px] font-semibold text-gray-800">{PURPOSES.find(p=>p.id===purpose)?.label}</span>
+            <span className="text-[11px] text-gray-400">
+              {PURPOSES.find(p=>p.id===purpose)?.count[0]}-{PURPOSES.find(p=>p.id===purpose)?.count[1]}题 · {PURPOSES.find(p=>p.id===purpose)?.difficulty} · {PURPOSES.find(p=>p.id===purpose)?.time}
+            </span>
+            <button
+              onClick={() => setShowPurposeGrid(true)}
+              className="ml-auto text-[11px] text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand/10 transition-colors"
+            >
+              修改
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -264,8 +300,81 @@ export default function ExerciseGenerator() {
           {questions.length>0&&!generating&&(
             <div className="space-y-4">
               <div className="bg-white rounded-xl border border-gray-200">
-                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center justify-between"><span className="font-medium text-gray-900 text-sm">{knowledgePoint||'知识图谱选题'} · {difficulty} · {totalCount}题</span><button onClick={handleGenerate} className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-white"><RefreshCw size={14}/>重新生成</button></div>
-                <div className="p-5 space-y-2.5">{questions.map((q:any,i:number)=>(<div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"><span className="text-sm font-medium text-brand w-6 shrink-0">{i+1}.</span><div className="flex-1"><span className="text-sm text-gray-800">{q.content}</span>{q.type&&<span className="ml-2 text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-400">{q.type==='choice'?'选择':q.type==='fill'?'填空':q.type==='calculation'?'计算':q.type}</span>}</div></div>))}</div>
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center justify-between">
+                  <span className="font-medium text-gray-900 text-sm">{knowledgePoint||'知识图谱选题'} · {difficulty} · {totalCount}题</span>
+                  <button onClick={handleGenerate} className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-white"><RefreshCw size={14}/>重新生成</button>
+                </div>
+                <div className="p-5 space-y-2.5">
+                  {questions.map((q:any, i:number) => {
+                    const isConfirmed = confirmedSet.has(i)
+                    const isEditing = editingQuestion === i
+                    return (
+                      <AiPreviewBadge
+                        key={i}
+                        preview={aiPreview && !isConfirmed}
+                        confirmed={isConfirmed}
+                        onConfirm={() => {
+                          setConfirmedSet(prev => new Set(prev).add(i))
+                        }}
+                        onEdit={() => {
+                          setEditingQuestion(i)
+                          setEditContent(q.content || '')
+                        }}
+                        onCancel={() => {
+                          setQuestions(prev => prev.filter((_: any, idx: number) => idx !== i))
+                        }}
+                      >
+                        <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm font-medium text-brand w-6 shrink-0">{i+1}.</span>
+                          <div className="flex-1">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  value={editContent}
+                                  onChange={e => setEditContent(e.target.value)}
+                                  className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand"
+                                  autoFocus
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      setQuestions(prev => prev.map((q: any, idx: number) =>
+                                        idx === i ? { ...q, content: editContent } : q
+                                      ))
+                                      setEditingQuestion(null)
+                                      setConfirmedSet(prev => new Set(prev).add(i))
+                                    }
+                                    if (e.key === 'Escape') setEditingQuestion(null)
+                                  }}
+                                />
+                                <button
+                                  onClick={() => {
+                                    setQuestions(prev => prev.map((q: any, idx: number) =>
+                                      idx === i ? { ...q, content: editContent } : q
+                                    ))
+                                    setEditingQuestion(null)
+                                    setConfirmedSet(prev => new Set(prev).add(i))
+                                  }}
+                                  className="p-1 text-green-500 hover:bg-green-50 rounded"
+                                >
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={() => setEditingQuestion(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded">
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-800">{q.content}</span>
+                            )}
+                            {q.type && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-400">
+                                {q.type==='choice'?'选择':q.type==='fill'?'填空':q.type==='calculation'?'计算':q.type}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </AiPreviewBadge>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* 操作按钮：保存 / 发布 */}
@@ -353,36 +462,15 @@ export default function ExerciseGenerator() {
             {picker.selectedNodes.length===0?<p className="text-xs text-gray-400">点击下方图谱节点选择出题范围</p>:<div className="space-y-1.5 max-h-[200px] overflow-y-auto">{picker.selectedNodes.map(n=>(<div key={n.id} className="flex items-center justify-between text-xs py-1 px-2 bg-brand/5 rounded"><span className="text-gray-700">{n.name}</span><span className="text-[10px] text-gray-400">{n.difficulty}</span></div>))}</div>}
             {picker.selectedIds.length>0&&<button onClick={handleGenerate} disabled={generating} className="mt-3 w-full flex items-center justify-center gap-1 py-2 text-xs bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"><Send size={12}/>用选中考点出题</button>}
           </div>
-          <button onClick={()=>picker.setShowGraph(!picker.showGraph)}
-            disabled={!teaching.knowledgeGraphEnabled}
-            title={teaching.knowledgeGraphEnabled ? (picker.showGraph?'收起图谱':'展开知识图谱') : '学校未开启知识图谱功能'}
-            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm rounded-xl border transition-colors ${
-              teaching.knowledgeGraphEnabled
-                ? 'text-brand bg-brand/5 border-brand/10 hover:bg-brand/10'
-                : 'text-gray-300 bg-gray-50 border-gray-200 cursor-not-allowed'
-            }`}>
+          <button
+            onClick={() => teaching.setKnowledgeGraphEnabled(!teaching.knowledgeGraphEnabled)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-sm rounded-xl border border-brand/10 text-brand bg-brand/5 hover:bg-brand/10 transition-colors"
+          >
             <span className="flex items-center gap-2"><BookOpen size={14}/>知识图谱</span>
-            <span className="text-[11px] text-gray-400">{picker.showGraph?'收起':'展开'}</span>
+            <span className="text-[11px] text-gray-400">{teaching.knowledgeGraphEnabled ? '已开启' : '点击展开'}</span>
           </button>
         </div>
       </div>
-
-      {picker.showGraph&&(
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-700">知识点图谱 · {teaching.textbook_math} · {gradeName}{teaching.semester}学期</span>
-            <div className="flex items-center gap-1">
-              <button onClick={()=>picker.setShowGraphModal(true)} className="flex items-center gap-1 px-2 py-1 text-[11px] text-brand hover:bg-brand/5 rounded-lg transition-colors" title="独立弹窗"><Maximize2 size={13}/>独立弹窗</button>
-              <button onClick={()=>picker.setShowGraph(false)} className="p-1 hover:bg-gray-200 rounded"><X size={14} className="text-gray-400"/></button>
-            </div>
-          </div>
-          <KnowledgeGraph data={picker.knowledgeData} subject={teaching.subject} grade={teaching.grade} semester={teaching.semester} textbook={teaching.textbook_math} selectedIds={picker.selectedIds} onSelect={picker.setSelectedIds} inline height={420} layoutMode={picker.graphLayout as any} onLayoutChange={picker.setGraphLayout as any} colorDimension={picker.graphDimension as any} onDimensionChange={picker.setGraphDimension as any} diffRange={picker.diffRange} onDiffRangeChange={picker.setDiffRange as any} />
-        </div>
-      )}
-
-      {picker.showGraphModal&&(
-        <KnowledgeGraph data={picker.knowledgeData} subject={teaching.subject} grade={teaching.grade} semester={teaching.semester} textbook={teaching.textbook_math} selectedIds={picker.selectedIds} onSelect={picker.setSelectedIds} onClose={()=>picker.setShowGraphModal(false)} layoutMode={picker.graphLayout as any} onLayoutChange={picker.setGraphLayout as any} colorDimension={picker.graphDimension as any} onDimensionChange={picker.setGraphDimension as any} diffRange={picker.diffRange} onDiffRangeChange={picker.setDiffRange as any} />
-      )}
     </div>
   )
 }

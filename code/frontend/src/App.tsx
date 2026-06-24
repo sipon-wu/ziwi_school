@@ -3,6 +3,8 @@ import LoginPage from './pages/LoginPage'
 
 // 统一响应式布局
 import DashboardLayout from './components/layout/DashboardLayout'
+import StudentLayout from './components/layout/StudentLayout'
+import ParentLayout from './components/layout/ParentLayout'
 
 // PC 教师端页面
 import DashboardHome from './pages/DashboardHome'
@@ -60,16 +62,16 @@ export default function App() {
           <Route path="principal" element={<PrincipalDashboard />} />
         </Route>
 
-        {/* ── 学生端（统一响应式布局）── */}
-        <Route path="/student" element={<DashboardLayout />}>
+        {/* ── 学生端（轻量布局：无侧栏，全宽，绿色系）── */}
+        <Route path="/student" element={<StudentLayout />}>
           <Route index element={<StudentAssignmentList />} />
           <Route path=":id" element={<StudentAnswerPage />} />
           <Route path="grading/:id" element={<StudentGradingView />} />
           <Route path="error-book" element={<StudentErrorBook />} />
         </Route>
 
-        {/* ── 家长端（统一响应式布局）── */}
-        <Route path="/parent" element={<DashboardLayout />}>
+        {/* ── 家长端（轻量布局：无侧栏，全宽，暖色系）── */}
+        <Route path="/parent" element={<ParentLayout />}>
           <Route index element={<ParentAssignmentList />} />
           <Route path="sign/:id" element={<ParentSignPage />} />
         </Route>

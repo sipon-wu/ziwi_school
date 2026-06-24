@@ -23,6 +23,8 @@ interface Props {
   onClose?: () => void
   inline?: boolean
   height?: number
+  /** 面板宽度（inline 模式下由 KnowledgePanel 透传，用于 G6 resize） */
+  width?: number
   layoutMode?: LayoutMode; onLayoutChange?: (m: LayoutMode) => void
   colorDimension?: Dimension; onDimensionChange?: (d: Dimension) => void
   diffRange?: [number, number]; onDiffRangeChange?: (r: [number, number]) => void
@@ -80,6 +82,7 @@ function buildGraphData(nodes: KnowledgeNode[]) {
 export default function KnowledgeGraph({
   data = [], subject = '数学', grade, semester, textbook,
   selectedIds = [], onSelect, onClose, inline = false, height,
+  width,
   layoutMode, onLayoutChange,
   colorDimension, onDimensionChange,
   diffRange, onDiffRangeChange,
@@ -128,6 +131,14 @@ export default function KnowledgeGraph({
   const selectedNodes = useMemo(() => data.filter(n => selectedIds.includes(n.id)), [data, selectedIds])
   const removeSelected = (id: string) => onSelect?.(selectedIds.filter(i => i !== id))
 
+  // refs — 用于 node:click 闭包中始终拿到最新值，但不触 useEffect 重新执行
+  const selectedIdsRef = useRef(selectedIds)
+  selectedIdsRef.current = selectedIds
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
+  const visibleNodesRef = useRef(visibleNodes)
+  visibleNodesRef.current = visibleNodes
+
   useEffect(() => {
     if (!containerRef.current || visibleNodes.length === 0) return
     if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null }
@@ -147,6 +158,14 @@ export default function KnowledgeGraph({
         container: containerRef.current, width: w, height: h, autoFit: 'view', data: gData,
         node: {
           type: 'rect',
+          state: {
+            selected: {
+              stroke: '#F59E0B',
+              lineWidth: 3,
+              shadowColor: 'rgba(245,158,11,0.35)',
+              shadowBlur: 6,
+            },
+          },
           style: (d: any) => {
             const node = visibleNodes.find(n => n.id === d.id)
             const label = d.id === '__virtual_root__' ? '知识点' : node?.name || d.id
@@ -183,6 +202,16 @@ export default function KnowledgeGraph({
       graph = new Graph({
         container: containerRef.current, width: w, height: h, data: gData, autoFit: 'view',
         node: {
+          state: {
+            selected: {
+              stroke: '#F59E0B',
+              lineWidth: 3,
+              halo: true,
+              haloLineWidth: 4,
+              haloStroke: '#F59E0B',
+              haloOpacity: 0.3,
+            },
+          },
           style: (d: any) => {
             const name = d.data?.name || d.id
             return {
@@ -218,10 +247,13 @@ export default function KnowledgeGraph({
     graph.on('node:click', (evt: any) => {
       const id = evt.target?.id
       if (!id || id === '__virtual_root__') return
-      const node = visibleNodes.find(n => n.id === id)
+      const nodes = visibleNodesRef.current
+      const node = nodes.find(n => n.id === id)
       if (node) {
         setSelectedNode(node)
-        onSelect?.(selectedIds.includes(id) ? selectedIds.filter(i => i !== id) : [...selectedIds, id])
+        const ids = selectedIdsRef.current
+        const cb = onSelectRef.current
+        cb?.(ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id])
       }
     })
 
@@ -236,7 +268,32 @@ export default function KnowledgeGraph({
       return () => { window.removeEventListener('resize', onResize); graphRef.current?.destroy(); graphRef.current = null }
     }
     return () => { graphRef.current?.destroy(); graphRef.current = null }
-  }, [visibleNodes, layout, dimension, getColor, selectedIds, onSelect, graphHeight, inline])
+  }, [visibleNodes, layout, dimension, getColor, graphHeight, inline])
+
+  // 选中状态更新：只改节点样式，不销毁重建图谱
+  useEffect(() => {
+    if (!graphRef.current) return
+    const graph = graphRef.current
+    try {
+      const nodeData = graph.getNodeData?.() || []
+      const states: Record<string, string[]> = {}
+      nodeData.forEach((nd: any) => {
+        states[nd.id] = selectedIds.includes(nd.id) ? ['selected'] : []
+      })
+      graph.setElementState(states)
+      graph.draw()
+    } catch {
+      // graph 可能已被销毁
+    }
+  }, [selectedIds])
+
+  // inline 模式下：面板宽度变化时 resize G6 实例（不调 fitView，保留用户缩放）
+  useEffect(() => {
+    if (!inline || !graphRef.current || !width || !height) return
+    try {
+      graphRef.current.setSize(width - 16, height)
+    } catch { /* ignore */ }
+  }, [width, height, inline])
 
   const gradeLabel = grade ? GRADE_NAMES[grade - 1] || '' : ''
   const summary = `${subject || ''} · ${gradeLabel}${semester || ''}学期 · ${textbook || ''}`
@@ -246,7 +303,7 @@ export default function KnowledgeGraph({
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-1 bg-white/95 rounded-lg p-1 shadow-sm border border-gray-100">
         {(['tree', 'spiral', 'mesh'] as LayoutMode[]).map(m => (
-          <button key={m} onClick={() => { handleDimension('knowledge'); handleLayout(m) }}
+          <button key={m} onClick={() => handleLayout(m)}
             className={`${isMobile ? 'px-3 py-2 text-xs min-w-[44px] min-h-[36px]' : 'px-2 py-1 text-[11px]'} rounded transition-colors ${layout === m ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
             {m === 'tree' ? '树状' : m === 'spiral' ? '螺旋' : '网状'}
           </button>
@@ -346,12 +403,17 @@ export default function KnowledgeGraph({
   const canvas = (
     <>
       <div ref={containerRef} className="w-full h-full min-h-[300px]" />
-      {dimension !== 'knowledge' && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex gap-2 text-[10px] bg-white/95 rounded-lg px-2 py-1 shadow-sm border border-gray-100">
-          {dimension === 'difficulty' && Object.entries(DIFFICULTY_COLORS).map(([k, v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} />{k}</span>)}
-          {dimension === 'cognitive' && Object.entries(COGNITIVE_COLORS).slice(0, 4).map(([k, v]) => <span key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} />{k}</span>)}
-        </div>
-      )}
+      {/* 颜色图例（始终显示） */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex flex-wrap gap-x-3 gap-y-1 text-[11px] bg-white/95 rounded-lg px-3 py-2 shadow-sm border border-gray-100">
+        {dimension === 'knowledge' && <span className="flex items-center gap-1.5 text-gray-500"><span className="w-3 h-3 rounded-full" style={{ background: '#5B8FF9' }} />知识点分类</span>}
+        {dimension === 'difficulty' && Object.entries(DIFFICULTY_COLORS).map(([k, v]) => (
+          <span key={k} className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{ background: v }} />{k}</span>
+        ))}
+        {dimension === 'cognitive' && Object.entries(COGNITIVE_COLORS).map(([k, v]) => (
+          <span key={k} className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{ background: v }} />{k}</span>
+        ))}
+        {dimension === 'curriculum' && <span className="flex items-center gap-1.5 text-gray-500"><span className="w-3 h-3 rounded-full" style={{ background: '#722ED1' }} />课标对应</span>}
+      </div>
       <div className="absolute bottom-3 right-3 z-10 flex gap-1">
         <button onClick={() => graphRef.current?.fitView()} className="px-2.5 py-1.5 text-[11px] bg-white/95 rounded-lg shadow-sm border border-gray-100 hover:bg-gray-50">适应画布</button>
         <button onClick={() => graphRef.current?.zoomTo(1)} className="px-2.5 py-1.5 text-[11px] bg-white/95 rounded-lg shadow-sm border border-gray-100 hover:bg-gray-50">重置</button>
