@@ -204,7 +204,11 @@ export default function CareDetail() {
   const [showKindnessReview, setShowKindnessReview] = useState(false)
 
   const startEditFocus = () => { if (!s) return; setEditFocusText(s.plan.focusArea); setEditFocus(true) }
-  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, focusArea: editFocusText } }); setEditFocus(false); toast('关注点已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { focusArea: editFocusText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
+  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, focusArea: editFocusText } }); setEditFocus(false); 
+    const blocked = ['最差','最笨','不行','没救','比所有人都']
+    const hasBlocked = blocked.some(w => editFocusText.includes(w))
+    if (hasBlocked) { toast('⚠️ 请避免绝对化或比较性表述，使用建设性建议', 'warning'); return }
+    toast('关注点已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { focusArea: editFocusText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
   const startEditNote = () => { if (!s) return; setEditNoteText(s.plan.teacherNote || ''); setEditNote(true) }
   const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, teacherNote: editNoteText } }); setEditNote(false); toast('备注已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { teacherNote: editNoteText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
   const addAssessment = () => {
@@ -577,6 +581,19 @@ export default function CareDetail() {
           </div>
         )}
       </div>
+
+      {/* 续期管理 */}
+      {s.status === 'activated' && (
+        <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-4 mt-4">
+          <div className="flex items-center justify-between">
+            <div><div className="text-[13px] font-medium text-[#353535]">续期管理</div><div className="text-[11px] text-[#9A9A9A] mt-0.5">每学期末发起下学期入组确认</div></div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => toast('已发起续期确认，家长将收到通知', 'success')} className="px-3 py-1.5 text-[12px] text-[#02A7F0] border border-[#02A7F0]/30 rounded-[4px] hover:bg-[#02A7F0]/5">发起续期</button>
+              <button onClick={() => toast('该生将移出成长关爱', 'warning')} className="px-3 py-1.5 text-[12px] text-[#9A9A9A] border rounded-[4px] hover:bg-[#F6F7F8]">移出关爱</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   )
 }

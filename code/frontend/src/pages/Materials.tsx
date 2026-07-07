@@ -92,6 +92,11 @@ export default function Materials() {
     else setSelected(new Set(filtered.map(m => m.id)))
   }
 
+  const const renderHeat = (n: number) => {
+    const labels = ['冷', '温', '热', '火', '爆']
+    const colors = ['text-gray-400', 'text-blue-500', 'text-orange-500', 'text-red-500', 'text-red-600 font-bold']
+    return <span className={`text-[9px] ml-1 ${colors[n-1] || colors[0]}`}>🔥{labels[n-1] || labels[0]}</span>
+  }
   const renderStars = (n: number) => (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(i => (
@@ -266,7 +271,7 @@ export default function Materials() {
                     <span>{m.group}</span>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    {renderStars(m.stars)}
+                    {renderStars(m.stars)}{renderHeat(m.stars)}
                     <div className="flex items-center gap-1 text-[10px] text-[#9A9A9A]">
                       <TrendingUp size={10} />{m.usage}
                     </div>
@@ -313,7 +318,7 @@ export default function Materials() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {renderStars(m.stars)}
+                  {renderStars(m.stars)}{renderHeat(m.stars)}
                   <span className="text-[11px] text-[#9A9A9A] flex items-center gap-0.5"><TrendingUp size={10} />{m.usage}</span>
                 </div>
               </div>

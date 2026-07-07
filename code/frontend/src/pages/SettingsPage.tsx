@@ -45,7 +45,8 @@ function AccountTab() {
   const [userGender, setUserGender] = useState('女')
   const [userRegion, setUserRegion] = useState('中国 四川 成都')
   const [userId] = useState(user.id || 'js_3025510d5cb2')
-  const [avatarErr, setAvatarErr] = useState(false)
+  const [reviewEnabled, setReviewEnabled] = useState(localStorage.getItem('review_enabled') !== 'false')
+  const [avatarErr, setAvatarErr = useState(false)
   const [avatarSrc, setAvatarSrc] = useState('/avatar.jpg?v=3')
   const [avatarMsg, setAvatarMsg] = useState('')
 
@@ -169,8 +170,15 @@ function AccountTab() {
           )}
         </div>
       ))}
-      <div className="px-5 py-3 border-t border-[#F0F0F0] flex items-center gap-2 text-[11px]">
-        <button className="text-[#02A7F0] hover:underline">帐号移交</button>
+      <div className="px-5 py-3 border-t border-[#F0F0F0] space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div><div className="text-[12px] font-medium text-[#353535]">教案互审</div><div className="text-[10px] text-[#9A9A9A] mt-0.5">开启后教案送审到教研组长，关闭则直接发布</div></div>
+          <button onClick={() => { setReviewEnabled(!reviewEnabled); localStorage.setItem('review_enabled', String(!reviewEnabled)) }}
+            className={`w-10 h-5 rounded-full transition-colors relative ${reviewEnabled ? 'bg-[#02A7F0]' : 'bg-[#D0D0D0]'}`}>
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${reviewEnabled ? 'left-5' : 'left-0.5'}`} />
+          </button>
+        </div>
+        <button className="text-[#02A7F0] hover:underline text-[11px]">帐号移交</button>
       </div>
     </div>
   )

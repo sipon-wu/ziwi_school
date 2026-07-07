@@ -78,6 +78,24 @@ export default function ExamEditor() {
               </>
             )}
             {isEditMode && (
+              <>
+                {/* 试卷质量评估 */}
+                <div className="mt-4 bg-[#F6FDFF] border border-[#02A7F0]/20 rounded-[4px] p-3">
+                  <div className="text-[12px] font-medium text-[#353535] mb-2">试卷质量评估</div>
+                  <div className="flex items-center gap-4 text-[11px]">
+                    <div><span className="text-[#9A9A9A]">难度分布: </span>
+                      <span className="inline-flex gap-0.5 ml-1">
+                        <span className="bg-green-200 text-green-700 px-1 rounded text-[9px]" title="L1基础">L1 30%</span>
+                        <span className="bg-blue-200 text-blue-700 px-1 rounded text-[9px]" title="L2中等">L2 40%</span>
+                        <span className="bg-orange-200 text-orange-700 px-1 rounded text-[9px]" title="L3较难">L3 20%</span>
+                        <span className="bg-red-200 text-red-700 px-1 rounded text-[9px]" title="L4困难">L4 10%</span>
+                      </span>
+                    </div>
+                    <div><span className="text-[#9A9A9A]">预估平均分: </span><span className="font-medium text-[#F6920E]">78</span></div>
+                    <div><span className="text-[#9A9A9A]">课标对齐: </span><span className="font-medium text-green-600">92%</span></div>
+                  </div>
+                </div>
+              </>
               <button onClick={handleSave} disabled={saving}
                 className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
                 {saving ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />} 保存

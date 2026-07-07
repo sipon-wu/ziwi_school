@@ -16,6 +16,7 @@ const AssignmentList = lazy(() => import('./pages/AssignmentList'))
 const AssignmentBuilder = lazy(() => import('./pages/AssignmentBuilder'))
 const AssignmentEditor = lazy(() => import('./pages/AssignmentEditor'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
+const GradingPage = lazy(() => import('./pages/GradingPage'))
 const GrowthPage = lazy(() => import('./pages/GrowthPage'))
 const CarePage = lazy(() => import('./pages/CarePage'))
 const CareDetail = lazy(() => import('./pages/CareDetail'))
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/assignments/new" element={<Suspense fallback={<Loading />}><AssignmentBuilder /></Suspense>} />
         <Route path="/assignments/:id" element={<Suspense fallback={<Loading />}><AssignmentEditor /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<Loading />}><AnalyticsPage /></Suspense>} />
+        <Route path="/grading" element={<Suspense fallback={<Loading />}><GradingPage /></Suspense>} />
         <Route path="/growth" element={<Suspense fallback={<Loading />}><GrowthPage /></Suspense>} />
         <Route path="/care" element={<Suspense fallback={<Loading />}><CarePage /></Suspense>} />
         <Route path="/care/:id" element={<Suspense fallback={<Loading />}><CareDetail /></Suspense>} />
