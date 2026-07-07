@@ -38,6 +38,10 @@ export default function ExerciseEditor() {
   const [editAnswer, setEditAnswer] = useState(question?.answer || '')
   const [editType, setEditType] = useState(question?.type || 'choice')
   const [editDifficulty, setEditDifficulty] = useState(question?.difficulty || 'L1')
+  const [editAnalysis, setEditAnalysis] = useState(question?.analysis || question?.answer_detail || '')
+  const [editScore, setEditScore] = useState(question?.score || 10)
+  const [editKnowledge, setEditKnowledge] = useState(question?.knowledge_points || '')
+  const [editDifferentiation, setEditDifferentiation] = useState(question?.differentiation || '0.3')
   const [saving, setSaving] = useState(false)
   const [showTemplate, setShowTemplate] = useState(false)
 
@@ -65,6 +69,8 @@ export default function ExerciseEditor() {
         body: JSON.stringify({
           stem: editContent, answer: editAnswer,
           question_type: editType, difficulty: editDifficulty,
+          analysis: editAnalysis, score: editScore,
+          knowledge_points: editKnowledge, differentiation: editDifferentiation,
         }),
       })
       setSaveMsg('保存成功')

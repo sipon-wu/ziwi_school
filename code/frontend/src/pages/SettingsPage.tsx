@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { Pencil, Plus, Trash2, Copy, Check, X, Upload } from 'lucide-react'
+import { api } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 type SubTab = 'account' | 'school' | 'train' | 'log'
@@ -75,6 +76,16 @@ function AccountTab() {
       case 'region': setUserRegion(v); break
     }
     setEditingField(null)
+    // 调用后端API持久化
+    const body: any = {}
+    switch (editingField) {
+      case 'name': body.name = v; break
+      case 'gender': body.gender = v; break
+      case 'phone': body.phone = v; break
+      case 'email': body.email = v; break
+      case 'region': body.region = v; break
+    }
+    api('/user/profile', { method: 'PUT', body: JSON.stringify(body) }).catch(() => {})
   }
 
   const handleCopy = () => {
@@ -91,7 +102,7 @@ function AccountTab() {
       if (!file) return
       if (file.size > 5 * 1024 * 1024) { setAvatarMsg('图片不能超过5MB'); setTimeout(() => setAvatarMsg(''), 2000); return }
       const reader = new FileReader()
-      reader.onload = () => { setAvatarSrc(reader.result as string); setAvatarMsg('头像已更新'); setTimeout(() => setAvatarMsg(''), 2000) }
+      reader.onload = () => { setAvatarSrc(reader.result as string); setAvatarMsg('头像已更新'); setTimeout(() => setAvatarMsg(''), 2000); api('/user/profile', { method: 'PUT', body: JSON.stringify({ avatar: reader.result as string }) }).catch(() => {}) }
       reader.readAsDataURL(file)
     }
     input.click()
@@ -183,6 +194,9 @@ function SchoolClassTab() {
   const [modalMode, setModalMode] = useState<'addSchool' | 'editSchool' | 'addClass'>('addSchool')
   const [modalSchoolId, setModalSchoolId] = useState<string | null>(null)
   const [formF, setFormF] = useState({ fullName: '', shortName: '' })
+  const [lookupResult, setLookupResult] = useState<any>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const lookupTimer = useRef<any>(null)
   const [formC, setFormC] = useState({ grade: '四年级', name: '', subjects: '语文' })
   const [confirmSave, setConfirmSave] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState<{ schoolId?: string; classId?: string; label: string; count?: number } | null>(null)
@@ -191,6 +205,19 @@ function SchoolClassTab() {
 
   const sc: Record<string, string> = { '语文': 'bg-blue-50 text-blue-600', '数学': 'bg-orange-50 text-orange-600', '英语': 'bg-green-50 text-green-600' }
   const ALL_SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '音乐', '美术', '体育', '信息技术']
+
+  const handleLookup = useCallback((name: string) => {
+    if (!name || name.length < 2) { setLookupResult(null); return }
+    if (lookupTimer.current) clearTimeout(lookupTimer.current)
+    lookupTimer.current = setTimeout(async () => {
+      setLookupLoading(true)
+      try {
+        const res = await api<any>(`/schools/lookup?name=${encodeURIComponent(name)}`)
+        setLookupResult(res)
+      } catch { setLookupResult(null) }
+      setLookupLoading(false)
+    }, 400)
+  }, [])
 
   const openModal = (mode: 'addSchool' | 'editSchool' | 'addClass', schoolId?: string) => {
     setModalMode(mode); setModalSchoolId(schoolId || null); setEditClassTarget(null)
@@ -212,12 +239,21 @@ function SchoolClassTab() {
 
   const doSaveSchool = () => {
     if (modalMode === 'addSchool') {
-      setSchools(prev => [...prev, { id: `s${Date.now()}`, fullName: formF.fullName, shortName: formF.shortName || formF.fullName.slice(0, 6), status: 'active', classes: [] }])
+      // 抢答原则：已存在则认领，否则创建
+      const existingId = lookupResult?.found ? lookupResult.school.id : null
+      const sid = existingId || `s${Date.now()}`
+      if (existingId) {
+        // 认领：将已存在的学校加入本地列表
+        if (!schools.find(s => s.id === existingId)) {
+          setSchools(prev => [...prev, { id: existingId, fullName: formF.fullName, shortName: lookupResult.school.short_name || formF.shortName, status: 'active', classes: [] }])
+        }
+        setModalSchoolId(existingId)
+      } else {
+        setSchools(prev => [...prev, { id: sid, fullName: formF.fullName, shortName: formF.shortName || formF.fullName.slice(0, 6), status: 'active', classes: [] }])
+        setModalSchoolId(sid)
+      }
       if (!formF.shortName) setFormF(prev => ({ ...prev, shortName: formF.fullName.slice(0, 6) }))
       setModalMode('addClass')
-      // After adding, switch to step 2 for class config
-      const newSchoolId = `s${Date.now()}`
-      setModalSchoolId(newSchoolId)
       setStep(1)
     } else {
       setSchools(prev => prev.map(s => s.id === modalSchoolId ? { ...s, fullName: formF.fullName, shortName: formF.shortName, status: 'active' } : s))
@@ -284,7 +320,10 @@ function SchoolClassTab() {
   return (
     <div>
       <div className="px-5 py-2 flex justify-end">
-        <button onClick={() => openModal('addSchool')} className="text-[11px] text-[#02A7F0] hover:underline flex items-center gap-1"><Plus size={11} />添加学校</button>
+        <div className="flex items-center gap-3">
+          <a href="/school_import_template.csv" download className="text-[10px] text-[#9A9A9A] hover:text-[#02A7F0] border border-dashed border-[#D0D0D0] rounded-[3px] px-2 py-1 flex items-center gap-1" title="下载导入模板">📥 模板</a>
+          <button onClick={() => openModal('addSchool')} className="text-[11px] text-[#02A7F0] hover:underline flex items-center gap-1"><Plus size={11} />添加学校</button>
+        </div>
       </div>
 
       {activeSchools.map(s => (
@@ -334,8 +373,8 @@ function SchoolClassTab() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] text-[#9A9A9A] mb-1.5">学校全称</label>
-                    <input value={formF.fullName} onChange={e => setFormF({ ...formF, fullName: e.target.value })}
-                      className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" placeholder="成都市金牛区第一小学" />
+                    <input value={formF.fullName} onChange={e => { setFormF({ ...formF, fullName: e.target.value }); handleLookup(e.target.value) }}
+                      className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" placeholder="输入学校名称，系统自动匹配" />
                   </div>
                   <div>
                     <label className="block text-[11px] text-[#9A9A9A] mb-1.5">简称</label>
@@ -343,6 +382,19 @@ function SchoolClassTab() {
                       className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" placeholder="金牛一小" />
                   </div>
                 </div>
+                {lookupLoading && (
+                  <p className="text-[11px] text-[#9A9A9A] animate-pulse">🔍 正在搜索学校...</p>
+                )}
+                {lookupResult?.found && modalMode === 'addSchool' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-[4px] px-3 py-2 text-[12px]">
+                    ⚠️ 已存在「{lookupResult.school.full_name}」，保存后将认领该校
+                  </div>
+                )}
+                {lookupResult && !lookupResult.found && formF.fullName.length >= 2 && modalMode === 'addSchool' && (
+                  <div className="bg-green-50 border border-green-200 rounded-[4px] px-3 py-2 text-[12px]">
+                    ✅ 未匹配到同名学校，将创建新学校
+                  </div>
+                )}
                 {modalMode === 'addSchool' && (
                   <p className="text-[11px] text-[#9A9A9A]">💡 保存学校后可在「② 班级配置」中立即添加班级</p>
                 )}

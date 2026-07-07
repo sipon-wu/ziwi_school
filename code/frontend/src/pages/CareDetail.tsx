@@ -204,9 +204,9 @@ export default function CareDetail() {
   const [showKindnessReview, setShowKindnessReview] = useState(false)
 
   const startEditFocus = () => { if (!s) return; setEditFocusText(s.plan.focusArea); setEditFocus(true) }
-  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, focusArea: editFocusText } }); setEditFocus(false); toast('关注点已更新', 'success') }
+  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, focusArea: editFocusText } }); setEditFocus(false); toast('关注点已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { focusArea: editFocusText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
   const startEditNote = () => { if (!s) return; setEditNoteText(s.plan.teacherNote || ''); setEditNote(true) }
-  const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, teacherNote: editNoteText } }); setEditNote(false); toast('备注已更新', 'success') }
+  const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, teacherNote: editNoteText } }); setEditNote(false); toast('备注已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { teacherNote: editNoteText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
   const addAssessment = () => {
     if (!s || !newAssess.text.trim()) return
     const today = new Date().toISOString().slice(0, 10)

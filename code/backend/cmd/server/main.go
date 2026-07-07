@@ -134,6 +134,7 @@ func main() {
 		teacher.PUT("/schools/:id/restore", scHandler.RestoreSchool)
 		teacher.PUT("/classes/:id/archive", scHandler.ArchiveClass)
 		teacher.PUT("/classes/:id/restore", scHandler.RestoreClass)
+		teacher.GET("/schools/lookup", scHandler.LookupSchool)
 		teacher.PUT("/user/profile", authHandler.UpdateProfile)
 	}
 

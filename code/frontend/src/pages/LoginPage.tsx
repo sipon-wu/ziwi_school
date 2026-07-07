@@ -12,6 +12,7 @@ export default function LoginPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setErr('')
+    if (!/^1[3-9][0-9]{9}$/.test(phone)) { setErr('请输入正确的11位手机号'); return }
     setLoading(true)
     try {
       const res = await api('/auth/login', {

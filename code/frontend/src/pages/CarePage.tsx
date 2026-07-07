@@ -39,7 +39,20 @@ export default function CarePage() {
   const teaching = useTeaching()
   const navigate = useNavigate()
   const gradeName = GRADE_MAP[teaching.grade] || '四年级'
-  const [students, setStudents] = useState<CareStudent[]>(INIT_STUDENTS)
+  const [students, setStudents] = useState<CareStudent[]>(() => {
+    const saved = localStorage.getItem('care_edits')
+    if (!saved) return INIT_STUDENTS
+    try {
+      const edits = JSON.parse(saved)
+      return INIT_STUDENTS.map(s => {
+        if (edits[s.id]) {
+          return { ...s, focusArea: edits[s.id].focusArea || s.focusArea,
+            plan: { ...s.plan, focusArea: edits[s.id].focusArea || s.plan.focusArea, teacherNote: edits[s.id].teacherNote || s.plan.teacherNote } }
+        }
+        return s
+      }) as CareStudent[]
+    } catch { return INIT_STUDENTS }
+  })
   const [showAdd, setShowAdd] = useState(false)
   const [editFocus, setEditFocus] = useState<string | null>(null)
   const [editText, setEditText] = useState('')

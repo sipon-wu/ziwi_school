@@ -180,6 +180,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		Email  string `json:"email"`
 		Gender string `json:"gender"`
 		Region string `json:"region"`
+		Avatar string `json:"avatar"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -191,6 +192,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	if req.Email != "" { updates["email"] = req.Email }
 	if req.Gender != "" { updates["gender"] = req.Gender }
 	if req.Region != "" { updates["region"] = req.Region }
+	if req.Avatar != "" { updates["avatar"] = req.Avatar }
 	if len(updates) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
 		return

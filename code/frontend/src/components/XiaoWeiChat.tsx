@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { aiAPI } from '@/lib/api'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useTeaching } from '@/lib/TeachingContext'
 
 interface Message {
   role: 'user' | 'xiaowei'
@@ -59,6 +60,7 @@ function getTimeString(): string {
 export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const teaching = useTeaching()
 
   const [open, setOpen] = useState(embedded ? true : false)
   const [minimized, setMinimized] = useState(false)
@@ -96,9 +98,11 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       const role = localStorage.getItem('demo_role') || 'teacher'
       return {
         teacher_name: user.name || '老师', subject: user.subject || '语文', grade: user.grade || '四年级',
+        school_name: user.school_name || '成都市金牛区第一小学',
+        textbook_version: user.textbook_version || '部编版',
+        knowledge_boundary: '当前聚焦四年级语文，知识边界：字词积累、阅读理解、写作表达、古诗文背诵',
+        teacher_style: user.ai_style || '目标清晰可测，四环节结构，评语先鼓励后建议',
         role,
-        // 校长/主任/IT管理员：注入全校数据概览
-        platform_data: role !== 'teacher' ? `
 你是${role === 'principal' ? '校长' : role === 'director' ? '教务主任' : role === 'it_admin' ? 'IT管理员' : '教师'}，有权限查看全校数据。
 当前平台数据：
 - 全校8个班级298名学生，全校均分82分
