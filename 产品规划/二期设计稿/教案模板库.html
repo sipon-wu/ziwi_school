@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 教案模板库</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .template-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .template-card:hover { border-color: var(--brand-blue); }
+  .template-card .icon { font-size: 24px; }
+  .template-card .name { font-size: 14px; font-weight: 600; }
+  .template-card .desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .template-card .meta { font-size: 11px; color: var(--text-placeholder); margin-top: auto; }
+  .template-card .actions { display: flex; gap: 8px; }
+  .template-card .actions button { flex: 1; }
+  .template-card.school-template { border-left: 3px solid var(--color-success); }
+  .template-card .school-badge { display: inline-block; padding: 2px 6px; background: var(--color-success-light); color: var(--color-success); border-radius: var(--radius-sm); font-size: 10px; }
+  .preview-box { padding: 16px; background: var(--bg-stripe); border-radius: var(--radius-md); margin-top: 12px; }
+  .preview-box h5 { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+  .preview-box .step { font-size: 12px; padding: 3px 0; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>首页</div>
+    <div class="item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20H18"/><path d="M4 4C4 3 5 2 6 2H18V20H6C5 20 4 19 4 18V4Z"/></svg>教学备课</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>作业练习</div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">语文 · 四年级（1班）</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <span class="token">Token 5%</span>
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>张真真</div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      选择模板后进入教案工作台，AI将按模板结构生成教案。校本模板由教研组长维护。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+    <div class="page-title-area"><h2>教案模板库</h2><div class="actions"><select><option>全部类型</option><option>平台模板</option><option>校本模板</option></select></div></div>
+
+    <div class="template-grid">
+      <div class="template-card" onclick="showPreview('空白模板：自由发挥，从零开始创建教案。无预设结构，适合经验丰富的教师。')">
+        <div class="icon">📄</div>
+        <div class="name">空白模板</div>
+        <div class="desc">自由发挥，从零开始创建教案。无预设结构。</div>
+        <div class="meta">适用：全部学科 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card" onclick="showPreview('标准教案模板：教学目标→教学重难点→教学准备→教学过程→板书设计→课后反思')">
+        <div class="icon">📋</div>
+        <div class="name">标准教案模板</div>
+        <div class="desc">经典五段式：目标→重难点→准备→过程→反思</div>
+        <div class="meta">适用：全部学科 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card" onclick="showPreview('探究式教学模板：情境导入→问题提出→分组探究→成果展示→总结归纳')">
+        <div class="icon">🔍</div>
+        <div class="name">探究式教学模板</div>
+        <div class="desc">问题驱动，学生自主探究知识。含分组活动设计。</div>
+        <div class="meta">适用：科学/数学 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card" onclick="showPreview('项目式学习模板：项目主题→驱动问题→学习目标→项目计划→成果展示→评价反思')">
+        <div class="icon">🎯</div>
+        <div class="name">项目式学习模板</div>
+        <div class="desc">以项目为驱动，跨课时综合性学习设计。</div>
+        <div class="meta">适用：语文/综合 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card" onclick="showPreview('翻转课堂模板：课前自学→课上讨论→实践应用→总结反馈')">
+        <div class="icon">🔄</div>
+        <div class="name">翻转课堂模板</div>
+        <div class="desc">课前自学+课上深度讨论，以学生为中心。</div>
+        <div class="meta">适用：英语/数学 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card" onclick="showPreview('复习课模板：知识梳理→典型例题→变式训练→易错归纳→课堂检测')">
+        <div class="icon">📝</div>
+        <div class="name">复习课模板</div>
+        <div class="desc">系统梳理知识点，查漏补缺，强化巩固。</div>
+        <div class="meta">适用：全部学科 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card" onclick="showPreview('习题课模板：典型例题讲解→同类练习→变式拓展→易错分析→总结提升')">
+        <div class="icon">✏️</div>
+        <div class="name">习题课模板</div>
+        <div class="desc">以题带点，精讲多练，举一反三。</div>
+        <div class="meta">适用：数学/物理 · 平台模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+      <div class="template-card school-template" onclick="showPreview('金牛一小语文特色模板：导入激趣→初读感知→品读赏析→拓展延伸→读写结合（校本定制）')">
+        <div class="icon">🏫</div>
+        <div class="name">金牛一小语文特色模板 <span class="school-badge">校本</span></div>
+        <div class="desc">导入激趣→初读感知→品读赏析→拓展延伸→读写结合</div>
+        <div class="meta">适用：语文 · 校本模板</div>
+        <div class="actions"><button class="btn btn-sm btn-primary">选用</button><button class="btn btn-sm btn-default">预览</button></div>
+      </div>
+    </div>
+
+    <div id="preview-area" style="display:none;margin-top:16px;"></div>
+
+    <div class="empty-state" style="display:none" id="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><div class="empty-text">暂无模板</div></div>
+    <div class="skeleton-loading" style="display:none" id="skeleton"><div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
+    <div class="error-state" style="display:none" id="error-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg><div class="error-text">模板加载失败</div><button class="btn btn-primary">重新加载</button></div>
+  </div>
+</main>
+<footer class="page-footer"><span>© 2026 知微网版权所有</span><span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span></footer>
+<script>
+function showPreview(info) {
+  var a = document.getElementById('preview-area');
+  a.style.display = 'block';
+  a.innerHTML = '<div class="preview-box"><h5>模板预览</h5><div class="step">' + info.replace(/→/g, ' → ') + '</div></div>';
+}
+</script>
+</body>
+</html>

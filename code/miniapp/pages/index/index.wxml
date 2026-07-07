@@ -1,2 +1,0 @@
-<!-- 作业列表 — web-view 嵌入 -->
-<web-view src="{{wapUrl}}" bindmessage="onMessage" />

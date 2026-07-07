@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 教研活动 · 教研组长</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .tab-nav { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 1px solid var(--border-light); }
+  .tab-nav .tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    transition: var(--transition-fast);
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: var(--font-family);
+  }
+  .tab-nav .tab:hover { color: var(--text-primary); }
+  .tab-nav .tab.active { color: var(--brand-blue); border-bottom-color: var(--brand-blue); font-weight: 500; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  /* 活动卡片 */
+  .activity-list { display: flex; flex-direction: column; gap: 12px; }
+  .activity-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    transition: var(--transition-fast);
+  }
+  .activity-card:hover { border-color: var(--border-default); }
+  .activity-card.ongoing { border-left: 3px solid var(--color-success); }
+  .activity-card.upcoming { border-left: 3px solid var(--brand-blue); }
+  .activity-card.finished { border-left: 3px solid var(--text-secondary); opacity: 0.8; }
+  .activity-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .activity-header .title { font-size: 14px; font-weight: 600; }
+  .activity-header .title .type-tag { display: inline-block; padding: 1px 6px; border-radius: var(--radius-sm); font-size: 10px; margin-left: 8px; vertical-align: middle; }
+  .type-tag.lesson-prep { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .type-tag.observation { background: var(--color-success-light); color: var(--color-success); }
+  .activity-meta { font-size: 12px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 8px; }
+  .activity-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .activity-desc { font-size: 13px; color: var(--text-primary); line-height: 1.6; margin-bottom: 8px; }
+  .activity-footer { display: flex; align-items: center; justify-content: space-between; }
+  .participants { display: flex; align-items: center; gap: 4px; }
+  .participant-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--brand-blue-light);
+    color: var(--brand-blue);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    border: 2px solid var(--bg-card);
+    margin-left: -6px;
+  }
+  .participant-avatar:first-child { margin-left: 0; }
+  .participants .more { font-size: 11px; color: var(--text-secondary); margin-left: 4px; }
+  .activity-actions { display: flex; gap: 8px; }
+  /* 统计卡片 */
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .summary-card .icon-wrap { width: 40px; height: 40px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .summary-card .icon-wrap.blue { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .summary-card .icon-wrap.green { background: var(--color-success-light); color: var(--color-success); }
+  .summary-card .icon-wrap.orange { background: var(--color-warning-light); color: var(--color-warning); }
+  .summary-card .info .num { font-size: 20px; font-weight: 700; }
+  .summary-card .info .lbl { font-size: 12px; color: var(--text-secondary); }
+  /* 共同备课 - 教案卡片 */
+  .lesson-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .lesson-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  .lesson-card .lesson-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .lesson-card .lesson-title { font-size: 14px; font-weight: 600; }
+  .lesson-card .lesson-meta { font-size: 12px; color: var(--text-secondary); }
+  .lesson-card .lesson-meta span { margin-right: 12px; }
+  .lesson-card .progress-bar-wrap { height: 6px; background: var(--bg-stripe); border-radius: 3px; margin: 8px 0; overflow: hidden; }
+  .lesson-card .progress-bar-fill { height: 100%; background: var(--brand-blue); border-radius: 3px; transition: var(--transition-normal); }
+  .lesson-card .progress-text { font-size: 11px; color: var(--text-secondary); }
+  .lesson-card .lesson-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--bg-stripe); }
+  /* 听评课 - 评价表 */
+  .observation-list { display: flex; flex-direction: column; gap: 8px; }
+  .observation-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  .observation-item .obs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .observation-item .obs-teacher { font-size: 14px; font-weight: 600; }
+  .observation-item .obs-meta { font-size: 12px; color: var(--text-secondary); }
+  .observation-item .obs-meta span { margin-right: 12px; }
+  .observation-item .obs-score { display: flex; gap: 16px; margin-top: 8px; }
+  .obs-score-item { text-align: center; }
+  .obs-score-item .score-num { font-size: 18px; font-weight: 700; color: var(--brand-blue); }
+  .obs-score-item .score-label { font-size: 11px; color: var(--text-secondary); }
+  .obs-comments { margin-top: 8px; padding: 8px 12px; background: var(--bg-stripe); border-radius: var(--radius-sm); font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>教研 Dashboard</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>互审池</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>教研数据看板</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>模板与方法论</div>
+    <div class="item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>教研活动</div>
+  </div>
+  <div class="footer">金牛区第一小学 · 教研组长</div>
+</aside>
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">教研管理 · 语文组 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>教研组长 赵敏</div>
+    </div>
+  </div>
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      教研活动基于平台教案数据和学情分析，支持共同备课和听评课两种形式。活动记录将纳入教师成长档案。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 统计概览 ═══ -->
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="icon-wrap blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <div class="info"><div class="num">3</div><div class="lbl">进行中活动</div></div>
+      </div>
+      <div class="summary-card">
+        <div class="icon-wrap green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div>
+        <div class="info"><div class="num">12</div><div class="lbl">本学期已完成</div></div>
+      </div>
+      <div class="summary-card">
+        <div class="icon-wrap orange"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+        <div class="info"><div class="num">5</div><div class="lbl">待开始活动</div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>教研活动</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="toggleNewActivityModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          发起活动
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ Tab 切换 ═══ -->
+    <div class="tab-nav">
+      <button class="tab active" onclick="switchTab('all')">全部活动</button>
+      <button class="tab" onclick="switchTab('prep')">共同备课</button>
+      <button class="tab" onclick="switchTab('observation')">听评课</button>
+    </div>
+
+    <!-- ═══ Tab 1: 全部活动 ═══ -->
+    <div class="tab-content active" id="tab-all">
+      <div class="activity-list">
+        <!-- 进行中 - 共同备课 -->
+        <div class="activity-card ongoing">
+          <div class="activity-header">
+            <div class="title">四年级语文《古诗词三首》共同备课<span class="type-tag lesson-prep">共同备课</span></div>
+            <span class="tag tag-success">进行中</span>
+          </div>
+          <div class="activity-meta">
+            <span>📅 2026-06-28 ~ 2026-07-10</span>
+            <span>📚 学科：语文 · 四年级</span>
+            <span>👤 发起人：教研组长 赵敏</span>
+          </div>
+          <div class="activity-desc">
+            围绕四年级下册《古诗词三首》（《四时田园杂兴》《宿新市徐公店》《清平乐·村居》）开展集体备课。重点研讨：古诗词教学的情境创设、AI辅助意境解读、分层作业设计。
+          </div>
+          <div class="activity-footer">
+            <div class="participants">
+              <span class="participant-avatar">赵</span>
+              <span class="participant-avatar">张</span>
+              <span class="participant-avatar">王</span>
+              <span class="participant-avatar">刘</span>
+              <span class="participant-avatar">李</span>
+              <span class="more">+3人</span>
+            </div>
+            <div class="activity-actions">
+              <button class="btn btn-sm btn-primary">进入备课</button>
+              <button class="btn btn-sm btn-default">查看详情</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 进行中 - 听评课 -->
+        <div class="activity-card ongoing">
+          <div class="activity-header">
+            <div class="title">张丽华老师公开课《记金华的双龙洞》听评课<span class="type-tag observation">听评课</span></div>
+            <span class="tag tag-success">进行中</span>
+          </div>
+          <div class="activity-meta">
+            <span>📅 2026-07-02 ~ 2026-07-08</span>
+            <span>🏫 地点：四年级（3）班教室</span>
+            <span>👤 授课教师：张丽华</span>
+          </div>
+          <div class="activity-desc">
+            张丽华老师将展示《记金华的双龙洞》示范课，重点展示AI辅助阅读教学和课堂互动设计。课后进行集体评课，围绕教学目标达成度、学生参与度和AI工具使用效果展开研讨。
+          </div>
+          <div class="activity-footer">
+            <div class="participants">
+              <span class="participant-avatar">赵</span>
+              <span class="participant-avatar">张</span>
+              <span class="participant-avatar">王</span>
+              <span class="participant-avatar">刘</span>
+              <span class="participant-avatar">李</span>
+              <span class="more">+2人</span>
+            </div>
+            <div class="activity-actions">
+              <button class="btn btn-sm btn-primary">提交评价</button>
+              <button class="btn btn-sm btn-default">查看教案</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 待开始 - 共同备课 -->
+        <div class="activity-card upcoming">
+          <div class="activity-header">
+            <div class="title">四年级语文《文言文二则》共同备课<span class="type-tag lesson-prep">共同备课</span></div>
+            <span class="tag tag-blue">待开始</span>
+          </div>
+          <div class="activity-meta">
+            <span>📅 2026-07-15 ~ 2026-07-25</span>
+            <span>📚 学科：语文 · 四年级</span>
+            <span>👤 发起人：教研组长 赵敏</span>
+          </div>
+          <div class="activity-desc">
+            针对《囊萤夜读》《铁杵成针》两篇文言文进行集体备课，讨论文言文启蒙教学策略和AI辅助朗读评价工具的应用。
+          </div>
+          <div class="activity-footer">
+            <div class="participants">
+              <span class="participant-avatar">赵</span>
+              <span class="participant-avatar">张</span>
+              <span class="participant-avatar">王</span>
+              <span class="participant-avatar">刘</span>
+              <span class="more">+2人</span>
+            </div>
+            <div class="activity-actions">
+              <button class="btn btn-sm btn-default">查看详情</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已完成 - 听评课 -->
+        <div class="activity-card finished">
+          <div class="activity-header">
+            <div class="title">王建国老师公开课《四则运算复习课》听评课<span class="type-tag observation">听评课</span></div>
+            <span class="tag tag-default">已完成</span>
+          </div>
+          <div class="activity-meta">
+            <span>📅 2026-06-15 ~ 2026-06-22</span>
+            <span>🏫 地点：四年级（2）班教室</span>
+            <span>👤 授课教师：王建国</span>
+          </div>
+          <div class="activity-desc">
+            王建国老师展示数学复习课教学方法，运用AI分层练习和实时反馈系统。评课得分 4.6/5.0，教师反馈积极。
+          </div>
+          <div class="activity-footer">
+            <div class="participants">
+              <span class="participant-avatar">赵</span>
+              <span class="participant-avatar">王</span>
+              <span class="participant-avatar">张</span>
+              <span class="participant-avatar">刘</span>
+              <span class="participant-avatar">李</span>
+              <span class="more">+4人</span>
+            </div>
+            <div class="activity-actions">
+              <button class="btn btn-sm btn-default">查看总结</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Tab 2: 共同备课 ═══ -->
+    <div class="tab-content" id="tab-prep">
+      <div class="filter-bar">
+        <input type="text" class="search-input" placeholder="搜索备课主题...">
+        <select><option>全部学科</option><option selected>语文</option><option>数学</option><option>英语</option></select>
+        <select><option>全部状态</option><option>进行中</option><option>待开始</option><option>已完成</option></select>
+      </div>
+      <div class="lesson-grid">
+        <div class="lesson-card">
+          <div class="lesson-header">
+            <div class="lesson-title">《古诗词三首》备课</div>
+            <span class="tag tag-success">进行中</span>
+          </div>
+          <div class="lesson-meta">
+            <span>语文 · 四年级</span><span>8人参与</span>
+          </div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:65%"></div></div>
+          <div class="progress-text">备课进度 65% · 3/5 课时完成</div>
+          <div class="lesson-footer">
+            <span style="font-size:11px;color:var(--text-secondary);">最近更新：2小时前</span>
+            <button class="btn btn-sm btn-primary">继续备课</button>
+          </div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-header">
+            <div class="lesson-title">《文言文二则》备课</div>
+            <span class="tag tag-blue">待开始</span>
+          </div>
+          <div class="lesson-meta">
+            <span>语文 · 四年级</span><span>6人参与</span>
+          </div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:0%"></div></div>
+          <div class="progress-text">备课进度 0% · 0/4 课时完成</div>
+          <div class="lesson-footer">
+            <span style="font-size:11px;color:var(--text-secondary);">开始时间：2026-07-15</span>
+            <button class="btn btn-sm btn-default">查看详情</button>
+          </div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-header">
+            <div class="lesson-title">《记金华的双龙洞》备课</div>
+            <span class="tag tag-default">已完成</span>
+          </div>
+          <div class="lesson-meta">
+            <span>语文 · 四年级</span><span>5人参与</span>
+          </div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:100%"></div></div>
+          <div class="progress-text">备课进度 100% · 3/3 课时完成</div>
+          <div class="lesson-footer">
+            <span style="font-size:11px;color:var(--text-secondary);">完成时间：2026-06-20</span>
+            <button class="btn btn-sm btn-default">查看教案</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Tab 3: 听评课 ═══ -->
+    <div class="tab-content" id="tab-observation">
+      <div class="filter-bar">
+        <input type="text" class="search-input" placeholder="搜索教师或课题...">
+        <select><option>全部学科</option><option selected>语文</option><option>数学</option><option>英语</option></select>
+        <select><option>全部状态</option><option>待评价</option><option>已评价</option></select>
+      </div>
+      <div class="observation-list">
+        <div class="observation-item">
+          <div class="obs-header">
+            <div class="obs-teacher">张丽华 · 《记金华的双龙洞》</div>
+            <span class="tag tag-warning">待评价</span>
+          </div>
+          <div class="obs-meta">
+            <span>📅 授课时间：2026-07-03</span>
+            <span>🏫 四年级（3）班</span>
+            <span>📝 待评人数：6/8</span>
+          </div>
+          <div class="obs-score">
+            <div class="obs-score-item"><div class="score-num">4.6</div><div class="score-label">教学目标</div></div>
+            <div class="obs-score-item"><div class="score-num">4.3</div><div class="score-label">课堂互动</div></div>
+            <div class="obs-score-item"><div class="score-num">4.8</div><div class="score-label">AI工具运用</div></div>
+            <div class="obs-score-item"><div class="score-num">4.5</div><div class="score-label">学生参与度</div></div>
+          </div>
+          <div class="obs-comments">
+            <strong>已有评价摘要：</strong>"情境导入设计巧妙，AI辅助朗读环节学生兴趣浓厚。建议增加小组合作时间。"
+          </div>
+          <div style="margin-top:8px;text-align:right;">
+            <button class="btn btn-sm btn-primary">提交评价</button>
+            <button class="btn btn-sm btn-default">查看完整教案</button>
+          </div>
+        </div>
+
+        <div class="observation-item">
+          <div class="obs-header">
+            <div class="obs-teacher">王建国 · 《四则运算复习课》</div>
+            <span class="tag tag-default">已评价</span>
+          </div>
+          <div class="obs-meta">
+            <span>📅 授课时间：2026-06-18</span>
+            <span>🏫 四年级（2）班</span>
+            <span>📝 已评人数：8/8</span>
+          </div>
+          <div class="obs-score">
+            <div class="obs-score-item"><div class="score-num">4.8</div><div class="score-label">教学目标</div></div>
+            <div class="obs-score-item"><div class="score-num">4.5</div><div class="score-label">课堂互动</div></div>
+            <div class="obs-score-item"><div class="score-num">4.7</div><div class="score-label">AI工具运用</div></div>
+            <div class="obs-score-item"><div class="score-num">4.6</div><div class="score-label">学生参与度</div></div>
+          </div>
+          <div class="obs-comments">
+            <strong>综合评价：</strong>"AI分层练习设计合理，实时反馈系统有效提升课堂效率。复习课结构清晰，建议增加趣味性元素。"
+          </div>
+          <div style="margin-top:8px;text-align:right;">
+            <button class="btn btn-sm btn-default">查看评价详情</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      <div class="empty-text">暂无教研活动</div>
+      <button class="btn btn-primary" onclick="toggleNewActivityModal()">+ 发起第一次教研活动</button>
+    </div>
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">活动数据加载失败</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ 发起活动弹窗 ═══ -->
+<div class="modal-overlay" id="new-activity-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>发起教研活动</h3>
+      <span class="close" onclick="toggleNewActivityModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">活动类型</label>
+        <select><option>共同备课</option><option>听评课</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">活动主题</label>
+        <input type="text" placeholder="如：四年级语文《古诗词三首》共同备课">
+      </div>
+      <div class="form-group">
+        <label class="required">学科</label>
+        <select><option>语文</option><option>数学</option><option>英语</option><option>科学</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">适用年级</label>
+        <select>
+          <option>一年级</option><option>二年级</option><option>三年级</option>
+          <option selected>四年级</option><option>五年级</option><option>六年级</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>活动时间</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="date" value="2026-07-05" style="flex:1;">
+          <span style="color:var(--text-secondary);">至</span>
+          <input type="date" value="2026-07-15" style="flex:1;">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>活动描述</label>
+        <textarea rows="3" placeholder="描述本次教研活动的目标和主要内容..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>参与教师</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <span style="padding:4px 10px;background:var(--brand-blue-light);color:var(--brand-blue);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">张丽华 ✓</span>
+          <span style="padding:4px 10px;background:var(--brand-blue-light);color:var(--brand-blue);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">王建国 ✓</span>
+          <span style="padding:4px 10px;background:var(--brand-blue-light);color:var(--brand-blue);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">刘芳 ✓</span>
+          <span style="padding:4px 10px;background:var(--bg-stripe);color:var(--text-secondary);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">李强 +</span>
+          <span style="padding:4px 10px;background:var(--bg-stripe);color:var(--text-secondary);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">陈老师 +</span>
+        </div>
+        <div class="hint">默认邀请本组全部教师，可调整参与人员</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleNewActivityModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('教研活动创建成功！已通知参与教师');toggleNewActivityModal()">创建活动</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-nav .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  document.getElementById('tab-' + tabName).classList.add('active');
+}
+function toggleNewActivityModal() {
+  var m = document.getElementById('new-activity-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

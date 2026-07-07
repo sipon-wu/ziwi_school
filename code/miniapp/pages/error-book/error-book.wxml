@@ -1,0 +1,18 @@
+<!-- 错题本 -->
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">加载中...</view>
+  <block wx:else>
+    <view wx:if="{{items.length === 0}}" class="empty">暂无错题，继续加油！</view>
+    <view wx:else>
+      <view class="card" wx:for="{{items}}" wx:key="id">
+        <view class="flex-between">
+          <view class="flex-1">
+            <text class="stem">{{item.question_stem}}</text>
+            <text class="subtitle">{{item.subject}}</text>
+          </view>
+          <text class="tag tag-danger">错{{item.wrong_count}}次</text>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

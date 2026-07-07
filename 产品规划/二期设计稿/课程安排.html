@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 课程安排 · 教务员</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .view-selector {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .view-selector .tab {
+    padding: 6px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    transition: var(--transition-fast);
+  }
+  .view-selector .tab:last-child { border-right: none; }
+  .view-selector .tab.active { background: var(--brand-blue); color: var(--text-white); }
+  .view-selector .tab:hover:not(.active) { color: var(--brand-blue); }
+
+  .timetable { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+  .timetable table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .timetable th, .timetable td { border: 1px solid var(--border-light); padding: 8px 6px; vertical-align: top; text-align: center; }
+  .timetable th { background: var(--bg-stripe); color: var(--text-secondary); font-weight: 500; font-size: 11px; height: 32px; }
+  .timetable td.time { background: var(--bg-stripe); color: var(--text-secondary); font-size: 11px; width: 70px; white-space: nowrap; }
+  .timetable td { height: 70px; width: 18%; cursor: pointer; transition: var(--transition-fast); }
+  .timetable td:hover { background: var(--bg-hover); }
+  .timetable .slot {
+    background: var(--brand-blue-light-10);
+    border-left: 3px solid var(--brand-blue);
+    padding: 4px 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    text-align: left;
+    margin-bottom: 2px;
+  }
+  .timetable .slot .sub { font-weight: 600; color: var(--text-primary); display: block; }
+  .timetable .slot .info { color: var(--text-secondary); font-size: 10px; display: block; }
+  .timetable .slot.conflict { background: var(--color-danger-light); border-left-color: var(--color-danger); }
+
+  .conflict-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--color-danger-light);
+    color: var(--color-danger);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+  }
+
+  .batch-import-area {
+    margin-top: 16px;
+    padding: 20px;
+    border: 2px dashed var(--border-default);
+    border-radius: var(--radius-md);
+    text-align: center;
+    color: var(--text-secondary);
+  }
+  .batch-import-area:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
+  .batch-import-area svg { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（教务员） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      班级调度
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      课程安排
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      教师管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      学期管理
+    </div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">教务管理 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>教务员 李华</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      支持拖拽调整课程，系统自动检测教师冲突。确认后同步到教师端课表。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 顶部操作栏 ═══ -->
+    <div class="page-title-area">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <h2>课程安排</h2>
+        <div class="view-selector">
+          <div class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">周课表</div>
+          <div class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">日课表</div>
+          <div class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">列表视图</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-default">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          批量导入
+        </button>
+        <button class="btn btn-primary" onclick="toggleAddCourseModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          添加课程
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 筛选栏 ═══ -->
+    <div class="filter-bar">
+      <select>
+        <option>全部年级</option>
+        <option selected>四年级</option>
+        <option>五年级</option>
+        <option>六年级</option>
+      </select>
+      <select>
+        <option selected>四（1）班</option>
+        <option>四（2）班</option>
+        <option>四（3）班</option>
+        <option>四（4）班</option>
+        <option>四（5）班</option>
+        <option>四（6）班</option>
+      </select>
+      <span class="spacer"></span>
+      <span class="conflict-badge" id="conflict-badge" style="display:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        检测到 1 个教师冲突
+      </span>
+    </div>
+
+    <!-- ═══ 课程表 ═══ -->
+    <div class="timetable">
+      <table>
+        <thead>
+          <tr>
+            <th>节次/时间</th>
+            <th>周一</th>
+            <th>周二</th>
+            <th>周三</th>
+            <th>周四</th>
+            <th>周五</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="time">第一节<br>08:00-08:40</td>
+            <td>
+              <div class="slot">
+                <span class="sub">语文</span>
+                <span class="info">张丽华 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">数学</span>
+                <span class="info">李强 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">英语</span>
+                <span class="info">王芳 · 语音室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">语文</span>
+                <span class="info">张丽华 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">数学</span>
+                <span class="info">李强 · 401教室</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="time">第二节<br>08:50-09:30</td>
+            <td>
+              <div class="slot">
+                <span class="sub">数学</span>
+                <span class="info">李强 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">语文</span>
+                <span class="info">张丽华 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">数学</span>
+                <span class="info">李强 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">英语</span>
+                <span class="info">王芳 · 语音室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">语文</span>
+                <span class="info">张丽华 · 401教室</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="time">第三节<br>10:00-10:40</td>
+            <td>
+              <div class="slot">
+                <span class="sub">科学</span>
+                <span class="info">陈明 · 实验室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">英语</span>
+                <span class="info">王芳 · 语音室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">语文</span>
+                <span class="info">张丽华 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">数学</span>
+                <span class="info">李强 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">道法</span>
+                <span class="info">刘伟 · 401教室</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="time">第四节<br>10:50-11:30</td>
+            <td>
+              <div class="slot">
+                <span class="sub">美术</span>
+                <span class="info">周婷 · 美术室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">科学</span>
+                <span class="info">陈明 · 实验室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">体育</span>
+                <span class="info">赵云 · 操场</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">道法</span>
+                <span class="info">刘伟 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">科学</span>
+                <span class="info">陈明 · 实验室</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="time">第五节<br>14:00-14:40</td>
+            <td>
+              <div class="slot">
+                <span class="sub">体育</span>
+                <span class="info">赵云 · 操场</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">道法</span>
+                <span class="info">刘伟 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">音乐</span>
+                <span class="info">孙悦 · 音乐室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">体育</span>
+                <span class="info">赵云 · 操场</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">美术</span>
+                <span class="info">周婷 · 美术室</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="time">第六节<br>14:50-15:30</td>
+            <td>
+              <div class="slot">
+                <span class="sub">班会</span>
+                <span class="info">张丽华 · 401教室</span>
+              </div>
+            </td>
+            <td>
+              <div class="slot">
+                <span class="sub">信息</span>
+                <span class="info">吴磊 · 机房</span>
+              </div>
+            </td>
+            <td></td>
+            <td>
+              <div class="slot">
+                <span class="sub">音乐</span>
+                <span class="info">孙悦 · 音乐室</span>
+              </div>
+            </td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ═══ 批量导入区域 ═══ -->
+    <div class="batch-import-area" onclick="alert('支持上传 Excel/CSV 课程表批量导入')">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <div style="font-size:13px;">拖拽或点击上传课表文件（Excel/CSV）批量导入</div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <div class="empty-text">该班级暂未排课</div>
+      <button class="btn btn-primary">+ 添加课程</button>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">课程数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary" onclick="document.getElementById('error-state').style.display='none'">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ 添加课程弹窗 ═══ -->
+<div class="modal-overlay" id="add-course-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>添加课程</h3>
+      <span class="close" onclick="toggleAddCourseModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">班级</label>
+        <select><option>四（1）班</option><option>四（2）班</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">科目</label>
+        <select><option>语文</option><option>数学</option><option>英语</option><option>科学</option><option>道法</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">任课教师</label>
+        <select><option>张丽华</option><option>李强</option><option>王芳</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">星期</label>
+        <select><option>周一</option><option>周二</option><option>周三</option><option>周四</option><option>周五</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">节次</label>
+        <select><option>第一节 (08:00-08:40)</option><option>第二节 (08:50-09:30)</option><option>第三节 (10:00-10:40)</option><option>第四节 (10:50-11:30)</option><option>第五节 (14:00-14:40)</option><option>第六节 (14:50-15:30)</option></select>
+      </div>
+      <div class="form-group">
+        <label>教室</label>
+        <input type="text" placeholder="如：401教室">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleAddCourseModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('课程添加成功！');toggleAddCourseModal()">添加</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleAddCourseModal() {
+  var m = document.getElementById('add-course-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

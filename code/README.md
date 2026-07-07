@@ -1,110 +1,111 @@
-# 知微AI教学助手
+# 知微教学平台
 
-> 见微知著，知微教学。
+AI 驱动的智能教学助手平台。
 
-AI 驱动的小学+初中教学助手平台，覆盖**教案备课、出题组卷、习作批阅、家长签字**四大核心场景。
+## 技术栈
 
----
+| 层级 | 技术 | 版本 |
+|------|------|------|
+| 前端 | React + TypeScript + Vite + Tailwind CSS | 19 / 5.x / 6 / 4 |
+| 后端 | Go + Gin + GORM | 1.23 / 1.10 / v2 |
+| AI | Python + FastAPI + LangChain | 3.12 / 0.115 / 0.3 |
+| 数据库 | PostgreSQL + pgvector | 16 / 0.7 |
+| 缓存 | Redis | 7 |
+| 部署 | Docker Compose | v3 |
 
-## 🏗 技术架构
-
-```
-┌──────────────────────────────────────────┐
-│  Nginx (反向代理 + WAF + 安全头)          │
-├──────────────────────────────────────────┤
-│  Frontend (React 18 + Vite 5 + Tailwind)  │  ← PC教师端 + WAP学生/家长端
-│  Go API (Gin + GORM + PostgreSQL)         │  ← 业务API (35+端点)
-│  AI Service (FastAPI + LangChain + pgvector)│ ← 教案生成/出题/批阅
-├──────────────────────────────────────────┤
-│  PostgreSQL 16 + pgvector                 │  ← 业务数据 + 向量检索
-│  Redis                                    │  ← 缓存/会话/队列
-└──────────────────────────────────────────┘
-```
-
-## 📁 目录结构
+## 项目结构
 
 ```
 code/
-├── frontend/          ← React 前端 (13个路由页面)
-│   ├── src/pages/     ← PC教师端 (10页) + WAP (6页)
-│   ├── src/components/← 布局 + 小微聊天组件
-│   └── src/lib/       ← API 客户端
-├── backend/           ← Go Gin 后端
-│   ├── cmd/server/    ← 入口 + 路由注册
-│   └── internal/      ← handler/service/repository/model/middleware
-├── ai-service/        ← Python AI 服务
-│   ├── api_server.py  ← FastAPI 入口 (教案/出题/批阅/对话)
-│   ├── rag/           ← 课标 RAG 检索
-│   ├── models/        ← 通义千问客户端
-│   ├── prompts/       ← Prompt 模板
-│   └── scripts/       ← 数据导入脚本
-├── nginx/             ← Nginx 配置 (限流/WAF/安全头)
-├── curriculum-data/   ← 2022版义教课标数据
-├── e2e/               ← E2E 测试脚本
-├── scripts/           ← 安全扫描脚本
-├── docker-compose.yml ← 容器编排
-└── start.sh           ← 一键启动
+├── frontend/          # React SPA 前端
+│   ├── src/
+│   │   ├── app/       # 入口 + 路由 + Provider
+│   │   ├── components/# 通用 UI 组件
+│   │   ├── features/  # 按功能模块划分
+│   │   ├── hooks/     # 自定义 Hooks
+│   │   ├── layouts/   # 布局组件
+│   │   ├── lib/       # API 客户端 / 工具
+│   │   ├── stores/    # Zustand 状态管理
+│   │   ├── styles/    # 全局样式
+│   │   └── types/     # TypeScript 类型
+│   └── ...
+├── backend/           # Go Gin 后端
+│   ├── cmd/server/    # 入口
+│   ├── internal/
+│   │   ├── config/    # 配置
+│   │   ├── middleware/ # JWT/RBAC/RLS/限流
+│   │   ├── handler/   # HTTP 处理器
+│   │   ├── service/   # 业务逻辑
+│   │   ├── repository/# 数据访问
+│   │   └── model/     # GORM 模型
+│   └── migrations/    # SQL 迁移
+├── ai-service/        # Python AI 服务
+│   ├── agents/        # AI Agent
+│   ├── rag/           # RAG 检索
+│   └── prompts/       # Prompt 模板
+├── deploy/            # Docker Compose + Nginx
+├── shared/            # 共享类型定义
+└── docs/              # 技术文档
 ```
 
-## 🚀 快速启动
+## 快速启动
 
 ### 前置要求
-- Docker + Docker Compose
-- Node.js 18+
-- Python 3.12+ (AI服务)
-- Go 1.22+ (后端编译，可选)
 
-### 开发模式启动
+- Node.js 20+
+- Go 1.23+
+- Python 3.12+
+- Docker & Docker Compose
+
+### 本地开发
 
 ```bash
-# 1. 配置环境变量
+# 1. 复制环境变量
 cp .env.example .env
 
-# 2. 一键启动
-bash start.sh dev
+# 2. 启动基础设施（PostgreSQL + Redis）
+docker-compose -f deploy/docker-compose.yml up -d postgres redis
 
-# 3. 访问
-# 前端: http://localhost:5173
-# API:  http://localhost:8080/api/v1/health
-```
-
-### 导入课标数据
-
-```bash
+# 3. 启动 AI 服务
 cd ai-service
 pip install -r requirements.txt
-python scripts/import_curriculum.py
+python api_server.py
+
+# 4. 启动后端
+cd backend
+go mod download
+go run cmd/server/main.go
+
+# 5. 启动前端
+cd frontend
+npm install
+npm run dev
 ```
 
-### 启动 Docker 后端服务
+### Docker 一键启动
 
 ```bash
-docker compose up -d
-docker compose ps  # 检查服务状态
+cp .env.example .env
+docker-compose -f deploy/docker-compose.yml up -d
 ```
 
-## 📊 API 全景 (35+ 端点)
+## 8 角色权限矩阵
 
-| 模块 | 端点 |
-|------|------|
-| 认证 | POST register/login/send-code/code-login GET auth/me |
-| 学校 | GET/POST /schools GET /schools/:id |
-| 班级 | GET/POST /classes |
-| 教案 | GET/POST /lesson-plans GET/PUT/DELETE /:id POST /:id/finalize |
-| 作业 | GET/POST /assignments |
-| 提交 | POST /submissions /submissions/composition |
-| 批阅 | GET /grading GET /:id POST confirm/adjust/batch-confirm |
-| 学生 | GET /student/assignments GET /student/grading/:id GET /student/error-book |
-| 家长 | GET /parent/assignments GET /parent/signatures/:id GET/POST /parent-signatures |
-| AI | POST /ai/lesson-plan/generate /ai/exam/generate /ai/grading/auto /ai/chat |
+| 角色 | 说明 | 主要功能 |
+|------|------|----------|
+| teacher | 教师 | 教案/出题/组卷/作业/批阅/学情 |
+| head_teacher | 班主任 | 教师权限 + 班级管理/家校沟通 |
+| research_lead | 教研组长 | 互审池/教研数据/方法论管理 |
+| registrar | 教务员 | 班级调度/课程安排/学期管理 |
+| principal | 校长 | 学校数据总览/趋势分析 |
+| it_admin | IT管理员 | 用户管理/权限配置/通讯录/教材版本 |
+| platform_ops | 平台运营 | Token/ License/公告/审核/财务 |
+| platform_devops | 平台运维 | 系统监控/日志/备份/安全 |
 
-## 🔒 安全
+## 开发团队
 
-- **传输层**: CSP / HSTS / X-Frame-DENY / WAF (SQL注入/XSS拦截)
-- **应用层**: JWT + CSRF Double Submit + bcrypt12 + 输入清洗
-- **数据层**: PostgreSQL RLS + 审计日志 + AES-256 备份加密
-- **扫描**: `bash scripts/security-scan.sh`
-
-## 📝 许可证
-
-Copyright © 2026 知微（重庆）信息技术有限公司
+- 阿全：全栈开发
+- 技哥：架构设计 + 脚手架
+- 小艺：UI/UX 设计
+- 品姐：产品需求
+- 小Q：QA 测试

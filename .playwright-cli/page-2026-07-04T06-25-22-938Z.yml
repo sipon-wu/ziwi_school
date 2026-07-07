@@ -1,0 +1,102 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img "知微" [ref=e6]
+        - generic [ref=e7]: 知微教学
+      - navigation [ref=e8]:
+        - link "工作台" [ref=e9] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e10]
+          - generic [ref=e15]: 工作台
+        - link "系统管理" [ref=e17] [cursor=pointer]:
+          - /url: /dashboard/admin
+          - img [ref=e18]
+          - generic [ref=e20]: 系统管理
+        - link "个人设置" [ref=e21] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e22]
+          - generic [ref=e25]: 个人设置
+      - generic [ref=e26]:
+        - button [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+        - generic [ref=e30]:
+          - generic [ref=e32]: 张
+          - generic [ref=e33]:
+            - generic [ref=e34]: 张老师
+            - generic [ref=e35]: 4年级下 · 语文
+            - generic [ref=e36]: 成都市金牛区第一小学
+    - generic [ref=e37]:
+      - banner [ref=e38]:
+        - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+        - generic [ref=e42]:
+          - generic [ref=e43]: Token 5%
+          - button [ref=e44] [cursor=pointer]
+          - button "张真真" [ref=e46] [cursor=pointer]
+      - main [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - img [ref=e51]
+            - text: 手写识别采用AI多模态直识，非传统OCR。单字置信度<70%标记待确认，整篇<60%推送人工复核。
+          - heading "手写识别管理" [level=2] [ref=e53]
+          - generic [ref=e54]:
+            - button "识别配置" [ref=e55] [cursor=pointer]
+            - button "待人工复核" [ref=e56] [cursor=pointer]
+            - button "批阅推送记录" [ref=e57] [cursor=pointer]
+          - generic [ref=e58]:
+            - heading "置信度阈值配置" [level=3] [ref=e59]
+            - generic [ref=e60]:
+              - generic [ref=e61]: 单字识别置信度阈值（低于此值标记"待确认"）
+              - generic [ref=e62]:
+                - generic [ref=e63]: 50%
+                - slider [ref=e64]: "70"
+                - generic [ref=e65]: 70%
+                - generic [ref=e66]: 90%
+              - generic [ref=e67]: 当前设置：单字置信度 < 70% 时标记为"待确认"
+            - generic [ref=e68]:
+              - generic [ref=e69]: 整篇平均置信度阈值（低于此值推送人工复核）
+              - generic [ref=e70]:
+                - generic [ref=e71]: 40%
+                - slider [ref=e72]: "60"
+                - generic [ref=e73]: 60%
+                - generic [ref=e74]: 80%
+              - generic [ref=e75]: 当前设置：整篇平均置信度 < 60% 时推送人工复核
+          - generic [ref=e76]:
+            - heading "识别统计" [level=3] [ref=e77]
+            - generic [ref=e78]:
+              - generic [ref=e79]:
+                - generic [ref=e80]: 92%
+                - generic [ref=e81]: 教师接受率
+              - generic [ref=e82]:
+                - generic [ref=e83]: 1,284
+                - generic [ref=e84]: 本月识别总量
+              - generic [ref=e85]:
+                - generic [ref=e86]: "38"
+                - generic [ref=e87]: 待人工复核
+              - generic [ref=e88]:
+                - generic [ref=e89]: 87.3%
+                - generic [ref=e90]: 平均置信度
+    - button "小微" [ref=e91] [cursor=pointer]:
+      - img "小微" [ref=e92]
+  - generic [ref=e94]:
+    - generic [ref=e95]:
+      - generic [ref=e96]:
+        - img [ref=e97]
+        - heading "AI使用提示" [level=3] [ref=e99]
+      - button [ref=e100] [cursor=pointer]:
+        - img [ref=e101]
+    - generic [ref=e104]:
+      - generic [ref=e105]:
+        - paragraph [ref=e106]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e107]:
+          - listitem [ref=e108]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e109]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e110]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e111]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e112]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e113] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e114]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e115]:
+      - button "取消" [ref=e116] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e117]

@@ -1,0 +1,166 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "系统 Dashboard" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 系统 Dashboard
+      - button "用户管理与权限" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: 用户管理与权限
+      - button "校园通讯录" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: 校园通讯录
+      - button "教材版本库" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 教材版本库
+      - button "数据管理" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: 数据管理
+      - button "系统配置" [ref=e37] [cursor=pointer]:
+        - img [ref=e38]
+        - text: 系统配置
+      - button "操作日志" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - text: 操作日志
+    - generic [ref=e44]: 金牛区第一小学 · IT管理
+  - generic [ref=e45]:
+    - banner [ref=e46]:
+      - img [ref=e47] [cursor=pointer]
+      - generic [ref=e49]: 系统管理 · 金牛区第一小学
+      - button [ref=e50] [cursor=pointer]:
+        - img [ref=e51]
+      - generic [ref=e54]:
+        - img [ref=e56]
+        - text: IT管理员 陈工
+    - main [ref=e59]:
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - img [ref=e62]
+          - text: 通讯录数据来源于用户管理中的教师、家长信息。家长关联关系由班级和班主任维护。
+        - generic [ref=e64]:
+          - heading "校园通讯录" [level=2] [ref=e65]
+          - button "导出通讯录" [ref=e66] [cursor=pointer]:
+            - img [ref=e67]
+            - text: 导出通讯录
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]:
+              - img [ref=e73]
+              - textbox "搜索教师/学生/家长..." [ref=e76]
+            - heading "金牛区第一小学" [level=4] [ref=e77]
+            - generic [ref=e78]:
+              - generic [ref=e79]:
+                - generic [ref=e80]:
+                  - button "▼" [ref=e81] [cursor=pointer]
+                  - button "四年级 272人" [ref=e82] [cursor=pointer]:
+                    - text: 四年级
+                    - generic [ref=e83]: 272人
+                - generic [ref=e85]:
+                  - generic [ref=e86]:
+                    - generic [ref=e87]:
+                      - button "▼" [ref=e88] [cursor=pointer]
+                      - button "四（1）班 46人" [ref=e89] [cursor=pointer]:
+                        - text: 四（1）班
+                        - generic [ref=e90]: 46人
+                    - generic [ref=e92]:
+                      - generic [ref=e94]:
+                        - generic [ref=e95]: ·
+                        - button "教师 (5)" [ref=e96] [cursor=pointer]
+                      - generic [ref=e98]:
+                        - generic [ref=e99]: ·
+                        - button "学生 (46)" [ref=e100] [cursor=pointer]
+                      - generic [ref=e102]:
+                        - generic [ref=e103]: ·
+                        - button "家长 (92)" [ref=e104] [cursor=pointer]
+                  - generic [ref=e106]:
+                    - generic [ref=e107]: ·
+                    - button "四（2）班 45人" [ref=e108] [cursor=pointer]:
+                      - text: 四（2）班
+                      - generic [ref=e109]: 45人
+                  - generic [ref=e111]:
+                    - generic [ref=e112]: ·
+                    - button "四（3）班 40人" [ref=e113] [cursor=pointer]:
+                      - text: 四（3）班
+                      - generic [ref=e114]: 40人
+                  - generic [ref=e116]:
+                    - generic [ref=e117]: ·
+                    - button "四（4）班 48人" [ref=e118] [cursor=pointer]:
+                      - text: 四（4）班
+                      - generic [ref=e119]: 48人
+              - generic [ref=e121]:
+                - generic [ref=e122]: ·
+                - button "五年级 264人" [ref=e123] [cursor=pointer]:
+                  - text: 五年级
+                  - generic [ref=e124]: 264人
+              - generic [ref=e126]:
+                - generic [ref=e127]: ·
+                - button "六年级 258人" [ref=e128] [cursor=pointer]:
+                  - text: 六年级
+                  - generic [ref=e129]: 258人
+              - generic [ref=e131]:
+                - generic [ref=e132]: ·
+                - button "管理人员 7人" [ref=e133] [cursor=pointer]:
+                  - text: 管理人员
+                  - generic [ref=e134]: 7人
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - heading "四（1）班 · 教师" [level=3] [ref=e137]
+              - button "编辑关联" [ref=e138] [cursor=pointer]
+            - generic [ref=e139]:
+              - generic [ref=e140]:
+                - generic [ref=e141]: 张
+                - generic [ref=e142]:
+                  - generic [ref=e143]: 张丽华班主任
+                  - generic [ref=e144]:
+                    - generic [ref=e145]: 语文
+                    - generic [ref=e146]: 138****0001
+                    - generic [ref=e147]: zhanglihua@school.cn
+                - button "查看" [ref=e148] [cursor=pointer]
+              - generic [ref=e149]:
+                - generic [ref=e150]: 李
+                - generic [ref=e151]:
+                  - generic [ref=e152]: 李强
+                  - generic [ref=e153]:
+                    - generic [ref=e154]: 数学
+                    - generic [ref=e155]: 138****0005
+                    - generic [ref=e156]: liqiang@school.cn
+                - button "查看" [ref=e157] [cursor=pointer]
+              - generic [ref=e158]:
+                - generic [ref=e159]: 王
+                - generic [ref=e160]:
+                  - generic [ref=e161]: 王芳
+                  - generic [ref=e162]:
+                    - generic [ref=e163]: 英语
+                    - generic [ref=e164]: 138****0004
+                    - generic [ref=e165]: wangfang@school.cn
+                - button "查看" [ref=e166] [cursor=pointer]
+              - generic [ref=e167]:
+                - generic [ref=e168]: 陈
+                - generic [ref=e169]:
+                  - generic [ref=e170]: 陈明
+                  - generic [ref=e171]:
+                    - generic [ref=e172]: 科学
+                    - generic [ref=e173]: 138****0006
+                    - generic [ref=e174]: chenming@school.cn
+                - button "查看" [ref=e175] [cursor=pointer]
+              - generic [ref=e176]:
+                - generic [ref=e177]: 刘
+                - generic [ref=e178]:
+                  - generic [ref=e179]: 刘伟
+                  - generic [ref=e180]:
+                    - generic [ref=e181]: 道法
+                    - generic [ref=e182]: 138****0007
+                    - generic [ref=e183]: liuwei@school.cn
+                - button "查看" [ref=e184] [cursor=pointer]
+    - contentinfo [ref=e185]:
+      - generic [ref=e186]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e187]:
+        - link "关于知微" [ref=e188] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e189] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e190] [cursor=pointer]:
+          - /url: "#"

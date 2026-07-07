@@ -1,74 +1,38 @@
 #!/bin/bash
-# 知微AI教学助手 — 一键启动脚本
-# 用法: bash start.sh [dev|prod]
+# 知微AI教学助手 — 本地后端启动脚本
+# 用法: ./start.sh
 
 set -e
-MODE=${1:-dev}
+cd "$(dirname "$0")/backend"
 
-echo "========================================="
-echo "  知微AI教学助手 v0.2.0"
-echo "  启动模式: $MODE"
-echo "========================================="
-echo ""
-
-# 检查依赖
-check_command() {
-    if ! command -v $1 &>/dev/null; then
-        echo "❌ 缺少依赖: $1，请先安装"
-        exit 1
-    fi
-}
-
-check_command docker
-check_command node
-check_command npm
-
-# 初始化 .env
-if [ ! -f .env ]; then
-    echo "📋 创建 .env 文件..."
-    cp .env.example .env
-    echo "   ⚠️  请编辑 .env 填入真实密钥"
-fi
-
-# 安装前端依赖
-echo "📦 安装前端依赖..."
-(cd frontend && npm install --silent 2>/dev/null || npm install)
-echo "   ✅ 前端依赖就绪"
-
-# 安装 Python 依赖（可选）
-if [ -f ai-service/requirements.txt ]; then
-    echo "📦 安装 AI 服务依赖..."
-    (cd ai-service && pip install -r requirements.txt --quiet 2>/dev/null || echo "   ⚠️  Python 依赖安装跳过（请手动执行）")
-fi
-
-# 启动服务
-echo ""
-echo "🚀 启动服务..."
-if [ "$MODE" = "dev" ]; then
-    echo "   启动前端开发服务器 + Docker 后端..."
-    (cd frontend && npm run dev -- --host 0.0.0.0 &)
-    sleep 2
-    docker compose up -d postgres redis
-    echo ""
-    echo "========================================="
-    echo "  ✅ 知微教学助手已启动"
-    echo ""
-    echo "  前端:  http://localhost:5173"
-    echo "  API:   http://localhost:8080/api/v1/health"
-    echo "  AI:    http://localhost:8000/health"
-    echo "  数据库: localhost:5432 (zhiwei/zhiwei2026)"
-    echo ""
-    echo "  停止: docker compose down"
-    echo "========================================="
+# 1. 建立SSH隧道（连接云端PostgreSQL）
+echo "🔗 建立SSH隧道..."
+pkill -f "ssh.*-L 5432:172.18.0.3:5432" 2>/dev/null || true
+ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -f -N -L 5432:172.18.0.3:5432 root@193.112.163.147 2>&1
+sleep 2
+if nc -z 127.0.0.1 5432; then
+  echo "✅ SSH隧道已建立 (5432)"
 else
-    docker compose up -d
-    echo ""
-    echo "========================================="
-    echo "  ✅ 知微教学助手已启动 (生产模式)"
-    echo ""
-    echo "  访问:  http://localhost"
-    echo "  API:   http://localhost:8080/api/v1/health"
-    echo ""
-    echo "  停止: docker compose down"
-    echo "========================================="
+  echo "❌ SSH隧道失败"
+  exit 1
 fi
+
+# 2. 编译并启动后端
+echo "🔨 编译后端..."
+export GOPROXY=https://goproxy.cn,direct
+go build -o server ./cmd/server/
+
+echo "🚀 启动后端..."
+pkill -f "./server" 2>/dev/null || true
+export DB_HOST=127.0.0.1 DB_PORT=5432 DB_USER=zhiwei DB_PASSWORD=zhiwei2025 DB_NAME=zhiwei PORT=8080 JWT_SECRET=zhiwei-dev REDIS_URL=redis://127.0.0.1:6379/0
+nohup ./server > /tmp/zhiwei-server.log 2>&1 &
+sleep 3
+if curl -s http://127.0.0.1:8080/api/health | grep -q '"ok"'; then
+  echo "✅ 后端运行在 http://127.0.0.1:8080"
+else
+  echo "❌ 后端启动失败，查看日志: tail -f /tmp/zhiwei-server.log"
+  exit 1
+fi
+
+echo "📋 演示账号: 13800000002 / teacher123"
+echo "📋 前端地址: http://localhost:5173"

@@ -1,0 +1,30 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e7]:
+      - heading "知微教学" [level=1] [ref=e8]
+      - paragraph [ref=e9]: AI 辅助教学备课与学情管理平台
+      - img "校园风采" [ref=e11]
+    - generic [ref=e16]:
+      - generic [ref=e17]: © 2026 知微教学
+      - generic [ref=e18]:
+        - link "关于知微" [ref=e19] [cursor=pointer]:
+          - /url: "#"
+        - link "帮助中心" [ref=e20] [cursor=pointer]:
+          - /url: "#"
+  - generic [ref=e22]:
+    - heading "欢迎登录" [level=2] [ref=e23]
+    - paragraph [ref=e24]: 手机号 + 密码 / 验证码
+    - generic [ref=e25]:
+      - button "密码登录" [ref=e26] [cursor=pointer]
+      - button "验证码登录" [ref=e27] [cursor=pointer]
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]: 手机号
+        - textbox "请输入手机号" [ref=e31]
+      - generic [ref=e32]:
+        - generic [ref=e33]: 密码
+        - textbox "请输入密码" [ref=e34]
+      - button "登录" [ref=e35] [cursor=pointer]
+    - generic [ref=e36]:
+      - generic [ref=e37]: 还没有账号？申请开通
+      - generic [ref=e38] [cursor=pointer]: 忘记密码

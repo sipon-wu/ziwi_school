@@ -1,0 +1,222 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e10] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e11]
+        - generic [ref=e16]: 工作台
+      - generic [ref=e18]:
+        - button "教学备课" [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e23]: 教学备课
+          - img [ref=e24]
+        - generic [ref=e26]:
+          - link "教案备课" [ref=e27] [cursor=pointer]:
+            - /url: /dashboard/lesson-plans
+            - img [ref=e28]
+            - generic [ref=e31]: 教案备课
+          - link "习作指导" [ref=e32] [cursor=pointer]:
+            - /url: /dashboard/compositions
+            - img [ref=e33]
+            - generic [ref=e35]: 习作指导
+          - link "教案互审" [ref=e36] [cursor=pointer]:
+            - /url: /dashboard/reviews
+            - img [ref=e37]
+            - generic [ref=e42]: 教案互审
+      - generic [ref=e43]:
+        - button "作业练习" [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+          - generic [ref=e47]: 作业练习
+          - img [ref=e48]
+        - generic [ref=e50]:
+          - link "出题组卷" [ref=e51] [cursor=pointer]:
+            - /url: /dashboard/exercises
+            - img [ref=e52]
+            - generic [ref=e54]: 出题组卷
+          - link "题库管理" [ref=e55] [cursor=pointer]:
+            - /url: /dashboard/question-bank
+            - img [ref=e56]
+            - generic [ref=e58]: 题库管理
+          - link "批阅管理" [ref=e59] [cursor=pointer]:
+            - /url: /dashboard/grading
+            - img [ref=e60]
+            - generic [ref=e63]: 批阅管理
+      - generic [ref=e64]:
+        - button "教学数据" [ref=e65] [cursor=pointer]:
+          - img [ref=e66]
+          - generic [ref=e68]: 教学数据
+          - img [ref=e69]
+        - generic [ref=e71]:
+          - link "班级学情" [ref=e72] [cursor=pointer]:
+            - /url: /dashboard/analytics
+            - img [ref=e73]
+            - generic [ref=e75]: 班级学情
+          - link "校长仪表盘" [ref=e76] [cursor=pointer]:
+            - /url: /dashboard/principal
+            - img [ref=e77]
+            - generic [ref=e80]: 校长仪表盘
+      - generic [ref=e81]:
+        - button "家校沟通" [ref=e82] [cursor=pointer]:
+          - img [ref=e83]
+          - generic [ref=e87]: 家校沟通
+          - img [ref=e88]
+        - link "家长签字" [ref=e91] [cursor=pointer]:
+          - /url: /dashboard/parent-sign
+          - img [ref=e92]
+          - generic [ref=e96]: 家长签字
+      - link "个人设置" [ref=e98] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e99]
+        - generic [ref=e102]: 个人设置
+    - generic [ref=e103]:
+      - button [ref=e104] [cursor=pointer]:
+        - img [ref=e105]
+      - generic [ref=e107]:
+        - generic [ref=e109]: 张
+        - generic [ref=e110]:
+          - generic [ref=e111]: 张老师
+          - generic [ref=e112]: 4年级下 · 数学 · 人教版
+  - generic [ref=e113]:
+    - generic [ref=e114]:
+      - generic [ref=e115]:
+        - generic [ref=e116]: "|"
+        - generic [ref=e117]: v0.5-beta
+      - generic [ref=e118]:
+        - button "3 条" [ref=e119] [cursor=pointer]:
+          - img [ref=e120]
+          - generic [ref=e123]: 3 条
+        - generic [ref=e124]: "|"
+        - generic [ref=e125]: 张老师
+        - generic [ref=e126]: "|"
+        - generic [ref=e127]: 在线
+    - generic [ref=e128]:
+      - generic [ref=e129]:
+        - img [ref=e130]
+        - generic [ref=e133]: 演示环境
+        - generic [ref=e134]: "| 数据每日 02:00 自动重置"
+      - generic [ref=e135]:
+        - 'button "当前: 教师视角" [ref=e137] [cursor=pointer]':
+          - text: "当前: 教师视角"
+          - img [ref=e138]
+        - button "引导" [ref=e140] [cursor=pointer]:
+          - img [ref=e141]
+          - text: 引导
+        - button "重置" [ref=e144] [cursor=pointer]:
+          - img [ref=e145]
+          - text: 重置
+    - banner [ref=e148]:
+      - generic [ref=e149]:
+        - generic [ref=e150]: 工作台
+        - generic [ref=e151]:
+          - generic [ref=e152]: /
+          - generic [ref=e153]: 工作台
+      - button "数学 · 4年级下 · 人教版 ▼" [ref=e155] [cursor=pointer]:
+        - img [ref=e156]
+        - generic [ref=e158]: 数学
+        - generic [ref=e159]: ·
+        - generic [ref=e160]: 4年级下
+        - generic [ref=e161]: ·
+        - generic [ref=e162]: 人教版
+        - generic [ref=e163]: ▼
+      - generic [ref=e164]:
+        - button "3" [ref=e165] [cursor=pointer]:
+          - img [ref=e166]
+          - generic [ref=e169]: "3"
+        - button "张" [ref=e171] [cursor=pointer]:
+          - generic [ref=e172]: 张
+    - main [ref=e174]:
+      - generic [ref=e175]:
+        - heading "下午好，张老师 👋" [level=2] [ref=e176]
+        - paragraph [ref=e177]: 今天还有 12 份作业待批阅，3 位家长未签字
+      - generic [ref=e178]:
+        - generic [ref=e179] [cursor=pointer]:
+          - generic [ref=e180]:
+            - generic [ref=e181]: 待批阅作业
+            - img [ref=e183]
+          - generic [ref=e186]: "12"
+          - generic [ref=e187]: 较昨日 +3
+        - generic [ref=e188] [cursor=pointer]:
+          - generic [ref=e189]:
+            - generic [ref=e190]: 家长未签字
+            - img [ref=e192]
+          - generic [ref=e195]: "3"
+          - generic [ref=e196]: 三年级2班 已逾期2人
+        - generic [ref=e197] [cursor=pointer]:
+          - generic [ref=e198]:
+            - generic [ref=e199]: 教案草稿
+            - img [ref=e201]
+          - generic [ref=e204]: "5"
+          - generic [ref=e205]: 最近编辑：30分钟前
+      - generic [ref=e206]:
+        - generic [ref=e207]:
+          - heading "快捷入口" [level=3] [ref=e208]
+          - generic [ref=e209]:
+            - button "新建教案" [ref=e210] [cursor=pointer]:
+              - img [ref=e211]
+              - text: 新建教案
+            - button "快速出题" [ref=e214] [cursor=pointer]:
+              - img [ref=e215]
+              - text: 快速出题
+            - button "查看学情" [ref=e217] [cursor=pointer]:
+              - img [ref=e218]
+              - text: 查看学情
+          - generic [ref=e221]:
+            - generic [ref=e222]: 本周统计
+            - generic [ref=e223]:
+              - generic [ref=e224]:
+                - generic [ref=e225]: "8"
+                - generic [ref=e226]: 生成教案
+              - generic [ref=e227]:
+                - generic [ref=e228]: "3"
+                - generic [ref=e229]: 发布作业
+              - generic [ref=e230]:
+                - generic [ref=e231]: 92%
+                - generic [ref=e232]: 课标对齐率
+              - generic [ref=e233]:
+                - generic [ref=e234]: 85%
+                - generic [ref=e235]: 教案接受率
+        - generic [ref=e236]:
+          - generic [ref=e237]:
+            - heading "最近教案" [level=3] [ref=e238]
+            - button "查看全部 →" [ref=e239] [cursor=pointer]
+          - generic [ref=e240]:
+            - generic [ref=e241] [cursor=pointer]:
+              - img [ref=e243]
+              - generic [ref=e246]:
+                - generic [ref=e247]: 《观潮》第一课时
+                - generic [ref=e248]: 四年级 · 语文 · 录入教案
+              - generic [ref=e249]: 已定稿
+              - generic [ref=e250]: 2小时前
+            - generic [ref=e251] [cursor=pointer]:
+              - img [ref=e253]
+              - generic [ref=e256]:
+                - generic [ref=e257]: 《分数的初步认识》
+                - generic [ref=e258]: 三年级 · 数学 · 复习课
+              - generic [ref=e259]: 草稿
+              - generic [ref=e260]: 昨天
+            - generic [ref=e261] [cursor=pointer]:
+              - img [ref=e263]
+              - generic [ref=e266]:
+                - generic [ref=e267]: Unit 3 My School Calendar
+                - generic [ref=e268]: 五年级 · 英语 · A Let's talk
+              - generic [ref=e269]: 已定稿
+              - generic [ref=e270]: 3天前
+            - generic [ref=e271] [cursor=pointer]:
+              - img [ref=e273]
+              - generic [ref=e276]:
+                - generic [ref=e277]: 《桂花雨》第二课时
+                - generic [ref=e278]: 五年级 · 语文 · 精读课
+              - generic [ref=e279]: 已定稿
+              - generic [ref=e280]: 1周前
+            - generic [ref=e281] [cursor=pointer]:
+              - img [ref=e283]
+              - generic [ref=e286]:
+                - generic [ref=e287]: 《长方形和正方形周长》
+                - generic [ref=e288]: 三年级 · 数学 · 新授课
+              - generic [ref=e289]: 草稿
+              - generic [ref=e290]: 2周前
+  - button "小微" [ref=e291] [cursor=pointer]:
+    - img "小微" [ref=e292]

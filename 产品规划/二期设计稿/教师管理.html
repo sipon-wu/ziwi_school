@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 教师管理 · 教务员</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .teacher-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--brand-blue-light); color: var(--brand-blue); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-right: 8px; flex-shrink: 0; }
+  .teacher-name-cell { display: flex; align-items: center; }
+  .teacher-name-cell .name { font-weight: 500; }
+  .subject-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .subject-tags .st { display: inline-block; padding: 2px 6px; background: var(--bg-tag); border-radius: var(--radius-sm); font-size: 11px; color: var(--text-secondary); }
+  .class-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .class-tags .ct { display: inline-block; padding: 2px 6px; background: var(--brand-blue-light-04); border: 1px solid var(--brand-blue-light-25); border-radius: var(--radius-sm); font-size: 11px; color: var(--brand-blue); }
+  .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+  .status-dot.active { background: var(--color-success); }
+  .status-dot.leave { background: var(--color-warning); }
+  .status-dot.resigned { background: var(--color-danger); }
+  .bulk-actions { display: flex; gap: 8px; padding: 8px 12px; background: var(--bg-stripe); border-radius: var(--radius-sm); margin-bottom: 12px; align-items: center; font-size: 12px; color: var(--text-secondary); }
+  .bulk-actions select { padding: 4px 8px; font-size: 12px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（教务员） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      班级调度
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      课程安排
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      教师管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      学期管理
+    </div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">教务管理 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>教务员 李华</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      教师分配结果将自动同步到教师的「班级认领」，班主任任命每班仅限一人。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 统计卡片 ═══ -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="label">在职教师</div>
+        <div class="value blue">68</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">在岗</div>
+        <div class="value green">62</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">请假</div>
+        <div class="value orange">5</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">离职</div>
+        <div class="value" style="color:var(--color-danger)">1</div>
+      </div>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>教师管理</h2>
+      <div class="actions">
+        <button class="btn btn-default">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          批量导入
+        </button>
+        <button class="btn btn-primary" onclick="toggleAddTeacherModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          添加教师
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 筛选栏 ═══ -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" placeholder="搜索教师姓名...">
+      <select>
+        <option>全部学科</option>
+        <option>语文</option>
+        <option>数学</option>
+        <option>英语</option>
+        <option>科学</option>
+      </select>
+      <select>
+        <option>全部状态</option>
+        <option>在岗</option>
+        <option>请假</option>
+        <option>离职</option>
+      </select>
+      <select>
+        <option>全部年级</option>
+        <option>四年级</option>
+        <option>五年级</option>
+        <option>六年级</option>
+      </select>
+    </div>
+
+    <!-- ═══ 教师列表表格 ═══ -->
+    <div class="table-wrap">
+      <div class="card" style="padding:0;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:40px"><input type="checkbox"></th>
+            <th style="width:160px">教师</th>
+            <th style="width:140px">学科</th>
+            <th style="width:200px">任教班级</th>
+            <th style="width:80px">班主任</th>
+            <th style="width:80px">状态</th>
+            <th style="width:160px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">张</span>
+                <span class="name">张丽华</span>
+              </div>
+            </td>
+            <td>
+              <div class="subject-tags"><span class="st">语文</span></div>
+            </td>
+            <td>
+              <div class="class-tags">
+                <span class="ct">四(1)班</span>
+                <span class="ct">四(2)班</span>
+              </div>
+            </td>
+            <td><span class="tag tag-blue">四(1)班</span></td>
+            <td><span class="status-dot active"></span>在岗</td>
+            <td class="actions">
+              <a href="#">分配班级</a>
+              <a href="#">任命班主任</a>
+              <a href="#">编辑</a>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">李</span>
+                <span class="name">李强</span>
+              </div>
+            </td>
+            <td><div class="subject-tags"><span class="st">数学</span></div></td>
+            <td>
+              <div class="class-tags">
+                <span class="ct">四(1)班</span>
+                <span class="ct">四(3)班</span>
+                <span class="ct">五(1)班</span>
+              </div>
+            </td>
+            <td><span class="tag tag-default">—</span></td>
+            <td><span class="status-dot active"></span>在岗</td>
+            <td class="actions">
+              <a href="#">分配班级</a>
+              <a href="#" class="primary">任命班主任</a>
+              <a href="#">编辑</a>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">王</span>
+                <span class="name">王芳</span>
+              </div>
+            </td>
+            <td><div class="subject-tags"><span class="st">英语</span></div></td>
+            <td>
+              <div class="class-tags"><span class="ct">四(1)班</span></div>
+            </td>
+            <td><span class="tag tag-default">—</span></td>
+            <td><span class="status-dot active"></span>在岗</td>
+            <td class="actions">
+              <a href="#">分配班级</a>
+              <a href="#" class="primary">任命班主任</a>
+              <a href="#">编辑</a>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">王</span>
+                <span class="name">王建国</span>
+              </div>
+            </td>
+            <td><div class="subject-tags"><span class="st">语文</span></div></td>
+            <td>
+              <div class="class-tags"><span class="ct">四(2)班</span></div>
+            </td>
+            <td><span class="tag tag-blue">四(2)班</span></td>
+            <td><span class="status-dot active"></span>在岗</td>
+            <td class="actions">
+              <a href="#">分配班级</a>
+              <a href="#">任命班主任</a>
+              <a href="#">编辑</a>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">赵</span>
+                <span class="name">赵敏</span>
+              </div>
+            </td>
+            <td><div class="subject-tags"><span class="st">语文</span></div></td>
+            <td>
+              <div class="class-tags"><span class="ct">四(3)班</span></div>
+            </td>
+            <td><span class="tag tag-blue">四(3)班</span></td>
+            <td><span class="status-dot active"></span>在岗</td>
+            <td class="actions">
+              <a href="#">分配班级</a>
+              <a href="#">任命班主任</a>
+              <a href="#">编辑</a>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">陈</span>
+                <span class="name">陈明</span>
+              </div>
+            </td>
+            <td><div class="subject-tags"><span class="st">科学</span></div></td>
+            <td>
+              <div class="class-tags">
+                <span class="ct">四(1)班</span>
+                <span class="ct">四(2)班</span>
+              </div>
+            </td>
+            <td><span class="tag tag-default">—</span></td>
+            <td><span class="status-dot leave"></span>请假</td>
+            <td class="actions">
+              <a href="#">分配班级</a>
+              <a href="#" class="primary">任命班主任</a>
+              <a href="#">编辑</a>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td>
+              <div class="teacher-name-cell">
+                <span class="teacher-avatar">周</span>
+                <span class="name">周伟</span>
+              </div>
+            </td>
+            <td><div class="subject-tags"><span class="st">数学</span></div></td>
+            <td>
+              <div class="class-tags"><span class="ct">四(6)班</span></div>
+            </td>
+            <td><span class="tag tag-blue">四(6)班</span></td>
+            <td><span class="status-dot resigned"></span>离职</td>
+            <td class="actions">
+              <a href="#">查看</a>
+              <a href="#" class="danger">禁用</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <!-- ═══ 分页 ═══ -->
+    <div class="pagination">
+      <span>共 68 条，第 1/7 页</span>
+      <div class="pages">
+        <span class="active">1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>...</span><span>7</span>
+      </div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <div class="empty-text">暂无教师数据</div>
+      <button class="btn btn-primary" onclick="toggleAddTeacherModal()">+ 添加第一位教师</button>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">教师数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ 添加教师弹窗 ═══ -->
+<div class="modal-overlay" id="add-teacher-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>添加教师</h3>
+      <span class="close" onclick="toggleAddTeacherModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">姓名</label>
+        <input type="text" placeholder="教师真实姓名">
+      </div>
+      <div class="form-group">
+        <label class="required">学科</label>
+        <select>
+          <option>语文</option><option>数学</option><option>英语</option>
+          <option>科学</option><option>道法</option><option>音乐</option>
+          <option>美术</option><option>体育</option><option>信息</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>任教班级</label>
+        <select multiple style="height:120px">
+          <option>四(1)班</option><option>四(2)班</option><option>四(3)班</option>
+          <option>四(4)班</option><option>四(5)班</option><option>四(6)班</option>
+        </select>
+        <div class="hint">按住 Ctrl/Cmd 多选</div>
+      </div>
+      <div class="form-group">
+        <label>任命为班主任</label>
+        <select>
+          <option>— 暂不任命 —</option>
+          <option>四(1)班</option><option>四(2)班</option>
+        </select>
+        <div class="hint">每班仅限一名班主任</div>
+      </div>
+      <div class="form-group">
+        <label>手机号</label>
+        <input type="text" placeholder="教师手机号">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleAddTeacherModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('教师添加成功！');toggleAddTeacherModal()">添加</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleAddTeacherModal() {
+  var m = document.getElementById('add-teacher-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

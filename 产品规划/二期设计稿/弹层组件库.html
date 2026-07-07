@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 弹层组件库 · 二期</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .demo-page { max-width: 800px; margin: 40px auto; }
+  .demo-page h1 { font-size: 20px; margin-bottom: 24px; }
+  .demo-section { margin-bottom: 32px; }
+  .demo-section h2 { font-size: 15px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .demo-section .desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .trigger-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* 弹窗增强样式 */
+  .modal-radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .modal-radio-group label { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 400; transition: var(--transition-fast); }
+  .modal-radio-group label:hover { border-color: var(--brand-blue); }
+  .modal-radio-group label input[type="radio"] { margin-top: 2px; }
+  .modal-radio-group label .radio-content { flex: 1; }
+  .modal-radio-group label .radio-content .radio-title { font-weight: 500; margin-bottom: 2px; }
+  .modal-radio-group label .radio-content .radio-desc { font-size: 11px; color: var(--text-secondary); }
+
+  .step-indicator { display: flex; gap: 0; margin-bottom: 20px; }
+  .step-indicator .step { flex: 1; text-align: center; position: relative; }
+  .step-indicator .step::after { content: ''; position: absolute; top: 14px; left: 50%; width: 100%; height: 2px; background: var(--border-light); z-index: 0; }
+  .step-indicator .step:last-child::after { display: none; }
+  .step-indicator .step .circle { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-disabled); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; position: relative; z-index: 1; }
+  .step-indicator .step.active .circle { background: var(--brand-blue); color: white; }
+  .step-indicator .step.done .circle { background: var(--color-success); color: white; }
+  .step-indicator .step .label { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+  .step-indicator .step.active .label { color: var(--brand-blue); font-weight: 500; }
+
+  .exception-list { list-style: none; margin-top: 8px; }
+  .exception-list li { font-size: 12px; color: var(--text-secondary); padding: 4px 0; padding-left: 16px; position: relative; }
+  .exception-list li::before { content: '•'; position: absolute; left: 4px; color: var(--color-warning); }
+
+  .caution-box {
+    padding: 12px 16px;
+    background: var(--color-warning-light);
+    border: 1px solid rgba(255,152,0,0.25);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-top: 12px;
+  }
+  .caution-box strong { color: var(--color-warning); }
+
+  .permission-list { list-style: none; }
+  .permission-list li { font-size: 13px; padding: 6px 0; display: flex; align-items: center; gap: 8px; }
+  .permission-list li::before { content: '✓'; color: var(--color-success); font-weight: 600; }
+
+  .expired-card { padding: 16px; background: var(--bg-stripe); border-radius: var(--radius-md); text-align: center; margin-bottom: 12px; }
+  .expired-card .big-text { font-size: 18px; font-weight: 700; color: var(--color-danger); }
+  .expired-card .sub-text { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+  .token-low-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: var(--color-danger-light);
+    border: 1px solid rgba(255,77,79,0.25);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+  }
+  .token-low-bar .remaining { font-weight: 600; color: var(--color-danger); }
+  .token-low-bar .dismiss { margin-left: auto; font-size: 11px; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body style="background:var(--bg-page);min-height:100vh;padding-bottom:60px;">
+
+<div class="demo-page">
+  <h1>知微教学 · 二期弹层组件库</h1>
+
+  <!-- ═══ 1. 版权确认弹窗 ═══ -->
+  <div class="demo-section">
+    <h2>F1. 版权确认弹窗</h2>
+    <div class="desc">触发场景：素材库上传 / 教案引用外部资源</div>
+    <div class="trigger-btns">
+      <button class="btn btn-primary" onclick="toggleModal('copyright-modal')">触发弹窗</button>
+    </div>
+  </div>
+
+  <!-- ═══ 2. 教育善意度审查 ═══ -->
+  <div class="demo-section">
+    <h2>F2. 教育善意度审查弹窗</h2>
+    <div class="desc">触发场景：成长关爱提交</div>
+    <div class="trigger-btns">
+      <button class="btn btn-primary" onclick="toggleModal('kindness-modal')">触发弹窗</button>
+    </div>
+  </div>
+
+  <!-- ═══ 3. 试用转付费 ═══ -->
+  <div class="demo-section">
+    <h2>F3. 试用转付费流程弹窗</h2>
+    <div class="desc">触发场景：试用到期</div>
+    <div class="trigger-btns">
+      <button class="btn btn-primary" onclick="toggleModal('trial-modal')">触发弹窗</button>
+    </div>
+  </div>
+
+  <!-- ═══ 4. AI使用提示 ═══ -->
+  <div class="demo-section">
+    <h2>F4. AI使用提示弹窗</h2>
+    <div class="desc">触发场景：首次使用AI功能</div>
+    <div class="trigger-btns">
+      <button class="btn btn-primary" onclick="toggleModal('ai-tip-modal')">触发弹窗</button>
+    </div>
+  </div>
+
+  <!-- ═══ 5. Token余额不足 ═══ -->
+  <div class="demo-section">
+    <h2>F5. Token余额不足提示</h2>
+    <div class="desc">触发场景：生成内容时Token不足</div>
+    <div class="trigger-btns">
+      <button class="btn btn-primary" onclick="toggleModal('token-low-modal')">触发弹窗</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+   F1. 版权确认弹窗
+   ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="copyright-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>版权确认</h3>
+      <span class="close" onclick="toggleModal('copyright-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        请确认您上传的资源版权归属。选择不当可能导致版权纠纷，请如实选择。
+      </p>
+      <div class="modal-radio-group">
+        <label>
+          <input type="radio" name="copyright" value="original">
+          <div class="radio-content">
+            <div class="radio-title">原创内容</div>
+            <div class="radio-desc">我本人独立创作，拥有完整版权</div>
+          </div>
+        </label>
+        <label>
+          <input type="radio" name="copyright" value="reprinted">
+          <div class="radio-content">
+            <div class="radio-title">转载内容</div>
+            <div class="radio-desc">来源于他人/第三方，需注明来源</div>
+          </div>
+        </label>
+        <label>
+          <input type="radio" name="copyright" value="public">
+          <div class="radio-content">
+            <div class="radio-title">公共领域</div>
+            <div class="radio-desc">版权已过期或声明为公共领域资源</div>
+          </div>
+        </label>
+      </div>
+      <div class="form-group" id="reprint-source" style="display:none;margin-top:12px;">
+        <label class="required">来源说明</label>
+        <input type="text" placeholder="请注明原作者/出处/链接">
+      </div>
+      <div class="caution-box">
+        <strong>注意：</strong>您确认上传内容不侵犯他人版权，本校对其合规性负责。如收到版权方通知，平台将配合下架处理。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleModal('copyright-modal')">取消</button>
+      <button class="btn btn-primary" onclick="alert('版权确认完成');toggleModal('copyright-modal')">确认并继续上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+   F2. 教育善意度审查弹窗
+   ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="kindness-modal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3>教育善意度审查</h3>
+      <span class="close" onclick="toggleModal('kindness-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+        在提交成长关爱方案前，请确认以下审查要点：
+      </p>
+      <ul class="permission-list" style="margin-bottom:16px;">
+        <li>不包含比较性表述（如"远低于班级平均""排名倒数"）</li>
+        <li>不包含绝对化判断（如"基础很差""完全不懂"）</li>
+        <li>已配合建设性建议（指出问题的同时提供改进方向）</li>
+        <li>评估描述基于具体行为或数据，不做归因论断</li>
+      </ul>
+      <div class="caution-box">
+        <strong>严禁标签化：</strong>系统中不存储任何学生标签字段。所有评估描述带时间戳，反映的是快照而非定性。
+      </div>
+      <div style="margin-top:16px;">
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:400;">
+          <input type="checkbox" id="kindness-check">
+          <span>我已确认以上审查要点，评估文案符合教育善意度标准</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleModal('kindness-modal')">返回修改</button>
+      <button class="btn btn-primary" onclick="if(document.getElementById('kindness-check').checked){alert('提交成功');toggleModal('kindness-modal')}else{alert('请先确认审查要点')}">确认提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+   F3. 试用转付费流程弹窗
+   ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="trial-modal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>试用到期 — 转为正式用户</h3>
+      <span class="close" onclick="toggleModal('trial-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <!-- 步骤指示器 -->
+      <div class="step-indicator">
+        <div class="step active">
+          <div class="circle">1</div>
+          <div class="label">学校认领</div>
+        </div>
+        <div class="step">
+          <div class="circle">2</div>
+          <div class="label">数据迁移</div>
+        </div>
+        <div class="step">
+          <div class="circle">3</div>
+          <div class="label">账号转换</div>
+        </div>
+      </div>
+
+      <div style="font-size:13px;margin-bottom:16px;">
+        <p style="margin-bottom:8px;">您的试用期已于 <strong>2026-07-01</strong> 结束。转为正式用户后可继续使用全部功能。</p>
+        <p style="color:var(--text-secondary);">转为正式用户后，您的教学数据将无缝迁移，无需重新创建。</p>
+      </div>
+
+      <div class="form-group">
+        <label class="required">选择学校</label>
+        <select><option>— 搜索并选择您的学校 —</option><option>成都市金牛区第一小学</option></select>
+      </div>
+
+      <div style="margin-top:12px;">
+        <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;">可能遇到的异常情况：</h4>
+        <ul class="exception-list">
+          <li>学校未注册：请先联系学校管理员创建学校账号</li>
+          <li>学校已有账号：申请加入后等待管理员审批</li>
+          <li>多校区选择：请选择您实际任教的校区</li>
+          <li>数据冲突：如已有学校账号数据，选择合并或保留</li>
+          <li>Token额度不足：转为学校版后按学校配额使用</li>
+        </ul>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleModal('trial-modal')">稍后再说</button>
+      <button class="btn btn-primary" onclick="alert('申请已提交，等待学校管理员审批');toggleModal('trial-modal')">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+   F4. AI使用提示弹窗
+   ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="ai-tip-modal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3>AI 助手使用提示</h3>
+      <span class="close" onclick="toggleModal('ai-tip-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        欢迎使用知微教学 AI 助手（小微）。在使用前，请了解以下信息：
+      </p>
+
+      <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;">AI 可以做什么：</h4>
+      <ul class="permission-list" style="margin-bottom:16px;">
+        <li>理解自然语言指令，生成教案/习题/试卷/作业</li>
+        <li>检索素材库、知识图谱中的教学资源</li>
+        <li>分析学情数据，生成描述性评估（非标签）</li>
+        <li>学习教师个人教学风格，提供个性化建议</li>
+        <li>回答基于上下文的教学问题</li>
+      </ul>
+
+      <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;">AI 不会做：</h4>
+      <ul class="permission-list" style="margin-bottom:16px;">
+        <li>操作页面（点击按钮、填写表单）</li>
+        <li>导航到其他页面</li>
+        <li>截图或执行浏览器操作</li>
+      </ul>
+
+      <div class="caution-box">
+        <strong>重要提示：</strong>AI 生成内容仅供参考，教师对最终教学内容和决策负有审核义务和最终决策权。涉及心理健康、价值观教育等敏感场景请人工介入。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="toggleModal('ai-tip-modal')">我知道了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+   F5. Token余额不足弹窗
+   ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="token-low-modal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3>Token 余额不足</h3>
+      <span class="close" onclick="toggleModal('token-low-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="expired-card">
+        <div class="big-text">剩余 2.3%</div>
+        <div class="sub-text">当前操作预计消耗约 500 Token，余额可能不足</div>
+      </div>
+
+      <div class="token-low-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        剩余额度：<span class="remaining">11,500 / 500,000 Token</span>
+      </div>
+
+      <p style="font-size:13px;color:var(--text-secondary);margin-top:16px;">
+        Token 耗尽后将无法使用 AI 生成功能。建议：
+      </p>
+      <ul class="permission-list" style="margin-bottom:8px;">
+        <li>联系学校管理员追加 Token 配额</li>
+        <li>如为个人版，前往充值页面购买</li>
+        <li>合理规划 Token 使用，优先完成紧急任务</li>
+      </ul>
+
+      <div style="margin-top:16px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);font-weight:400;">
+          <input type="checkbox"> 今日不再提示
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleModal('token-low-modal')">继续生成</button>
+      <button class="btn btn-primary" onclick="alert('跳转至Token充值页面');toggleModal('token-low-modal')">购买 Token</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer" style="position:fixed;bottom:0;left:0;right:0;padding-left:24px;">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleModal(id) {
+  var m = document.getElementById(id);
+  m.classList.toggle('show');
+}
+
+// 版权弹窗：选择转载时显示来源输入框
+document.querySelectorAll('input[name="copyright"]').forEach(function(r) {
+  r.addEventListener('change', function() {
+    document.getElementById('reprint-source').style.display =
+      this.value === 'reprinted' ? 'block' : 'none';
+  });
+});
+</script>
+
+</body>
+</html>

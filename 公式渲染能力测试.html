@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>公式渲染能力测试 — 初三适龄</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<style>
+  @page { size: A4; margin: 2cm 2.4cm; }
+  body { font-family: "SimSun","宋体",serif; font-size: 14px; line-height: 2; color: #222; max-width: 740px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; font-size: 20px; letter-spacing: 2px; margin-bottom: 0; }
+  .sub { text-align: center; font-size: 12px; color: #888; margin-bottom: 20px; }
+  .section { margin: 24px 0; }
+  .section h2 { font-size: 16px; border-left: 3px solid #1A3A6B; padding-left: 10px; margin-bottom: 8px; }
+  .section h3 { font-size: 14px; color: #1A3A6B; margin-bottom: 4px; }
+  .q { margin: 10px 0; }
+  .q .num { font-weight: bold; }
+  .opts { padding-left: 28px; display: flex; flex-wrap: wrap; gap: 4px 24px; }
+  .blank { border-bottom: 1px solid #333; display: inline-block; min-width: 50px; text-align: center; margin: 0 4px; }
+  .note { font-size: 12px; color: #888; margin: 2px 0; }
+  .render-ok { color: #10B981; font-weight: bold; }
+  .render-fail { color: #EF4444; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  table td, table th { border: 1px solid #ddd; padding: 6px 10px; text-align: center; font-size: 13px; }
+  table th { background: #f5f5f5; }
+  svg text { font-family: "SimSun",serif; }
+  @media print {
+    .no-print { display: none; }
+    body { padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<h1>公式渲染能力测试</h1>
+<div class="sub">适龄年级：初三（九年级） · 涵盖数学（二次根式、立体几何）+ 化学（分子式与方程式）</div>
+
+<div class="no-print" style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:10px 16px;margin-bottom:18px;font-size:13px;">
+  ✅ <strong>KaTeX 渲染引擎已加载</strong> — 以下所有数学公式均为实时渲染。<br/>
+  💡 分子式用纯 HTML 下标标签渲染，立体几何图用内嵌 SVG。
+</div>
+
+<!-- ======================== 一、复杂根式 ======================== -->
+<div class="section">
+  <h2>一、二次根式运算（初三数学·九上第一章）</h2>
+
+  <div class="q">
+    <span class="num">1.</span>&ensp;化简：<span class="math">\sqrt{12}</span> = <span class="blank"></span>，
+    <span class="math">\sqrt{\dfrac{27}{4}}</span> = <span class="blank"></span>。
+  </div>
+
+  <div class="q">
+    <span class="num">2.</span>&ensp;计算：
+    <span class="math">\sqrt{48} + \sqrt{3} - \sqrt{\dfrac{1}{3}}</span>
+  </div>
+
+  <div class="q">
+    <span class="num">3.</span>&ensp;计算：
+    <span class="math">(\sqrt{5} + \sqrt{3})(\sqrt{5} - \sqrt{3})</span>
+  </div>
+
+  <div class="q">
+    <span class="num">4.</span>&ensp;分母有理化：
+    <span class="math">\dfrac{2}{\sqrt{7} - \sqrt{3}}</span>
+  </div>
+
+  <div class="q">
+    <span class="num">5.</span>&ensp;最简二次根式
+    <span class="math">\sqrt{2a+3}</span> 与
+    <span class="math">\sqrt{5}</span> 是同类二次根式，求
+    <span class="math">a</span> 的值。
+  </div>
+
+  <div class="q">
+    <span class="num">6.</span>&ensp;先化简再求值（双重根号）：
+    <span class="math">\sqrt{7 + 4\sqrt{3}}</span> = <span class="blank"></span>
+  </div>
+
+  <div class="q">
+    <span class="num">7.</span>&ensp;计算（宁波中考真题难度）：
+    <span class="math">\sqrt{18} \div \sqrt{8} \times \sqrt{\dfrac{27}{2}}</span>
+  </div>
+
+  <div class="note">📐 以上为初三数学"二次根式"章节核心考察点：化简、四则运算、分母有理化、同类二次根式。</div>
+</div>
+
+<!-- ======================== 二、立体几何 ======================== -->
+<div class="section">
+  <h2>二、立体几何（初三数学·九下 + 高一衔接）</h2>
+
+  <h3>题 8. 三视图与表面积（6分）</h3>
+  <p>下图是一个底面为正方形的直四棱柱的三视图，求该几何体的表面积和体积。</p>
+
+  <!-- 三视图 SVG -->
+  <div style="display:flex; gap:20px; justify-content:center; margin:12px 0; flex-wrap:wrap;">
+    <!-- 正视图 -->
+    <div style="text-align:center;">
+      <svg width="80" height="90" viewBox="0 0 80 90">
+        <rect x="10" y="10" width="60" height="70" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5" />
+        <text x="40" y="50" text-anchor="middle" font-size="10" fill="#1565C0">6</text>
+        <text x="72" y="50" font-size="10" fill="#1565C0">10</text>
+        <text x="16" y="85" font-size="10" fill="#666">正视图</text>
+      </svg>
+    </div>
+    <!-- 侧视图 -->
+    <div style="text-align:center;">
+      <svg width="80" height="90" viewBox="0 0 80 90">
+        <rect x="10" y="10" width="60" height="70" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5" />
+        <text x="40" y="50" text-anchor="middle" font-size="10" fill="#1565C0">6</text>
+        <text x="72" y="50" font-size="10" fill="#1565C0">10</text>
+        <text x="22" y="85" font-size="10" fill="#666">侧视图</text>
+      </svg>
+    </div>
+    <!-- 俯视图 -->
+    <div style="text-align:center;">
+      <svg width="80" height="90" viewBox="0 0 80 90">
+        <rect x="10" y="10" width="60" height="60" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5" />
+        <!-- 对角线 -->
+        <line x1="10" y1="10" x2="70" y2="70" stroke="#1565C0" stroke-width="0.5" stroke-dasharray="3,3" />
+        <line x1="70" y1="10" x2="10" y2="70" stroke="#1565C0" stroke-width="0.5" stroke-dasharray="3,3" />
+        <text x="40" y="42" text-anchor="middle" font-size="10" fill="#1565C0">6×6</text>
+        <text x="22" y="85" font-size="10" fill="#666">俯视图</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="q">
+    表面积 <span class="math">S =</span> <span class="blank"></span> cm²&emsp;
+    体积 <span class="math">V =</span> <span class="blank"></span> cm³
+  </div>
+
+  <h3>题 9. 圆锥与侧面展开（4分）</h3>
+  <p>一个圆锥的底面半径 <span class="math">r=3\text{cm}</span>，母线长 <span class="math">l=5\text{cm}</span>。</p>
+
+  <div style="display:flex; gap:24px; justify-content:center; align-items:center; margin:12px 0;">
+    <!-- 圆锥透视图 -->
+    <svg width="120" height="140" viewBox="0 0 120 140">
+      <!-- 底面椭圆 -->
+      <ellipse cx="60" cy="100" rx="45" ry="18" fill="none" stroke="#1565C0" stroke-width="1.2" />
+      <!-- 顶点 -->
+      <circle cx="60" cy="28" r="3" fill="#EF4444" />
+      <!-- 侧边线 -->
+      <line x1="60" y1="28" x2="15" y2="100" stroke="#1565C0" stroke-width="1.2" />
+      <line x1="60" y1="28" x2="105" y2="100" stroke="#1565C0" stroke-width="1.2" />
+      <!-- 高 -->
+      <line x1="60" y1="28" x2="60" y2="100" stroke="#EF4444" stroke-width="1" stroke-dasharray="4,3" />
+      <!-- 半径 -->
+      <line x1="60" y1="100" x2="15" y2="100" stroke="#10B981" stroke-width="1.2" />
+      <!-- 标注 -->
+      <text x="62" y="64" font-size="11" fill="#EF4444">h</text>
+      <text x="32" y="96" font-size="11" fill="#10B981">r=3</text>
+      <text x="80" y="52" font-size="11" fill="#1565C0">l=5</text>
+      <text x="42" y="125" font-size="10" fill="#666">圆锥立体图</text>
+    </svg>
+
+    <!-- 侧面展开扇形 -->
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      <!-- 扇形 -->
+      <path d="M60,15 L15,95 A72,72 0 0,1 105,95 Z" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.2" />
+      <circle cx="60" cy="15" r="3" fill="#EF4444" />
+      <text x="60" y="10" text-anchor="middle" font-size="11" fill="#EF4444">顶点</text>
+      <text x="28" y="72" font-size="10" fill="#1565C0">l=5</text>
+      <text x="92" y="88" font-size="10" fill="#10B981">弧长=2πr</text>
+      <text x="38" y="110" font-size="10" fill="#666">侧面展开图</text>
+    </svg>
+  </div>
+
+  <div class="q">
+    (1) 高 <span class="math">h =</span> <span class="blank"></span> cm &emsp;
+    (2) 侧面积 <span class="math">S_{\text{侧}} =</span> <span class="blank"></span> cm² &emsp;
+    (3) 全面积 <span class="math">S =</span> <span class="blank"></span> cm²
+  </div>
+
+  <h3>题 10. 球与内接正方体（5分·南通压轴难度）</h3>
+  <p>一个正方体的棱长为 <span class="math">2\text{cm}</span>，求它的外接球的体积。</p>
+
+  <div style="text-align:center; margin:12px 0;">
+    <svg width="160" height="160" viewBox="0 0 160 160">
+      <!-- 球 -->
+      <circle cx="80" cy="78" r="60" fill="none" stroke="#9E9E9E" stroke-width="1" stroke-dasharray="6,3" />
+      <!-- 正方体（等距投影） -->
+      <!-- 前面 -->
+      <polygon points="50,50 100,35 100,95 50,110" fill="#BBDEFB" stroke="#1565C0" stroke-width="1.5" />
+      <!-- 左侧面 -->
+      <polygon points="50,50 30,60 30,120 50,110" fill="#90CAF9" stroke="#1565C0" stroke-width="1.5" />
+      <!-- 顶面 -->
+      <polygon points="30,60 80,45 100,35 50,50" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5" />
+      <!-- 对角线 -->
+      <line x1="30" y1="60" x2="100" y2="95" stroke="#EF4444" stroke-width="1.5" stroke-dasharray="4,2" />
+      <!-- 标注 -->
+      <text x="105" y="90" font-size="11" fill="#EF4444">体对角线=2R</text>
+      <text x="60" y="100" font-size="11" fill="#1565C0">2cm</text>
+      <circle cx="30" cy="60" r="3" fill="#EF4444" />
+      <circle cx="100" cy="95" r="3" fill="#EF4444" />
+    </svg>
+  </div>
+
+  <div class="q">
+    球半径 <span class="math">R =</span> <span class="blank"></span> cm &emsp;
+    球体积 <span class="math">V =</span> <span class="blank"></span> cm³
+  </div>
+</div>
+
+<!-- ======================== 三、分子式与化学方程式 ======================== -->
+<div class="section">
+  <h2>三、分子式与化学方程式（初三化学·九上）</h2>
+
+  <h3>题 11. 写出下列物质的化学式（8分）</h3>
+  <table>
+    <tr><th>物质名称</th><th>化学式</th><th>物质名称</th><th>化学式</th></tr>
+    <tr><td>碳酸钙</td><td>CaCO<sub>3</sub></td><td>氢氧化钠</td><td>NaOH</td></tr>
+    <tr><td>高锰酸钾</td><td>KMnO<sub>4</sub></td><td>过氧化氢</td><td style="position:relative;">H<sub>2</sub>O<sub>2</sub></td></tr>
+    <tr><td>硫酸铁</td><td>Fe<sub>2</sub>(SO<sub>4</sub>)<sub>3</sub></td><td>氧化铁</td><td>Fe<sub>2</sub>O<sub>3</sub></td></tr>
+    <tr><td>四氧化三铁</td><td>Fe<sub>3</sub>O<sub>4</sub></td><td>碳酸氢钠</td><td>NaHCO<sub>3</sub></td></tr>
+  </table>
+
+  <h3>题 12. 配平下列化学方程式（12分）</h3>
+
+  <div class="q">
+    <span class="num">(1)</span>&ensp;
+    Fe + O<sub>2</sub> → Fe<sub>3</sub>O<sub>4</sub>
+    &emsp;<span class="note">（铁丝在氧气中燃烧）</span>
+  </div>
+
+  <div class="q">
+    <span class="num">(2)</span>&ensp;
+    H<sub>2</sub>O<sub>2</sub> → H<sub>2</sub>O + O<sub>2</sub>↑
+    &emsp;<span class="note">（过氧化氢分解制氧）</span>
+  </div>
+
+  <div class="q">
+    <span class="num">(3)</span>&ensp;
+    CaCO<sub>3</sub> + HCl → CaCl<sub>2</sub> + H<sub>2</sub>O + CO<sub>2</sub>↑
+    &emsp;<span class="note">（实验室制 CO₂）</span>
+  </div>
+
+  <div class="q">
+    <span class="num">(4)</span>&ensp;
+    Na<sub>2</sub>SO<sub>4</sub> + BaCl<sub>2</sub> → BaSO<sub>4</sub>↓ + NaCl
+    &emsp;<span class="note">（复分解反应）</span>
+  </div>
+
+  <h3>题 13. 计算题（5分）</h3>
+  <p>加热分解 15.8g 高锰酸钾（KMnO<sub>4</sub>），最多可制得氧气多少克？（KMnO<sub>4</sub> 相对分子质量 = 158）</p>
+  <div style="text-align:center; margin:8px 0;">
+    2KMnO<sub>4</sub> &nbsp;→&nbsp; K<sub>2</sub>MnO<sub>4</sub> + MnO<sub>2</sub> + O<sub>2</sub>↑
+  </div>
+</div>
+
+<!-- ======================== 年级判定说明 ======================== -->
+<div class="section">
+  <h2>四、年级适龄判定</h2>
+
+  <table>
+    <tr>
+      <th>知识模块</th><th>适龄年级</th><th>教材位置</th><th>判定依据</th>
+    </tr>
+    <tr>
+      <td>二次根式（化简、运算、有理化）</td>
+      <td><strong>初三上</strong></td>
+      <td>人教版九上第21章</td>
+      <td>√ 需要实数运算基础，八下学完实数后进入</td>
+    </tr>
+    <tr>
+      <td>双重根号 √(7+4√3)</td>
+      <td><strong>初三拓展→高一衔接</strong></td>
+      <td>竞赛/提高题</td>
+      <td>需要完全平方公式和根式综合运用</td>
+    </tr>
+    <tr>
+      <td>三视图与表面积</td>
+      <td><strong>初三下</strong></td>
+      <td>人教版九下第29章</td>
+      <td>需要空间想象能力，小学有初步接触</td>
+    </tr>
+    <tr>
+      <td>圆锥侧面展开</td>
+      <td><strong>初三上</strong></td>
+      <td>人教版九上第24章（圆）</td>
+      <td>扇形面积+弧长公式，与圆紧密关联</td>
+    </tr>
+    <tr>
+      <td>球与内接正方体</td>
+      <td><strong>高一</strong></td>
+      <td>必修二·立体几何</td>
+      <td>需要空间向量或勾股定理三维推广</td>
+    </tr>
+    <tr>
+      <td>分子式（化学式书写）</td>
+      <td><strong>初三上</strong></td>
+      <td>人教版九上第4单元</td>
+      <td>化合价+化学式书写是初三化学核心</td>
+    </tr>
+    <tr>
+      <td>化学方程式配平</td>
+      <td><strong>初三上</strong></td>
+      <td>人教版九上第5单元</td>
+      <td>质量守恒定律，化学方程式书写与配平</td>
+    </tr>
+    <tr>
+      <td>化学方程式计算</td>
+      <td><strong>初三上</strong></td>
+      <td>人教版九上第5单元</td>
+      <td>利用化学方程式的简单计算</td>
+    </tr>
+  </table>
+
+  <div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:12px 16px;margin-top:12px;font-size:13px;">
+    <strong>⚠️ 判定结论：</strong>本卷整体定位 <strong>初三（九年级）</strong> 水平。<br/>
+    · 数学部分（题1-9）适合初三上/下学期<br/>
+    · 化学部分（题11-13）适合初三上学期<br/>
+    · 球体内接正方体（题10）略超纲，属于高一衔接/自主招生难度<br/>
+    <br/>
+    <strong>📌 排版方式判定：</strong><br/>
+    · <span style="color:#10B981">✅ 分子式</span>：纯 HTML <code>&lt;sub&gt;</code> 下标标签即可完美渲染（H<sub>2</sub>SO<sub>4</sub>、Fe<sub>3</sub>O<sub>4</sub>等）<br/>
+    · <span style="color:#F59E0B">⚠️ 复杂根式/分数</span>：必须 KaTeX/MathJax 渲染，纯文本 H₂SO₄ 可读但 √(7+4√3) 不可读<br/>
+    · <span style="color:#EF4444">❌ 立体几何图</span>：必须 SVG/Canvas 或图片，纯文本无法表达空间关系<br/>
+    · 当前知微出题系统<b>以上三种能力全部缺失</b>
+  </div>
+</div>
+
+<!-- ======================== 渲染状态检查 ======================== -->
+<div class="section no-print" style="background:#f5f5f5;border-radius:8px;padding:14px 18px;font-size:13px;">
+  <strong>🔍 渲染状态：</strong><br/>
+  <span id="katex-status" class="render-fail">⏳ 检查中...</span> |
+  立体几何图：内嵌 SVG（不依赖外部库）|
+  分子式：纯 HTML <code>&lt;sub&gt;</code> 标签 |
+  当前系统缺失：<span id="missing-list"></span>
+</div>
+
+<div style="text-align:center;margin-top:28px;" class="no-print">
+  <button onclick="window.print()" style="padding:10px 28px;font-size:15px;cursor:pointer;background:#1A3A6B;color:#fff;border:none;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.2);">
+    🖨️ 打印 / 另存为 PDF
+  </button>
+</div>
+
+<script>
+(function() {
+  // KaTeX auto-render
+  try {
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left: '\\[', right: '\\]', display: true},
+        {left: '\\(', right: '\\)', display: false},
+        {left: "\\begin{equation}", right: "\\end{equation}", display: true},
+      ],
+      ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+      ignoredClasses: ["no-math"],
+      throwOnError: false
+    });
+  } catch(e) {}
+
+  // Check render status
+  const status = document.getElementById('katex-status');
+  const mathEls = document.querySelectorAll('.math');
+  let rendered = 0;
+  mathEls.forEach(el => {
+    if (el.querySelector('.katex') || el.querySelector('.katex-html')) rendered++;
+  });
+  if (rendered === mathEls.length) {
+    status.innerHTML = '✅ KaTeX 渲染成功（' + rendered + '/' + mathEls.length + ' 个公式全部渲染）';
+    status.className = 'render-ok';
+  } else {
+    status.innerHTML = '⚠️ KaTeX 渲染：' + rendered + '/' + mathEls.length + ' 个成功';
+    status.className = 'render-fail';
+  }
+
+  // Missing capabilities
+  document.getElementById('missing-list').innerHTML =
+    '<span style="color:#EF4444">❌ 无 KaTeX/MathJax（package.json 无依赖）</span> | ' +
+    '<span style="color:#EF4444">❌ 无 SVG/Canvas 绘图工具</span> | ' +
+    '<span style="color:#F59E0B">⚠️ 无 &lt;sub&gt;&lt;sup&gt; 化学式渲染组件</span> | ' +
+    '<span style="color:#10B981">✅ 当前测试页通过 CDN 加载 KaTeX 验证</span>';
+})();
+</script>
+
+</body>
+</html>

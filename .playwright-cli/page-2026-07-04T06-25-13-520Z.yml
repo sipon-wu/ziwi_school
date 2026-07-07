@@ -1,0 +1,71 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e9]: 知微教学(AI)
+      - navigation [ref=e10]:
+        - button "班级调度" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - text: 班级调度
+        - button "课程安排" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+          - text: 课程安排
+        - button "教师管理" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+          - text: 教师管理
+        - button "学期管理" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+          - text: 学期管理
+        - button "教务 Dashboard" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+          - text: 教务 Dashboard
+        - button "个人中心" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+          - text: 个人中心
+      - generic [ref=e38]: 成都市金牛区第一小学
+    - generic [ref=e39]:
+      - banner [ref=e40]:
+        - img [ref=e41] [cursor=pointer]
+        - generic [ref=e43]: 教务管理 · 金牛区第一小学
+        - button [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+        - generic [ref=e48]:
+          - img [ref=e50]
+          - text: 教务员 李华
+      - main [ref=e53]:
+        - generic [ref=e54]:
+          - img [ref=e55]
+          - paragraph [ref=e58]: 数据加载失败，请检查网络连接后重试
+          - button "重新加载" [ref=e59] [cursor=pointer]
+      - contentinfo [ref=e60]:
+        - generic [ref=e61]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+        - generic [ref=e62]:
+          - link "关于知微" [ref=e63] [cursor=pointer]:
+            - /url: "#"
+          - link "服务协议" [ref=e64] [cursor=pointer]:
+            - /url: "#"
+          - link "客服" [ref=e65] [cursor=pointer]:
+            - /url: "#"
+  - generic [ref=e67]:
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - img [ref=e70]
+        - heading "AI使用提示" [level=3] [ref=e72]
+      - button [ref=e73] [cursor=pointer]:
+        - img [ref=e74]
+    - generic [ref=e77]:
+      - generic [ref=e78]:
+        - paragraph [ref=e79]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e80]:
+          - listitem [ref=e81]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e82]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e83]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e84]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e85]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e86] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e87]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e88]:
+      - button "取消" [ref=e89] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e90]

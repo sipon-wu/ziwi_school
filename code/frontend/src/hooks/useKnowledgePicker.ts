@@ -72,14 +72,18 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   useEffect(() => {
     const load = async () => {
       try {
-        const [kgRes, tbRes] = await Promise.all([
-          fetch('/knowledge-graph.json'),
-          fetch('/textbook-math.json'),
-        ])
-        const kg = await kgRes.json()
-        const tb = await tbRes.json()
-        setKnowledgeData(kg)
-        setTextbookData(tb)
+        const kgRes = await fetch('/knowledge-graph.json')
+        if (kgRes.ok) {
+          const kg = await kgRes.json()
+          setKnowledgeData(Array.isArray(kg) ? kg : [])
+        }
+      } catch { /* 静默降级 */ }
+      try {
+        const tbRes = await fetch('/textbook-math.json')
+        if (tbRes.ok) {
+          const tb = await tbRes.json()
+          setTextbookData(tb)
+        }
       } catch { /* 静默降级 */ }
       setLoading(false)
     }

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 校园通讯录 · IT管理员</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .directory-layout { display: flex; gap: 16px; min-height: 600px; }
+  .tree-panel { width: 240px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 12px; overflow-y: auto; }
+  .tree-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .detail-panel { flex: 1; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 20px; }
+  .tree-node { padding: 2px 0; }
+  .tree-node .toggle { display: inline-block; width: 16px; text-align: center; cursor: pointer; color: var(--text-secondary); font-size: 11px; user-select: none; }
+  .tree-node .node-name { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; transition: var(--transition-fast); }
+  .tree-node .node-name:hover { background: var(--bg-hover); }
+  .tree-node .node-name.active { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .tree-node .node-name .count { font-size: 11px; color: var(--text-secondary); margin-left: auto; }
+  .tree-node .children { padding-left: 16px; }
+  .tree-node .children.collapsed { display: none; }
+
+  .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light); }
+  .detail-header h3 { font-size: 15px; font-weight: 600; }
+  .contact-card { border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: var(--transition-fast); }
+  .contact-card:hover { border-color: var(--border-default); }
+  .contact-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--brand-blue-light); color: var(--brand-blue); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+  .contact-info { flex: 1; }
+  .contact-info .name { font-size: 13px; font-weight: 600; }
+  .contact-info .meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .contact-info .meta span { margin-right: 12px; }
+  .contact-actions { display: flex; gap: 6px; }
+  .search-area { position: relative; margin-bottom: 12px; }
+  .search-area input { width: 100%; padding: 6px 10px; font-size: 13px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); outline: none; }
+  .search-area input:focus { border-color: var(--border-focus); }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（IT管理员） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      系统 Dashboard
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      用户管理与权限
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>
+      校园通讯录
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      教材版本库
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      数据管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      系统配置
+    </div>
+  </div>
+  <div class="footer">金牛区第一小学 · IT管理</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">系统管理 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>IT管理员 陈工</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      通讯录数据来源于用户管理中的教师、家长信息。家长关联关系由班级和班主任维护。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>校园通讯录</h2>
+      <div class="actions">
+        <button class="btn btn-default">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出通讯录
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 左右布局：树形 + 详情 ═══ -->
+    <div class="directory-layout">
+      <!-- 左侧树形 -->
+      <div class="tree-panel">
+        <div class="search-area">
+          <input type="text" placeholder="搜索教师/学生/家长...">
+        </div>
+        <h4>金牛区第一小学</h4>
+        <div class="tree-node">
+          <span class="toggle" onclick="toggleTree(this)">▼</span>
+          <span class="node-name active" onclick="selectNode(this, '四年级')">四年级 <span class="count">272人</span></span>
+          <div class="children">
+            <div class="tree-node">
+              <span class="toggle" onclick="toggleTree(this)">▼</span>
+              <span class="node-name" onclick="selectNode(this, '四(1)班')">四（1）班 <span class="count">46人</span></span>
+              <div class="children">
+                <div class="tree-node"><span class="toggle">·</span><span class="node-name" onclick="selectNode(this, 'teacher-41')">教师 (5)</span></div>
+                <div class="tree-node"><span class="toggle">·</span><span class="node-name" onclick="selectNode(this, 'student-41')">学生 (46)</span></div>
+                <div class="tree-node"><span class="toggle">·</span><span class="node-name" onclick="selectNode(this, 'parent-41')">家长 (92)</span></div>
+              </div>
+            </div>
+            <div class="tree-node">
+              <span class="toggle" onclick="toggleTree(this)">▶</span>
+              <span class="node-name" onclick="selectNode(this, '四(2)班')">四（2）班 <span class="count">45人</span></span>
+              <div class="children collapsed"></div>
+            </div>
+            <div class="tree-node">
+              <span class="toggle" onclick="toggleTree(this)">▶</span>
+              <span class="node-name" onclick="selectNode(this, '四(3)班')">四（3）班 <span class="count">40人</span></span>
+              <div class="children collapsed"></div>
+            </div>
+            <div class="tree-node">
+              <span class="toggle" onclick="toggleTree(this)">▶</span>
+              <span class="node-name" onclick="selectNode(this, '四(4)班')">四（4）班 <span class="count">48人</span></span>
+              <div class="children collapsed"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tree-node">
+          <span class="toggle" onclick="toggleTree(this)">▶</span>
+          <span class="node-name" onclick="selectNode(this, '五年级')">五年级 <span class="count">264人</span></span>
+          <div class="children collapsed"></div>
+        </div>
+        <div class="tree-node">
+          <span class="toggle" onclick="toggleTree(this)">▶</span>
+          <span class="node-name" onclick="selectNode(this, '六年级')">六年级 <span class="count">258人</span></span>
+          <div class="children collapsed"></div>
+        </div>
+        <div style="border-top:1px solid var(--border-light);margin:8px 0;padding-top:8px;">
+          <div class="tree-node">
+            <span class="toggle">·</span>
+            <span class="node-name" onclick="selectNode(this, 'admin')">管理人员 <span class="count">7人</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧详情 -->
+      <div class="detail-panel">
+        <div class="detail-header">
+          <h3>四（1）班 · 教师</h3>
+          <button class="btn btn-sm btn-default">编辑关联</button>
+        </div>
+
+        <!-- 班主任 -->
+        <div class="contact-card">
+          <div class="contact-avatar">张</div>
+          <div class="contact-info">
+            <div class="name">张丽华 <span class="tag tag-blue" style="margin-left:6px">班主任</span></div>
+            <div class="meta"><span>语文</span><span>138****0001</span><span>zhanglihua@school.cn</span></div>
+          </div>
+          <div class="contact-actions">
+            <button class="btn btn-sm btn-default">查看</button>
+          </div>
+        </div>
+
+        <!-- 任课教师 -->
+        <div class="contact-card">
+          <div class="contact-avatar">李</div>
+          <div class="contact-info">
+            <div class="name">李强</div>
+            <div class="meta"><span>数学</span><span>138****0005</span><span>liqiang@school.cn</span></div>
+          </div>
+          <div class="contact-actions">
+            <button class="btn btn-sm btn-default">查看</button>
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-avatar">王</div>
+          <div class="contact-info">
+            <div class="name">王芳</div>
+            <div class="meta"><span>英语</span><span>138****0004</span><span>wangfang@school.cn</span></div>
+          </div>
+          <div class="contact-actions">
+            <button class="btn btn-sm btn-default">查看</button>
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-avatar">陈</div>
+          <div class="contact-info">
+            <div class="name">陈明</div>
+            <div class="meta"><span>科学</span><span>138****0006</span><span>chenming@school.cn</span></div>
+          </div>
+          <div class="contact-actions">
+            <button class="btn btn-sm btn-default">查看</button>
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-avatar">刘</div>
+          <div class="contact-info">
+            <div class="name">刘伟</div>
+            <div class="meta"><span>道法</span><span>138****0007</span><span>liuwei@school.cn</span></div>
+          </div>
+          <div class="contact-actions">
+            <button class="btn btn-sm btn-default">查看</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/></svg>
+      <div class="empty-text">通讯录暂无数据</div>
+      <div class="error-detail" style="margin-bottom:12px;">请先在用户管理中创建用户</div>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">通讯录数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleTree(el) {
+  var children = el.parentElement.querySelector('.children');
+  if (children) {
+    var isCollapsed = children.classList.contains('collapsed');
+    if (isCollapsed) {
+      children.classList.remove('collapsed');
+      el.textContent = '▼';
+    } else {
+      children.classList.add('collapsed');
+      el.textContent = '▶';
+    }
+  }
+}
+function selectNode(el, name) {
+  document.querySelectorAll('.tree-panel .node-name').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  var h3 = document.querySelector('.detail-header h3');
+  if (h3) h3.textContent = name + ' · 成员列表';
+}
+</script>
+
+</body>
+</html>

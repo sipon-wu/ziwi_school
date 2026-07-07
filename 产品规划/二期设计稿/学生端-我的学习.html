@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>知微教学(AI) · 学生端 · 我的学习</title>
+<link rel="stylesheet" href="design-tokens.css">
+<style>
+  /* ═══ 学生端移动适配 ═══ */
+  :root {
+    --phone-width: 375px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    background: #F0F1F2;
+    color: #353535;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 20px 0;
+    line-height: 1.6;
+  }
+
+  /* ═══ 手机框架（演示用） ═══ */
+  .phone-frame {
+    width: 375px;
+    background: #F6F7F8;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12);
+    position: relative;
+  }
+
+  /* 状态栏 */
+  .status-bar {
+    height: 28px;
+    background: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    font-size: 11px;
+    color: #353535;
+    font-weight: 500;
+  }
+  .status-bar .icons { display: flex; gap: 4px; align-items: center; }
+
+  /* 导航栏 */
+  .nav-bar {
+    height: 44px;
+    background: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: #353535;
+    border-bottom: 0.5px solid #E7E7EB;
+  }
+
+  /* 内容区 */
+  .content {
+    padding: 12px 16px;
+    max-height: 520px;
+    overflow-y: auto;
+    min-height: 400px;
+  }
+
+  /* ═══ 底部 TabBar ═══ */
+  .tab-bar {
+    height: 50px;
+    background: #FFFFFF;
+    border-top: 0.5px solid #E7E7EB;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar .tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: #9A9A9A;
+    cursor: pointer;
+    transition: 0.15s ease;
+    padding: 4px 0;
+  }
+  .tab-bar .tab-item.active { color: #02A7F0; }
+  .tab-bar .tab-item .tab-icon { width: 22px; height: 22px; }
+  .tab-bar .tab-item .badge {
+    position: absolute;
+    top: 0;
+    right: -6px;
+    background: #FF4D4F;
+    color: white;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    min-width: 14px;
+    text-align: center;
+  }
+
+  /* ═══ 欢迎区 ═══ */
+  .welcome-section {
+    background: linear-gradient(135deg, #02A7F0 0%, #0398D8 100%);
+    border-radius: 12px;
+    padding: 16px;
+    color: white;
+    margin-bottom: 12px;
+  }
+  .welcome-section .greeting { font-size: 14px; font-weight: 500; opacity: 0.9; }
+  .welcome-section .student-name { font-size: 20px; font-weight: 700; margin: 4px 0 8px; }
+  .welcome-section .class-info { font-size: 12px; opacity: 0.85; }
+
+  /* ═══ 统计小卡片 ═══ */
+  .mini-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .mini-stat {
+    background: #FFFFFF;
+    border-radius: 8px;
+    padding: 12px 8px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .mini-stat .stat-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .mini-stat .stat-val.blue { color: #02A7F0; }
+  .mini-stat .stat-val.green { color: #52C41A; }
+  .mini-stat .stat-val.orange { color: #F6920E; }
+  .mini-stat .stat-label { font-size: 10px; color: #9A9A9A; }
+
+  /* ═══ 作业卡片 ═══ */
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .section-title .more { font-size: 12px; color: #02A7F0; font-weight: 400; cursor: pointer; }
+
+  .homework-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .homework-card {
+    background: #FFFFFF;
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    cursor: pointer;
+    transition: 0.15s ease;
+    border-left: 3px solid transparent;
+  }
+  .homework-card:active { background: #F9FAFB; }
+  .homework-card.urgent { border-left-color: #FF4D4F; }
+  .homework-card.normal { border-left-color: #02A7F0; }
+  .homework-card .hw-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
+  .homework-card .hw-subject {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .homework-card .hw-subject .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .homework-card .hw-subject .dot.chinese { background: #FF4D4F; }
+  .homework-card .hw-subject .dot.math { background: #02A7F0; }
+  .homework-card .hw-subject .dot.english { background: #52C41A; }
+  .homework-card .hw-deadline {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .homework-card .hw-deadline.urgent-tag { background: rgba(255,77,79,.1); color: #FF4D4F; }
+  .homework-card .hw-deadline.normal-tag { background: rgba(2,167,240,.08); color: #02A7F0; }
+  .homework-card .hw-deadline.done-tag { background: rgba(82,196,26,.1); color: #52C41A; }
+  .homework-card .hw-title { font-size: 13px; color: #353535; margin-bottom: 4px; }
+  .homework-card .hw-meta { font-size: 11px; color: #9A9A9A; display: flex; gap: 12px; }
+
+  /* ═══ 功能入口 ═══ */
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .feature-card {
+    background: #FFFFFF;
+    border-radius: 8px;
+    padding: 16px 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    cursor: pointer;
+    transition: 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .feature-card:active { background: #F9FAFB; }
+  .feature-card .feat-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .feature-card .feat-icon.blue { background: rgba(2,167,240,.08); color: #02A7F0; }
+  .feature-card .feat-icon.green { background: rgba(82,196,26,.1); color: #52C41A; }
+  .feature-card .feat-icon.orange { background: rgba(246,146,14,.1); color: #F6920E; }
+  .feature-card .feat-icon.purple { background: rgba(155,81,224,.1); color: #9B51E0; }
+  .feature-card .feat-info { flex: 1; }
+  .feature-card .feat-name { font-size: 13px; font-weight: 600; }
+  .feature-card .feat-desc { font-size: 10px; color: #9A9A9A; margin-top: 2px; }
+  .feature-card .feat-badge {
+    font-size: 10px;
+    background: #FF4D4F;
+    color: white;
+    padding: 1px 6px;
+    border-radius: 8px;
+  }
+
+  /* ═══ 小微入口 ═══ */
+  .xiaowei-entry {
+    background: #FFFFFF;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.15s ease;
+    margin-bottom: 16px;
+  }
+  .xiaowei-entry:active { background: #F9FAFB; }
+  .xiaowei-entry .xw-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #02A7F0, #0398D8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    color: white;
+  }
+  .xiaowei-entry .xw-info { flex: 1; }
+  .xiaowei-entry .xw-title { font-size: 14px; font-weight: 600; }
+  .xiaowei-entry .xw-desc { font-size: 11px; color: #9A9A9A; }
+  .xiaowei-entry .xw-arrow { color: #D7D7D7; font-size: 16px; }
+
+  /* ═══ 最近成绩趋势卡片 ═══ */
+  .score-trend {
+    background: #FFFFFF;
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    margin-bottom: 12px;
+  }
+  .score-trend .trend-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .score-trend .trend-title { font-size: 14px; font-weight: 600; }
+  .score-trend .trend-period { font-size: 11px; color: #9A9A9A; }
+  .score-chart-placeholder {
+    height: 100px;
+    background: #FAFAFA;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9A9A9A;
+    font-size: 12px;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* ═══ 空态/加载/错误 ═══ */
+  .empty-state {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: #9A9A9A;
+    text-align: center;
+  }
+  .empty-state .empty-text { font-size: 14px; margin-bottom: 8px; }
+  .empty-state .empty-detail { font-size: 12px; }
+
+  .skeleton-loading { display: none; padding: 8px 0; }
+  .skeleton-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .skeleton {
+    flex: 1;
+    height: 14px;
+    background: linear-gradient(90deg, #EBEBEB 25%, #F5F5F5 50%, #EBEBEB 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 3px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  .error-state {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: #FF4D4F;
+    text-align: center;
+  }
+  .error-state .error-text { font-size: 14px; margin-bottom: 8px; }
+  .error-state .retry-btn {
+    margin-top: 12px;
+    padding: 6px 20px;
+    font-size: 13px;
+    background: #02A7F0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <!-- 状态栏 -->
+  <div class="status-bar">
+    <span>9:41</span>
+    <span class="icons">WiFi ▮▮▮ 🔋</span>
+  </div>
+
+  <!-- 导航栏 -->
+  <div class="nav-bar">我的学习</div>
+
+  <!-- 内容区 -->
+  <div class="content" id="main-content">
+
+    <!-- ═══ 欢迎区 ═══ -->
+    <div class="welcome-section">
+      <div class="greeting">下午好 👋</div>
+      <div class="student-name">王小明</div>
+      <div class="class-info">成都市金牛区第一小学 · 四（1）班 · 班主任：张丽华</div>
+    </div>
+
+    <!-- ═══ 统计卡片 ═══ -->
+    <div class="mini-stats">
+      <div class="mini-stat">
+        <div class="stat-val blue">3</div>
+        <div class="stat-label">待完成作业</div>
+      </div>
+      <div class="mini-stat">
+        <div class="stat-val green">85</div>
+        <div class="stat-label">最近正确率</div>
+      </div>
+      <div class="mini-stat">
+        <div class="stat-val orange">12</div>
+        <div class="stat-label">错题待复习</div>
+      </div>
+    </div>
+
+    <!-- ═══ 待完成作业 ═══ -->
+    <div class="section-title">
+      待完成作业
+      <span class="more" onclick="alert('查看全部作业')">全部 ▸</span>
+    </div>
+    <div class="homework-list" id="homework-list">
+      <!-- 即将截止 -->
+      <div class="homework-card urgent" onclick="alert('打开作业：分数比较练习')">
+        <div class="hw-header">
+          <div class="hw-subject"><span class="dot math"></span>数学</div>
+          <span class="hw-deadline urgent-tag">⏰ 今晚 22:00 截止</span>
+        </div>
+        <div class="hw-title">分数比较专项练习</div>
+        <div class="hw-meta">
+          <span>📝 10道题</span>
+          <span>⏱ 预计15分钟</span>
+          <span>👨‍🏫 李强老师</span>
+        </div>
+      </div>
+
+      <div class="homework-card normal" onclick="alert('打开作业：《观潮》课后练习')">
+        <div class="hw-header">
+          <div class="hw-subject"><span class="dot chinese"></span>语文</div>
+          <span class="hw-deadline normal-tag">📅 明天 20:00 截止</span>
+        </div>
+        <div class="hw-title">《观潮》课后练习</div>
+        <div class="hw-meta">
+          <span>📝 8道题</span>
+          <span>⏱ 预计20分钟</span>
+          <span>👨‍🏫 张丽华老师</span>
+        </div>
+      </div>
+
+      <div class="homework-card normal" onclick="alert('打开作业：Unit 3 单词默写')">
+        <div class="hw-header">
+          <div class="hw-subject"><span class="dot english"></span>英语</div>
+          <span class="hw-deadline normal-tag">📅 后天 18:00 截止</span>
+        </div>
+        <div class="hw-title">Unit 3 单词默写练习</div>
+        <div class="hw-meta">
+          <span>📝 15个单词</span>
+          <span>⏱ 预计10分钟</span>
+          <span>👨‍🏫 王芳老师</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 最近成绩趋势 ═══ -->
+    <div class="score-trend">
+      <div class="trend-header">
+        <div class="trend-title">📈 最近成绩趋势</div>
+        <div class="trend-period">近7天</div>
+      </div>
+      <div class="score-chart-placeholder">
+        <span>📊 正确率趋势折线图</span>
+        <span style="font-size:10px;">周一 80% · 周二 85% · 周三 72% · 周四 88% · 周五 85%</span>
+      </div>
+    </div>
+
+    <!-- ═══ 功能入口 ═══ -->
+    <div class="section-title">常用功能</div>
+    <div class="feature-grid">
+      <div class="feature-card" onclick="alert('打开错题本')">
+        <div class="feat-icon orange">📕</div>
+        <div class="feat-info">
+          <div class="feat-name">错题本</div>
+          <div class="feat-desc">按知识点归类复习</div>
+        </div>
+        <span class="feat-badge">12</span>
+      </div>
+      <div class="feature-card" onclick="alert('打开学情报告')">
+        <div class="feat-icon blue">📊</div>
+        <div class="feat-info">
+          <div class="feat-name">学情报告</div>
+          <div class="feat-desc">查看学习数据</div>
+        </div>
+      </div>
+      <div class="feature-card" onclick="alert('打开语音跟读')">
+        <div class="feat-icon green">🎤</div>
+        <div class="feat-info">
+          <div class="feat-name">语音跟读</div>
+          <div class="feat-desc">英语·拼音练习</div>
+        </div>
+      </div>
+      <div class="feature-card" onclick="alert('打开已批改作业')">
+        <div class="feat-icon purple">✅</div>
+        <div class="feat-info">
+          <div class="feat-name">已批改</div>
+          <div class="feat-desc">查看批改结果</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 小微入口 ═══ -->
+    <div class="xiaowei-entry" onclick="alert('打开小微对话')">
+      <div class="xw-icon">💡</div>
+      <div class="xw-info">
+        <div class="xw-title">问小微</div>
+        <div class="xw-desc">这道题不会？问小微帮你解答</div>
+      </div>
+      <div class="xw-arrow">›</div>
+    </div>
+
+  </div>
+
+  <!-- ═══ 空态 ═══ -->
+  <div class="empty-state" id="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9A9A9A" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <div class="empty-text">暂无作业</div>
+    <div class="empty-detail">老师布置作业后会在这里显示</div>
+  </div>
+
+  <!-- ═══ 加载骨架屏 ═══ -->
+  <div class="skeleton-loading" id="skeleton">
+    <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+  </div>
+
+  <!-- ═══ 错误态 ═══ -->
+  <div class="error-state" id="error-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF4D4F" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    <div class="error-text">加载失败</div>
+    <div class="empty-detail">请检查网络连接后重试</div>
+    <button class="retry-btn" onclick="document.getElementById('error-state').style.display='none'">重新加载</button>
+  </div>
+
+  <!-- ═══ 底部 TabBar ═══ -->
+  <div class="tab-bar">
+    <div class="tab-item active" onclick="switchTab(this, 'home')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      学习
+    </div>
+    <div class="tab-item" onclick="switchTab(this, 'homework')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      作业
+      <span class="badge" style="position:relative;top:-16px;">3</span>
+    </div>
+    <div class="tab-item" onclick="switchTab(this, 'mistake')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>
+      错题本
+    </div>
+    <div class="tab-item" onclick="switchTab(this, 'profile')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+      我的
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(el, tab) {
+  document.querySelectorAll('.tab-item').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  if (tab !== 'home') {
+    alert('切换到「' + (tab === 'homework' ? '作业' : tab === 'mistake' ? '错题本' : '我的') + '」页面（设计稿待补充）');
+  }
+}
+</script>
+
+</body>
+</html>

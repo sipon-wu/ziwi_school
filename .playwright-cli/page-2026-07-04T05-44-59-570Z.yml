@@ -1,0 +1,239 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "系统 Dashboard" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 系统 Dashboard
+      - button "用户管理与权限" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: 用户管理与权限
+      - button "校园通讯录" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: 校园通讯录
+      - button "教材版本库" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 教材版本库
+      - button "数据管理" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: 数据管理
+      - button "系统配置" [ref=e37] [cursor=pointer]:
+        - img [ref=e38]
+        - text: 系统配置
+      - button "操作日志" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - text: 操作日志
+    - generic [ref=e44]: 金牛区第一小学 · IT管理
+  - generic [ref=e45]:
+    - banner [ref=e46]:
+      - img [ref=e47] [cursor=pointer]
+      - generic [ref=e49]: 系统管理 · 金牛区第一小学
+      - button [ref=e50] [cursor=pointer]:
+        - img [ref=e51]
+      - generic [ref=e54]:
+        - img [ref=e56]
+        - text: IT管理员 陈工
+    - main [ref=e59]:
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - img [ref=e62]
+          - text: 角色权限修改将立即生效，请谨慎操作。新增用户默认密码将通过短信发送至绑定手机号。
+        - generic [ref=e64]:
+          - button "用户列表" [ref=e65] [cursor=pointer]
+          - button "角色与权限" [ref=e66] [cursor=pointer]
+          - button "批量导入" [ref=e67] [cursor=pointer]
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e70]: 总用户数
+            - generic [ref=e71]: "8"
+          - generic [ref=e72]:
+            - generic [ref=e73]: 教师
+            - generic [ref=e74]: "4"
+          - generic [ref=e75]:
+            - generic [ref=e76]: 教务员
+            - generic [ref=e77]: "2"
+          - generic [ref=e78]:
+            - generic [ref=e79]: 管理员
+            - generic [ref=e80]: "1"
+          - generic [ref=e81]:
+            - generic [ref=e82]: 已禁用
+            - generic [ref=e83]: "1"
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - generic [ref=e86]:
+              - img [ref=e87]
+              - textbox "搜索姓名/手机号..." [ref=e90]
+            - combobox [ref=e91]:
+              - option "全部角色" [selected]
+              - option "教师"
+              - option "教务员"
+              - option "IT管理员"
+              - option "校长"
+            - combobox [ref=e92]:
+              - option "全部状态" [selected]
+              - option "启用"
+              - option "已禁用"
+          - generic [ref=e93]:
+            - button "导出Excel" [ref=e94] [cursor=pointer]:
+              - img [ref=e95]
+              - text: 导出Excel
+            - button "添加用户" [ref=e98] [cursor=pointer]:
+              - img [ref=e99]
+              - text: 添加用户
+        - table [ref=e101]:
+          - rowgroup [ref=e102]:
+            - row "用户 角色 学科/年级 手机号 状态 操作" [ref=e103]:
+              - columnheader [ref=e104]:
+                - checkbox [ref=e105]
+              - columnheader "用户" [ref=e106]
+              - columnheader "角色" [ref=e107]
+              - columnheader "学科/年级" [ref=e108]
+              - columnheader "手机号" [ref=e109]
+              - columnheader "状态" [ref=e110]
+              - columnheader "操作" [ref=e111]
+          - rowgroup [ref=e112]:
+            - row "张 张丽华 教师 语文 / 四年级 138****0001 启用 编辑 改角色 禁用" [ref=e113]:
+              - cell [ref=e114]:
+                - checkbox [ref=e115]
+              - cell "张 张丽华" [ref=e116]:
+                - generic [ref=e117]:
+                  - generic [ref=e118]: 张
+                  - text: 张丽华
+              - cell "教师" [ref=e119]
+              - cell "语文 / 四年级" [ref=e120]
+              - cell "138****0001" [ref=e121]
+              - cell "启用" [ref=e122]
+              - cell "编辑 改角色 禁用" [ref=e123]:
+                - generic [ref=e124]:
+                  - button "编辑" [ref=e125] [cursor=pointer]
+                  - button "改角色" [ref=e126] [cursor=pointer]
+                  - button "禁用" [ref=e127] [cursor=pointer]
+            - row "李 李华 教务员 全校 138****0002 启用 编辑 改角色 禁用" [ref=e128]:
+              - cell [ref=e129]:
+                - checkbox [ref=e130]
+              - cell "李 李华" [ref=e131]:
+                - generic [ref=e132]:
+                  - generic [ref=e133]: 李
+                  - text: 李华
+              - cell "教务员" [ref=e134]
+              - cell "全校" [ref=e135]
+              - cell "138****0002" [ref=e136]
+              - cell "启用" [ref=e137]
+              - cell "编辑 改角色 禁用" [ref=e138]:
+                - generic [ref=e139]:
+                  - button "编辑" [ref=e140] [cursor=pointer]
+                  - button "改角色" [ref=e141] [cursor=pointer]
+                  - button "禁用" [ref=e142] [cursor=pointer]
+            - row "陈 陈工 IT管理员 全校 138****0003 启用 编辑 改角色 禁用" [ref=e143]:
+              - cell [ref=e144]:
+                - checkbox [ref=e145]
+              - cell "陈 陈工" [ref=e146]:
+                - generic [ref=e147]:
+                  - generic [ref=e148]: 陈
+                  - text: 陈工
+              - cell "IT管理员" [ref=e149]
+              - cell "全校" [ref=e150]
+              - cell "138****0003" [ref=e151]
+              - cell "启用" [ref=e152]
+              - cell "编辑 改角色 禁用" [ref=e153]:
+                - generic [ref=e154]:
+                  - button "编辑" [ref=e155] [cursor=pointer]
+                  - button "改角色" [ref=e156] [cursor=pointer]
+                  - button "禁用" [ref=e157] [cursor=pointer]
+            - row "王 王芳 教师 英语 / 四年级 138****0004 启用 编辑 改角色 禁用" [ref=e158]:
+              - cell [ref=e159]:
+                - checkbox [ref=e160]
+              - cell "王 王芳" [ref=e161]:
+                - generic [ref=e162]:
+                  - generic [ref=e163]: 王
+                  - text: 王芳
+              - cell "教师" [ref=e164]
+              - cell "英语 / 四年级" [ref=e165]
+              - cell "138****0004" [ref=e166]
+              - cell "启用" [ref=e167]
+              - cell "编辑 改角色 禁用" [ref=e168]:
+                - generic [ref=e169]:
+                  - button "编辑" [ref=e170] [cursor=pointer]
+                  - button "改角色" [ref=e171] [cursor=pointer]
+                  - button "禁用" [ref=e172] [cursor=pointer]
+            - row "周 周伟 教师 数学 / 四年级 138****0010 已禁用 编辑 改角色 启用" [ref=e173]:
+              - cell [ref=e174]:
+                - checkbox [ref=e175]
+              - cell "周 周伟" [ref=e176]:
+                - generic [ref=e177]:
+                  - generic [ref=e178]: 周
+                  - text: 周伟
+              - cell "教师" [ref=e179]
+              - cell "数学 / 四年级" [ref=e180]
+              - cell "138****0010" [ref=e181]
+              - cell "已禁用" [ref=e182]
+              - cell "编辑 改角色 启用" [ref=e183]:
+                - generic [ref=e184]:
+                  - button "编辑" [ref=e185] [cursor=pointer]
+                  - button "改角色" [ref=e186] [cursor=pointer]
+                  - button "启用" [ref=e187] [cursor=pointer]
+            - row "李 李强 教师 数学 / 四年级 138****0005 启用 编辑 改角色 禁用" [ref=e188]:
+              - cell [ref=e189]:
+                - checkbox [ref=e190]
+              - cell "李 李强" [ref=e191]:
+                - generic [ref=e192]:
+                  - generic [ref=e193]: 李
+                  - text: 李强
+              - cell "教师" [ref=e194]
+              - cell "数学 / 四年级" [ref=e195]
+              - cell "138****0005" [ref=e196]
+              - cell "启用" [ref=e197]
+              - cell "编辑 改角色 禁用" [ref=e198]:
+                - generic [ref=e199]:
+                  - button "编辑" [ref=e200] [cursor=pointer]
+                  - button "改角色" [ref=e201] [cursor=pointer]
+                  - button "禁用" [ref=e202] [cursor=pointer]
+            - row "刘 刘校长 校长 全校 138****0011 启用 编辑 改角色 禁用" [ref=e203]:
+              - cell [ref=e204]:
+                - checkbox [ref=e205]
+              - cell "刘 刘校长" [ref=e206]:
+                - generic [ref=e207]:
+                  - generic [ref=e208]: 刘
+                  - text: 刘校长
+              - cell "校长" [ref=e209]
+              - cell "全校" [ref=e210]
+              - cell "138****0011" [ref=e211]
+              - cell "启用" [ref=e212]
+              - cell "编辑 改角色 禁用" [ref=e213]:
+                - generic [ref=e214]:
+                  - button "编辑" [ref=e215] [cursor=pointer]
+                  - button "改角色" [ref=e216] [cursor=pointer]
+                  - button "禁用" [ref=e217] [cursor=pointer]
+            - row "教 教研组长张 教务员 语文 / 全校 138****0012 启用 编辑 改角色 禁用" [ref=e218]:
+              - cell [ref=e219]:
+                - checkbox [ref=e220]
+              - cell "教 教研组长张" [ref=e221]:
+                - generic [ref=e222]:
+                  - generic [ref=e223]: 教
+                  - text: 教研组长张
+              - cell "教务员" [ref=e224]
+              - cell "语文 / 全校" [ref=e225]
+              - cell "138****0012" [ref=e226]
+              - cell "启用" [ref=e227]
+              - cell "编辑 改角色 禁用" [ref=e228]:
+                - generic [ref=e229]:
+                  - button "编辑" [ref=e230] [cursor=pointer]
+                  - button "改角色" [ref=e231] [cursor=pointer]
+                  - button "禁用" [ref=e232] [cursor=pointer]
+        - generic [ref=e233]:
+          - generic [ref=e234]: 共 8 条
+          - generic [ref=e235]:
+            - button "1" [ref=e236] [cursor=pointer]
+            - button "2" [ref=e237] [cursor=pointer]
+            - button "3" [ref=e238] [cursor=pointer]
+    - contentinfo [ref=e239]:
+      - generic [ref=e240]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e241]:
+        - link "关于知微" [ref=e242] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e243] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e244] [cursor=pointer]:
+          - /url: "#"

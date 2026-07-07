@@ -1,0 +1,38 @@
+[
+  {
+    "id": "msg-1783151072452-zx1jvj",
+    "from": "team-lead",
+    "to": "小Q",
+    "type": "message",
+    "content": "调整优先级：先做界面截图核对，再做路由和API。\n\n请对以下核心页面逐一截图（用 playwright-cli 截图 school.ziwi.cn，保存到 /Users/sipon/CodeBuddy/AI教案/generated-images/prod-*.png）：\n\n1. /login — 登录页（左品牌区+右表单）\n2. /dashboard — 教师首页\n3. /dean/classes — 教务-班级调度\n4. /admin/users — IT管理-用户权限\n5. /platform/tokens — 运营-Token管理\n6. /research/review-pool — 教研-互审池\n7. /ops/monitor — 运维-监控大盘\n\n截图完成后立即汇报文件名和尺寸，我会对照设计稿核对。",
+    "timestamp": "2026-07-04T07:44:32.452Z",
+    "read": true
+  },
+  {
+    "id": "msg-1783151455348-8wpj56",
+    "from": "team-lead",
+    "to": "小Q",
+    "type": "message",
+    "content": "未登录重定向到 /login 是预期行为（JWT认证保护）。这些页面需登录后才能正常渲染，Playwright无token所以被拦截。\n\n截图任务完成。品姐正在核对已有的截图。你暂时待命，等品姐核对结果出来后可能需要配合验证。",
+    "timestamp": "2026-07-04T07:50:55.348Z",
+    "read": true
+  },
+  {
+    "id": "msg-1783151549752-lh4xs0",
+    "from": "team-lead",
+    "to": "小Q",
+    "type": "message",
+    "content": "品姐核对发现：Token管理/互审池/监控大盘因未登录显示异常（JWT认证拦截）。需要你用演示账号登录后重新截图。\n\n用 playwright-cli 执行登录流程：\n1. 打开 https://school.ziwi.cn/login\n2. 填写手机号：13800000002，密码：teacher123\n3. 点击登录按钮\n4. 等待跳转后，分别访问并截图：\n   - /platform/tokens → prod-platform-tokens.png\n   - /research/review-pool → prod-research-review-pool.png  \n   - /ops/monitor → prod-ops-monitor.png\n   - /dean/classes → prod-dean-classes.png\n   - /dashboard → prod-dashboard.png\n\n覆盖旧文件后通知我。",
+    "timestamp": "2026-07-04T07:52:29.752Z",
+    "read": true
+  },
+  {
+    "id": "msg-1783154418259-rt3v3x",
+    "from": "team-lead",
+    "to": "小Q",
+    "type": "message",
+    "content": "紧急任务：教师侧边栏已修复（useNavigation.ts + SideBar.tsx 被意外覆盖导致只有3项，现已恢复备课/作业/教学数据/家校沟通4个分组）。\n\n请用 playwright-cli 执行以下验证：\n1. 打开 https://school.ziwi.cn/login\n2. 填写手机号 13800000002，密码 teacher123\n3. 点击登录\n4. 等待3秒跳转到 /dashboard\n5. 截图保存到 /Users/sipon/CodeBuddy/AI教案/dashboard.png\n\n截图后立即通知结果。",
+    "timestamp": "2026-07-04T08:40:18.259Z",
+    "read": true
+  }
+]

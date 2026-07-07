@@ -1,0 +1,97 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - heading "教案备课" [level=1] [ref=e52]
+            - paragraph [ref=e53]: 管理您的所有教案，支持 AI 生成和手动编辑
+          - button "新建教案" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+            - text: 新建教案
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - img [ref=e58]
+            - textbox "搜索教案标题..." [ref=e61]
+          - combobox [ref=e62]:
+            - option "全部学科" [selected]
+            - option "语文"
+            - option "数学"
+            - option "英语"
+          - combobox [ref=e63]:
+            - option "全部状态" [selected]
+            - option "草稿"
+            - option "已定稿"
+          - combobox [ref=e64]:
+            - option "全部学年" [selected]
+            - option "2025-2026"
+            - option "2026-2027"
+        - generic [ref=e65]:
+          - generic [ref=e66]: 共 1 份教案
+          - generic [ref=e68]: 已定稿 1 份
+          - generic [ref=e70]: 草稿 0 份
+        - table [ref=e73]:
+          - rowgroup [ref=e74]:
+            - row "教案标题 学科 年级 模板 状态 更新时间 操作" [ref=e75]:
+              - columnheader "教案标题" [ref=e76]
+              - columnheader "学科" [ref=e77]
+              - columnheader "年级" [ref=e78]
+              - columnheader "模板" [ref=e79]
+              - columnheader "状态" [ref=e80]
+              - columnheader "更新时间" [ref=e81]
+              - columnheader "操作" [ref=e82]
+          - rowgroup [ref=e83]:
+            - row "《观潮》第一课时 语文 四年级 核心素养 已定稿 2026-06-17 14:30" [ref=e84] [cursor=pointer]:
+              - cell "《观潮》第一课时" [ref=e85]:
+                - generic [ref=e86]:
+                  - img [ref=e87]
+                  - generic [ref=e89]: 《观潮》第一课时
+              - cell "语文" [ref=e90]:
+                - generic [ref=e91]: 语文
+              - cell "四年级" [ref=e92]
+              - cell "核心素养" [ref=e93]
+              - cell "已定稿" [ref=e94]:
+                - generic [ref=e95]: 已定稿
+              - cell "2026-06-17 14:30" [ref=e97]
+              - cell [ref=e98]:
+                - generic [ref=e99]:
+                  - button "编辑" [ref=e100]:
+                    - img [ref=e101]
+                  - button "预览" [ref=e104]:
+                    - img [ref=e105]
+                  - button "删除" [ref=e108]:
+                    - img [ref=e109]
+  - button "小微" [ref=e112] [cursor=pointer]:
+    - img "小微" [ref=e113]

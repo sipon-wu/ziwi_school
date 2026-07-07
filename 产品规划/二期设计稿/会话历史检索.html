@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 会话历史检索</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .history-layout { display: flex; gap: 16px; min-height: 500px; }
+  .history-list-panel { width: 320px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+  .history-list-panel .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 8px; }
+  .history-list-panel .panel-header input { flex: 1; padding: 6px 10px; font-size: 13px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); outline: none; }
+  .history-list-panel .panel-header input:focus { border-color: var(--border-focus); }
+  .history-list { overflow-y: auto; max-height: calc(500px - 50px); }
+  .history-item { padding: 12px 16px; border-bottom: 1px solid var(--bg-stripe); cursor: pointer; transition: var(--transition-fast); }
+  .history-item:hover { background: var(--bg-hover); }
+  .history-item.active { background: var(--brand-blue-light); }
+  .history-item .task-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .history-item .task-meta { font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; }
+  .history-item .task-summary { font-size: 11px; color: var(--text-placeholder); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .detail-panel { flex: 1; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 20px; overflow-y: auto; }
+  .detail-panel .msg { margin-bottom: 12px; display: flex; gap: 10px; }
+  .detail-panel .msg.user { justify-content: flex-end; }
+  .detail-panel .msg .bubble { max-width: 75%; padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; line-height: 1.6; }
+  .detail-panel .msg.ai .bubble { background: var(--bg-stripe); border: 1px solid var(--border-light); }
+  .detail-panel .msg.user .bubble { background: var(--brand-blue); color: white; }
+  .detail-panel .msg .time { font-size: 10px; color: var(--text-placeholder); margin-top: 4px; }
+  .month-divider { padding: 8px 16px; font-size: 11px; color: var(--text-secondary); background: var(--bg-stripe); font-weight: 500; }
+  .empty-search { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 13px; }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>首页</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20H18"/><path d="M4 4C4 3 5 2 6 2H18V20H6C5 20 4 19 4 18V4Z"/></svg>教学备课</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>作业练习</div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M6 20C6 17 9 15 12 15 15 15 18 17 18 20"/></svg>个人中心</div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">语文 · 四年级（1班）</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <span class="token">Token 5%</span>
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>张真真</div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      会话历史默认展示近3个月，按月分表。每次最多展示20条任务。支持全文检索。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+    <div class="page-title-area"><h2>小微 · 会话历史检索</h2></div>
+    <div class="history-layout">
+      <div class="history-list-panel">
+        <div class="panel-header"><input type="text" placeholder="搜索对话关键词..." oninput="filterHistory(this.value)"></div>
+        <div class="history-list">
+          <div class="month-divider">2026年7月</div>
+          <div class="history-item active" onclick="selectHistory(this, 'task1')">
+            <div class="task-title">《观潮》第一课时教案生成</div>
+            <div class="task-meta"><span>07-03 14:30</span><span>6条消息</span></div>
+            <div class="task-summary">帮我生成四年级语文《观潮》第一课时的教案...</div>
+          </div>
+          <div class="history-item" onclick="selectHistory(this, 'task2')">
+            <div class="task-title">分数比较专项练习题</div>
+            <div class="task-meta"><span>07-02 10:15</span><span>4条消息</span></div>
+            <div class="task-summary">为四年级数学分数比较出10道选择题...</div>
+          </div>
+          <div class="month-divider">2026年6月</div>
+          <div class="history-item" onclick="selectHistory(this, 'task3')">
+            <div class="task-title">期末模拟试卷组卷</div>
+            <div class="task-meta"><span>06-28 16:00</span><span>8条消息</span></div>
+            <div class="task-summary">生成一份覆盖3-5单元的期末模考试卷...</div>
+          </div>
+          <div class="history-item" onclick="selectHistory(this, 'task4')">
+            <div class="task-title">《乡下人家》备课讨论</div>
+            <div class="task-meta"><span>06-25 09:20</span><span>5条消息</span></div>
+            <div class="task-summary">四年级语文《乡下人家》的教学思路讨论...</div>
+          </div>
+          <div class="month-divider">2026年5月</div>
+          <div class="history-item" onclick="selectHistory(this, 'task5')">
+            <div class="task-title">学情数据分析</div>
+            <div class="task-meta"><span>05-20 11:45</span><span>3条消息</span></div>
+            <div class="task-summary">帮我分析四(1)班最近一周的作业正确率...</div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel" id="detail-panel">
+        <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border-light);">
+          <h4 style="font-size:14px;font-weight:600;">《观潮》第一课时教案生成</h4>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">2026-07-03 14:30 · 6条消息 · 上下文：语文·四年级·部编版</div>
+        </div>
+        <div class="msg user"><div><div class="bubble">帮我生成四年级语文《观潮》第一课时的教案，知识点聚焦"由远及近的描写顺序"和"比喻修辞手法"。</div><div class="time">14:30</div></div></div>
+        <div class="msg ai"><div><div class="bubble">好的！我将为您生成《观潮》第一课时的教案。以下是教案内容：<br><br><strong>教学目标：</strong><br>1. 通过朗读感受钱塘江大潮的雄伟壮观<br>2. 理解作者按时间顺序、由远及近的描写顺序<br>3. 体会比喻修辞手法的作用<br><br>...（完整教案）</div><div class="time">14:31</div></div></div>
+        <div class="msg user"><div><div class="bubble">教学重难点部分可以再详细一些吗？</div><div class="time">14:32</div></div></div>
+        <div class="msg ai"><div><div class="bubble">当然！以下是对教学重难点的详细补充：<br><br><strong>重点：</strong>理清文章由远及近的描写顺序，体会作者如何通过比喻手法表现大潮的气势。<br><strong>难点：</strong>学生理解"横贯江面""齐头并进"等动态描写词语的表达效果。</div><div class="time">14:32</div></div></div>
+      </div>
+    </div>
+
+    <div class="pagination"><span>共 20 条，第 1/1 页</span></div>
+
+    <div class="empty-state" style="display:none" id="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg><div class="empty-text">暂无会话历史</div></div>
+    <div class="skeleton-loading" style="display:none" id="skeleton"><div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div><div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+    <div class="error-state" style="display:none" id="error-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg><div class="error-text">历史数据加载失败</div><button class="btn btn-primary">重新加载</button></div>
+  </div>
+</main>
+<footer class="page-footer"><span>© 2026 知微网版权所有</span><span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span></footer>
+<script>
+function selectHistory(el, id) {
+  document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+function filterHistory(val) {
+  document.querySelectorAll('.history-item').forEach(i => {
+    i.style.display = val === '' || i.textContent.toLowerCase().includes(val.toLowerCase()) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

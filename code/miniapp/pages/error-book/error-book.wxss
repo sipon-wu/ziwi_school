@@ -1,0 +1,5 @@
+.page { padding: 24rpx; }
+.flex-between { display: flex; justify-content: space-between; align-items: flex-start; }
+.flex-1 { flex: 1; }
+.stem { font-size: 28rpx; display: block; line-height: 1.6; }
+.subtitle { font-size: 24rpx; color: #9A9A9A; margin-top: 8rpx; display: block; }

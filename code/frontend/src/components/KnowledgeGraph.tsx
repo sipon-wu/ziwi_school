@@ -155,7 +155,7 @@ export default function KnowledgeGraph({
       const gData = treeToGraphData(treeJson)
 
       graph = new Graph({
-        container: containerRef.current, width: w, height: h, autoFit: 'view', data: gData,
+        container: containerRef.current, width: w, height: h, autoFit: { type: 'view', padding: 40 }, data: gData,
         node: {
           type: 'rect',
           state: {
@@ -194,13 +194,12 @@ export default function KnowledgeGraph({
         behaviors: ['drag-canvas', 'zoom-canvas', 'collapse-expand'],
       })
       graph.render()
-      setTimeout(() => graph.fitView(), 100)
     } else {
       const gData = buildGraphData(visibleNodes)
       const isSpiral = layout === 'spiral'
 
       graph = new Graph({
-        container: containerRef.current, width: w, height: h, data: gData, autoFit: 'view',
+        container: containerRef.current, width: w, height: h, data: gData, autoFit: 'center',
         node: {
           state: {
             selected: {
@@ -216,8 +215,8 @@ export default function KnowledgeGraph({
             const name = d.data?.name || d.id
             return {
               labelText: name,
-              labelPlacement: 'bottom',
-              labelOffsetY: 4,
+              labelPlacement: isSpiral ? 'right' : 'bottom',
+              ...(isSpiral ? { labelOffsetX: 6 } : { labelOffsetY: 4 }),
               labelFontSize: 12,
               labelFill: '#333',
               size: 28,
@@ -230,7 +229,7 @@ export default function KnowledgeGraph({
         },
         edge: { style: { stroke: '#C0C8D4', lineWidth: (d: any) => Math.max(0.3, d.weight * 0.8), opacity: 0.35 } },
         layout: isSpiral
-          ? { type: 'circular', startRadius: 20, endRadius: Math.max(200, Math.min(visibleNodes.length * 18, Math.min(w, h) * 0.45)) }
+          ? { type: 'circular', startRadius: 20, endRadius: Math.max(200, Math.min(visibleNodes.length * 24, Math.min(w, h) * 0.45)) }
           : {
               type: 'd3-force',
               collide: { radius: 20 },
@@ -285,7 +284,7 @@ export default function KnowledgeGraph({
     } catch {
       // graph 可能已被销毁
     }
-  }, [selectedIds])
+  }, [selectedIds, layout])
 
   // inline 模式下：面板宽度变化时 resize G6 实例（不调 fitView，保留用户缩放）
   useEffect(() => {

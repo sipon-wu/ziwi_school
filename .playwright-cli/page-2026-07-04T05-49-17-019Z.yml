@@ -1,0 +1,110 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - heading "个人设置" [level=1] [ref=e51]
+          - paragraph [ref=e52]: 管理您的个人信息和账号安全
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - img [ref=e55]
+            - generic [ref=e58]: 基本信息
+          - generic [ref=e59]:
+            - generic [ref=e60]:
+              - generic [ref=e61] [cursor=pointer]:
+                - generic [ref=e62]: 张
+                - img [ref=e64]
+              - generic [ref=e67]:
+                - button "更换头像" [ref=e68] [cursor=pointer]
+                - paragraph [ref=e69]: 支持 JPG/PNG，最大 2MB
+            - generic [ref=e70]:
+              - generic [ref=e71]:
+                - generic [ref=e72]: 姓名
+                - textbox "姓名" [ref=e73]: 张老师
+              - generic [ref=e74]:
+                - generic [ref=e75]: 手机号
+                - textbox "手机号" [disabled] [ref=e76]: 138****8888
+              - generic [ref=e77]:
+                - generic [ref=e78]: 任教年级
+                - combobox "任教年级" [ref=e79]:
+                  - option "一年级"
+                  - option "二年级"
+                  - option "三年级"
+                  - option "四年级" [selected]
+                  - option "五年级"
+                  - option "六年级"
+                  - option "七年级"
+                  - option "八年级"
+                  - option "九年级"
+              - generic [ref=e80]:
+                - generic [ref=e81]: 任教学科
+                - combobox "任教学科" [ref=e82]:
+                  - option "语文" [selected]
+                  - option "数学"
+                  - option "英语"
+            - button "保存修改" [ref=e83] [cursor=pointer]:
+              - img [ref=e84]
+              - text: 保存修改
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - img [ref=e90]
+            - generic [ref=e92]: 个人教材版本
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]: 语文 · 人教版
+              - generic [ref=e97]: （个人版本覆盖学校默认，IT管理员设定全校默认）
+            - button "修改" [ref=e98] [cursor=pointer]
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - img [ref=e101]
+            - generic [ref=e103]: 安全设置
+          - generic [ref=e104]:
+            - button "修改密码" [ref=e105] [cursor=pointer]:
+              - generic [ref=e106]:
+                - img [ref=e107]
+                - generic [ref=e110]: 修改密码
+              - img [ref=e111]
+            - generic [ref=e113] [cursor=pointer]:
+              - generic [ref=e114]:
+                - img [ref=e115]
+                - generic [ref=e118]: 通知设置
+              - img [ref=e119]
+            - generic [ref=e121]:
+              - generic [ref=e122]:
+                - img [ref=e123]
+                - generic [ref=e125]: 两步验证
+              - generic [ref=e126]: 未开启
+  - button "小微" [ref=e127] [cursor=pointer]:
+    - img "小微" [ref=e128]

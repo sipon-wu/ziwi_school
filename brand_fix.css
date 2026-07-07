@@ -1,0 +1,8 @@
+/* Brand color fix for school.ziwi.cn */
+.text-brand-blue, .text-brand { color: #02A7F0 !important; }
+.bg-brand-blue, .bg-brand { background-color: #02A7F0 !important; }
+.border-brand-blue, .border-brand { border-color: #02A7F0 !important; }
+.hover\:text-brand-blue-hover:hover, .hover\:text-brand-hover:hover { color: #0398D8 !important; }
+.bg-brand-blue\/30, .bg-brand\/30 { background-color: rgba(2, 167, 240, 0.3) !important; }
+.bg-brand-blue\/40, .bg-brand\/40 { background-color: rgba(2, 167, 240, 0.4) !important; }
+.bg-brand-blue\/10, .bg-brand\/10 { background-color: rgba(2, 167, 240, 0.1) !important; }

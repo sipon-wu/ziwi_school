@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 学期管理 · 教务员</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .semester-cards { display: flex; flex-direction: column; gap: 12px; }
+  .semester-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: var(--transition-fast);
+  }
+  .semester-card:hover { border-color: var(--border-default); }
+  .semester-card.current { border-color: var(--brand-blue); border-width: 2px; }
+  .semester-card .timeline {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .semester-card .semester-name { font-size: 15px; font-weight: 600; }
+  .semester-card .semester-date { font-size: 13px; color: var(--text-secondary); }
+  .semester-card .semester-date span { margin-right: 16px; }
+  .semester-card .progress-bar-wrap { width: 200px; height: 6px; background: var(--bg-disabled); border-radius: 3px; overflow: hidden; }
+  .semester-card .progress-bar { height: 100%; background: var(--brand-blue); border-radius: 3px; transition: width .3s ease; }
+  .semester-card .progress-text { font-size: 11px; color: var(--text-secondary); }
+  .semester-card .semester-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .system-config { margin-top: 24px; }
+  .system-config h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .config-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--bg-stripe); }
+  .config-row .config-label { width: 140px; font-size: 13px; color: var(--text-primary); flex-shrink: 0; }
+  .config-row .config-value { flex: 1; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+  .config-row select { padding: 4px 10px; font-size: 13px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); }
+  .rotate-warning {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: var(--color-warning-light);
+    border: 1px solid rgba(255,152,0,0.25);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--color-warning);
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（教务员） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      班级调度
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      课程安排
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      教师管理
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      学期管理
+    </div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">教务管理 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>教务员 李华</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      当前学期：<strong>2025-2026学年 第二学期</strong>。学期切换将影响全校课程安排和教师分配数据。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>学期管理</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="toggleAddSemesterModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          创建新学期
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 学期列表 ═══ -->
+    <div class="semester-cards">
+      <!-- 当前学期 -->
+      <div class="semester-card current">
+        <div class="timeline">
+          <div class="semester-name">
+            2025-2026学年 第二学期
+            <span class="tag tag-blue" style="margin-left:8px">当前学期</span>
+          </div>
+          <div class="semester-date">
+            <span>起止：2026-02-17 ~ 2026-07-05</span>
+            <span>学段：四年级</span>
+            <span>学制：六三制</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="progress-bar-wrap"><div class="progress-bar" style="width:88%"></div></div>
+            <span class="progress-text">学期进度 88%</span>
+          </div>
+        </div>
+        <div class="semester-actions">
+          <button class="btn btn-default btn-sm">查看校历</button>
+          <button class="btn btn-default btn-sm">编辑</button>
+        </div>
+      </div>
+
+      <!-- 上学期 -->
+      <div class="semester-card">
+        <div class="timeline">
+          <div class="semester-name">2025-2026学年 第一学期 <span class="tag tag-default" style="margin-left:8px">已结束</span></div>
+          <div class="semester-date">
+            <span>起止：2025-09-01 ~ 2026-01-15</span>
+            <span>学段：四年级</span>
+            <span>学制：六三制</span>
+          </div>
+        </div>
+        <div class="semester-actions">
+          <button class="btn btn-default btn-sm">查看归档</button>
+        </div>
+      </div>
+
+      <!-- 历史学期 -->
+      <div class="semester-card">
+        <div class="timeline">
+          <div class="semester-name">2024-2025学年 第二学期 <span class="tag tag-default" style="margin-left:8px">已归档</span></div>
+          <div class="semester-date">
+            <span>起止：2025-02-17 ~ 2025-07-05</span>
+            <span>学段：三年级</span>
+            <span>学制：六三制</span>
+          </div>
+        </div>
+        <div class="semester-actions">
+          <button class="btn btn-default btn-sm">查看归档</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 学制配置 ═══ -->
+    <div class="system-config">
+      <h3>学制与校历配置</h3>
+
+      <div class="config-row">
+        <div class="config-label">学制类型</div>
+        <div class="config-value">
+          <select>
+            <option selected>六三制（小学6年 + 初中3年）</option>
+            <option>五四制（小学5年 + 初中4年）</option>
+          </select>
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="config-label">学年起止</div>
+        <div class="config-value">
+          <input type="date" value="2025-09-01" style="padding:4px 8px;border:1px solid var(--border-input);border-radius:var(--radius-sm);font-size:13px;"> ~
+          <input type="date" value="2026-07-05" style="padding:4px 8px;border:1px solid var(--border-input);border-radius:var(--radius-sm);font-size:13px;">
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="config-label">春季学期</div>
+        <div class="config-value">
+          <input type="date" value="2026-02-17" style="padding:4px 8px;border:1px solid var(--border-input);border-radius:var(--radius-sm);font-size:13px;"> ~
+          <input type="date" value="2026-07-05" style="padding:4px 8px;border:1px solid var(--border-input);border-radius:var(--radius-sm);font-size:13px;">
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="config-label">秋季学期</div>
+        <div class="config-value">
+          <input type="date" value="2026-09-01" style="padding:4px 8px;border:1px solid var(--border-input);border-radius:var(--radius-sm);font-size:13px;"> ~
+          <input type="date" value="2027-01-15" style="padding:4px 8px;border:1px solid var(--border-input);border-radius:var(--radius-sm);font-size:13px;">
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="config-label">自动升年级</div>
+        <div class="config-value">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
+            <input type="checkbox" checked> 新学期自动将学生升入下一年级
+          </label>
+        </div>
+      </div>
+
+      <div class="rotate-warning">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="vertical-align:middle;margin-right:6px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <strong>轮转提醒：</strong>当前学期将在 <strong>2026-07-05</strong> 结束。系统将在新学期开始前自动执行升年级操作（四→五、五→六、六→毕业）。请在此之前确认班级分配和教师安排。如需手动干预，请在「系统设置 → 学期轮转」中操作。
+      </div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      <div class="empty-text">暂无学期数据</div>
+      <button class="btn btn-primary" onclick="toggleAddSemesterModal()">+ 创建第一个学期</button>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton" style="width:60%"></div></div>
+      <div class="skeleton-row"><div class="skeleton" style="width:80%"></div></div>
+      <div class="skeleton-row"><div class="skeleton" style="width:40%"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">学期数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ 创建新学期弹窗 ═══ -->
+<div class="modal-overlay" id="add-semester-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>创建新学期</h3>
+      <span class="close" onclick="toggleAddSemesterModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">学期名称</label>
+        <input type="text" placeholder="如：2026-2027学年 第一学期" value="2026-2027学年 第一学期">
+      </div>
+      <div class="form-group">
+        <label class="required">起始日期</label>
+        <input type="date" value="2026-09-01">
+      </div>
+      <div class="form-group">
+        <label class="required">结束日期</label>
+        <input type="date" value="2027-01-15">
+      </div>
+      <div class="form-group">
+        <label>继承上一学期配置</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;">
+          <input type="checkbox" checked> 自动继承班级结构、教师分配和课表配置
+        </label>
+        <div class="hint">勾选后将保留上一学期的班级和教师分配，仅自动升年级</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleAddSemesterModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('新学期创建成功！');toggleAddSemesterModal()">创建</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleAddSemesterModal() {
+  var m = document.getElementById('add-semester-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

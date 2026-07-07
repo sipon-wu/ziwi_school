@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · AI使用指引 · 系统设置</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .guide-section { margin-bottom: 24px; }
+  .guide-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .do-dont .col { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; }
+  .do-dont .col h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .do-dont .col.can h4 { color: var(--color-success); }
+  .do-dont .col.cant h4 { color: var(--color-danger); }
+  .do-dont .col ul { list-style: none; }
+  .do-dont .col li { font-size: 13px; padding: 5px 0; display: flex; align-items: flex-start; gap: 6px; color: var(--text-secondary); }
+  .do-dont .col li::before { flex-shrink: 0; font-weight: 600; }
+  .do-dont .col.can li::before { content: '✓'; color: var(--color-success); }
+  .do-dont .col.cant li::before { content: '✕'; color: var(--color-danger); }
+  .scene-list { list-style: none; }
+  .scene-list li { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid var(--bg-stripe); display: flex; align-items: flex-start; gap: 8px; }
+  .scene-list li:last-child { border-bottom: none; }
+  .scene-list .icon { flex-shrink: 0; width: 20px; text-align: center; }
+  .compliance-box { padding: 16px; background: var(--brand-blue-light-04); border: 1px solid var(--brand-blue-light-25); border-radius: var(--radius-md); }
+  .compliance-box h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--brand-blue); }
+  .compliance-box ul { list-style: none; font-size: 13px; color: var(--text-secondary); }
+  .compliance-box li { padding: 4px 0; padding-left: 16px; position: relative; }
+  .compliance-box li::before { content: '•'; position: absolute; left: 4px; color: var(--brand-blue); }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>首页</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20H18"/><path d="M4 4C4 3 5 2 6 2H18V20H6C5 20 4 19 4 18V4Z"/></svg>教学备课</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>作业练习</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>教学数据</div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M6 20C6 17 9 15 12 15 15 15 18 17 18 20"/></svg>个人中心</div>
+    <div class="item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="4"/><path d="M12 5V7M12 17V19M5 12H7M17 12H19"/></svg>系统设置</div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">语文 · 四年级（1班）</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <span class="token">Token 5%</span>
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>张真真</div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="page-title-area"><h2>系统设置 · AI使用指引</h2></div>
+
+    <!-- Tab模拟：左侧菜单 + 右侧内容 -->
+    <div style="display:flex;gap:16px;">
+      <div style="width:180px;flex-shrink:0;background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-md);padding:8px 0;">
+        <div style="padding:10px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary)">学校与班级管理</div>
+        <div style="padding:10px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary)">小微风格训练</div>
+        <div style="padding:10px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary)">个人信息</div>
+        <div style="padding:10px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary)">权限与共享</div>
+        <div style="padding:10px 16px;font-size:13px;cursor:pointer;color:var(--brand-blue);background:var(--brand-blue-light);font-weight:500;">AI使用指引</div>
+      </div>
+      <div style="flex:1;background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-md);padding:24px;">
+
+        <div class="guide-section">
+          <h3>AI 辅助教学的使用场景</h3>
+          <ul class="scene-list">
+            <li><span class="icon">📝</span><span><strong>教案生成：</strong>基于知识图谱和教学模板，AI辅助生成教案框架和内容建议。</span></li>
+            <li><span class="icon">📊</span><span><strong>出题组卷：</strong>AI根据知识点和难度要求自动生成练习题和试卷。</span></li>
+            <li><span class="icon">📈</span><span><strong>学情分析：</strong>AI汇总学生作业和考试数据，生成描述性评估报告。</span></li>
+            <li><span class="icon">💬</span><span><strong>教学问答：</strong>小微可回答基于上下文的教学问题，辅助备课。</span></li>
+            <li><span class="icon">🎨</span><span><strong>风格训练：</strong>AI学习教师个人教学风格，提供个性化建议。</span></li>
+          </ul>
+        </div>
+
+        <div class="guide-section">
+          <h3>AI 能力边界</h3>
+          <div class="do-dont">
+            <div class="col can">
+              <h4>AI 可以做的</h4>
+              <ul>
+                <li>理解自然语言指令，调用后端生成内容</li>
+                <li>检索素材库、知识图谱中的教学资源</li>
+                <li>分析学情数据，生成描述性评估（非标签）</li>
+                <li>学习教师个人教学风格</li>
+                <li>回答基于上下文的教学问题</li>
+              </ul>
+            </div>
+            <div class="col cant">
+              <h4>AI 不会做的</h4>
+              <ul>
+                <li>操作页面DOM（点击按钮、填写表单）</li>
+                <li>导航到其他页面</li>
+                <li>截图当前页面</li>
+                <li>执行浏览器宏</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>教师责任与合规声明</h3>
+          <div class="compliance-box">
+            <h4>教师使用 AI 生成内容的责任提示</h4>
+            <ul>
+              <li><strong>审核义务：</strong>教师对 AI 生成的所有教学内容负有最终审核义务，须在发布前确认内容的准确性和适用性。</li>
+              <li><strong>最终决策权：</strong>AI 生成内容仅供参考和辅助，教学决策权始终在教师手中。</li>
+              <li><strong>数据隐私：</strong>AI 生成过程中不存储学生个人信息，所有学情分析基于脱敏数据。</li>
+              <li><strong>版权合规：</strong>AI 生成内容如引用外部素材，教师须确认版权合规后再使用。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h3>敏感场景提示</h3>
+          <ul class="scene-list">
+            <li><span class="icon">🧠</span><span><strong>心理健康：</strong>涉及学生心理健康、情绪状态的评估和干预，请务必人工介入，不依赖AI判断。</span></li>
+            <li><span class="icon">📖</span><span><strong>价值观教育：</strong>涉及思想政治、道德法治等价值观教育内容，需教师亲自把关。</span></li>
+            <li><span class="icon">👨‍👩‍👧</span><span><strong>家校沟通：</strong>涉及家长沟通的报告和建议，AI生成内容需经教师人工审核后发送。</span></li>
+            <li><span class="icon">⚠️</span><span><strong>安全事件：</strong>涉及学生安全、校园欺凌等事件的处理，不通过AI系统传递信息。</span></li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="empty-state" style="display:none"><div class="empty-text">暂无内容</div></div>
+    <div class="skeleton-loading" style="display:none"><div class="skeleton-row"><div class="skeleton"></div></div></div>
+    <div class="error-state" style="display:none"><div class="error-text">加载失败</div><button class="btn btn-primary">重新加载</button></div>
+  </div>
+</main>
+<footer class="page-footer"><span>© 2026 知微网版权所有</span><span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span></footer>
+</body>
+</html>

@@ -1,0 +1,21 @@
+- generic [active] [ref=e1]:
+  - heading "公众号" [level=1] [ref=e6]:
+    - link "公众号" [ref=e7] [cursor=pointer]:
+      - /url: /
+  - heading "登录超时， 请重新登录" [level=2] [ref=e19]:
+    - text: 登录超时， 请重新
+    - link "登录" [ref=e20] [cursor=pointer]:
+      - /url: /cgi-bin/loginpage?url=%2Fcgi-bin%2Fhome%3Ft%3Dhome%2Findex%26lang%3Dzh_CN%26token%3D933682039
+  - generic [ref=e22]:
+    - generic [ref=e24]:
+      - link "关于腾讯" [ref=e25] [cursor=pointer]:
+        - /url: http://www.tencent.com/zh-cn/index.shtml
+      - link "| 服务协议" [ref=e26] [cursor=pointer]:
+        - /url: /cgi-bin/readtemplate?t=home/agreement_tmpl&type=info&lang=zh_CN&token=
+      - link "| 规则中心" [ref=e27] [cursor=pointer]:
+        - /url: "/webpoc/ruleCenter?type=oa "
+      - link "| 腾讯客服" [ref=e28] [cursor=pointer]:
+        - /url: http://kf.qq.com/product/weixinmp.html
+      - link "| 侵权投诉" [ref=e29] [cursor=pointer]:
+        - /url: /acct/infringementlogin?action=getkey_brand&lang=zh_CN
+    - paragraph [ref=e31]: Copyright © 2012-2026 Tencent. All Rights Reserved.

@@ -1,0 +1,148 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - heading "系统设置 · AI使用指引" [level=2] [ref=e51]
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - heading "AI 辅助教学的使用场景" [level=3] [ref=e54]
+            - list [ref=e55]:
+              - listitem [ref=e56]:
+                - generic [ref=e57]: 📝
+                - generic [ref=e58]:
+                  - strong [ref=e59]: 教案生成：
+                  - text: 基于知识图谱和教学模板，AI辅助生成教案框架和内容建议。
+              - listitem [ref=e60]:
+                - generic [ref=e61]: 📊
+                - generic [ref=e62]:
+                  - strong [ref=e63]: 出题组卷：
+                  - text: AI根据知识点和难度要求自动生成练习题和试卷。
+              - listitem [ref=e64]:
+                - generic [ref=e65]: 📈
+                - generic [ref=e66]:
+                  - strong [ref=e67]: 学情分析：
+                  - text: AI汇总学生作业和考试数据，生成描述性评估报告。
+              - listitem [ref=e68]:
+                - generic [ref=e69]: 💬
+                - generic [ref=e70]:
+                  - strong [ref=e71]: 教学问答：
+                  - text: 小微可回答基于上下文的教学问题，辅助备课。
+              - listitem [ref=e72]:
+                - generic [ref=e73]: 🎨
+                - generic [ref=e74]:
+                  - strong [ref=e75]: 风格训练：
+                  - text: AI学习教师个人教学风格，提供个性化建议。
+          - generic [ref=e76]:
+            - heading "AI 能力边界" [level=3] [ref=e77]
+            - generic [ref=e78]:
+              - generic [ref=e79]:
+                - heading "AI 可以做的" [level=4] [ref=e80]
+                - list [ref=e81]:
+                  - listitem [ref=e82]:
+                    - generic [ref=e83]: ✓
+                    - text: 理解自然语言指令，调用后端生成内容
+                  - listitem [ref=e84]:
+                    - generic [ref=e85]: ✓
+                    - text: 检索素材库、知识图谱中的教学资源
+                  - listitem [ref=e86]:
+                    - generic [ref=e87]: ✓
+                    - text: 分析学情数据，生成描述性评估（非标签）
+                  - listitem [ref=e88]:
+                    - generic [ref=e89]: ✓
+                    - text: 学习教师个人教学风格
+                  - listitem [ref=e90]:
+                    - generic [ref=e91]: ✓
+                    - text: 回答基于上下文的教学问题
+              - generic [ref=e92]:
+                - heading "AI 不会做的" [level=4] [ref=e93]
+                - list [ref=e94]:
+                  - listitem [ref=e95]:
+                    - generic [ref=e96]: ✕
+                    - text: 操作页面DOM（点击按钮、填写表单）
+                  - listitem [ref=e97]:
+                    - generic [ref=e98]: ✕
+                    - text: 导航到其他页面
+                  - listitem [ref=e99]:
+                    - generic [ref=e100]: ✕
+                    - text: 截图当前页面
+                  - listitem [ref=e101]:
+                    - generic [ref=e102]: ✕
+                    - text: 执行浏览器宏
+          - generic [ref=e103]:
+            - heading "教师责任与合规声明" [level=3] [ref=e104]
+            - generic [ref=e105]:
+              - heading "教师使用 AI 生成内容的责任提示" [level=4] [ref=e106]
+              - list [ref=e107]:
+                - listitem [ref=e108]:
+                  - text: •
+                  - strong [ref=e109]: 审核义务：
+                  - text: 教师对 AI 生成的所有教学内容负有最终审核义务，须在发布前确认内容的准确性和适用性。
+                - listitem [ref=e110]:
+                  - text: •
+                  - strong [ref=e111]: 最终决策权：
+                  - text: AI 生成内容仅供参考和辅助，教学决策权始终在教师手中。
+                - listitem [ref=e112]:
+                  - text: •
+                  - strong [ref=e113]: 数据隐私：
+                  - text: AI 生成过程中不存储学生个人信息，所有学情分析基于脱敏数据。
+                - listitem [ref=e114]:
+                  - text: •
+                  - strong [ref=e115]: 版权合规：
+                  - text: AI 生成内容如引用外部素材，教师须确认版权合规后再使用。
+          - generic [ref=e116]:
+            - heading "敏感场景提示" [level=3] [ref=e117]
+            - list [ref=e118]:
+              - listitem [ref=e119]:
+                - generic [ref=e120]: 🧠
+                - generic [ref=e121]:
+                  - strong [ref=e122]: 心理健康：
+                  - text: 涉及学生心理健康、情绪状态的评估和干预，请务必人工介入，不依赖AI判断。
+              - listitem [ref=e123]:
+                - generic [ref=e124]: 📖
+                - generic [ref=e125]:
+                  - strong [ref=e126]: 价值观教育：
+                  - text: 涉及思想政治、道德法治等价值观教育内容，需教师亲自把关。
+              - listitem [ref=e127]:
+                - generic [ref=e128]: 👨‍👩‍👧
+                - generic [ref=e129]:
+                  - strong [ref=e130]: 家校沟通：
+                  - text: 涉及家长沟通的报告和建议，AI生成内容需经教师人工审核后发送。
+              - listitem [ref=e131]:
+                - generic [ref=e132]: ⚠️
+                - generic [ref=e133]:
+                  - strong [ref=e134]: 安全事件：
+                  - text: 涉及学生安全、校园欺凌等事件的处理，不通过AI系统传递信息。
+  - button "小微" [ref=e135] [cursor=pointer]:
+    - img "小微" [ref=e136]

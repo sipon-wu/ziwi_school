@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 组件增强 · 二期</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .demo-page { max-width: 900px; margin: 40px auto; }
+  .demo-page h1 { font-size: 20px; margin-bottom: 24px; }
+  .demo-section { margin-bottom: 32px; }
+  .demo-section h2 { font-size: 15px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .demo-section .desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+
+  /* D1 作文批阅增强 */
+  .grading-dual { display: flex; gap: 16px; }
+  .grading-dual .score-card { flex: 1; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; text-align: center; }
+  .grading-dual .score-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .grading-dual .score-card .val { font-size: 32px; font-weight: 700; }
+  .grading-dual .score-card.ai .val { color: var(--text-secondary); }
+  .grading-dual .score-card.teacher .val { color: var(--brand-blue); }
+  .grading-dual .score-card .hint { font-size: 11px; color: var(--text-placeholder); margin-top: 4px; }
+  .grading-disclaimer { padding: 8px 12px; background: var(--color-warning-light); border: 1px solid rgba(255,152,0,0.2); border-radius: var(--radius-sm); font-size: 12px; color: var(--text-secondary); margin-top: 12px; }
+
+  /* D2 AI生成可追溯 */
+  .trace-panel { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; }
+  .trace-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .trace-list { list-style: none; }
+  .trace-list li { font-size: 12px; padding: 5px 0; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+  .trace-list li::before { content: '•'; color: var(--brand-blue); font-weight: 600; }
+  .trace-list li .source { color: var(--brand-blue); }
+
+  /* D3 成长关爱审查 */
+  .care-review-bar { padding: 12px 16px; background: var(--color-warning-light); border: 1px solid rgba(255,152,0,0.25); border-radius: var(--radius-md); font-size: 13px; margin-bottom: 12px; }
+  .care-review-bar .checklist { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+  .care-review-bar .checklist label { font-size: 12px; font-weight: 400; display: flex; align-items: center; gap: 4px; }
+
+  /* D4 版权弹窗触发 */
+  .upload-trigger { padding: 16px; border: 2px dashed var(--border-default); border-radius: var(--radius-md); text-align: center; color: var(--text-secondary); cursor: pointer; }
+  .upload-trigger:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
+
+  /* D5 教辅资源分级标签 */
+  .resource-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); margin-bottom: 6px; }
+  .resource-item .name { flex: 1; font-size: 13px; }
+  .resource-item .grade { padding: 2px 8px; border-radius: var(--radius-sm); font-size: 11px; }
+  .resource-item .grade.a { background: var(--color-success-light); color: var(--color-success); }
+  .resource-item .grade.b { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .resource-item .grade.c { background: var(--bg-tag); color: var(--text-secondary); }
+  .resource-item .source { font-size: 11px; color: var(--text-secondary); }
+
+  /* D6 Token过期处理 */
+  .token-expire-card { padding: 16px; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); }
+  .token-expire-card .alert { padding: 12px 16px; background: var(--color-danger-light); border: 1px solid rgba(255,77,79,0.25); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .token-expire-card .alert .icon { font-size: 20px; }
+  .token-expire-card .alert .text { flex: 1; font-size: 13px; }
+  .token-expire-card .alert .text strong { color: var(--color-danger); }
+  .token-expire-card .renew-guide { font-size: 13px; color: var(--text-secondary); }
+  .token-expire-card .renew-guide .step { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
+  .token-expire-card .renew-guide .step-num { width: 20px; height: 20px; border-radius: 50%; background: var(--brand-blue); color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* D7 作业批阅工作台增强 */
+  .workbench-demo { display: flex; gap: 12px; }
+  .workbench-demo .left-col { width: 180px; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 12px; }
+  .workbench-demo .left-col h5 { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+  .workbench-demo .left-col .student-item { padding: 6px 8px; font-size: 12px; cursor: pointer; border-radius: var(--radius-sm); display: flex; justify-content: space-between; }
+  .workbench-demo .left-col .student-item:hover { background: var(--bg-hover); }
+  .workbench-demo .center-col { flex: 1; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; }
+  .workbench-demo .center-col .mistake-panel { margin-top: 16px; padding: 12px; background: var(--bg-stripe); border-radius: var(--radius-sm); }
+  .workbench-demo .center-col .mistake-panel h5 { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .workbench-demo .center-col .mistake-item { font-size: 12px; padding: 4px 0; color: var(--text-secondary); }
+  .workbench-demo .right-col { width: 200px; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 12px; }
+  .workbench-demo .right-col h5 { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .workbench-demo .right-col .report-preview { padding: 10px; background: var(--bg-stripe); border-radius: var(--radius-sm); font-size: 12px; color: var(--text-secondary); }
+
+  /* D8 小微面板增强 */
+  .xiaowei-enhanced { display: flex; gap: 12px; }
+  .xiaowei-enhanced .tool-panel { width: 240px; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; }
+  .xiaowei-enhanced .tool-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .xiaowei-enhanced .tool-panel .tool-card { padding: 10px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer; transition: var(--transition-fast); }
+  .xiaowei-enhanced .tool-panel .tool-card:hover { border-color: var(--brand-blue); }
+  .xiaowei-enhanced .tool-panel .tool-card .t-name { font-size: 13px; font-weight: 500; }
+  .xiaowei-enhanced .tool-panel .tool-card .t-desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .xiaowei-enhanced .chat-panel { flex: 1; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; }
+  .xiaowei-enhanced .group-tag { display: inline-block; padding: 2px 8px; background: var(--brand-blue-light); color: var(--brand-blue); border-radius: var(--radius-sm); font-size: 11px; margin: 0 4px 4px 0; cursor: pointer; }
+</style>
+</head>
+<body style="background:var(--bg-page);min-height:100vh;padding-bottom:60px;">
+<div class="demo-page">
+  <h1>知微教学 · 二期组件增强</h1>
+
+  <!-- D1 作文批阅增强 -->
+  <div class="demo-section">
+    <h2>D1. 作文批阅增强 — AI评分与教师确认分两字段</h2>
+    <div class="desc">所在页面：GradingWorkbench（批阅工作台）</div>
+    <div class="grading-dual">
+      <div class="score-card ai"><div class="label">AI 预评分</div><div class="val">85</div><div class="hint">仅供参考，需教师确认</div></div>
+      <div class="score-card teacher"><div class="label">教师确认分</div><div class="val">82</div><div class="hint">已确认，可修改</div></div>
+    </div>
+    <div class="grading-disclaimer">⚠ AI 评分结果仅供参考，教师复核确认后方可生效。AI 评分依据：内容完整性(28/30) + 语言表达(30/35) + 结构逻辑(27/35)</div>
+  </div>
+
+  <!-- D2 AI生成可追溯 -->
+  <div class="demo-section">
+    <h2>D2. AI生成可追溯 — 教案底部展示生成依据</h2>
+    <div class="desc">所在页面：教案详情页底部</div>
+    <div class="trace-panel">
+      <h4>AI 生成依据</h4>
+      <ul class="trace-list">
+        <li><span>所选知识点：</span><span class="source">由远及近的描写顺序、比喻修辞手法、景物描写</span></li>
+        <li><span>所选模板：</span><span class="source">标准教案模板（五段式）</span></li>
+        <li><span>引用素材：</span><span class="source">钱塘江大潮视频片段.mp4、观潮课文原文（人教版四下）</span></li>
+        <li><span>参考风格：</span><span class="source">张真真 · 自然衔接型过渡语 · 关键词板书</span></li>
+        <li><span>生成模型：</span><span class="source">Qwen-Turbo · 生成时间 2026-07-03 14:31 · 消耗 1,284 Token</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- D3 成长关爱审查 -->
+  <div class="demo-section">
+    <h2>D3. 成长关爱审查弹窗 — 提交前二次确认</h2>
+    <div class="desc">所在页面：成长关爱 → 方案审阅 → 提交确认</div>
+    <div class="care-review-bar">
+      <strong>教育善意度审查</strong> — 请确认以下要点后提交：
+      <div class="checklist">
+        <label><input type="checkbox"> 不包含比较性表述</label>
+        <label><input type="checkbox"> 不包含绝对化判断</label>
+        <label><input type="checkbox"> 已配合建设性建议</label>
+        <label><input type="checkbox"> 评估基于具体行为/数据</label>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--color-warning);">⚠ 严禁标签化：系统不存储任何学生标签字段</div>
+    </div>
+  </div>
+
+  <!-- D4 版权弹窗 -->
+  <div class="demo-section">
+    <h2>D4. 自编教材版权弹窗 — 上传时版权确认</h2>
+    <div class="desc">所在页面：素材库上传 / 教案编辑引用外部资源</div>
+    <div class="upload-trigger" onclick="alert('触发版权确认弹窗：原创/转载/公共领域三选一')">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <div style="font-size:13px;margin-top:4px;">上传资源 — 将弹出版权确认弹窗</div>
+    </div>
+  </div>
+
+  <!-- D5 教辅资源分级标签 -->
+  <div class="demo-section">
+    <h2>D5. 教辅资源分级标签 — 来源标注 + 质量星级</h2>
+    <div class="desc">所在页面：素材库列表</div>
+    <div class="resource-item">
+      <span class="name">钱塘江大潮实景视频</span>
+      <span class="grade a">A级</span>
+      <span class="source">平台推荐 · 授权范围：全网</span>
+    </div>
+    <div class="resource-item">
+      <span class="name">分数比较专项练习（校本）</span>
+      <span class="grade b">B级</span>
+      <span class="source">教师贡献 · 授权范围：本校</span>
+    </div>
+    <div class="resource-item">
+      <span class="name">英语单词闪卡模板</span>
+      <span class="grade c">C级</span>
+      <span class="source">待审核 · 仅提交者可见</span>
+    </div>
+  </div>
+
+  <!-- D6 Token过期处理 -->
+  <div class="demo-section">
+    <h2>D6. Token过期处理提示 — SaaS付费模式</h2>
+    <div class="desc">所在页面：Token统计页 / 顶部Token显示</div>
+    <div class="token-expire-card">
+      <div class="alert">
+        <span class="icon">⚠️</span>
+        <div class="text"><strong>Token 已耗尽</strong> · 剩余配额：0 / 500,000</div>
+        <button class="btn btn-sm btn-primary">立即续费</button>
+      </div>
+      <div class="renew-guide">
+        <div style="font-weight:600;margin-bottom:8px;">续费指引：</div>
+        <div class="step"><span class="step-num">1</span>联系学校管理员追加配额（学校统一采购）</div>
+        <div class="step"><span class="step-num">2</span>或前往「个人中心 → Token充值」购买个人版</div>
+        <div class="step"><span class="step-num">3</span>充值完成后立即恢复 AI 生成功能</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D7 作业批阅工作台增强 -->
+  <div class="demo-section">
+    <h2>D7. 作业批阅工作台增强 — 错题归集 + 家长报告预览</h2>
+    <div class="desc">所在页面：批阅工作台</div>
+    <div class="workbench-demo">
+      <div class="left-col">
+        <h5>学生列表</h5>
+        <div class="student-item">王小明 <span style="color:var(--color-success)">✓</span></div>
+        <div class="student-item">李小华 <span style="color:var(--color-warning)">待批</span></div>
+        <div class="student-item">张小军 <span style="color:var(--color-success)">✓</span></div>
+      </div>
+      <div class="center-col">
+        <div style="font-size:13px;font-weight:600;">王小明 · 分数比较练习</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">正确率 72% · 错题 3道</div>
+        <div class="mistake-panel">
+          <h5>错题归集（按知识点）</h5>
+          <div class="mistake-item">• 同分母分数比较 — 第3题、第7题</div>
+          <div class="mistake-item">• 异分母分数比较 — 第12题</div>
+        </div>
+      </div>
+      <div class="right-col">
+        <h5>家长报告预览</h5>
+        <div class="report-preview">
+          <div style="font-weight:600;font-size:12px;">综述版</div>
+          <div style="margin-top:4px;">✅ 已掌握：分数概念基础</div>
+          <div style="color:var(--color-warning)">⚠ 建议巩固：异分母比较</div>
+          <div style="color:var(--brand-blue);margin-top:4px;">📄 点击展开详细版</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D8 小微面板增强 -->
+  <div class="demo-section">
+    <h2>D8. 小微面板增强 — 三板斧 + 学科穿透组</h2>
+    <div class="desc">所在页面：XiaoWeiChat / SidePanel</div>
+    <div class="xiaowei-enhanced">
+      <div class="tool-panel">
+        <h4>小微三板斧</h4>
+        <div class="tool-card"><div class="t-name">📋 SOP 操作指引</div><div class="t-desc">当前场景的标准操作流程</div></div>
+        <div class="tool-card"><div class="t-name">❓ FAQ 常见问题</div><div class="t-desc">本课时常见教学问题解答</div></div>
+        <div class="tool-card"><div class="t-name">📦 资源推荐</div><div class="t-desc">与本课时匹配的教辅资源</div></div>
+        <h4 style="margin-top:12px;">学科穿透组</h4>
+        <div>
+          <span class="group-tag">人文组</span>
+          <span class="group-tag">数理组</span>
+          <span class="group-tag">生化组</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">选择穿透组可查看跨学科关联知识</div>
+      </div>
+      <div class="chat-panel">
+        <div style="font-size:13px;color:var(--text-secondary);text-align:center;padding-top:40px;">
+          小微对话区域<br>上下文：语文 · 四年级 · 部编版 · 《观潮》
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer class="page-footer" style="position:fixed;bottom:0;left:0;right:0;padding-left:24px;">
+  <span>© 2026 知微网版权所有</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+</body>
+</html>

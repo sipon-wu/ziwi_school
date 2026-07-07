@@ -1,0 +1,83 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 家
+      - generic [ref=e7]: 知微家校通李小明家长 · 四年级2班
+    - generic [ref=e8]:
+      - button "1" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+        - generic [ref=e13]: "1"
+      - generic [ref=e14]:
+        - generic [ref=e15]: 李
+        - generic [ref=e16]: 李爸爸
+  - main [ref=e17]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: 李
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: 李明 的作业
+            - paragraph [ref=e24]: 三年级2班
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]: "2"
+            - generic [ref=e28]: 待签字
+          - generic [ref=e29]:
+            - generic [ref=e30]: "2"
+            - generic [ref=e31]: 已签字
+          - button "全部提醒" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+            - text: 全部提醒
+      - generic [ref=e36]:
+        - generic [ref=e38]:
+          - img [ref=e40]
+          - generic [ref=e43]:
+            - generic [ref=e44]:
+              - generic [ref=e45]: 数学
+              - generic [ref=e46]: 李老师·李明
+            - heading "分数加减法练习" [level=3] [ref=e47]
+            - generic [ref=e48]:
+              - generic [ref=e49]: 85分
+              - generic [ref=e50]:
+                - img [ref=e51]
+                - text: 2026-06-17 20:30
+          - img [ref=e54]
+        - generic [ref=e57]:
+          - img [ref=e59]
+          - generic [ref=e63]:
+            - generic [ref=e64]:
+              - generic [ref=e65]: 语文
+              - generic [ref=e66]: 张老师·李明
+            - heading "《观潮》课后练习" [level=3] [ref=e67]
+            - generic [ref=e68]:
+              - generic [ref=e69]: 70分
+              - generic [ref=e70]:
+                - img [ref=e71]
+                - text: 逾期未签
+          - button "去签字" [ref=e74] [cursor=pointer]
+        - generic [ref=e76]:
+          - img [ref=e78]
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - generic [ref=e83]: 英语
+              - generic [ref=e84]: 王老师·李明
+            - heading "Unit 3 词汇写作" [level=3] [ref=e85]
+            - generic [ref=e86]:
+              - generic [ref=e87]: 待评分
+              - generic [ref=e88]:
+                - img [ref=e89]
+                - text: 待签字
+          - button "去签字" [ref=e92] [cursor=pointer]
+        - generic [ref=e94]:
+          - img [ref=e96]
+          - generic [ref=e99]:
+            - generic [ref=e100]:
+              - generic [ref=e101]: 数学
+              - generic [ref=e102]: 李老师·李明
+            - heading "小数运算练习" [level=3] [ref=e103]
+            - generic [ref=e104]:
+              - generic [ref=e105]: 92分
+              - generic [ref=e106]:
+                - img [ref=e107]
+                - text: 2026-06-14 19:15
+          - img [ref=e110]

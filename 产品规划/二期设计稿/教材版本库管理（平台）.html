@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 教材版本库管理 · 平台运营</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .version-list { display: flex; flex-direction: column; gap: 8px; }
+  .version-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-fast);
+  }
+  .version-item:hover { border-color: var(--border-default); }
+  .version-item.published { border-left: 3px solid var(--color-success); }
+  .version-item.reviewing { border-left: 3px solid var(--color-warning); }
+  .version-item.archived { opacity: 0.6; border-left: 3px solid var(--text-secondary); }
+  .version-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--brand-blue-light); color: var(--brand-blue); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .version-info { flex: 1; min-width: 0; }
+  .version-info .name { font-size: 14px; font-weight: 600; }
+  .version-info .meta { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .version-info .meta span { margin-right: 16px; }
+  .version-status { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .version-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .review-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--color-warning-light); color: var(--color-warning); border-radius: var(--radius-sm); font-size: 11px; }
+  .sync-info { margin-top: 16px; padding: 12px 16px; background: var(--bg-stripe); border-radius: var(--radius-md); font-size: 13px; color: var(--text-secondary); }
+  .sync-info strong { color: var(--text-primary); }
+  /* 审核详情面板 */
+  .review-panel { display: flex; gap: 16px; margin-bottom: 16px; }
+  .review-panel .review-card {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  .review-panel .review-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .review-item { padding: 8px 0; border-bottom: 1px solid var(--bg-stripe); }
+  .review-item:last-child { border-bottom: none; }
+  .review-item .school-name { font-size: 13px; font-weight: 500; }
+  .review-item .version-name { font-size: 12px; color: var(--text-secondary); }
+  .review-item .review-actions { display: flex; gap: 8px; margin-top: 6px; }
+  .usage-table { margin-top: 16px; }
+  .usage-table h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（平台运营） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      运营 Dashboard
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Token 管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
+      License 管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>
+      公告管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      教材审核
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      教材版本库
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      财务对账
+    </div>
+  </div>
+  <div class="footer">知微平台 · 运营管理</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">平台运营 · 知微教学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>运营主管 王经理</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      平台级教材版本库统一管理所有教材版本。学校提交的自编版本需经平台审核后方可发布至版本库供全校选用。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 统计卡片 ═══ -->
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">已发布版本</div><div class="value blue">48</div></div>
+      <div class="stat-card"><div class="label">待审核</div><div class="value orange">7</div></div>
+      <div class="stat-card"><div class="label">学校自编</div><div class="value green">23</div></div>
+      <div class="stat-card"><div class="label">已下架</div><div class="value" style="color:var(--text-secondary)">5</div></div>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>教材版本库管理</h2>
+      <div class="actions">
+        <button class="btn btn-default">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          搜索版本
+        </button>
+        <button class="btn btn-primary" onclick="toggleAddVersionModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新增标准版本
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 筛选栏 ═══ -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" placeholder="搜索版本名称或学校...">
+      <select><option>全部学科</option><option>语文</option><option>数学</option><option>英语</option><option>科学</option><option>道德与法治</option></select>
+      <select><option>全部状态</option><option>已发布</option><option>待审核</option><option>已下架</option></select>
+      <select><option>全部来源</option><option>平台标准</option><option>学校自编</option></select>
+    </div>
+
+    <!-- ═══ 版本列表 ═══ -->
+    <div class="version-list">
+      <!-- 已发布 - 平台标准 -->
+      <div class="version-item published">
+        <div class="version-icon">📘</div>
+        <div class="version-info">
+          <div class="name">部编版语文（四年级下册）<span class="tag tag-blue" style="margin-left:8px">平台标准</span></div>
+          <div class="meta">
+            <span>学科：语文</span><span>适用年级：四年级</span><span>使用学校：156所</span><span>最后更新：2026-06-15</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="tag tag-success">已发布</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-default">查看</button>
+          <button class="btn btn-sm btn-text danger">下架</button>
+        </div>
+      </div>
+
+      <div class="version-item published">
+        <div class="version-icon">📗</div>
+        <div class="version-info">
+          <div class="name">人教版数学（四年级下册）<span class="tag tag-blue" style="margin-left:8px">平台标准</span></div>
+          <div class="meta">
+            <span>学科：数学</span><span>适用年级：四年级</span><span>使用学校：142所</span><span>最后更新：2026-06-10</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="tag tag-success">已发布</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-default">查看</button>
+          <button class="btn btn-sm btn-text danger">下架</button>
+        </div>
+      </div>
+
+      <!-- 已发布 - 学校自编已通过 -->
+      <div class="version-item published">
+        <div class="version-icon">📕</div>
+        <div class="version-info">
+          <div class="name">PEP英语（四年级下册）<span class="tag tag-blue" style="margin-left:8px">平台标准</span></div>
+          <div class="meta">
+            <span>学科：英语</span><span>适用年级：四年级</span><span>使用学校：98所</span><span>最后更新：2026-05-28</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="tag tag-success">已发布</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-default">查看</button>
+          <button class="btn btn-sm btn-text danger">下架</button>
+        </div>
+      </div>
+
+      <!-- 待审核 - 学校自编 -->
+      <div class="version-item reviewing">
+        <div class="version-icon">📙</div>
+        <div class="version-info">
+          <div class="name">金牛一小校本语文补充教材（四下）<span class="tag tag-warning" style="margin-left:8px">学校自编</span></div>
+          <div class="meta">
+            <span>学科：语文</span><span>适用年级：四年级</span><span>提交学校：金牛区第一小学</span><span>提交时间：2026-06-28</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="review-badge">⏳ 待审核</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-primary" onclick="toggleReviewModal()">审核</button>
+          <button class="btn btn-sm btn-default">查看详情</button>
+        </div>
+      </div>
+
+      <div class="version-item reviewing">
+        <div class="version-icon">📓</div>
+        <div class="version-info">
+          <div class="name">海淀实验小学趣味数学思维训练（四下）<span class="tag tag-warning" style="margin-left:8px">学校自编</span></div>
+          <div class="meta">
+            <span>学科：数学</span><span>适用年级：四年级</span><span>提交学校：北京海淀区实验小学</span><span>提交时间：2026-06-25</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="review-badge">⏳ 待审核</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-primary" onclick="toggleReviewModal()">审核</button>
+          <button class="btn btn-sm btn-default">查看详情</button>
+        </div>
+      </div>
+
+      <div class="version-item reviewing">
+        <div class="version-icon">📔</div>
+        <div class="version-info">
+          <div class="name">巴蜀小学英语口语训练教材（四下）<span class="tag tag-warning" style="margin-left:8px">学校自编</span></div>
+          <div class="meta">
+            <span>学科：英语</span><span>适用年级：四年级</span><span>提交学校：重庆巴蜀小学</span><span>提交时间：2026-06-22</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="review-badge">⏳ 待审核</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-primary" onclick="toggleReviewModal()">审核</button>
+          <button class="btn btn-sm btn-default">查看详情</button>
+        </div>
+      </div>
+
+      <!-- 已下架 -->
+      <div class="version-item archived">
+        <div class="version-icon">📒</div>
+        <div class="version-info">
+          <div class="name">旧版部编版语文（三年级下册）<span class="tag tag-default" style="margin-left:8px">平台标准</span></div>
+          <div class="meta">
+            <span>学科：语文</span><span>适用年级：三年级</span><span>下架时间：2026-02-01</span><span>下架原因：教材改版</span>
+          </div>
+        </div>
+        <div class="version-status"><span class="tag tag-default">已下架</span></div>
+        <div class="version-actions">
+          <button class="btn btn-sm btn-default">查看</button>
+          <button class="btn btn-sm btn-text">重新上架</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 版本使用统计 ═══ -->
+    <div class="usage-table" style="margin-top:20px;">
+      <div class="card">
+        <h4>版本使用排行 Top 5</h4>
+        <table class="table" style="margin-top:8px;">
+          <thead>
+            <tr><th>版本名称</th><th>学科</th><th>使用学校数</th><th>使用班级数</th><th>活跃教师</th><th>状态</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>部编版语文（四下）</td><td>语文</td><td>156</td><td>2,340</td><td>3,120</td><td><span class="tag tag-success">已发布</span></td></tr>
+            <tr><td>人教版数学（四下）</td><td>数学</td><td>142</td><td>2,130</td><td>2,840</td><td><span class="tag tag-success">已发布</span></td></tr>
+            <tr><td>PEP英语（四下）</td><td>英语</td><td>98</td><td>1,470</td><td>1,960</td><td><span class="tag tag-success">已发布</span></td></tr>
+            <tr><td>苏教版数学（四下）</td><td>数学</td><td>67</td><td>1,005</td><td>1,340</td><td><span class="tag tag-success">已发布</span></td></tr>
+            <tr><td>北师大版数学（四下）</td><td>数学</td><td>52</td><td>780</td><td>1,040</td><td><span class="tag tag-success">已发布</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ 同步信息 ═══ -->
+    <div class="sync-info" style="margin-top:16px;">
+      <strong>版本库管理说明：</strong>平台运营负责维护平台级教材版本库，包括标准版本的发布、学校自编版本的审核、版本下架等操作。审核通过的自编版本将纳入平台版本库，供该校及其他学校选用。IT管理员在"教材版本选择池"中从平台版本库中勾选本校使用的版本。
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      <div class="empty-text">暂无教材版本数据</div>
+      <button class="btn btn-primary" onclick="toggleAddVersionModal()">+ 新增第一个版本</button>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">版本数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ 新增标准版本弹窗 ═══ -->
+<div class="modal-overlay" id="add-version-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>新增标准版本</h3>
+      <span class="close" onclick="toggleAddVersionModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">版本名称</label>
+        <input type="text" placeholder="如：部编版语文（五年级上册）">
+      </div>
+      <div class="form-group">
+        <label class="required">学科</label>
+        <select><option>语文</option><option>数学</option><option>英语</option><option>科学</option><option>道德与法治</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">适用年级</label>
+        <select>
+          <option>一年级</option><option>二年级</option><option>三年级</option>
+          <option selected>四年级</option><option>五年级</option><option>六年级</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="required">适用学期</label>
+        <select><option>上册</option><option selected>下册</option></select>
+      </div>
+      <div class="form-group">
+        <label>版本说明</label>
+        <textarea rows="3" placeholder="请输入版本说明，如教材特色、适用范围等..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>上传教材文件</label>
+        <div style="padding:20px;border:2px dashed var(--border-default);border-radius:var(--radius-md);text-align:center;color:var(--text-secondary);cursor:pointer;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <div style="font-size:13px;margin-top:4px;">上传PDF文件，AI将自动提取目录和知识点</div>
+        </div>
+        <div class="hint">支持 PDF 格式，最大 50MB</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleAddVersionModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('标准版本已创建，系统将自动发布至版本库');toggleAddVersionModal()">创建并发布</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 审核弹窗 ═══ -->
+<div class="modal-overlay" id="review-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h3>审核学校自编版本</h3>
+      <span class="close" onclick="toggleReviewModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:16px;padding:12px;background:var(--bg-stripe);border-radius:var(--radius-md);">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">金牛一小校本语文补充教材（四下）</div>
+        <div style="font-size:12px;color:var(--text-secondary);">
+          <span>学科：语文</span><span style="margin-left:16px;">适用年级：四年级</span><span style="margin-left:16px;">提交学校：金牛区第一小学</span><br>
+          <span>提交人：张丽华</span><span style="margin-left:16px;">提交时间：2026-06-28</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>AI 审核结果</label>
+        <div style="padding:12px;background:var(--brand-blue-light-04);border:1px solid var(--brand-blue-light-25);border-radius:var(--radius-sm);font-size:12px;">
+          <div style="color:var(--color-success);font-weight:500;margin-bottom:4px;">✓ 知识点覆盖：87.5%（课标匹配率 92%）</div>
+          <div style="color:var(--color-warning);font-weight:500;margin-bottom:4px;">⚠ 部分知识点缺少课堂练习设计</div>
+          <div style="color:var(--text-secondary);">建议：补充第3-5课课堂练习后可通过审核</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="required">审核意见</label>
+        <textarea rows="3" placeholder="请输入审核意见..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>发布范围</label>
+        <select>
+          <option>仅限提交学校使用</option>
+          <option selected>发布至平台版本库（所有学校可选）</option>
+        </select>
+        <div class="hint">选择"发布至平台版本库"后，所有学校的IT管理员均可从版本选择池中勾选此版本</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="alert('已退回，教师将收到修改通知');toggleReviewModal()">退回修改</button>
+      <button class="btn btn-default" onclick="toggleReviewModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('审核通过！版本已发布至平台版本库');toggleReviewModal()">审核通过</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleAddVersionModal() {
+  var m = document.getElementById('add-version-modal');
+  m.classList.toggle('show');
+}
+function toggleReviewModal() {
+  var m = document.getElementById('review-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

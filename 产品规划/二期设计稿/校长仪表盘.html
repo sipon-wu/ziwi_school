@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 校长仪表盘</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  /* KPI 大数字卡片 */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  .kpi-card .kpi-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .kpi-card .kpi-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .kpi-card .kpi-change { font-size: 11px; color: var(--text-secondary); }
+  .kpi-card .kpi-change.up { color: var(--color-success); }
+  .kpi-card .kpi-change.down { color: var(--color-danger); }
+
+  /* 图表区 */
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-row.three { grid-template-columns: 1fr 1fr 1fr; }
+  .chart-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 20px;
+  }
+  .chart-box h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .chart-box h4 .period { font-size: 11px; color: var(--text-secondary); font-weight: 400; }
+  .chart-placeholder {
+    height: 200px;
+    background: var(--bg-stripe);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .chart-placeholder .chart-icon { font-size: 28px; margin-bottom: 4px; }
+
+  /* 对比表格 */
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .compare-table th, .compare-table td { padding: 8px 10px; border-bottom: 1px solid var(--bg-stripe); }
+  .compare-table th { color: var(--text-secondary); font-weight: 500; font-size: 11px; text-align: left; }
+  .compare-table td { text-align: left; }
+  .compare-table .bar-cell { width: 120px; }
+  .compare-table .bar-wrap { height: 6px; background: var(--bg-disabled); border-radius: 3px; overflow: hidden; }
+  .compare-table .bar-fill { height: 100%; border-radius: 3px; }
+  .compare-table .bar-fill.blue { background: var(--brand-blue); }
+  .compare-table .bar-fill.green { background: var(--color-success); }
+  .compare-table .bar-fill.orange { background: var(--color-warning); }
+  .compare-table .bar-val { font-weight: 600; text-align: right; width: 50px; }
+
+  /* 排行列表 */
+  .rank-list { list-style: none; }
+  .rank-list li { display: flex; align-items: center; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--bg-stripe); }
+  .rank-list li:last-child { border-bottom: none; }
+  .rank-list .rank { width: 22px; font-weight: 600; color: var(--text-secondary); text-align: center; flex-shrink: 0; }
+  .rank-list .rank.top { color: var(--brand-blue); }
+  .rank-list .name { flex: 1; }
+  .rank-list .val { color: var(--text-secondary); margin-left: 8px; white-space: nowrap; }
+
+  /* 告警区 */
+  .alert-section { margin-bottom: 16px; }
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+  }
+  .alert-item .level { padding: 2px 8px; border-radius: var(--radius-sm); font-size: 11px; flex-shrink: 0; }
+  .alert-item .level.warn { background: var(--color-warning-light); color: var(--color-warning); }
+  .alert-item .level.info { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .alert-item .level.danger { background: var(--color-danger-light); color: var(--color-danger); }
+  .alert-item .msg { flex: 1; font-size: 13px; }
+  .alert-item .time { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; }
+
+  /* 无效算力 TOP5（不显示对话内容） */
+  .waste-table { width: 100%; font-size: 12px; }
+  .waste-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg-stripe); }
+  .waste-table .waste-rank { font-weight: 600; color: var(--text-secondary); width: 24px; }
+  .waste-table .waste-pct { text-align: right; font-weight: 600; color: var(--color-warning); }
+
+  /* 隐藏态占位 */
+  .hidden-panel { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（校长角色） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      数据总览
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      教学质量
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      教师发展
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+      学期对比
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Token 用量
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      操作审计
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M6 20C6 17 9 15 12 15 15 15 18 17 18 20"/></svg>
+      个人中心
+    </div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+
+<main class="main">
+  <!-- ═══ 顶部标题栏 ═══ -->
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">校长工作台 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <span class="token" style="font-size:12px;color:var(--text-secondary)">Token 配额：充足</span>
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>校长 陈校长</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      数据总览涵盖全校教学数据。点击图表可下钻查看详情。数据每日凌晨更新。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ KPI 大数字卡片 ═══ -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg>
+          在校教师
+        </div>
+        <div class="kpi-value blue">68</div>
+        <div class="kpi-change">在岗 62 · 请假 5 · 离职 1</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          教学班级
+        </div>
+        <div class="kpi-value">24</div>
+        <div class="kpi-change">含 2 个实验班</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20H18"/><path d="M4 4C4 3 5 2 6 2H18V20H6C5 20 4 19 4 18V4Z"/></svg>
+          本月教案数
+        </div>
+        <div class="kpi-value green">48</div>
+        <div class="kpi-change up">▲ 12% 环比</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+          题库总量
+        </div>
+        <div class="kpi-value">1,286</div>
+        <div class="kpi-change up">▲ 本月新增 86 题</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Token 使用率
+        </div>
+        <div class="kpi-value orange">64%</div>
+        <div class="kpi-change">3.2M / 5M · 本月</div>
+      </div>
+    </div>
+
+    <!-- ═══ 图表区第一行：教学质量趋势 + 学科对比 ═══ -->
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>教案通过率与课标对齐率趋势<span class="period">近6个月</span></h4>
+        <div class="chart-placeholder">
+          <span class="chart-icon">📈</span>
+          <span>折线图：教案通过率（蓝线）+ 课标对齐率（绿线）</span>
+          <span style="font-size:11px;">1月 82% → 2月 85% → 3月 83% → 4月 88% → 5月 90% → 6月 92%</span>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h4>各学科教学质量对比<span class="period">本学期</span></h4>
+        <table class="compare-table">
+          <thead>
+            <tr><th>学科</th><th>教案数</th><th class="bar-cell">通过率</th><th class="bar-val">评分</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>语文</td><td>18</td>
+              <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill green" style="width:92%"></div></div></td>
+              <td class="bar-val" style="color:var(--color-success)">9.2</td>
+            </tr>
+            <tr>
+              <td>数学</td><td>14</td>
+              <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill blue" style="width:85%"></div></div></td>
+              <td class="bar-val" style="color:var(--brand-blue)">8.5</td>
+            </tr>
+            <tr>
+              <td>英语</td><td>10</td>
+              <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill blue" style="width:80%"></div></div></td>
+              <td class="bar-val" style="color:var(--brand-blue)">8.0</td>
+            </tr>
+            <tr>
+              <td>科学</td><td>4</td>
+              <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill orange" style="width:75%"></div></div></td>
+              <td class="bar-val" style="color:var(--color-warning)">7.5</td>
+            </tr>
+            <tr>
+              <td>道法</td><td>2</td>
+              <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill orange" style="width:70%"></div></div></td>
+              <td class="bar-val" style="color:var(--color-warning)">7.0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ 图表区第二行：年级对比 + AI使用统计 ═══ -->
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>各年级教学活跃度<span class="period">本月</span></h4>
+        <div class="chart-placeholder">
+          <span class="chart-icon">📊</span>
+          <span>柱状图：各年级教案提交数 + 出题数</span>
+          <span style="font-size:11px;">一年级12 · 二年级15 · 三年级18 · 四年级22 · 五年级16 · 六年级14</span>
+        </div>
+        <div style="margin-top:8px;">
+          <table class="compare-table">
+            <thead><tr><th>年级</th><th>班级数</th><th>教案数</th><th>出题数</th><th class="bar-cell">活跃度</th></tr></thead>
+            <tbody>
+              <tr><td>四年级</td><td>6</td><td>22</td><td>186</td><td class="bar-cell"><div class="bar-wrap"><div class="bar-fill green" style="width:92%"></div></div></td></tr>
+              <tr><td>三年级</td><td>6</td><td>18</td><td>152</td><td class="bar-cell"><div class="bar-wrap"><div class="bar-fill blue" style="width:78%"></div></div></td></tr>
+              <tr><td>五年级</td><td>6</td><td>16</td><td>134</td><td class="bar-cell"><div class="bar-wrap"><div class="bar-fill blue" style="width:70%"></div></div></td></tr>
+              <tr><td>二年级</td><td>6</td><td>15</td><td>98</td><td class="bar-cell"><div class="bar-wrap"><div class="bar-fill blue" style="width:62%"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h4>AI 使用统计<span class="period">本月</span></h4>
+        <div class="chart-placeholder">
+          <span class="chart-icon">🤖</span>
+          <span>饼图：AI 功能使用分布</span>
+          <span style="font-size:11px;">教案生成 45% · 出题组卷 30% · 学情分析 15% · 小微对话 10%</span>
+        </div>
+        <div style="margin-top:12px;">
+          <h4 style="font-size:12px;font-weight:600;margin-bottom:6px;">无效算力消耗 TOP5（仅排名占比，不展示对话内容）</h4>
+          <table class="waste-table">
+            <thead><tr><td class="waste-rank">#</td><td>教师</td><td>非工作请求</td><td class="waste-pct">占比</td></tr></thead>
+            <tbody>
+              <tr><td class="waste-rank">1</td><td>周伟</td><td>23次</td><td class="waste-pct">38%</td></tr>
+              <tr><td class="waste-rank">2</td><td>陈明</td><td>15次</td><td class="waste-pct">25%</td></tr>
+              <tr><td class="waste-rank">3</td><td>刘芳</td><td>8次</td><td class="waste-pct">13%</td></tr>
+              <tr><td class="waste-rank">4</td><td>王芳</td><td>6次</td><td class="waste-pct">10%</td></tr>
+              <tr><td class="waste-rank">5</td><td>李强</td><td>5次</td><td class="waste-pct">8%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 告警区 + 教师排行 ═══ -->
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>关注事项</h4>
+        <div class="alert-item">
+          <span class="level warn">⚠ 注意</span>
+          <span class="msg">科学学科课标对齐率偏低（75%），建议教研组长关注</span>
+          <span class="time">07-04</span>
+        </div>
+        <div class="alert-item">
+          <span class="level info">ℹ 信息</span>
+          <span class="msg">Token 月度消耗接近预警线（64%），建议提前规划配额</span>
+          <span class="time">07-04</span>
+        </div>
+        <div class="alert-item">
+          <span class="level warn">⚠ 注意</span>
+          <span class="msg">教师周伟本月请假，班级教学由张丽华代课，请关注交接</span>
+          <span class="time">07-03</span>
+        </div>
+        <div class="alert-item">
+          <span class="level info">ℹ 信息</span>
+          <span class="msg">期末数据归档即将开始（2026-07-05），系统将自动备份</span>
+          <span class="time">07-02</span>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h4>教师教学贡献排行<span class="period">本学期</span></h4>
+        <ul class="rank-list">
+          <li><span class="rank top">1</span><span class="name">张丽华（语文·四年级）</span><span class="val">教案8篇 · 出题156</span></li>
+          <li><span class="rank top">2</span><span class="name">王建国（语文·四年级）</span><span class="val">教案6篇 · 出题128</span></li>
+          <li><span class="rank top">3</span><span class="name">赵敏（语文·四年级）</span><span class="val">教案7篇 · 出题112</span></li>
+          <li><span class="rank">4</span><span class="name">李强（数学·四年级）</span><span class="val">教案5篇 · 出题98</span></li>
+          <li><span class="rank">5</span><span class="name">刘芳（语文·四年级）</span><span class="val">教案4篇 · 出题86</span></li>
+          <li><span class="rank">6</span><span class="name">王芳（英语·四年级）</span><span class="val">教案4篇 · 出题72</span></li>
+          <li><span class="rank">7</span><span class="name">陈明（科学·四年级）</span><span class="val">教案3篇 · 出题58</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ═══ 空态（默认隐藏） ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <div class="empty-text">暂无教学数据</div>
+      <div class="error-detail" style="margin-bottom:12px;">数据将在教师开始使用平台后自动生成</div>
+    </div>
+
+    <!-- ═══ 骨架屏（加载中） ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态（默认隐藏） ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary" onclick="document.getElementById('error-state').style.display='none'">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+</body>
+</html>

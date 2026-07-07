@@ -1,68 +1,47 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* 移动端安全区适配 */
-@layer utilities {
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  .safe-top {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  .pb-safe {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
-  }
-}
-
-/* 底部滑入动画 */
-@keyframes slide-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-.animate-slide-up {
-  animation: slide-up 0.3s ease-out;
-}
-
-/* 抽屉滑入 */
-@keyframes slide-in-left {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-.animate-slide-in-left {
-  animation: slide-in-left 0.25s ease-out;
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@theme {
+  --color-brand: #02A7F0;
+  --color-brand-hover: #0398D8;
+  --color-bg-page: #F6F7F8;
+  --color-bg-sidebar: #212529;
+  --color-bg-sidebar-active: #1F2C3D;
+  --color-text-primary: #353535;
+  --color-text-secondary: #9A9A9A;
+  --color-text-placeholder: #A3A3A3;
+  --color-border-light: #E7E7EB;
+  --color-success: #52C41A;
+  --color-warning: #F6920E;
+  --color-danger: #FF4D4F;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background-color: #F0F2F5;
-  line-height: 1.5;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  color: #353535;
+  background: #F6F7F8;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* P2: 全局滚动条美化 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* 侧边栏滚动条 — 与深色背景融合 */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: #212529;
 }
-::-webkit-scrollbar-thumb {
-  background: #D6DAE0;
-  border-radius: 3px;
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #B0B5C0;
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
 }
 
-/* Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #D6DAE0 transparent;
+/* Toast 动画 */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
+.animate-slide-in { animation: slide-in-right 0.3s ease-out; }

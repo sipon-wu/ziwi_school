@@ -1,0 +1,9 @@
+.page { min-height: 100vh; background: #f5f5f5; }
+.header { background: linear-gradient(135deg, #02A7F0, #0398D8); padding: 48rpx 32rpx 40rpx; text-align: center; }
+.avatar { width: 96rpx; height: 96rpx; border-radius: 50%; background: rgba(255,255,255,0.25); color: #fff; font-size: 40rpx; font-weight: bold; display: flex; align-items: center; justify-content: center; margin: 0 auto 16rpx; }
+.name { font-size: 36rpx; color: #fff; font-weight: 600; display: block; }
+.school { font-size: 24rpx; color: rgba(255,255,255,0.75); margin-top: 8rpx; display: block; }
+.menu-list { background: #fff; margin: 24rpx 0; }
+.menu-item { display: flex; justify-content: space-between; padding: 28rpx 32rpx; font-size: 30rpx; color: #353535; border-bottom: 1rpx solid #f0f0f0; }
+.arrow { color: #ccc; }
+.logout-btn { margin: 48rpx 32rpx; background: #fff; color: #FF4D4F; font-size: 30rpx; border: 1rpx solid #E7E7EB; border-radius: 8rpx; }

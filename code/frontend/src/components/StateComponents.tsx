@@ -1,12 +1,12 @@
-/** 通用状态组件：Loading / Empty / Error */
-import { Loader2, AlertCircle, FileX, RefreshCw, XCircle } from 'lucide-react'
+/** 通用状态组件：Loading / Empty / Error / Disabled */
+import { Loader2, AlertCircle, FileX, RefreshCw, XCircle, X } from 'lucide-react'
 
-// ── Loading 骨架 ──
+// ═══ Loading 骨架 ═══
 
 export function LoadingSpinner({ text = '加载中...' }: { text?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-      <Loader2 size={32} className="animate-spin mb-3 text-[#1A3A6B]" />
+      <Loader2 size={32} className="animate-spin mb-3 text-brand" />
       <span className="text-sm">{text}</span>
     </div>
   )
@@ -30,7 +30,26 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   )
 }
 
-// ── 空状态 ──
+/** 表格骨架屏（匹配 base.css skeleton-row 动画） */
+export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="space-y-0">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex gap-3 py-3 border-b border-[#FAFAFA]">
+          {Array.from({ length: cols }).map((_, j) => (
+            <div
+              key={j}
+              className="skeleton-pulse h-3.5 rounded flex-1"
+              style={{ maxWidth: j === 0 ? 200 : j === 1 ? 60 : j === 3 ? 100 : 'auto' }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ═══ 空状态 ═══
 
 export function EmptyState({
   icon, title = '暂无数据', description, action,
@@ -49,7 +68,7 @@ export function EmptyState({
       {description && <p className="text-xs text-gray-400 mb-4 max-w-xs">{description}</p>}
       {action && (
         <button onClick={action.onClick}
-          className="px-4 py-2 text-sm bg-[#1A3A6B] text-white rounded-lg hover:bg-[#2B5DA8] shadow-sm">
+          className="px-4 py-2 text-sm bg-brand text-white rounded hover:bg-brand-hover">
           {action.label}
         </button>
       )}
@@ -96,6 +115,28 @@ export function NetworkError({ onRetry }: { onRetry?: () => void }) {
       </div>
     </div>
   )
+}
+
+// ═══ 可关闭通知条 ═══
+
+export function NoticeBar({
+  children, onClose, className = '',
+}: {
+  children: React.ReactNode; onClose?: () => void; className?: string
+}) {
+  return (
+    <div className={`flex items-center justify-between px-4 py-2 bg-white border border-border rounded mb-4 text-[13px] ${className}`}>
+      <span className="text-gray-400">{children}</span>
+      {onClose && <button onClick={onClose} className="text-gray-300 hover:text-gray-600 text-base px-1"><X size={14} /></button>}
+    </div>
+  )
+}
+
+// ═══ 表单错误 ═══
+
+export function FormError({ message }: { message?: string }) {
+  if (!message) return null
+  return <div className="text-xs text-danger mt-1">⚠ {message}</div>
 }
 
 // ── PageShell: 组合 loading/empty/error ──

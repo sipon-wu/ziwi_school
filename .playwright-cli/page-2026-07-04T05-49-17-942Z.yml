@@ -1,0 +1,59 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 微
+      - generic [ref=e7]: 知微学生端李小明 · 四年级2班
+    - generic [ref=e8]:
+      - button "2" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+        - generic [ref=e13]: "2"
+      - generic [ref=e14]:
+        - generic [ref=e15]: 李
+        - generic [ref=e16]: 李小明
+  - main [ref=e17]:
+    - generic [ref=e19]:
+      - button "待完成3" [ref=e20] [cursor=pointer]: 待完成3
+      - button "已完成2" [ref=e22] [cursor=pointer]
+    - generic [ref=e23]:
+      - generic [ref=e25]:
+        - img [ref=e27]
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - generic [ref=e32]: 数学
+            - generic [ref=e33]: 李老师
+          - heading "分数加减法练习" [level=3] [ref=e34]
+          - generic [ref=e35]:
+            - generic [ref=e36]: 10题
+            - generic [ref=e37]: L2
+            - generic [ref=e38]:
+              - img [ref=e39]
+              - text: 2026-06-20
+        - img [ref=e42]
+      - generic [ref=e45]:
+        - img [ref=e47]
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - generic [ref=e52]: 语文
+            - generic [ref=e53]: 张老师
+          - heading "《观潮》课后练习" [level=3] [ref=e54]
+          - generic [ref=e55]:
+            - generic [ref=e56]: 8题
+            - generic [ref=e57]: L1
+            - generic [ref=e58]:
+              - img [ref=e59]
+              - text: 2026-06-19
+        - img [ref=e62]
+      - generic [ref=e65]:
+        - img [ref=e67]
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: 英语
+            - generic [ref=e73]: 王老师
+          - heading "Unit 3 词汇写作" [level=3] [ref=e74]
+          - generic [ref=e75]:
+            - generic [ref=e76]: 15题
+            - generic [ref=e77]: L2
+            - generic [ref=e78]:
+              - img [ref=e79]
+              - text: 2026-06-21
+        - img [ref=e82]

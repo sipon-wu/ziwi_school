@@ -1,0 +1,109 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "班级调度" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 班级调度
+      - button "课程安排" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: 课程安排
+      - button "教师管理" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: 教师管理
+      - button "学期管理" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 学期管理
+      - button "教务 Dashboard" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: 教务 Dashboard
+      - button "个人中心" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - text: 个人中心
+    - generic [ref=e38]: 成都市金牛区第一小学
+  - generic [ref=e39]:
+    - banner [ref=e40]:
+      - img [ref=e41] [cursor=pointer]
+      - generic [ref=e43]: 教务管理 · 金牛区第一小学
+      - button [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+      - generic [ref=e48]:
+        - img [ref=e50]
+        - text: 教务员 李华
+    - main [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - img [ref=e56]
+          - text: 当前学期：
+          - strong [ref=e58]: 2025-2026学年 第二学期
+          - text: 。学期切换将影响全校课程安排和教师分配数据。
+        - generic [ref=e59]:
+          - heading "学期管理" [level=2] [ref=e60]
+          - button "创建新学期" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - text: 创建新学期
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - generic [ref=e66]:
+                - generic [ref=e67]: 2025-2026学年 第二学期
+                - generic [ref=e68]: 当前学期
+              - generic [ref=e69]:
+                - generic [ref=e70]: 起止：2026-02-17 ~ 2026-07-05
+                - generic [ref=e71]: 学段：四年级
+                - generic [ref=e72]: 学制：六三制
+              - generic [ref=e76]: 学期进度 99%
+            - generic [ref=e77]:
+              - button "查看校历" [ref=e78] [cursor=pointer]
+              - button "编辑" [ref=e79] [cursor=pointer]
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - generic [ref=e82]:
+                - generic [ref=e83]: 2025-2026学年 第一学期
+                - generic [ref=e84]: 已归档
+              - generic [ref=e85]:
+                - generic [ref=e86]: 起止：2025-09-01 ~ 2026-01-15
+                - generic [ref=e87]: 学段：四年级
+                - generic [ref=e88]: 学制：六三制
+            - button "查看归档" [ref=e90] [cursor=pointer]
+          - generic [ref=e91]:
+            - generic [ref=e92]:
+              - generic [ref=e93]:
+                - generic [ref=e94]: 2024-2025学年 第二学期
+                - generic [ref=e95]: 已归档
+              - generic [ref=e96]:
+                - generic [ref=e97]: 起止：2025-02-17 ~ 2025-07-05
+                - generic [ref=e98]: 学段：三年级
+                - generic [ref=e99]: 学制：六三制
+            - button "查看归档" [ref=e101] [cursor=pointer]
+        - generic [ref=e102]:
+          - heading "学制与校历配置" [level=3] [ref=e103]
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - generic [ref=e106]: 学制类型
+              - combobox [ref=e108]:
+                - option "六三制（小学6年 + 初中3年）" [selected]
+                - option "五四制（小学5年 + 初中4年）"
+            - generic [ref=e109]:
+              - generic [ref=e110]: 自动升年级
+              - generic [ref=e112]:
+                - checkbox "新学期自动将学生升入下一年级" [checked] [ref=e113]
+                - text: 新学期自动将学生升入下一年级
+          - generic [ref=e114]:
+            - img [ref=e115]
+            - generic [ref=e117]:
+              - strong [ref=e118]: 轮转提醒：
+              - text: 当前学期将在
+              - strong [ref=e119]: 2026-07-05
+              - text: 结束。系统将在新学期开始前自动执行升年级操作（四→五、五→六、六→毕业）。请在此之前确认班级分配和教师安排。
+    - contentinfo [ref=e120]:
+      - generic [ref=e121]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e122]:
+        - link "关于知微" [ref=e123] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e124] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e125] [cursor=pointer]:
+          - /url: "#"

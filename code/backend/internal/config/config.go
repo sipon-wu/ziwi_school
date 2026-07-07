@@ -2,56 +2,52 @@ package config
 
 import (
 	"os"
-	"time"
 )
 
 type Config struct {
-	Port           string
-	DBHost         string
-	DBPort         string
-	DBUser         string
-	DBPassword     string
-	DBName         string
-	RedisURL       string
-	AIServiceURL   string
-	JWTPrivateKey  string
-	JWTPublicKey   string
-	TokenExpiry    time.Duration
-	RefreshExpiry  time.Duration
-	DeployMode     string // "saas" or "private"
+	Port        string
+	DatabaseURL string
+	RedisURL    string
+	JWTSecret   string
+	AIBaseURL   string
+	OSS         OSSConfig
 }
 
-func Load() *Config {
-	cfg := &Config{
-		Port:           getEnv("PORT", "8080"),
-		DBHost:         getEnv("DB_HOST", "localhost"),
-		DBPort:         getEnv("DB_PORT", "5432"),
-		DBUser:         getEnv("DB_USER", "zhiwei"),
-		DBPassword:     getEnv("DB_PASSWORD", "zhiwei2026"),
-		DBName:         getEnv("DB_NAME", "zhiwei"),
-		RedisURL:       getEnv("REDIS_URL", "localhost:6379"),
-		AIServiceURL:   getEnv("AI_SERVICE_URL", "http://localhost:8000"),
-		JWTPrivateKey:  getEnv("JWT_PRIVATE_KEY", "zhiwei-dev-key-2026"),
-		TokenExpiry:    2 * time.Hour,
-		RefreshExpiry:  7 * 24 * time.Hour,
-		DeployMode:     getEnv("DEPLOY_MODE", "saas"),
+type OSSConfig struct {
+	Endpoint  string
+	Bucket    string
+	AccessKey string
+	SecretKey string
+}
+
+func Load() (*Config, error) {
+	return &Config{
+		Port:        getEnv("PORT", "8080"),
+		DatabaseURL: getEnv("DATABASE_URL", buildDatabaseURL()),
+		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecret:   getEnv("JWT_SECRET", "zhiwei-dev-secret-change-in-production"),
+		AIBaseURL:   getEnv("AI_BASE_URL", "http://localhost:8000"),
+		OSS: OSSConfig{
+			Endpoint:  getEnv("OSS_ENDPOINT", ""),
+			Bucket:    getEnv("OSS_BUCKET", ""),
+			AccessKey: getEnv("OSS_ACCESS_KEY", ""),
+			SecretKey: getEnv("OSS_SECRET_KEY", ""),
+		},
+	}, nil
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-	return cfg
+	return defaultValue
 }
 
-func (c *Config) DSN() string {
-	return "host=" + c.DBHost +
-		" port=" + c.DBPort +
-		" user=" + c.DBUser +
-		" password=" + c.DBPassword +
-		" dbname=" + c.DBName +
-		" sslmode=disable" +
-		" TimeZone=Asia/Shanghai"
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+func buildDatabaseURL() string {
+	host := getEnv("DB_HOST", "127.0.0.1")
+	port := getEnv("DB_PORT", "5432")
+	user := getEnv("DB_USER", "zhiwei")
+	password := getEnv("DB_PASSWORD", "zhiwei123")
+	dbname := getEnv("DB_NAME", "zhiwei")
+	return "postgresql://" + user + ":" + password + "@" + host + ":" + port + "/" + dbname + "?sslmode=disable"
 }

@@ -1,0 +1,177 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e9]: 知微教学(AI)
+      - navigation [ref=e10]:
+        - button "互审池" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - text: 互审池
+        - button "教研数据看板" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: 教研数据看板
+        - button "模板与方法论" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: 模板与方法论
+        - button "教研活动" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - text: 教研活动
+        - button "个人中心" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+          - text: 个人中心
+      - generic [ref=e36]: 金牛区第一小学 · 教研组长
+    - generic [ref=e37]:
+      - banner [ref=e38]:
+        - img [ref=e39] [cursor=pointer]
+        - generic [ref=e41]: 教研管理 · 语文组 · 金牛区第一小学
+        - button [ref=e42] [cursor=pointer]:
+          - img [ref=e43]
+        - generic [ref=e46]:
+          - img [ref=e48]
+          - text: 教研组长 赵敏
+      - main [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - img [ref=e54]
+            - text: 教研活动基于平台教案数据和学情分析，支持共同备课和听评课两种形式。活动记录将纳入教师成长档案。
+          - generic [ref=e56]:
+            - generic [ref=e57]:
+              - img [ref=e59]
+              - generic [ref=e61]:
+                - generic [ref=e62]: "3"
+                - generic [ref=e63]: 进行中活动
+            - generic [ref=e64]:
+              - img [ref=e66]
+              - generic [ref=e68]:
+                - generic [ref=e69]: "12"
+                - generic [ref=e70]: 本学期已完成
+            - generic [ref=e71]:
+              - img [ref=e73]
+              - generic [ref=e75]:
+                - generic [ref=e76]: "5"
+                - generic [ref=e77]: 待开始活动
+          - generic [ref=e78]:
+            - heading "教研活动" [level=2] [ref=e79]
+            - button "发起活动" [ref=e80] [cursor=pointer]:
+              - img [ref=e81]
+              - text: 发起活动
+          - generic [ref=e82]:
+            - button "全部活动" [ref=e83] [cursor=pointer]
+            - button "共同备课" [ref=e84] [cursor=pointer]
+            - button "听评课" [ref=e85] [cursor=pointer]
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - generic [ref=e88]:
+                - generic [ref=e89]:
+                  - text: 四年级语文《古诗词三首》共同备课
+                  - generic [ref=e90]: 共同备课
+                - generic [ref=e91]: 进行中
+              - generic [ref=e92]:
+                - generic [ref=e93]: 2026-06-28 ~ 2026-07-10
+                - generic [ref=e94]: 语文 · 四年级
+                - generic [ref=e95]: 发起人：教研组长 赵敏
+              - generic [ref=e96]: 围绕四年级下册《古诗词三首》（《四时田园杂兴》《宿新市徐公店》《清平乐·村居》）开展集体备课。重点研讨：古诗词教学的情境创设、AI辅助意境解读、分层作业设计。
+              - generic [ref=e97]:
+                - generic [ref=e98]:
+                  - generic [ref=e99]: 赵
+                  - generic [ref=e100]: 张
+                  - generic [ref=e101]: 王
+                  - generic [ref=e102]: 刘
+                  - generic [ref=e103]: 李
+                  - generic [ref=e104]: +3人
+                - generic [ref=e105]:
+                  - button "进入备课" [ref=e106] [cursor=pointer]
+                  - button "查看详情" [ref=e107] [cursor=pointer]
+            - generic [ref=e108]:
+              - generic [ref=e109]:
+                - generic [ref=e110]:
+                  - text: 张丽华老师公开课《记金华的双龙洞》听评课
+                  - generic [ref=e111]: 听评课
+                - generic [ref=e112]: 进行中
+              - generic [ref=e113]:
+                - generic [ref=e114]: 2026-07-02 ~ 2026-07-08
+                - generic [ref=e115]: 语文 · 四年级
+                - generic [ref=e116]: 地点：四年级（3）班教室
+              - generic [ref=e117]: 张丽华老师将展示《记金华的双龙洞》示范课，重点展示AI辅助阅读教学和课堂互动设计。课后进行集体评课。
+              - generic [ref=e118]:
+                - generic [ref=e119]:
+                  - generic [ref=e120]: 赵
+                  - generic [ref=e121]: 张
+                  - generic [ref=e122]: 王
+                  - generic [ref=e123]: 刘
+                  - generic [ref=e124]: 李
+                  - generic [ref=e125]: +2人
+                - generic [ref=e126]:
+                  - button "提交评价" [ref=e127] [cursor=pointer]
+                  - button "查看教案" [ref=e128] [cursor=pointer]
+            - generic [ref=e129]:
+              - generic [ref=e130]:
+                - generic [ref=e131]:
+                  - text: 四年级语文《文言文二则》共同备课
+                  - generic [ref=e132]: 共同备课
+                - generic [ref=e133]: 待开始
+              - generic [ref=e134]:
+                - generic [ref=e135]: 2026-07-15 ~ 2026-07-25
+                - generic [ref=e136]: 语文 · 四年级
+                - generic [ref=e137]: 发起人：教研组长 赵敏
+              - generic [ref=e138]: 针对《囊萤夜读》《铁杵成针》两篇文言文进行集体备课，讨论文言文启蒙教学策略和AI辅助朗读评价工具的应用。
+              - generic [ref=e139]:
+                - generic [ref=e140]:
+                  - generic [ref=e141]: 赵
+                  - generic [ref=e142]: 张
+                  - generic [ref=e143]: 王
+                  - generic [ref=e144]: 刘
+                  - generic [ref=e145]: +2人
+                - button "查看详情" [ref=e147] [cursor=pointer]
+            - generic [ref=e148]:
+              - generic [ref=e149]:
+                - generic [ref=e150]:
+                  - text: 王建国老师公开课《四则运算复习课》听评课
+                  - generic [ref=e151]: 听评课
+                - generic [ref=e152]: 已完成
+              - generic [ref=e153]:
+                - generic [ref=e154]: 2026-06-15 ~ 2026-06-22
+                - generic [ref=e155]: 数学 · 四年级
+                - generic [ref=e156]: 地点：四年级（2）班教室
+              - generic [ref=e157]: 王建国老师展示数学复习课教学方法，运用AI分层练习和实时反馈系统。评课得分 4.6/5.0。
+              - generic [ref=e158]:
+                - generic [ref=e159]:
+                  - generic [ref=e160]: 赵
+                  - generic [ref=e161]: 王
+                  - generic [ref=e162]: 张
+                  - generic [ref=e163]: 刘
+                  - generic [ref=e164]: 李
+                  - generic [ref=e165]: +4人
+                - button "查看总结" [ref=e167] [cursor=pointer]
+      - contentinfo [ref=e168]:
+        - generic [ref=e169]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+        - generic [ref=e170]:
+          - link "关于知微" [ref=e171] [cursor=pointer]:
+            - /url: "#"
+          - link "服务协议" [ref=e172] [cursor=pointer]:
+            - /url: "#"
+          - link "客服" [ref=e173] [cursor=pointer]:
+            - /url: "#"
+  - generic [ref=e175]:
+    - generic [ref=e176]:
+      - generic [ref=e177]:
+        - img [ref=e178]
+        - heading "AI使用提示" [level=3] [ref=e180]
+      - button [ref=e181] [cursor=pointer]:
+        - img [ref=e182]
+    - generic [ref=e185]:
+      - generic [ref=e186]:
+        - paragraph [ref=e187]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e188]:
+          - listitem [ref=e189]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e190]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e191]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e192]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e193]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e194] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e195]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e196]:
+      - button "取消" [ref=e197] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e198]

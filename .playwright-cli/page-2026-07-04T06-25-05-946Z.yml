@@ -1,0 +1,144 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img "知微" [ref=e6]
+        - generic [ref=e7]: 知微教学
+      - navigation [ref=e8]:
+        - link "工作台" [ref=e9] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e10]
+          - generic [ref=e15]: 工作台
+        - link "系统管理" [ref=e17] [cursor=pointer]:
+          - /url: /dashboard/admin
+          - img [ref=e18]
+          - generic [ref=e20]: 系统管理
+        - link "个人设置" [ref=e21] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e22]
+          - generic [ref=e25]: 个人设置
+      - generic [ref=e26]:
+        - button [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+        - generic [ref=e30]:
+          - generic [ref=e32]: 张
+          - generic [ref=e33]:
+            - generic [ref=e34]: 张老师
+            - generic [ref=e35]: 4年级下 · 语文
+            - generic [ref=e36]: 成都市金牛区第一小学
+    - generic [ref=e37]:
+      - banner [ref=e38]:
+        - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+        - generic [ref=e42]:
+          - generic [ref=e43]: Token 5%
+          - button [ref=e44] [cursor=pointer]
+          - button "张真真" [ref=e46] [cursor=pointer]
+      - main [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - heading "个人设置" [level=1] [ref=e51]
+            - paragraph [ref=e52]: 管理您的个人信息和账号安全
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - img [ref=e55]
+              - generic [ref=e58]: 基本信息
+            - generic [ref=e59]:
+              - generic [ref=e60]:
+                - generic [ref=e61] [cursor=pointer]:
+                  - generic [ref=e62]: 张
+                  - img [ref=e64]
+                - generic [ref=e67]:
+                  - button "更换头像" [ref=e68] [cursor=pointer]
+                  - paragraph [ref=e69]: 支持 JPG/PNG，最大 2MB
+              - generic [ref=e70]:
+                - generic [ref=e71]:
+                  - generic [ref=e72]: 姓名
+                  - textbox "姓名" [ref=e73]: 张老师
+                - generic [ref=e74]:
+                  - generic [ref=e75]: 手机号
+                  - textbox "手机号" [disabled] [ref=e76]: 138****8888
+                - generic [ref=e77]:
+                  - generic [ref=e78]: 任教年级
+                  - combobox "任教年级" [ref=e79]:
+                    - option "一年级"
+                    - option "二年级"
+                    - option "三年级"
+                    - option "四年级" [selected]
+                    - option "五年级"
+                    - option "六年级"
+                    - option "七年级"
+                    - option "八年级"
+                    - option "九年级"
+                - generic [ref=e80]:
+                  - generic [ref=e81]: 任教学科
+                  - combobox "任教学科" [ref=e82]:
+                    - option "语文" [selected]
+                    - option "数学"
+                    - option "英语"
+              - button "保存修改" [ref=e83] [cursor=pointer]:
+                - img [ref=e84]
+                - text: 保存修改
+          - generic [ref=e88]:
+            - generic [ref=e89]:
+              - img [ref=e90]
+              - generic [ref=e92]: 个人教材版本
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - generic [ref=e96]: 语文 · 人教版
+                - generic [ref=e97]: （个人版本覆盖学校默认，IT管理员设定全校默认）
+              - button "修改" [ref=e98] [cursor=pointer]
+          - generic [ref=e99]:
+            - generic [ref=e100]:
+              - img [ref=e101]
+              - generic [ref=e104]: 本月 Token 配额
+            - generic [ref=e106]:
+              - generic [ref=e107]:
+                - generic [ref=e108]: 已消耗
+                - generic [ref=e109]: 0 / 500,000 Token
+              - generic [ref=e111]:
+                - generic [ref=e112]: 已用 0.0%
+                - generic [ref=e113]: 校默认配额
+          - generic [ref=e114]:
+            - generic [ref=e115]:
+              - img [ref=e116]
+              - generic [ref=e118]: 安全设置
+            - generic [ref=e119]:
+              - button "修改密码" [ref=e120] [cursor=pointer]:
+                - generic [ref=e121]:
+                  - img [ref=e122]
+                  - generic [ref=e125]: 修改密码
+                - img [ref=e126]
+              - generic [ref=e128] [cursor=pointer]:
+                - generic [ref=e129]:
+                  - img [ref=e130]
+                  - generic [ref=e133]: 通知设置
+                - img [ref=e134]
+              - generic [ref=e136]:
+                - generic [ref=e137]:
+                  - img [ref=e138]
+                  - generic [ref=e140]: 两步验证
+                - generic [ref=e141]: 未开启
+    - button "小微" [ref=e142] [cursor=pointer]:
+      - img "小微" [ref=e143]
+  - generic [ref=e145]:
+    - generic [ref=e146]:
+      - generic [ref=e147]:
+        - img [ref=e148]
+        - heading "AI使用提示" [level=3] [ref=e150]
+      - button [ref=e151] [cursor=pointer]:
+        - img [ref=e152]
+    - generic [ref=e155]:
+      - generic [ref=e156]:
+        - paragraph [ref=e157]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e158]:
+          - listitem [ref=e159]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e160]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e161]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e162]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e163]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e164] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e165]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e166]:
+      - button "取消" [ref=e167] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e168]

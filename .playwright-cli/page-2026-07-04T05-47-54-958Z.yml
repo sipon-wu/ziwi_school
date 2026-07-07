@@ -1,0 +1,45 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - img [ref=e51]
+          - text: 会话历史默认展示近3个月，按月分表。每次最多展示20条任务。支持全文检索。
+        - heading "小微 · 会话历史检索" [level=2] [ref=e53]
+        - generic [ref=e54]:
+          - textbox "搜索对话关键词..." [ref=e57]
+          - generic [ref=e65]: 选择左侧会话查看详情
+  - button "小微" [ref=e66] [cursor=pointer]:
+    - img "小微" [ref=e67]

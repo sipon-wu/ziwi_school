@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 手写识别管理</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .config-section { margin-bottom: 24px; }
+  .config-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .threshold-slider { display: flex; align-items: center; gap: 12px; }
+  .threshold-slider input[type="range"] { flex: 1; }
+  .threshold-slider .val { width: 48px; text-align: center; font-weight: 600; font-size: 14px; color: var(--brand-blue); }
+  .review-list { margin-top: 12px; }
+  .review-item { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 16px; }
+  .review-item:hover { border-color: var(--border-default); }
+  .review-item .confidence-bar { width: 100px; }
+  .review-item .confidence-bar .bar-track { height: 6px; background: var(--bg-disabled); border-radius: 3px; overflow: hidden; }
+  .review-item .confidence-bar .bar-fill { height: 100%; border-radius: 3px; }
+  .review-item .confidence-bar .bar-fill.low { background: var(--color-danger); }
+  .review-item .confidence-bar .bar-fill.mid { background: var(--color-warning); }
+  .review-item .confidence-bar .bar-fill.high { background: var(--color-success); }
+  .review-item .confidence-bar .pct { font-size: 11px; color: var(--text-secondary); margin-top: 2px; text-align: center; }
+  .review-item .info { flex: 1; }
+  .review-item .info .student { font-size: 13px; font-weight: 600; }
+  .review-item .info .meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .review-item .info .meta span { margin-right: 12px; }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-mini { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 14px; text-align: center; }
+  .stat-mini .val { font-size: 20px; font-weight: 700; }
+  .stat-mini .lbl { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>首页</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>作业练习</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M6 20C6 17 9 15 12 15 15 15 18 17 18 20"/></svg>个人中心</div>
+    <div class="item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="4"/><path d="M12 5V7M12 17V19M5 12H7M17 12H19"/></svg>系统设置</div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">语文 · 四年级（1班）</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <span class="token">Token 5%</span>
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>张真真</div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      手写识别采用AI多模态直识，非传统OCR。单字置信度&lt;70%标记待确认，整篇&lt;60%推送人工复核。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+    <div class="page-title-area"><h2>手写识别管理</h2></div>
+
+    <!-- Tab -->
+    <div class="tab-bar" style="display:flex;gap:0;border-bottom:2px solid var(--border-light);margin-bottom:16px;">
+      <div class="tab active" onclick="switchTab('config', this)" style="padding:8px 20px;font-size:13px;cursor:pointer;color:var(--brand-blue);border-bottom:2px solid var(--brand-blue);margin-bottom:-2px;font-weight:500;">识别配置</div>
+      <div class="tab" onclick="switchTab('review', this)" style="padding:8px 20px;font-size:13px;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">待人工复核 <span style="background:var(--color-danger);color:white;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;">3</span></div>
+      <div class="tab" onclick="switchTab('history', this)" style="padding:8px 20px;font-size:13px;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;">批阅推送记录</div>
+    </div>
+
+    <!-- Tab 1: 识别配置 -->
+    <div class="tab-panel active" id="tab-config">
+      <div class="config-section">
+        <h3>置信度阈值配置</h3>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="form-group"><label>单字识别置信度阈值（低于此值标记"待确认"）</label>
+            <div class="threshold-slider"><span style="font-size:12px;color:var(--text-secondary)">50%</span><input type="range" min="50" max="90" value="70"><span class="val">70%</span><span style="font-size:12px;color:var(--text-secondary)">90%</span></div>
+            <div class="hint">当前设置：单字置信度 < 70% 时标记为"待确认"</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="form-group"><label>整篇平均置信度阈值（低于此值推送人工复核）</label>
+            <div class="threshold-slider"><span style="font-size:12px;color:var(--text-secondary)">40%</span><input type="range" min="40" max="80" value="60"><span class="val">60%</span><span style="font-size:12px;color:var(--text-secondary)">80%</span></div>
+            <div class="hint">当前设置：整篇平均置信度 < 60% 时推送人工复核</div>
+          </div>
+        </div>
+      </div>
+      <div class="config-section">
+        <h3>识别统计</h3>
+        <div class="stats-row">
+          <div class="stat-mini"><div class="val green">92%</div><div class="lbl">教师接受率</div></div>
+          <div class="stat-mini"><div class="val blue">1,284</div><div class="lbl">本月识别总量</div></div>
+          <div class="stat-mini"><div class="val orange">38</div><div class="lbl">待人工复核</div></div>
+          <div class="stat-mini"><div class="val">87.3%</div><div class="lbl">平均置信度</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: 待人工复核 -->
+    <div class="tab-panel" id="tab-review" style="display:none;">
+      <div class="filter-bar">
+        <select><option>全部班级</option><option>四(1)班</option><option>四(2)班</option></select>
+        <select><option>按置信度升序</option><option>按时间降序</option></select>
+      </div>
+      <div class="review-item">
+        <div class="confidence-bar"><div class="bar-track"><div class="bar-fill low" style="width:48%"></div></div><div class="pct">48%</div></div>
+        <div class="info">
+          <div class="student">王小明 · 四(1)班</div>
+          <div class="meta"><span>作业：《观潮》课后练习</span><span>提交时间：2026-07-03</span></div>
+        </div>
+        <div class="review-actions" style="display:flex;gap:8px;">
+          <button class="btn btn-sm btn-primary">查看复核</button>
+          <button class="btn btn-sm btn-default">推送批阅</button>
+        </div>
+      </div>
+      <div class="review-item">
+        <div class="confidence-bar"><div class="bar-track"><div class="bar-fill low" style="width:52%"></div></div><div class="pct">52%</div></div>
+        <div class="info">
+          <div class="student">李小华 · 四(1)班</div>
+          <div class="meta"><span>作业：分数比较练习</span><span>提交时间：2026-07-02</span></div>
+        </div>
+        <div class="review-actions" style="display:flex;gap:8px;">
+          <button class="btn btn-sm btn-primary">查看复核</button>
+          <button class="btn btn-sm btn-default">推送批阅</button>
+        </div>
+      </div>
+      <div class="review-item">
+        <div class="confidence-bar"><div class="bar-track"><div class="bar-fill mid" style="width:58%"></div></div><div class="pct">58%</div></div>
+        <div class="info">
+          <div class="student">张小军 · 四(2)班</div>
+          <div class="meta"><span>作业：英语单词默写</span><span>提交时间：2026-07-02</span></div>
+        </div>
+        <div class="review-actions" style="display:flex;gap:8px;">
+          <button class="btn btn-sm btn-primary">查看复核</button>
+          <button class="btn btn-sm btn-default">推送批阅</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: 批阅推送记录 -->
+    <div class="tab-panel" id="tab-history" style="display:none;">
+      <div class="table-wrap">
+        <div class="card" style="padding:0;">
+        <table class="table">
+          <thead><tr><th>学生</th><th>作业</th><th>识别置信度</th><th>复核结果</th><th>推送时间</th></tr></thead>
+          <tbody>
+            <tr><td>王小明</td><td>《观潮》课后练习</td><td>48%</td><td><span class="tag tag-warning">待复核</span></td><td>2026-07-03</td></tr>
+            <tr><td>赵小红</td><td>数学口算练习</td><td>82%</td><td><span class="tag tag-success">已通过</span></td><td>2026-07-01</td></tr>
+            <tr><td>陈小刚</td><td>英语句子抄写</td><td>65%</td><td><span class="tag tag-success">已通过</span></td><td>2026-06-30</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-state" style="display:none" id="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/></svg><div class="empty-text">暂无手写识别数据</div></div>
+    <div class="skeleton-loading" style="display:none" id="skeleton"><div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+    <div class="error-state" style="display:none" id="error-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg><div class="error-text">数据加载失败</div><button class="btn btn-primary">重新加载</button></div>
+  </div>
+</main>
+<footer class="page-footer"><span>© 2026 知微网版权所有</span><span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span></footer>
+<script>
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-bar .tab').forEach(t => {t.style.color='var(--text-secondary)';t.style.borderBottomColor='transparent';t.style.fontWeight='400';});
+  el.style.color='var(--brand-blue)';el.style.borderBottomColor='var(--brand-blue)';el.style.fontWeight='500';
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display='none');
+  document.getElementById('tab-' + name).style.display='block';
+}
+</script>
+</body>
+</html>

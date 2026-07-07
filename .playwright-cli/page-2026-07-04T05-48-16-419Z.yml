@@ -1,0 +1,35 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - generic [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - generic [ref=e14]: 系统监控
+      - generic [ref=e15] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e18]: 日志管理
+      - generic [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e22]: 性能管理
+      - generic [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - generic [ref=e26]: 安全管理
+      - generic [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - generic [ref=e30]: 告警配置
+    - generic [ref=e31]: 知微平台 · 运维管理
+    - generic "收起侧边栏" [ref=e32] [cursor=pointer]:
+      - img [ref=e33]
+  - main [ref=e35]:
+    - generic [ref=e36]:
+      - generic [ref=e38]: 平台运维 · 知微教学
+      - generic [ref=e39]:
+        - img [ref=e40] [cursor=pointer]
+        - generic [ref=e43]:
+          - img [ref=e44]
+          - generic [ref=e47]: 运维工程师
+    - generic [ref=e49]:
+      - img [ref=e50]
+      - generic [ref=e52]: 监控数据加载中...

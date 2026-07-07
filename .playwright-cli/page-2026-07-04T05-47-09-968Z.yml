@@ -1,0 +1,118 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "互审池" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 互审池
+      - button "教研数据看板" [ref=e15] [cursor=pointer]:
+        - img [ref=e16]
+        - text: 教研数据看板
+      - button "模板与方法论" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: 模板与方法论
+      - button "教研活动" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: 教研活动
+      - button "个人中心" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: 个人中心
+    - generic [ref=e36]: 金牛区第一小学 · 教研组长
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - img [ref=e39] [cursor=pointer]
+      - generic [ref=e41]: 教研管理 · 语文组 · 金牛区第一小学
+      - button [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+      - generic [ref=e46]:
+        - img [ref=e48]
+        - text: 教研组长 赵敏
+    - main [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - img [ref=e54]
+          - text: 校本模板和方法论经教研组长审核后，优秀者可提交平台运营终审，纳入平台共享库。
+        - generic [ref=e56]:
+          - button "教案模板" [ref=e57] [cursor=pointer]
+          - button "方法论管理" [ref=e58] [cursor=pointer]
+        - generic [ref=e59]:
+          - heading "教案模板库" [level=2] [ref=e60]
+          - generic [ref=e61]:
+            - button "上传校本模板" [ref=e62] [cursor=pointer]
+            - button "+ 创建模板" [ref=e63] [cursor=pointer]
+        - generic [ref=e64]:
+          - generic [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: 📄
+            - generic [ref=e67]: 空白模板
+            - generic [ref=e68]: 自由发挥，从零开始创建教案。无预设结构。
+            - generic [ref=e69]: 适用：全部学科 · 平台模板
+            - generic [ref=e70]:
+              - button "选用" [ref=e71]
+              - button "预览" [ref=e72]
+          - generic [ref=e73] [cursor=pointer]:
+            - generic [ref=e74]: 📋
+            - generic [ref=e75]: 标准教案模板
+            - generic [ref=e76]: 经典五段式：目标→重难点→准备→过程→反思
+            - generic [ref=e77]: 适用：全部学科 · 平台模板
+            - generic [ref=e78]:
+              - button "选用" [ref=e79]
+              - button "预览" [ref=e80]
+          - generic [ref=e81] [cursor=pointer]:
+            - generic [ref=e82]: 🔍
+            - generic [ref=e83]: 探究式教学模板
+            - generic [ref=e84]: 问题驱动，学生自主探究知识。含分组活动设计。
+            - generic [ref=e85]: 适用：科学/数学 · 平台模板
+            - generic [ref=e86]:
+              - button "选用" [ref=e87]
+              - button "预览" [ref=e88]
+          - generic [ref=e89] [cursor=pointer]:
+            - generic [ref=e90]: 🎯
+            - generic [ref=e91]: 项目式学习模板
+            - generic [ref=e92]: 以项目为驱动，跨课时综合性学习设计。
+            - generic [ref=e93]: 适用：语文/综合 · 平台模板
+            - generic [ref=e94]:
+              - button "选用" [ref=e95]
+              - button "预览" [ref=e96]
+          - generic [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: 🔄
+            - generic [ref=e99]: 翻转课堂模板
+            - generic [ref=e100]: 课前自学+课上深度讨论，以学生为中心。
+            - generic [ref=e101]: 适用：英语/数学 · 平台模板
+            - generic [ref=e102]:
+              - button "选用" [ref=e103]
+              - button "预览" [ref=e104]
+          - generic [ref=e105] [cursor=pointer]:
+            - generic [ref=e106]: 📝
+            - generic [ref=e107]: 复习课模板
+            - generic [ref=e108]: 系统梳理知识点，查漏补缺，强化巩固。
+            - generic [ref=e109]: 适用：全部学科 · 平台模板
+            - generic [ref=e110]:
+              - button "选用" [ref=e111]
+              - button "预览" [ref=e112]
+          - generic [ref=e113] [cursor=pointer]:
+            - generic [ref=e114]: ✏️
+            - generic [ref=e115]: 习题课模板
+            - generic [ref=e116]: 以题带点，精讲多练，举一反三。
+            - generic [ref=e117]: 适用：数学/物理 · 平台模板
+            - generic [ref=e118]:
+              - button "选用" [ref=e119]
+              - button "预览" [ref=e120]
+          - generic [ref=e121] [cursor=pointer]:
+            - generic [ref=e122]: 🏫
+            - generic [ref=e123]: 校本特色模板
+            - generic [ref=e124]: 导入激趣→初读感知→品读赏析→拓展延伸→读写结合
+            - generic [ref=e125]: 适用：语文 · 平台模板
+            - generic [ref=e126]:
+              - button "选用" [ref=e127]
+              - button "预览" [ref=e128]
+    - contentinfo [ref=e129]:
+      - generic [ref=e130]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e131]:
+        - link "关于知微" [ref=e132] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e133] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e134] [cursor=pointer]:
+          - /url: "#"

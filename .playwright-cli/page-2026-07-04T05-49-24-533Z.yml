@@ -1,0 +1,28 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 演示环境
+      - generic [ref=e10]: "| 数据每日 02:00 自动重置"
+    - generic [ref=e11]:
+      - 'button "当前: 教师" [ref=e13] [cursor=pointer]':
+        - text: "当前: 教师"
+        - img [ref=e14]
+      - button "引导" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: 引导
+      - button "重置" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: 重置
+  - banner [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e26]: 家
+      - generic [ref=e27]: 知微家校通李小明家长 · 四年级2班
+    - generic [ref=e28]:
+      - button "1" [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - generic [ref=e33]: "1"
+      - generic [ref=e34]:
+        - generic [ref=e35]: 李
+        - generic [ref=e36]: 李爸爸
+  - main [ref=e37]

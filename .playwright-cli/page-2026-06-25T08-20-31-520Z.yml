@@ -1,0 +1,224 @@
+- generic [ref=e23]:
+  - complementary [ref=e24]:
+    - generic [ref=e25]:
+      - img "知微" [ref=e26]
+      - generic [ref=e27]: 知微教学
+    - navigation [ref=e28]:
+      - link "工作台" [ref=e30] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e31]
+        - generic [ref=e36]: 工作台
+      - generic [ref=e38]:
+        - button "教学备课" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - generic [ref=e43]: 教学备课
+          - img [ref=e44]
+        - generic [ref=e46]:
+          - link "教案备课" [ref=e47] [cursor=pointer]:
+            - /url: /dashboard/lesson-plans
+            - img [ref=e48]
+            - generic [ref=e51]: 教案备课
+          - link "习作指导" [ref=e52] [cursor=pointer]:
+            - /url: /dashboard/compositions
+            - img [ref=e53]
+            - generic [ref=e55]: 习作指导
+          - link "教案互审" [ref=e56] [cursor=pointer]:
+            - /url: /dashboard/reviews
+            - img [ref=e57]
+            - generic [ref=e62]: 教案互审
+      - generic [ref=e63]:
+        - button "作业练习" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - generic [ref=e67]: 作业练习
+          - img [ref=e68]
+        - generic [ref=e70]:
+          - link "出题组卷" [ref=e71] [cursor=pointer]:
+            - /url: /dashboard/exercises
+            - img [ref=e72]
+            - generic [ref=e74]: 出题组卷
+          - link "题库管理" [ref=e75] [cursor=pointer]:
+            - /url: /dashboard/question-bank
+            - img [ref=e76]
+            - generic [ref=e78]: 题库管理
+          - link "批阅管理" [ref=e79] [cursor=pointer]:
+            - /url: /dashboard/grading
+            - img [ref=e80]
+            - generic [ref=e83]: 批阅管理
+      - generic [ref=e84]:
+        - button "教学数据" [ref=e85] [cursor=pointer]:
+          - img [ref=e86]
+          - generic [ref=e88]: 教学数据
+          - img [ref=e89]
+        - generic [ref=e91]:
+          - link "班级学情" [ref=e92] [cursor=pointer]:
+            - /url: /dashboard/analytics
+            - img [ref=e93]
+            - generic [ref=e95]: 班级学情
+          - link "校长仪表盘" [ref=e96] [cursor=pointer]:
+            - /url: /dashboard/principal
+            - img [ref=e97]
+            - generic [ref=e100]: 校长仪表盘
+      - generic [ref=e101]:
+        - button "家校沟通" [ref=e102] [cursor=pointer]:
+          - img [ref=e103]
+          - generic [ref=e107]: 家校沟通
+          - img [ref=e108]
+        - generic [ref=e110]:
+          - link "家长签字" [ref=e111] [cursor=pointer]:
+            - /url: /dashboard/parent-sign
+            - img [ref=e112]
+            - generic [ref=e116]: 家长签字
+          - link "系统管理" [ref=e117] [cursor=pointer]:
+            - /url: /dashboard/admin
+            - img [ref=e118]
+            - generic [ref=e120]: 系统管理
+      - link "个人设置" [ref=e122] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e123]
+        - generic [ref=e126]: 个人设置
+    - generic [ref=e127]:
+      - button [ref=e128] [cursor=pointer]:
+        - img [ref=e129]
+      - generic [ref=e131]:
+        - generic [ref=e133]: 张
+        - generic [ref=e134]:
+          - generic [ref=e135]: 张老师
+          - generic [ref=e136]: 4年级下 · 数学 · 人教版
+  - generic [ref=e137]:
+    - generic [ref=e138]:
+      - generic [ref=e139]:
+        - 'generic "本月Token: 0 / 500,000" [ref=e140]':
+          - img [ref=e141]
+          - generic [ref=e143]: Token
+          - generic [ref=e144]: 0%
+        - generic [ref=e145]: "|"
+        - generic [ref=e146]: v0.5-beta
+      - generic [ref=e147]:
+        - button "3 条" [ref=e148] [cursor=pointer]:
+          - img [ref=e149]
+          - generic [ref=e152]: 3 条
+        - generic [ref=e153]: "|"
+        - generic [ref=e154]: 张老师
+        - generic [ref=e155]: "|"
+        - generic [ref=e156]: 在线
+    - generic [ref=e157]:
+      - generic [ref=e158]:
+        - img [ref=e159]
+        - generic [ref=e162]: 演示环境
+        - generic [ref=e163]: "| 数据每日 02:00 自动重置"
+      - generic [ref=e164]:
+        - 'button "当前: 教师视角" [ref=e166] [cursor=pointer]':
+          - text: "当前: 教师视角"
+          - img [ref=e167]
+        - button "引导" [ref=e169] [cursor=pointer]:
+          - img [ref=e170]
+          - text: 引导
+        - button "重置" [ref=e173] [cursor=pointer]:
+          - img [ref=e174]
+          - text: 重置
+    - generic [ref=e178]:
+      - generic [ref=e180]:
+        - generic [ref=e181]:
+          - img [ref=e182]
+          - generic [ref=e185]: 欢迎体验知微
+        - button [ref=e186] [cursor=pointer]:
+          - img [ref=e187]
+      - generic [ref=e190]:
+        - paragraph [ref=e199]: 步骤 1/7
+        - heading "工作台概览" [level=3] [ref=e200]
+        - paragraph [ref=e201]: 进入教学驾驶舱，一览教案、作业、班级数据总览，快速上手
+        - generic [ref=e202]:
+          - button "跳过引导" [ref=e203] [cursor=pointer]
+          - link "下一步" [ref=e204] [cursor=pointer]:
+            - /url: /dashboard
+            - text: 下一步
+            - img [ref=e205]
+    - banner [ref=e207]:
+      - generic [ref=e208]:
+        - generic [ref=e209]: 工作台
+        - generic [ref=e210]:
+          - generic [ref=e211]: /
+          - generic [ref=e212]: 工作台
+      - button "数学 · 4年级下 · 人教版 ▼" [ref=e214] [cursor=pointer]:
+        - img [ref=e215]
+        - generic [ref=e217]: 数学
+        - generic [ref=e218]: ·
+        - generic [ref=e219]: 4年级下
+        - generic [ref=e220]: ·
+        - generic [ref=e221]: 人教版
+        - generic [ref=e222]: ▼
+      - 'generic "本月Token: 0 / 500,000" [ref=e223]':
+        - img [ref=e224]
+        - generic [ref=e227]: 0%
+      - generic [ref=e228]:
+        - button "3" [ref=e229] [cursor=pointer]:
+          - img [ref=e230]
+          - generic [ref=e233]: "3"
+        - button "张" [ref=e235] [cursor=pointer]:
+          - generic [ref=e236]: 张
+    - main [ref=e238]:
+      - generic [ref=e239]:
+        - heading "下午好，张老师 👋" [level=2] [ref=e240]
+        - paragraph [ref=e241]: 今天还有 12 份作业待批阅，3 位家长未签字
+      - generic [ref=e242]:
+        - generic [ref=e243] [cursor=pointer]:
+          - generic [ref=e244]:
+            - generic [ref=e245]: 待批阅作业
+            - img [ref=e247]
+          - generic [ref=e250]: "12"
+          - generic [ref=e251]: 较昨日 +3
+        - generic [ref=e252] [cursor=pointer]:
+          - generic [ref=e253]:
+            - generic [ref=e254]: 家长未签字
+            - img [ref=e256]
+          - generic [ref=e259]: "3"
+          - generic [ref=e260]: 三年级2班 已逾期2人
+        - generic [ref=e261] [cursor=pointer]:
+          - generic [ref=e262]:
+            - generic [ref=e263]: 教案草稿
+            - img [ref=e265]
+          - generic [ref=e268]: "5"
+          - generic [ref=e269]: 最近编辑：30分钟前
+      - generic [ref=e270]:
+        - generic [ref=e271]:
+          - heading "快捷入口" [level=3] [ref=e272]
+          - generic [ref=e273]:
+            - button "新建教案" [ref=e274] [cursor=pointer]:
+              - img [ref=e275]
+              - text: 新建教案
+            - button "快速出题" [ref=e278] [cursor=pointer]:
+              - img [ref=e279]
+              - text: 快速出题
+            - button "查看学情" [ref=e281] [cursor=pointer]:
+              - img [ref=e282]
+              - text: 查看学情
+          - generic [ref=e285]:
+            - generic [ref=e286]: 本周统计
+            - generic [ref=e287]:
+              - generic [ref=e288]:
+                - generic [ref=e289]: "8"
+                - generic [ref=e290]: 生成教案
+              - generic [ref=e291]:
+                - generic [ref=e292]: "3"
+                - generic [ref=e293]: 发布作业
+              - generic [ref=e294]:
+                - generic [ref=e295]: 92%
+                - generic [ref=e296]: 课标对齐率
+              - generic [ref=e297]:
+                - generic [ref=e298]: 85%
+                - generic [ref=e299]: 教案接受率
+        - generic [ref=e300]:
+          - generic [ref=e301]:
+            - heading "最近教案" [level=3] [ref=e302]
+            - button "查看全部 →" [ref=e303] [cursor=pointer]
+          - generic [ref=e304]:
+            - generic [ref=e305] [cursor=pointer]:
+              - img [ref=e307]
+              - generic [ref=e311]: 语文 ·
+              - generic [ref=e312]: draft
+            - generic [ref=e313] [cursor=pointer]:
+              - img [ref=e315]
+              - generic [ref=e319]: 语文 ·
+              - generic [ref=e320]: draft
+  - button "小微" [ref=e321] [cursor=pointer]:
+    - img "小微" [ref=e322]

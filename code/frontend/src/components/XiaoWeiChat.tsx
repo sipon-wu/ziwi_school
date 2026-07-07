@@ -56,11 +56,12 @@ function getTimeString(): string {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
-export default function XiaoWeiChat() {
+export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(embedded ? true : false)
+  const [minimized, setMinimized] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     { role: 'xiaowei', content: '你好！我是小微助教，很高兴为你服务！\n有什么教学方面的需求可以随时问我 😊', time: getTimeString() },
   ])
@@ -71,36 +72,16 @@ export default function XiaoWeiChat() {
   // ── 多媒体状态 ──
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
-  const [hasMicPerm, setHasMicPerm] = useState<boolean | null>(null) // null=检测中
-  const [hasCameraPerm, setHasCameraPerm] = useState<boolean | null>(null)
+  // 权限：null=未请求（按钮可见），true=已授权，false=已拒绝（隐藏按钮）
+  // 不主动探测——等用户点击时由浏览器自然触发授权请求
+  const [hasMicPerm, setHasMicPerm] = useState<boolean | null>(null)
+  const [hasCameraPerm] = useState<boolean | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
-
-  // ── 权限检测（仅移动端主动探测，PC端按需请求）──
-  useEffect(() => {
-    // PC端不主动请求权限，按钮保持可见（hasMicPerm/hasCameraPerm 保持 null）
-    // 用户点击录音/拍照时由浏览器自然触发权限请求
-    if (!isMobile) return
-    if (navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => { stream.getTracks().forEach(t => t.stop()); setHasMicPerm(true) })
-        .catch(() => setHasMicPerm(false))
-    } else {
-      setHasMicPerm(false)
-    }
-    // 摄像头权限检测（可选）
-    if (navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => { stream.getTracks().forEach(t => t.stop()); setHasCameraPerm(true) })
-        .catch(() => setHasCameraPerm(false))
-    } else {
-      setHasCameraPerm(false)
-    }
-  }, [isMobile])
 
   // 自动滚动
   useEffect(() => {
@@ -111,12 +92,28 @@ export default function XiaoWeiChat() {
   const getContext = () => {
     try {
       const raw = localStorage.getItem('zhiwei_user')
-      if (raw) {
-        const user = JSON.parse(raw)
-        return { teacher_name: user.name || '老师', subject: user.subject || '语文', grade: user.grade || '四年级' }
+      const user = raw ? JSON.parse(raw) : {}
+      const role = localStorage.getItem('demo_role') || 'teacher'
+      return {
+        teacher_name: user.name || '老师', subject: user.subject || '语文', grade: user.grade || '四年级',
+        role,
+        // 校长/主任/IT管理员：注入全校数据概览
+        platform_data: role !== 'teacher' ? `
+你是${role === 'principal' ? '校长' : role === 'director' ? '教务主任' : role === 'it_admin' ? 'IT管理员' : '教师'}，有权限查看全校数据。
+当前平台数据：
+- 全校8个班级298名学生，全校均分82分
+- 四年级1班85分(张老师)、2班82分(李老师)
+- 三年级1班78分(王老师)、2班80分(赵老师)
+- 五年级1班88分(陈老师)、2班83分(刘老师)
+- 六年级1班76分(周老师)、2班81分(吴老师)
+- 作业完成率：四1班92%、四2班88%、三1班85%、三2班90%、五1班95%、五2班87%、六1班82%、六2班89%
+- 本月教案：张老师12份、李老师10份、王老师9份、赵老师8份、陈老师7份、刘老师8份、周老师7份、吴老师10份
+- Token总量100万/月，当前已用约85万
+如果用户用口语问数据，请从以上数据中提取并自然回答。如果问的数据不在以上列表中，如实说明暂无该数据。
+` : '',
       }
     } catch { /* ignore */ }
-    return { teacher_name: '老师', subject: '语文', grade: '四年级' }
+    return { teacher_name: '老师', subject: '语文', grade: '四年级', role: 'teacher', platform_data: '' }
   }
 
   const sendMessage = async (text: string, imageUrl?: string) => {
@@ -170,6 +167,7 @@ export default function XiaoWeiChat() {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setHasMicPerm(true) // 用户已授权
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
       chunksRef.current = []
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
@@ -207,7 +205,7 @@ export default function XiaoWeiChat() {
       }, 1000)
     } catch {
       setHasMicPerm(false)
-      alert('无法访问麦克风，请在浏览器设置中允许麦克风权限')
+      toast('无法访问麦克风，请在浏览器设置中允许麦克风权限', 'warning')
     }
   }, [])
 
@@ -292,7 +290,7 @@ export default function XiaoWeiChat() {
         </div>
         <div className="flex gap-1.5">
           {!isMobile && (
-            <button className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors" title="最小化">
+            <button onClick={() => setMinimized(true)} className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors" title="最小化">
               <Minimize2 size={10} color="white" />
             </button>
           )}
@@ -495,15 +493,39 @@ export default function XiaoWeiChat() {
     </>
   )
 
+  // 移动端由 BottomNavBar 中间按钮唤起小微，不显示浮动按钮
+  if (isMobile) {
+    return (
+      <>
+        {/* 隐藏触发器供 BottomNavBar 点击 */}
+        <button data-xiaowei-trigger className="hidden" onClick={() => setOpen(true)} />
+        {/* 小微打开时隐藏底部浮标 */}
+        {open && <style>{'[data-xiaowei-float]{display:none!important}'}</style>}
+        {open && (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col animate-slide-up">
+            {chatContent}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── 内嵌模式：直接渲染面板，无浮动按钮 ──
+  if (embedded) {
+    return (
+      <div className="w-full bg-white rounded-2xl border border-gray-200 flex flex-col overflow-hidden" style={{ minHeight: 520 }}>
+        {chatContent}
+      </div>
+    )
+  }
+
   return (
     <>
-      {/* 浮动按钮（桌面端固定右下角，移动端也显示） */}
+      {/* 浮动按钮（仅桌面端右下角） */}
       <button
         onClick={() => setOpen(!open)}
-        className={`fixed z-50 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 overflow-hidden xw-chat-btn ${
-          isMobile ? 'bottom-20 right-4 w-12 h-12' : 'bottom-6 right-6 w-14 h-14'
-        }`}
-        style={{ background: open ? 'linear-gradient(135deg, #1A3A6B, #2B5DA8)' : 'transparent' }}
+        className="fixed z-50 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 overflow-hidden xw-chat-btn bottom-6 right-6 w-14 h-14"
+        style={{ background: open ? 'linear-gradient(135deg, #1A3A6B, #2B5DA8)' : '#1A3A6B' }}
         title="小微AI助教"
       >
         {open ? (
@@ -521,19 +543,24 @@ export default function XiaoWeiChat() {
         )}
       </button>
 
-      {/* 对话面板 */}
-      {open && (
-        isMobile ? (
-          /* 移动端全屏面板 */
-          <div className="fixed inset-0 z-50 bg-white flex flex-col animate-slide-up">
-            {chatContent}
+      {/* 对话面板（仅桌面端浮动窗口） */}
+      {open && minimized && (
+        <div className="fixed bottom-24 right-6 z-50 w-[180px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden cursor-pointer"
+          onClick={() => setMinimized(false)}>
+          <div className="flex items-center gap-2 px-3 py-2.5"
+            style={{ background: 'linear-gradient(135deg, #1A3A6B, #2B5DA8)' }}>
+            <img src={AVATAR_SRC} alt="小微" className="w-7 h-7 rounded-full object-cover border border-white/30"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+            <span className="text-white text-[13px] font-medium">小微</span>
+            <span className="ml-auto text-[10px] text-green-300">● 在线</span>
           </div>
-        ) : (
-          /* 桌面端浮动窗口 */
-          <div className="fixed bottom-24 right-6 z-50 w-[420px] max-w-[calc(100vw-3rem)] h-[640px] max-h-[calc(100vh-8rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
-            {chatContent}
-          </div>
-        )
+        </div>
+      )}
+
+      {open && !minimized && (
+        <div className="fixed bottom-24 right-6 z-50 w-[420px] max-w-[calc(100vw-3rem)] h-[640px] max-h-[calc(100vh-8rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+          {chatContent}
+        </div>
       )}
     </>
   )

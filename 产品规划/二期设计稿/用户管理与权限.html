@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 用户管理与权限 · IT管理员</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border-light);
+    margin-bottom: 16px;
+  }
+  .tab-bar .tab {
+    padding: 8px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: var(--transition-fast);
+  }
+  .tab-bar .tab.active { color: var(--brand-blue); border-bottom-color: var(--brand-blue); font-weight: 500; }
+  .tab-bar .tab:hover:not(.active) { color: var(--text-primary); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--brand-blue-light); color: var(--brand-blue); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-right: 8px; }
+  .user-name-cell { display: flex; align-items: center; }
+  .role-tag { display: inline-block; padding: 2px 8px; border-radius: var(--radius-sm); font-size: 11px; margin-right: 4px; }
+  .role-tag.teacher { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .role-tag.admin { background: var(--color-warning-light); color: var(--color-warning); }
+  .role-tag.it { background: rgba(155,81,224,0.1); color: #9B51E0; }
+  .role-tag.dean { background: var(--color-success-light); color: var(--color-success); }
+  .role-tag.principal { background: var(--color-danger-light); color: var(--color-danger); }
+
+  .matrix-wrap { overflow-x: auto; }
+  .matrix-wrap table { border-collapse: collapse; font-size: 12px; width: 100%; }
+  .matrix-wrap th, .matrix-wrap td { border: 1px solid var(--border-light); padding: 8px 12px; text-align: center; }
+  .matrix-wrap th { background: var(--bg-stripe); color: var(--text-secondary); font-weight: 500; font-size: 11px; }
+  .matrix-wrap td:first-child { text-align: left; font-weight: 500; }
+  .matrix-wrap .check { color: var(--color-success); }
+  .matrix-wrap .cross { color: var(--text-placeholder); }
+  .matrix-wrap .partial { color: var(--color-warning); }
+
+  .batch-panel {
+    padding: 16px;
+    border: 2px dashed var(--border-default);
+    border-radius: var(--radius-md);
+    text-align: center;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .batch-panel:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（IT管理员） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      系统 Dashboard
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      用户管理与权限
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>
+      校园通讯录
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      教材版本库
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      数据管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      系统配置
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      操作日志
+    </div>
+  </div>
+  <div class="footer">金牛区第一小学 · IT管理</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">系统管理 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>IT管理员 陈工</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      角色权限修改将立即生效，请谨慎操作。新增用户默认密码将通过短信发送至绑定手机号。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ Tab切换 ═══ -->
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('users', this)">用户列表</div>
+      <div class="tab" onclick="switchTab('roles', this)">角色与权限</div>
+      <div class="tab" onclick="switchTab('batch', this)">批量导入</div>
+    </div>
+
+    <!-- ═══ Tab 1: 用户列表 ═══ -->
+    <div class="tab-panel active" id="tab-users">
+      <div class="page-title-area">
+        <h2>用户列表</h2>
+        <div class="actions">
+          <button class="btn btn-default">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            导出Excel
+          </button>
+          <button class="btn btn-primary" onclick="toggleAddUserModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加用户
+          </button>
+        </div>
+      </div>
+
+      <!-- 统计卡片 -->
+      <div class="stat-cards">
+        <div class="stat-card"><div class="label">总用户数</div><div class="value">93</div></div>
+        <div class="stat-card"><div class="label">教师</div><div class="value blue">68</div></div>
+        <div class="stat-card"><div class="label">教务员</div><div class="value green">3</div></div>
+        <div class="stat-card"><div class="label">管理员</div><div class="value orange">4</div></div>
+        <div class="stat-card"><div class="label">已禁用</div><div class="value" style="color:var(--color-danger)">2</div></div>
+      </div>
+
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <input type="text" class="search-input" placeholder="搜索姓名/手机号...">
+        <select><option>全部角色</option><option>教师</option><option>教务员</option><option>IT管理员</option><option>校长</option></select>
+        <select><option>全部状态</option><option>启用</option><option>禁用</option></select>
+        <select><option>全部年级</option><option>四年级</option><option>五年级</option><option>六年级</option></select>
+      </div>
+
+      <!-- 用户表格 -->
+      <div class="table-wrap">
+        <div class="card" style="padding:0;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:40px"><input type="checkbox"></th>
+              <th style="width:150px">用户</th>
+              <th style="width:100px">角色</th>
+              <th style="width:120px">学科/年级</th>
+              <th style="width:120px">手机号</th>
+              <th style="width:80px">状态</th>
+              <th style="width:140px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td><div class="user-name-cell"><span class="user-avatar">张</span>张丽华</div></td>
+              <td><span class="role-tag teacher">教师</span></td>
+              <td>语文 / 四年级</td>
+              <td>138****0001</td>
+              <td><span class="tag tag-success">启用</span></td>
+              <td class="actions"><a href="#">编辑</a><a href="#">改角色</a><a href="#" class="danger">禁用</a></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td><div class="user-name-cell"><span class="user-avatar">李</span>李华</div></td>
+              <td><span class="role-tag dean">教务员</span></td>
+              <td>全校</td>
+              <td>138****0002</td>
+              <td><span class="tag tag-success">启用</span></td>
+              <td class="actions"><a href="#">编辑</a><a href="#">改角色</a><a href="#" class="danger">禁用</a></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td><div class="user-name-cell"><span class="user-avatar">陈</span>陈工</div></td>
+              <td><span class="role-tag it">IT管理员</span></td>
+              <td>全校</td>
+              <td>138****0003</td>
+              <td><span class="tag tag-success">启用</span></td>
+              <td class="actions"><a href="#">编辑</a><a href="#">改角色</a></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td><div class="user-name-cell"><span class="user-avatar">王</span>王芳</div></td>
+              <td><span class="role-tag teacher">教师</span></td>
+              <td>英语 / 四年级</td>
+              <td>138****0004</td>
+              <td><span class="tag tag-success">启用</span></td>
+              <td class="actions"><a href="#">编辑</a><a href="#">改角色</a><a href="#" class="danger">禁用</a></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td><div class="user-name-cell"><span class="user-avatar">周</span>周伟</div></td>
+              <td><span class="role-tag teacher">教师</span></td>
+              <td>数学 / 四年级</td>
+              <td>138****0010</td>
+              <td><span class="tag tag-danger">已禁用</span></td>
+              <td class="actions"><a href="#" class="primary">启用</a><a href="#">编辑</a></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div class="pagination">
+        <span>共 93 条，第 1/10 页</span>
+        <div class="pages">
+          <span class="active">1</span><span>2</span><span>3</span><span>...</span><span>10</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Tab 2: 角色与权限 ═══ -->
+    <div class="tab-panel" id="tab-roles">
+      <div class="page-title-area">
+        <h2>角色与权限</h2>
+        <button class="btn btn-primary" onclick="alert('添加自定义角色')">+ 自定义角色</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="font-size:14px;margin-bottom:12px;">权限矩阵</h3>
+        <div class="matrix-wrap">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">功能模块</th>
+                <th>教师</th>
+                <th>班主任</th>
+                <th>教研组长</th>
+                <th>教务员</th>
+                <th>校长</th>
+                <th>IT管理员</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>教案创建/编辑</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>教案互审</td><td class="partial">可配</td><td class="partial">可配</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>出题/题库</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>组卷/试卷库</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>作业布置/批阅</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>学情分析</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="partial">全校</td><td class="cross">—</td></tr>
+              <tr><td>成长足迹</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>家长签字</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>成长关爱</td><td class="check">✓</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>班级调度</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>教师管理</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td class="cross">—</td><td class="check">✓</td></tr>
+              <tr><td>用户管理</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td></tr>
+              <tr><td>数据管理</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td></tr>
+              <tr><td>校长看板</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td><td class="cross">—</td></tr>
+              <tr><td>系统配置</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td><td class="check">✓</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Tab 3: 批量导入 ═══ -->
+    <div class="tab-panel" id="tab-batch">
+      <div class="page-title-area">
+        <h2>批量导入</h2>
+      </div>
+      <div class="batch-panel" onclick="alert('支持上传 CSV/Excel 批量导入用户')">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <div style="font-size:13px;margin-top:8px;">拖拽或点击上传用户文件</div>
+        <div style="font-size:11px;color:var(--text-placeholder);margin-top:4px;">支持 CSV、Excel (.xlsx) 格式</div>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <h3 style="font-size:14px;margin-bottom:8px;">导入模板说明</h3>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
+          <div>必填列：<strong>姓名、角色（教师/教务员/IT管理员/校长）、手机号</strong></div>
+          <div>选填列：学科、年级、班级、邮箱</div>
+          <div>默认密码：系统自动生成，通过短信发送至手机号</div>
+          <div style="margin-top:8px;"><a href="#" style="color:var(--brand-blue)">下载导入模板</a></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <div class="empty-text">暂无用户数据</div>
+      <button class="btn btn-primary" onclick="toggleAddUserModal()">+ 添加第一位用户</button>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">用户数据加载失败</div>
+      <div class="error-detail">请检查网络连接后重试</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ 添加用户弹窗 ═══ -->
+<div class="modal-overlay" id="add-user-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>添加用户</h3>
+      <span class="close" onclick="toggleAddUserModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">姓名</label>
+        <input type="text" placeholder="真实姓名">
+      </div>
+      <div class="form-group">
+        <label class="required">角色</label>
+        <select>
+          <option>教师</option><option>教务员</option><option>IT管理员</option><option>校长</option><option>教研组长</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="required">手机号</label>
+        <input type="text" placeholder="用于登录和密码找回">
+        <div class="hint">默认密码将通过短信发送至该手机号</div>
+      </div>
+      <div class="form-group">
+        <label>学科</label>
+        <select><option>— 选择学科 —</option><option>语文</option><option>数学</option><option>英语</option></select>
+      </div>
+      <div class="form-group">
+        <label>任教班级</label>
+        <select multiple style="height:80px">
+          <option>四(1)班</option><option>四(2)班</option><option>四(3)班</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleAddUserModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('用户添加成功！密码已发送至手机号');toggleAddUserModal()">添加</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-bar .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+function toggleAddUserModal() {
+  var m = document.getElementById('add-user-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

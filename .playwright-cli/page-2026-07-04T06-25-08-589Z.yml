@@ -1,0 +1,82 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: 微
+        - generic [ref=e7]: 知微学生端李小明 · 四年级2班
+      - generic [ref=e8]:
+        - button "2" [ref=e9] [cursor=pointer]:
+          - img [ref=e10]
+          - generic [ref=e13]: "2"
+        - generic [ref=e14]:
+          - generic [ref=e15]: 李
+          - generic [ref=e16]: 李小明
+    - main [ref=e17]:
+      - generic [ref=e19]:
+        - button "待完成3" [ref=e20] [cursor=pointer]: 待完成3
+        - button "已完成2" [ref=e22] [cursor=pointer]
+      - generic [ref=e23]:
+        - generic [ref=e25]:
+          - img [ref=e27]
+          - generic [ref=e30]:
+            - generic [ref=e31]:
+              - generic [ref=e32]: 数学
+              - generic [ref=e33]: 李老师
+            - heading "分数加减法练习" [level=3] [ref=e34]
+            - generic [ref=e35]:
+              - generic [ref=e36]: 10题
+              - generic [ref=e37]: L2
+              - generic [ref=e38]:
+                - img [ref=e39]
+                - text: 2026-06-20
+          - img [ref=e42]
+        - generic [ref=e45]:
+          - img [ref=e47]
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - generic [ref=e52]: 语文
+              - generic [ref=e53]: 张老师
+            - heading "《观潮》课后练习" [level=3] [ref=e54]
+            - generic [ref=e55]:
+              - generic [ref=e56]: 8题
+              - generic [ref=e57]: L1
+              - generic [ref=e58]:
+                - img [ref=e59]
+                - text: 2026-06-19
+          - img [ref=e62]
+        - generic [ref=e65]:
+          - img [ref=e67]
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: 英语
+              - generic [ref=e73]: 王老师
+            - heading "Unit 3 词汇写作" [level=3] [ref=e74]
+            - generic [ref=e75]:
+              - generic [ref=e76]: 15题
+              - generic [ref=e77]: L2
+              - generic [ref=e78]:
+                - img [ref=e79]
+                - text: 2026-06-21
+          - img [ref=e82]
+  - generic [ref=e85]:
+    - generic [ref=e86]:
+      - generic [ref=e87]:
+        - img [ref=e88]
+        - heading "AI使用提示" [level=3] [ref=e90]
+      - button [ref=e91] [cursor=pointer]:
+        - img [ref=e92]
+    - generic [ref=e95]:
+      - generic [ref=e96]:
+        - paragraph [ref=e97]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e98]:
+          - listitem [ref=e99]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e100]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e101]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e102]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e103]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e104] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e105]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e106]:
+      - button "取消" [ref=e107] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e108]

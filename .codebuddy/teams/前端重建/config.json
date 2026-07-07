@@ -1,0 +1,18 @@
+{
+  "name": "前端重建",
+  "leadAgentId": "37f6c7fdf0fe4e4495f870d5f79a596e",
+  "workspacePath": "/Users/sipon/CodeBuddy/AI教案",
+  "createdAt": "2026-07-04T16:44:53.996Z",
+  "options": {
+    "workspacePath": "/Users/sipon/CodeBuddy/AI教案",
+    "isAutoTeam": false
+  },
+  "members": [
+    {
+      "memberId": "team-lead@前端重建",
+      "name": "team-lead",
+      "role": "Team Lead - coordinates the team and interacts with the user"
+    }
+  ],
+  "isAutoTeam": false
+}

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 教材审核 · 平台运营</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .tab-bar { display: flex; gap: 0; border-bottom: 2px solid var(--border-light); margin-bottom: 16px; }
+  .tab-bar .tab { padding: 8px 20px; font-size: 13px; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: var(--transition-fast); }
+  .tab-bar .tab.active { color: var(--brand-blue); border-bottom-color: var(--brand-blue); font-weight: 500; }
+  .tab-bar .tab:hover:not(.active) { color: var(--text-primary); }
+  .tab-bar .tab .badge { display: inline-block; background: var(--color-danger); color: white; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .review-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .review-card:hover { border-color: var(--border-default); }
+  .review-icon { width: 40px; height: 40px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .review-icon.pending { background: var(--color-warning-light); color: var(--color-warning); }
+  .review-icon.approved { background: var(--color-success-light); color: var(--color-success); }
+  .review-icon.rejected { background: var(--color-danger-light); color: var(--color-danger); }
+  .review-info { flex: 1; }
+  .review-info .title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .review-info .meta { font-size: 12px; color: var(--text-secondary); }
+  .review-info .meta span { margin-right: 12px; }
+  .review-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+  .reject-reason { font-size: 12px; color: var(--color-danger); background: var(--color-danger-light); padding: 4px 10px; border-radius: var(--radius-sm); margin-top: 6px; display: inline-block; }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>运营 Dashboard</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Token 管理</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>License 管理</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/></svg>公告管理</div>
+    <div class="item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>教材审核</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>财务对账</div>
+  </div>
+  <div class="footer">知微平台 · 运营管理</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">平台运营 · 知微教学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>运营主管 王经理</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      教材审核包含教师提交的自编版本和校本补充教材。审核通过后纳入平台版本库。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <div class="page-title-area">
+      <h2>教材审核</h2>
+    </div>
+
+    <!-- ═══ Tab切换 ═══ -->
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('pending', this)">待审核 <span class="badge">3</span></div>
+      <div class="tab" onclick="switchTab('approved', this)">已通过</div>
+      <div class="tab" onclick="switchTab('rejected', this)">已退回</div>
+    </div>
+
+    <!-- ═══ 待审核 ═══ -->
+    <div class="tab-panel active" id="tab-pending">
+      <div class="review-card">
+        <div class="review-icon pending">📙</div>
+        <div class="review-info">
+          <div class="title">金牛一小校本语文补充教材（四下）</div>
+          <div class="meta">
+            <span>提交学校：成都市金牛区第一小学</span>
+            <span>提交人：张丽华</span>
+            <span>学科：语文</span>
+            <span>年级：四年级</span>
+          </div>
+          <div class="meta"><span>提交时间：2026-06-28</span><span>AI自动审核：✅ 已通过</span></div>
+        </div>
+        <div class="review-actions">
+          <button class="btn btn-sm btn-primary" onclick="alert('审核通过！')">通过</button>
+          <button class="btn btn-sm btn-default" onclick="toggleRejectModal()">退回</button>
+          <button class="btn btn-sm btn-text">查看详情</button>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-icon pending">📓</div>
+        <div class="review-info">
+          <div class="title">金牛一小趣味数学思维训练（四下）</div>
+          <div class="meta">
+            <span>提交学校：成都市金牛区第一小学</span>
+            <span>提交人：李强</span>
+            <span>学科：数学</span>
+            <span>年级：四年级</span>
+          </div>
+          <div class="meta"><span>提交时间：2026-06-25</span><span>AI自动审核：✅ 已通过</span></div>
+        </div>
+        <div class="review-actions">
+          <button class="btn btn-sm btn-primary" onclick="alert('审核通过！')">通过</button>
+          <button class="btn btn-sm btn-default" onclick="toggleRejectModal()">退回</button>
+          <button class="btn btn-sm btn-text">查看详情</button>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-icon pending">📔</div>
+        <div class="review-info">
+          <div class="title">海淀实验科学探究实验手册（四下）</div>
+          <div class="meta">
+            <span>提交学校：北京海淀区实验小学</span>
+            <span>提交人：陈明</span>
+            <span>学科：科学</span>
+            <span>年级：四年级</span>
+          </div>
+          <div class="meta"><span>提交时间：2026-07-02</span><span>AI自动审核：⚠ 待确认（部分知识点重叠）</span></div>
+        </div>
+        <div class="review-actions">
+          <button class="btn btn-sm btn-primary" onclick="alert('审核通过！')">通过</button>
+          <button class="btn btn-sm btn-default" onclick="toggleRejectModal()">退回</button>
+          <button class="btn btn-sm btn-text">查看详情</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 已通过 ═══ -->
+    <div class="tab-panel" id="tab-approved">
+      <div class="review-card">
+        <div class="review-icon approved">✅</div>
+        <div class="review-info">
+          <div class="title">金牛一小语文古诗文拓展阅读（四上）</div>
+          <div class="meta"><span>审核通过时间：2026-05-15</span><span>审核人：王经理</span></div>
+        </div>
+        <div class="review-actions">
+          <button class="btn btn-sm btn-text">查看详情</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 已退回 ═══ -->
+    <div class="tab-panel" id="tab-rejected">
+      <div class="review-card">
+        <div class="review-icon rejected">❌</div>
+        <div class="review-info">
+          <div class="title">深圳南山英语口语练习手册（三下）</div>
+          <div class="meta"><span>退回时间：2026-06-10</span><span>审核人：王经理</span></div>
+          <span class="reject-reason">退回原因：教材内容存在版权争议，部分课文原文未授权收录</span>
+        </div>
+        <div class="review-actions">
+          <button class="btn btn-sm btn-text">查看详情</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pagination">
+      <span>共 8 条，第 1/1 页</span>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/></svg>
+      <div class="empty-text">暂无待审核教材</div>
+    </div>
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+      <div class="error-text">数据加载失败</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ 退回弹窗 ═══ -->
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>退回教材申请</h3>
+      <span class="close" onclick="toggleRejectModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">退回原因</label>
+        <textarea rows="3" placeholder="请填写退回原因，将通知提交教师修改..."></textarea>
+        <div class="hint">常见原因：版权问题、内容重复、格式不符合要求等</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleRejectModal()">取消</button>
+      <button class="btn btn-danger" onclick="alert('已退回，通知已发送给提交教师');toggleRejectModal()">确认退回</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-bar .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+function toggleRejectModal() {
+  var m = document.getElementById('reject-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

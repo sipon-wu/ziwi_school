@@ -1,96 +1,62 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import LoginPage from './pages/LoginPage'
+import TeacherDashboard from './pages/TeacherDashboard'
 
-// 统一响应式布局
-import DashboardLayout from './components/layout/DashboardLayout'
-import StudentLayout from './components/layout/StudentLayout'
-import ParentLayout from './components/layout/ParentLayout'
+const LessonPlanList = lazy(() => import('./pages/LessonPlanList'))
+const LessonPlanEditor = lazy(() => import('./pages/LessonPlanEditor'))
+const Materials = lazy(() => import('./pages/Materials'))
+const Exercises = lazy(() => import('./pages/Exercises'))
+const ExerciseGenerator = lazy(() => import('./pages/ExerciseGenerator'))
+const ExerciseEditor = lazy(() => import('./pages/ExerciseEditor'))
+const ExamList = lazy(() => import('./pages/ExamList'))
+const ExamBuilder = lazy(() => import('./pages/ExamBuilder'))
+const ExamEditor = lazy(() => import('./pages/ExamEditor'))
+const AssignmentList = lazy(() => import('./pages/AssignmentList'))
+const AssignmentBuilder = lazy(() => import('./pages/AssignmentBuilder'))
+const AssignmentEditor = lazy(() => import('./pages/AssignmentEditor'))
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
+const GrowthPage = lazy(() => import('./pages/GrowthPage'))
+const CarePage = lazy(() => import('./pages/CarePage'))
+const CareDetail = lazy(() => import('./pages/CareDetail'))
+const ParentSignPage = lazy(() => import('./pages/ParentSignPage'))
+const PublishedLessons = lazy(() => import('./pages/PublishedLessons'))
+const ReviewPool = lazy(() => import('./pages/ReviewPool'))
+const ClassSwitchPage = lazy(() => import('./pages/ClassSwitchPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
-// PC 教师端页面
-import DashboardHome from './pages/DashboardHome'
-import LessonPlanList from './pages/LessonPlanList'
-import LessonPlanEditor from './pages/LessonPlanEditor'
-import ExerciseList from './pages/ExerciseList'
-import ExerciseGenerator from './pages/ExerciseGenerator'
-import QuestionBank from './pages/QuestionBank'
-import CompositionList from './pages/CompositionList'
-import GradingWorkbench from './pages/GradingWorkbench'
-import GradingDetail from './pages/GradingDetail'
-import ClassAnalytics from './pages/ClassAnalytics'
-import ParentSignList from './pages/ParentSignList'
-import SettingsPage from './pages/SettingsPage'
-import LicenseAdmin from './pages/LicenseAdmin'
-import ReviewList from './pages/ReviewList'
-import ReviewDetail from './pages/ReviewDetail'
-import PrincipalDashboard from './pages/PrincipalDashboard'
-
-// 学生端页面（原 WAP，后续迁移至 pages/ 根目录）
-import StudentAssignmentList from './pages/wap/StudentAssignmentList'
-import StudentAnswerPage from './pages/wap/StudentAnswerPage'
-import StudentGradingView from './pages/wap/StudentGradingView'
-import StudentErrorBook from './pages/wap/StudentErrorBook'
-
-// 家长端页面（原 WAP）
-import ParentAssignmentList from './pages/wap/ParentAssignmentList'
-import ParentSignPage from './pages/wap/ParentSignPage'
+const Loading = () => <div className="flex items-center justify-center h-screen bg-[#F6F7F8]"><div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" /></div>
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ── 公开路由 ── */}
         <Route path="/login" element={<LoginPage />} />
-
-        {/* ── 教师端（统一响应式布局）── */}
-        <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<DashboardHome />} />
-          <Route path="lesson-plans" element={<LessonPlanList />} />
-          <Route path="lesson-plans/new" element={<LessonPlanEditor />} />
-          <Route path="lesson-plans/:id/edit" element={<LessonPlanEditor />} />
-          <Route path="exercises" element={<ExerciseList />} />
-          <Route path="exercises/new" element={<ExerciseGenerator />} />
-          <Route path="question-bank" element={<QuestionBank />} />
-          <Route path="compositions" element={<CompositionList />} />
-          <Route path="grading" element={<GradingWorkbench />} />
-          <Route path="grading/:id" element={<GradingDetail />} />
-          <Route path="analytics" element={<ClassAnalytics />} />
-          <Route path="parent-sign" element={<ParentSignList />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="admin" element={<LicenseAdmin />} />
-          <Route path="reviews" element={<ReviewList />} />
-          <Route path="review/:id" element={<ReviewDetail />} />
-          <Route path="principal" element={<PrincipalDashboard />} />
-        </Route>
-
-        {/* ── 学生端（轻量布局：无侧栏，全宽，绿色系）── */}
-        <Route path="/student" element={<StudentLayout />}>
-          <Route index element={<StudentAssignmentList />} />
-          <Route path=":id" element={<StudentAnswerPage />} />
-          <Route path="grading/:id" element={<StudentGradingView />} />
-          <Route path="error-book" element={<StudentErrorBook />} />
-        </Route>
-
-        {/* ── 家长端（轻量布局：无侧栏，全宽，暖色系）── */}
-        <Route path="/parent" element={<ParentLayout />}>
-          <Route index element={<ParentAssignmentList />} />
-          <Route path="sign/:id" element={<ParentSignPage />} />
-        </Route>
-
-        {/* ── 旧 WAP 路径 301 重定向 ── */}
-        <Route path="/m/student" element={<Navigate to="/student" replace />} />
-        <Route path="/m/student/*" element={<RedirectFromWap base="/m/student" to="/student" />} />
-        <Route path="/m/parent" element={<Navigate to="/parent" replace />} />
-        <Route path="/m/parent/*" element={<RedirectFromWap base="/m/parent" to="/parent" />} />
-
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/teacher" element={<TeacherDashboard />} />
+        <Route path="/lesson-plans" element={<Suspense fallback={<Loading />}><LessonPlanList /></Suspense>} />
+        <Route path="/lesson-plans/new" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
+        <Route path="/lesson-plans/:id" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
+        <Route path="/materials" element={<Suspense fallback={<Loading />}><Materials /></Suspense>} />
+        <Route path="/exercises" element={<Suspense fallback={<Loading />}><Exercises /></Suspense>} />
+        <Route path="/exercises/new" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
+        <Route path="/exercises/:id" element={<Suspense fallback={<Loading />}><ExerciseEditor /></Suspense>} />
+        <Route path="/exams" element={<Suspense fallback={<Loading />}><ExamList /></Suspense>} />
+        <Route path="/exams/new" element={<Suspense fallback={<Loading />}><ExamBuilder /></Suspense>} />
+        <Route path="/exams/:id" element={<Suspense fallback={<Loading />}><ExamEditor /></Suspense>} />
+        <Route path="/assignments" element={<Suspense fallback={<Loading />}><AssignmentList /></Suspense>} />
+        <Route path="/assignments/new" element={<Suspense fallback={<Loading />}><AssignmentBuilder /></Suspense>} />
+        <Route path="/assignments/:id" element={<Suspense fallback={<Loading />}><AssignmentEditor /></Suspense>} />
+        <Route path="/analytics" element={<Suspense fallback={<Loading />}><AnalyticsPage /></Suspense>} />
+        <Route path="/growth" element={<Suspense fallback={<Loading />}><GrowthPage /></Suspense>} />
+        <Route path="/care" element={<Suspense fallback={<Loading />}><CarePage /></Suspense>} />
+        <Route path="/care/:id" element={<Suspense fallback={<Loading />}><CareDetail /></Suspense>} />
+        <Route path="/parent-sign" element={<Suspense fallback={<Loading />}><ParentSignPage /></Suspense>} />
+        <Route path="/published-lessons" element={<Suspense fallback={<Loading />}><PublishedLessons /></Suspense>} />
+        <Route path="/review-pool" element={<Suspense fallback={<Loading />}><ReviewPool /></Suspense>} />
+        <Route path="/classes" element={<Suspense fallback={<Loading />}><ClassSwitchPage /></Suspense>} />
+        <Route path="/settings" element={<Suspense fallback={<Loading />}><SettingsPage /></Suspense>} />
+        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
   )
-}
-
-/** WAP 旧路径重定向辅助组件 */
-function RedirectFromWap({ base, to }: { base: string; to: string }) {
-  const path = window.location.pathname
-  const newPath = path.replace(base, to)
-  return <Navigate to={newPath} replace />
 }

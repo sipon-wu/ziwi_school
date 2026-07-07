@@ -1,0 +1,114 @@
+/* ═══════════════════════════════════════════
+   知微教学(AI) · Design Tokens
+   二期设计稿专用 | 与一期完全一致
+   版本：0704-v1
+   ═══════════════════════════════════════════ */
+
+:root {
+  /* ── 品牌主色 ── */
+  --brand-blue:       #02A7F0;
+  --brand-blue-light: rgba(2,167,240,0.08);
+  --brand-blue-light-04: rgba(2,167,240,0.04);
+  --brand-blue-light-10: rgba(2,167,240,0.10);
+  --brand-blue-light-25: rgba(2,167,240,0.25);
+  --brand-blue-hover: #0398D8;
+
+  /* ── 背景色 ── */
+  --bg-page:          #F6F7F8;
+  --bg-card:          #FFFFFF;
+  --bg-sidebar:       #212529;
+  --bg-sidebar-hover: rgba(255,255,255,0.06);
+  --bg-sidebar-active:#1F2C3D;
+  --bg-sidebar-active-border: #1A3A6B;
+  --bg-input:         #FFFFFF;
+  --bg-disabled:      #F0F0F0;
+  --bg-hover:         #F9FAFB;
+  --bg-tag:           #F2F2F2;
+  --bg-stripe:        #FAFAFA;
+
+  /* ── 文字色 ── */
+  --text-primary:     #353535;
+  --text-secondary:   #9A9A9A;
+  --text-placeholder: #A3A3A3;
+  --text-white:       #FFFFFF;
+  --text-sidebar:     rgba(255,255,255,0.65);
+  --text-sidebar-active: #FFFFFF;
+
+  /* ── 边框/分割线 ── */
+  --border-light:     #E7E7EB;
+  --border-default:   #D7D7D7;
+  --border-input:     #E7E7EB;
+  --border-focus:     #02A7F0;
+
+  /* ── 功能色 ── */
+  --color-success:    #52C41A;
+  --color-warning:    #F6920E;
+  --color-danger:     #FF4D4F;
+  --color-info:       #02A7F0;
+
+  /* ── 字体 ── */
+  --font-family:      -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  --font-size-xs:     11px;
+  --font-size-sm:     12px;
+  --font-size-base:   13px;
+  --font-size-md:     14px;
+  --font-size-lg:     16px;
+  --font-size-xl:     18px;
+  --font-size-2xl:    24px;
+  --line-height:      1.6;
+
+  /* ── 间距 ── */
+  --space-xs:         4px;
+  --space-sm:         8px;
+  --space-md:         12px;
+  --space-lg:         16px;
+  --space-xl:         20px;
+  --space-2xl:        24px;
+
+  /* ── 圆角 ── */
+  --radius-sm:        3px;
+  --radius-md:        4px;
+  --radius-lg:        12px;
+  --radius-round:     50%;
+
+  /* ── 阴影 ── */
+  --shadow-sm:        0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md:        0 2px 8px rgba(0,0,0,0.08);
+
+  /* ── 布局 ── */
+  --topbar-height:    48px;
+  --sidebar-width:    220px;
+  --left-panel-width: 280px;
+  --page-max-width:   1600px;
+
+  /* ── 过渡 ── */
+  --transition-fast:  0.15s ease;
+  --transition-normal:0.2s ease;
+
+  /* ── 交互状态：light 变体 ── */
+  --color-success-light: rgba(82,196,26,0.10);
+  --color-danger-light: rgba(255,77,79,0.10);
+  --color-warning-light: rgba(255,152,0,0.10);
+
+  /* ── 交互状态：disabled ── */
+  --opacity-disabled:  0.5;
+  --cursor-disabled:   not-allowed;
+
+  /* ── 交互状态：skeleton 加载 ── */
+  --skeleton-base:     #EBEBEB;
+  --skeleton-shine:    #F5F5F5;
+
+  /* ── 交互状态：focus ── */
+  --focus-ring-width:  2px;
+  --focus-ring-color:  #02A7F0;
+  --focus-ring-offset: 2px;
+
+  /* ── 空态 ── */
+  --empty-icon-size:   48px;
+  --empty-text-color:  #9A9A9A;
+
+  /* ── 错误态 ── */
+  --error-border:      #FF4D4F;
+  --error-bg:          rgba(255,77,79,0.04);
+  --error-text:        #FF4D4F;
+}

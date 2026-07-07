@@ -1,0 +1,229 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "班级调度" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 班级调度
+      - button "课程安排" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: 课程安排
+      - button "教师管理" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: 教师管理
+      - button "学期管理" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 学期管理
+      - button "教务 Dashboard" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: 教务 Dashboard
+      - button "个人中心" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - text: 个人中心
+    - generic [ref=e38]: 成都市金牛区第一小学
+  - generic [ref=e39]:
+    - banner [ref=e40]:
+      - img [ref=e41] [cursor=pointer]
+      - generic [ref=e43]: 教务管理 · 金牛区第一小学
+      - button [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+      - generic [ref=e48]:
+        - img [ref=e50]
+        - text: 教务员 李华
+    - main [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - img [ref=e56]
+          - text: 支持拖拽调整课程，系统自动检测教师冲突。确认后同步到教师端课表。
+          - button "×" [ref=e58] [cursor=pointer]
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - heading "课程安排" [level=2] [ref=e61]
+            - generic [ref=e62]:
+              - button "周课表" [ref=e63] [cursor=pointer]
+              - button "日课表" [ref=e64] [cursor=pointer]
+              - button "列表视图" [ref=e65] [cursor=pointer]
+          - generic [ref=e66]:
+            - button "批量导入" [ref=e67] [cursor=pointer]:
+              - img [ref=e68]
+              - text: 批量导入
+            - button "添加课程" [ref=e71] [cursor=pointer]:
+              - img [ref=e72]
+              - text: 添加课程
+        - generic [ref=e73]:
+          - combobox [ref=e74]:
+            - option "一年级"
+            - option "二年级"
+            - option "三年级"
+            - option "四年级" [selected]
+            - option "五年级"
+            - option "六年级"
+          - combobox [ref=e75]:
+            - option "四（1）班" [selected]
+            - option "四（2）班"
+            - option "四（3）班"
+            - option "四（4）班"
+            - option "四（5）班"
+            - option "四（6）班"
+        - table [ref=e77]:
+          - rowgroup [ref=e78]:
+            - row "节次/时间 周一 周二 周三 周四 周五" [ref=e79]:
+              - columnheader "节次/时间" [ref=e80]
+              - columnheader "周一" [ref=e81]
+              - columnheader "周二" [ref=e82]
+              - columnheader "周三" [ref=e83]
+              - columnheader "周四" [ref=e84]
+              - columnheader "周五" [ref=e85]
+          - rowgroup [ref=e86]:
+            - row "第一节 08:00-08:40 语文 张丽华 · 401教室 数学 李强 · 401教室 英语 王芳 · 语音室 语文 张丽华 · 401教室 数学 李强 · 401教室" [ref=e87]:
+              - cell "第一节 08:00-08:40" [ref=e88]:
+                - generic [ref=e89]: 第一节
+                - generic [ref=e90]: 08:00-08:40
+              - cell "语文 张丽华 · 401教室" [ref=e91] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e92]:
+                  - generic [ref=e93]: 语文
+                  - generic [ref=e94]: 张丽华 · 401教室
+              - cell "数学 李强 · 401教室" [ref=e95] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e96]:
+                  - generic [ref=e97]: 数学
+                  - generic [ref=e98]: 李强 · 401教室
+              - cell "英语 王芳 · 语音室" [ref=e99] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e100]:
+                  - generic [ref=e101]: 英语
+                  - generic [ref=e102]: 王芳 · 语音室
+              - cell "语文 张丽华 · 401教室" [ref=e103] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e104]:
+                  - generic [ref=e105]: 语文
+                  - generic [ref=e106]: 张丽华 · 401教室
+              - cell "数学 李强 · 401教室" [ref=e107] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e108]:
+                  - generic [ref=e109]: 数学
+                  - generic [ref=e110]: 李强 · 401教室
+            - row "第二节 08:50-09:30 数学 李强 · 401教室 语文 张丽华 · 401教室 数学 李强 · 401教室 英语 王芳 · 语音室 语文 张丽华 · 401教室" [ref=e111]:
+              - cell "第二节 08:50-09:30" [ref=e112]:
+                - generic [ref=e113]: 第二节
+                - generic [ref=e114]: 08:50-09:30
+              - cell "数学 李强 · 401教室" [ref=e115] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e116]:
+                  - generic [ref=e117]: 数学
+                  - generic [ref=e118]: 李强 · 401教室
+              - cell "语文 张丽华 · 401教室" [ref=e119] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e120]:
+                  - generic [ref=e121]: 语文
+                  - generic [ref=e122]: 张丽华 · 401教室
+              - cell "数学 李强 · 401教室" [ref=e123] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e124]:
+                  - generic [ref=e125]: 数学
+                  - generic [ref=e126]: 李强 · 401教室
+              - cell "英语 王芳 · 语音室" [ref=e127] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e128]:
+                  - generic [ref=e129]: 英语
+                  - generic [ref=e130]: 王芳 · 语音室
+              - cell "语文 张丽华 · 401教室" [ref=e131] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e132]:
+                  - generic [ref=e133]: 语文
+                  - generic [ref=e134]: 张丽华 · 401教室
+            - row "第三节 10:00-10:40 科学 陈明 · 实验室 英语 王芳 · 语音室 语文 张丽华 · 401教室 数学 李强 · 401教室 道法 刘伟 · 401教室" [ref=e135]:
+              - cell "第三节 10:00-10:40" [ref=e136]:
+                - generic [ref=e137]: 第三节
+                - generic [ref=e138]: 10:00-10:40
+              - cell "科学 陈明 · 实验室" [ref=e139] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e140]:
+                  - generic [ref=e141]: 科学
+                  - generic [ref=e142]: 陈明 · 实验室
+              - cell "英语 王芳 · 语音室" [ref=e143] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e144]:
+                  - generic [ref=e145]: 英语
+                  - generic [ref=e146]: 王芳 · 语音室
+              - cell "语文 张丽华 · 401教室" [ref=e147] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e148]:
+                  - generic [ref=e149]: 语文
+                  - generic [ref=e150]: 张丽华 · 401教室
+              - cell "数学 李强 · 401教室" [ref=e151] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e152]:
+                  - generic [ref=e153]: 数学
+                  - generic [ref=e154]: 李强 · 401教室
+              - cell "道法 刘伟 · 401教室" [ref=e155] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e156]:
+                  - generic [ref=e157]: 道法
+                  - generic [ref=e158]: 刘伟 · 401教室
+            - row "第四节 10:50-11:30 美术 周婷 · 美术室 科学 陈明 · 实验室 体育 赵云 · 操场 道法 刘伟 · 401教室 科学 陈明 · 实验室" [ref=e159]:
+              - cell "第四节 10:50-11:30" [ref=e160]:
+                - generic [ref=e161]: 第四节
+                - generic [ref=e162]: 10:50-11:30
+              - cell "美术 周婷 · 美术室" [ref=e163] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e164]:
+                  - generic [ref=e165]: 美术
+                  - generic [ref=e166]: 周婷 · 美术室
+              - cell "科学 陈明 · 实验室" [ref=e167] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e168]:
+                  - generic [ref=e169]: 科学
+                  - generic [ref=e170]: 陈明 · 实验室
+              - cell "体育 赵云 · 操场" [ref=e171] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e172]:
+                  - generic [ref=e173]: 体育
+                  - generic [ref=e174]: 赵云 · 操场
+              - cell "道法 刘伟 · 401教室" [ref=e175] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e176]:
+                  - generic [ref=e177]: 道法
+                  - generic [ref=e178]: 刘伟 · 401教室
+              - cell "科学 陈明 · 实验室" [ref=e179] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e180]:
+                  - generic [ref=e181]: 科学
+                  - generic [ref=e182]: 陈明 · 实验室
+            - row "第五节 14:00-14:40 体育 赵云 · 操场 道法 刘伟 · 401教室 音乐 孙悦 · 音乐室 体育 赵云 · 操场 美术 周婷 · 美术室" [ref=e183]:
+              - cell "第五节 14:00-14:40" [ref=e184]:
+                - generic [ref=e185]: 第五节
+                - generic [ref=e186]: 14:00-14:40
+              - cell "体育 赵云 · 操场" [ref=e187] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e188]:
+                  - generic [ref=e189]: 体育
+                  - generic [ref=e190]: 赵云 · 操场
+              - cell "道法 刘伟 · 401教室" [ref=e191] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e192]:
+                  - generic [ref=e193]: 道法
+                  - generic [ref=e194]: 刘伟 · 401教室
+              - cell "音乐 孙悦 · 音乐室" [ref=e195] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e196]:
+                  - generic [ref=e197]: 音乐
+                  - generic [ref=e198]: 孙悦 · 音乐室
+              - cell "体育 赵云 · 操场" [ref=e199] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e200]:
+                  - generic [ref=e201]: 体育
+                  - generic [ref=e202]: 赵云 · 操场
+              - cell "美术 周婷 · 美术室" [ref=e203] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e204]:
+                  - generic [ref=e205]: 美术
+                  - generic [ref=e206]: 周婷 · 美术室
+            - row "第六节 14:50-15:30 班会 张丽华 · 401教室 信息 吴磊 · 机房 音乐 孙悦 · 音乐室" [ref=e207]:
+              - cell "第六节 14:50-15:30" [ref=e208]:
+                - generic [ref=e209]: 第六节
+                - generic [ref=e210]: 14:50-15:30
+              - cell "班会 张丽华 · 401教室" [ref=e211] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e212]:
+                  - generic [ref=e213]: 班会
+                  - generic [ref=e214]: 张丽华 · 401教室
+              - cell "信息 吴磊 · 机房" [ref=e215] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e216]:
+                  - generic [ref=e217]: 信息
+                  - generic [ref=e218]: 吴磊 · 机房
+              - cell [ref=e219] [cursor=pointer]
+              - cell "音乐 孙悦 · 音乐室" [ref=e220] [cursor=pointer]:
+                - generic "点击删除该课程" [ref=e221]:
+                  - generic [ref=e222]: 音乐
+                  - generic [ref=e223]: 孙悦 · 音乐室
+              - cell [ref=e224] [cursor=pointer]
+        - generic [ref=e225] [cursor=pointer]:
+          - img [ref=e226]
+          - generic [ref=e229]: 拖拽或点击上传课表文件（Excel/CSV）批量导入
+    - contentinfo [ref=e230]:
+      - generic [ref=e231]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e232]:
+        - link "关于知微" [ref=e233] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e234] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e235] [cursor=pointer]:
+          - /url: "#"

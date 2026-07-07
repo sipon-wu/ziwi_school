@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 小程序端设计 · 二期</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .demo-page { max-width: 900px; margin: 40px auto; }
+  .demo-page h1 { font-size: 20px; margin-bottom: 24px; }
+  .demo-section { margin-bottom: 40px; }
+  .demo-section h2 { font-size: 15px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+  .demo-section .desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+
+  /* 小程序手机模拟框 */
+  .phone-frame { width: 375px; margin: 0 auto; border: 12px solid #1a1a1a; border-radius: 32px; overflow: hidden; background: var(--bg-page); position: relative; box-shadow: 0 8px 32px rgba(0,0,0,.15); }
+  .phone-frame .status-bar { height: 28px; background: #1a1a1a; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 10px; color: white; }
+  .phone-frame .nav-bar { height: 40px; background: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--border-light); }
+  .phone-frame .content { padding: 16px; max-height: 480px; overflow-y: auto; }
+  .phone-frame .bottom-bar { height: 48px; background: white; border-top: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-around; }
+  .phone-frame .bottom-bar .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--text-secondary); cursor: pointer; }
+  .phone-frame .bottom-bar .tab.active { color: var(--brand-blue); }
+
+  .mini-card { background: white; border: 1px solid var(--border-light); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .mini-card .title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .mini-card .stat-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+  .mini-card .stat-val { font-weight: 600; color: var(--text-primary); }
+  .mini-chart { height: 120px; background: var(--bg-stripe); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 12px; margin-bottom: 12px; }
+
+  .confirm-card { background: white; border: 1px solid var(--border-light); border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+  .confirm-card .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-bottom: 8px; }
+  .confirm-card .status-badge.success { background: var(--color-success-light); color: var(--color-success); }
+  .confirm-card .status-badge.pending { background: var(--color-warning-light); color: var(--color-warning); }
+  .confirm-card .info { font-size: 13px; margin-bottom: 8px; }
+  .confirm-card .meta { font-size: 11px; color: var(--text-secondary); }
+
+  .bind-card { text-align: center; padding: 24px; }
+  .bind-card .qr-code { width: 160px; height: 160px; background: var(--bg-stripe); border: 1px solid var(--border-light); border-radius: 8px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 12px; }
+  .bind-card .child-info { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .bind-card .child-meta { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+  .bind-card .guide-step { font-size: 13px; color: var(--text-secondary); padding: 6px 0; }
+</style>
+</head>
+<body style="background:var(--bg-page);min-height:100vh;padding-bottom:60px;">
+<div class="demo-page">
+  <h1>知微教学 · 二期小程序端设计</h1>
+
+  <!-- E1 学情看板简化版 -->
+  <div class="demo-section">
+    <h2>E1. 学情看板（简化版 · 小程序）</h2>
+    <div class="desc">七卡片精简为三卡片+图表，适配小程序viewport（375px）</div>
+    <div class="phone-frame">
+      <div class="status-bar"><span>9:41</span><span>100%</span></div>
+      <div class="nav-bar">学情看板</div>
+      <div class="content">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:13px;">
+          <span style="color:var(--text-secondary);">语文 · 四(1)班</span>
+          <span style="color:var(--brand-blue);font-size:12px;">切换 ▾</span>
+        </div>
+        <div class="mini-card">
+          <div class="title">作业完成率</div>
+          <div class="stat-row"><span>36/42人</span><span class="stat-val blue">85%</span></div>
+        </div>
+        <div class="mini-card">
+          <div class="title">平均正确率</div>
+          <div class="stat-row"><span>本周累计</span><span class="stat-val">72%</span></div>
+        </div>
+        <div class="mini-card">
+          <div class="title">待批阅 / 待订正</div>
+          <div class="stat-row"><span>6份待批阅</span><span class="stat-val orange">12人需订正</span></div>
+        </div>
+        <div class="mini-chart">📈 正确率趋势（近7天折线图）</div>
+        <div style="font-size:11px;color:var(--text-secondary);text-align:center;padding:8px;">
+          更多详细数据请在PC端查看 · <span style="color:var(--brand-blue);">问小微</span>
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <div class="tab active"><span>📊</span>学情</div>
+        <div class="tab"><span>📝</span>作业</div>
+        <div class="tab"><span>💬</span>小微</div>
+        <div class="tab"><span>👤</span>我的</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E2 训练小微轻量确认 -->
+  <div class="demo-section">
+    <h2>E2. 训练小微（轻量确认 · 小程序）</h2>
+    <div class="desc">训练结果推送 → 教师确认 → 返回训练状态</div>
+    <div class="phone-frame">
+      <div class="status-bar"><span>9:41</span><span>100%</span></div>
+      <div class="nav-bar">训练小微</div>
+      <div class="content">
+        <div class="confirm-card">
+          <div class="status-badge success">✓ 训练完成</div>
+          <div class="info">您的教学风格摘要：</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;">
+            • 过渡语倾向于自然衔接型<br>
+            • 板书偏好关键词+板书结构<br>
+            • 评语风格温和鼓励<br>
+            • 反思偏重学生表现和教学调整
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;">
+            综合判断：您的语言风格偏亲切温和，教学目标表述清晰可测。
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button class="btn btn-sm btn-primary" style="flex:1;">确认</button>
+            <button class="btn btn-sm btn-default" style="flex:1;">修改不准确的特征</button>
+          </div>
+        </div>
+        <div class="confirm-card">
+          <div class="status-badge pending">⏳ 训练进行中</div>
+          <div class="info">正在分析您的教案风格...</div>
+          <div style="height:4px;background:var(--bg-disabled);border-radius:2px;overflow:hidden;">
+            <div style="width:65%;height:100%;background:var(--brand-blue);border-radius:2px;"></div>
+          </div>
+          <div class="meta" style="margin-top:4px;">进度 65% · 预计剩余 2 分钟</div>
+          <div class="meta">PC端开始训练，小程序可继续查看</div>
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <div class="tab"><span>📊</span>学情</div>
+        <div class="tab active"><span>🤖</span>训练</div>
+        <div class="tab"><span>💬</span>小微</div>
+        <div class="tab"><span>👤</span>我的</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E3 家长端小程序认领 -->
+  <div class="demo-section">
+    <h2>E3. 家长端小程序认领</h2>
+    <div class="desc">微信扫码绑定 → 孩子信息确认 → 首屏引导</div>
+    <div class="phone-frame">
+      <div class="status-bar"><span>9:41</span><span>100%</span></div>
+      <div class="nav-bar">绑定孩子</div>
+      <div class="content">
+        <div class="bind-card">
+          <div class="qr-code">[ 二维码占位 ]</div>
+          <div class="child-info">确认孩子信息</div>
+          <div class="child-meta">
+            姓名：王小明<br>
+            学校：成都市金牛区第一小学<br>
+            班级：四年级（1）班<br>
+            班主任：张丽华
+          </div>
+          <button class="btn btn-primary" style="width:100%;margin-bottom:12px;">确认绑定</button>
+          <div class="guide-step">1. 微信扫码进入小程序</div>
+          <div class="guide-step">2. 确认孩子信息无误</div>
+          <div class="guide-step">3. 绑定后查看作业和学情报告</div>
+        </div>
+        <div style="text-align:center;font-size:11px;color:var(--text-secondary);margin-top:8px;">
+          绑定后可在小程序端查看孩子作业、签字确认、接收学情周报
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <div class="tab active"><span>🏠</span>首页</div>
+        <div class="tab"><span>📝</span>作业</div>
+        <div class="tab"><span>📊</span>学情</div>
+        <div class="tab"><span>👤</span>我的</div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer class="page-footer" style="position:fixed;bottom:0;left:0;right:0;padding-left:24px;">
+  <span>© 2026 知微网版权所有</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+</body>
+</html>

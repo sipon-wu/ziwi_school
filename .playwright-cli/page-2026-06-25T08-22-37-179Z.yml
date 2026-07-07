@@ -1,0 +1,244 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e10] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e11]
+        - generic [ref=e16]: 工作台
+      - generic [ref=e18]:
+        - button "教学备课" [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e23]: 教学备课
+          - img [ref=e24]
+        - generic [ref=e26]:
+          - link "教案备课" [ref=e27] [cursor=pointer]:
+            - /url: /dashboard/lesson-plans
+            - img [ref=e28]
+            - generic [ref=e31]: 教案备课
+          - link "习作指导" [ref=e32] [cursor=pointer]:
+            - /url: /dashboard/compositions
+            - img [ref=e33]
+            - generic [ref=e35]: 习作指导
+          - link "教案互审" [ref=e36] [cursor=pointer]:
+            - /url: /dashboard/reviews
+            - img [ref=e37]
+            - generic [ref=e42]: 教案互审
+      - generic [ref=e43]:
+        - button "作业练习" [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+          - generic [ref=e47]: 作业练习
+          - img [ref=e48]
+        - generic:
+          - link "出题组卷" [ref=e50] [cursor=pointer]:
+            - /url: /dashboard/exercises
+            - img [ref=e51]
+            - generic [ref=e53]: 出题组卷
+          - link "题库管理" [ref=e54] [cursor=pointer]:
+            - /url: /dashboard/question-bank
+            - img [ref=e55]
+            - generic [ref=e57]: 题库管理
+          - link "批阅管理" [ref=e58] [cursor=pointer]:
+            - /url: /dashboard/grading
+            - img [ref=e59]
+            - generic [ref=e62]: 批阅管理
+      - generic [ref=e63]:
+        - button "教学数据" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - generic [ref=e67]: 教学数据
+          - img [ref=e68]
+        - generic:
+          - link "班级学情" [ref=e70] [cursor=pointer]:
+            - /url: /dashboard/analytics
+            - img [ref=e71]
+            - generic [ref=e73]: 班级学情
+          - link "校长仪表盘" [ref=e74] [cursor=pointer]:
+            - /url: /dashboard/principal
+            - img [ref=e75]
+            - generic [ref=e78]: 校长仪表盘
+      - generic [ref=e79]:
+        - button "家校沟通" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+          - generic [ref=e85]: 家校沟通
+          - img [ref=e86]
+        - generic:
+          - link "家长签字" [ref=e88] [cursor=pointer]:
+            - /url: /dashboard/parent-sign
+            - img [ref=e89]
+            - generic [ref=e93]: 家长签字
+          - link "系统管理" [ref=e94] [cursor=pointer]:
+            - /url: /dashboard/admin
+            - img [ref=e95]
+            - generic [ref=e97]: 系统管理
+      - link "个人设置" [ref=e99] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e100]
+        - generic [ref=e103]: 个人设置
+    - generic [ref=e104]:
+      - button [ref=e105] [cursor=pointer]:
+        - img [ref=e106]
+      - generic [ref=e108]:
+        - generic [ref=e110]: 张
+        - generic [ref=e111]:
+          - generic [ref=e112]: 张老师
+          - generic [ref=e113]: 4年级下 · 数学 · 人教版
+  - generic [ref=e114]:
+    - generic [ref=e115]:
+      - generic [ref=e116]:
+        - generic [ref=e117]: "|"
+        - generic [ref=e118]: v0.5-beta
+      - generic [ref=e119]:
+        - button "3 条" [ref=e120] [cursor=pointer]:
+          - img [ref=e121]
+          - generic [ref=e124]: 3 条
+        - generic [ref=e125]: "|"
+        - generic [ref=e126]: 张老师
+        - generic [ref=e127]: "|"
+        - generic [ref=e128]: 在线
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - img [ref=e131]
+        - generic [ref=e134]: 演示环境
+        - generic [ref=e135]: "| 数据每日 02:00 自动重置"
+      - generic [ref=e136]:
+        - 'button "当前: 教师视角" [ref=e138] [cursor=pointer]':
+          - text: "当前: 教师视角"
+          - img [ref=e139]
+        - button "引导" [ref=e141] [cursor=pointer]:
+          - img [ref=e142]
+          - text: 引导
+        - button "重置" [ref=e145] [cursor=pointer]:
+          - img [ref=e146]
+          - text: 重置
+    - banner [ref=e149]:
+      - generic [ref=e150]:
+        - generic [ref=e151]: 工作台
+        - generic [ref=e152]:
+          - generic [ref=e153]: /
+          - generic [ref=e154]: 新建教案
+      - button "数学 · 4年级下 · 人教版 ▼" [ref=e156] [cursor=pointer]:
+        - img [ref=e157]
+        - generic [ref=e159]: 数学
+        - generic [ref=e160]: ·
+        - generic [ref=e161]: 4年级下
+        - generic [ref=e162]: ·
+        - generic [ref=e163]: 人教版
+        - generic [ref=e164]: ▼
+      - generic [ref=e165]:
+        - button "3" [ref=e166] [cursor=pointer]:
+          - img [ref=e167]
+          - generic [ref=e170]: "3"
+        - button "张" [ref=e172] [cursor=pointer]:
+          - generic [ref=e173]: 张
+    - generic [ref=e174]:
+      - main [ref=e175]:
+        - generic [ref=e176]:
+          - generic [ref=e177]:
+            - generic [ref=e178]:
+              - button "返回教案列表" [ref=e179] [cursor=pointer]:
+                - img [ref=e180]
+              - generic [ref=e182]:
+                - heading "新建教案" [level=1] [ref=e183]
+                - paragraph [ref=e184]: AI 辅助生成结构化教案，支持课标自动对齐
+            - generic [ref=e185]:
+              - button "保存草稿" [ref=e186] [cursor=pointer]:
+                - img [ref=e187]
+                - text: 保存草稿
+              - button "保存" [ref=e191] [cursor=pointer]:
+                - img [ref=e192]
+                - text: 保存
+          - generic [ref=e196]:
+            - heading "教案基本信息" [level=2] [ref=e197]
+            - generic [ref=e198]:
+              - generic [ref=e199]:
+                - generic [ref=e200]: 学科
+                - combobox "学科" [ref=e201]:
+                  - option "语文"
+                  - option "数学" [selected]
+                  - option "英语"
+              - generic [ref=e202]:
+                - generic [ref=e203]: 年级
+                - combobox "年级" [ref=e204]:
+                  - option "一年级"
+                  - option "二年级"
+                  - option "三年级"
+                  - option "四年级" [selected]
+                  - option "五年级"
+                  - option "六年级"
+                  - option "七年级"
+                  - option "八年级"
+                  - option "九年级"
+              - generic [ref=e205]:
+                - generic [ref=e206]: 课时
+                - combobox "课时" [ref=e207]:
+                  - option "第1课时" [selected]
+                  - option "第2课时"
+                  - option "第3课时"
+                  - option "第4课时"
+                  - option "第5课时"
+              - generic [ref=e208]:
+                - generic [ref=e209]: 课题名称 *
+                - textbox "课题名称 *" [ref=e210]:
+                  - /placeholder: 例如：《观潮》第一课时
+              - generic [ref=e211]:
+                - generic [ref=e212]: 教材单元
+                - textbox "教材单元" [ref=e213]:
+                  - /placeholder: 部编版四上第一单元
+              - generic [ref=e214]:
+                - generic [ref=e215]: 教案模板
+                - combobox "教案模板" [ref=e216]:
+                  - option "核心素养模板" [selected]
+                  - option "三维目标模板"
+                  - option "单元教学模板"
+            - generic [ref=e217]:
+              - generic [ref=e218]:
+                - generic [ref=e219]:
+                  - heading "关联知识点 *必选" [level=3] [ref=e220]:
+                    - img [ref=e221]
+                    - text: 关联知识点
+                    - generic [ref=e225]: "*必选"
+                  - button "关闭图谱面板" [ref=e227] [cursor=pointer]:
+                    - img [ref=e228]
+                    - text: 关闭图谱面板
+                - paragraph [ref=e230]: 点击"展开知识图谱"在右侧面板选取本课涉及的知识点
+              - button "请先选取知识点" [disabled] [ref=e231]:
+                - img [ref=e232]
+                - text: 请先选取知识点
+              - text: 预计 15-30 秒，自动对齐课标
+      - complementary [ref=e235]:
+        - generic [ref=e238]:
+          - generic [ref=e239]: 知识图谱
+          - generic [ref=e240]:
+            - generic [ref=e241]: 320px
+            - button "全屏展开" [ref=e242] [cursor=pointer]:
+              - img [ref=e243]
+            - button "关闭图谱面板" [ref=e248] [cursor=pointer]:
+              - img [ref=e249]
+        - generic [ref=e253]:
+          - img [ref=e254]
+          - textbox "搜索知识点..." [ref=e257]
+        - generic [ref=e259]:
+          - generic [ref=e261]:
+            - generic [ref=e262]:
+              - button "树状" [ref=e263] [cursor=pointer]
+              - button "螺旋" [ref=e264] [cursor=pointer]
+              - button "网状" [ref=e265] [cursor=pointer]
+            - generic [ref=e266]:
+              - button "知识点" [ref=e267] [cursor=pointer]
+              - button "能力" [ref=e268] [cursor=pointer]
+              - button "难度" [ref=e269] [cursor=pointer]
+              - button "课标" [ref=e270] [cursor=pointer]
+          - generic [ref=e273]:
+            - generic: L1
+            - generic: L4
+            - img [ref=e275]
+            - img [ref=e278]
+          - generic [ref=e281]:
+            - button "适应画布" [ref=e282] [cursor=pointer]
+            - button "重置" [ref=e283] [cursor=pointer]
+          - generic [ref=e284]: 当前筛选条件下暂无知识点
+          - generic [ref=e286]: 知识点分类
+  - button "小微" [ref=e288] [cursor=pointer]:
+    - img "小微" [ref=e289]

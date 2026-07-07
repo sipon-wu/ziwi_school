@@ -1,0 +1,292 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - img "知微" [ref=e7]
+        - generic [ref=e8]: 知微教学
+      - button [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+    - navigation [ref=e13]:
+      - link "工作台" [ref=e14] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e15]
+        - generic [ref=e20]: 工作台
+      - generic [ref=e22]:
+        - button "教学备课" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e27]: 教学备课
+          - img [ref=e28]
+        - generic [ref=e30]:
+          - link "教案备课" [ref=e31] [cursor=pointer]:
+            - /url: /dashboard/lesson-plans
+            - img [ref=e32]
+            - generic [ref=e35]: 教案备课
+          - link "习作指导" [ref=e36] [cursor=pointer]:
+            - /url: /dashboard/compositions
+            - img [ref=e37]
+            - generic [ref=e39]: 习作指导
+          - link "教案互审" [ref=e40] [cursor=pointer]:
+            - /url: /dashboard/reviews
+            - img [ref=e41]
+            - generic [ref=e46]: 教案互审
+      - generic [ref=e47]:
+        - button "作业练习" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - generic [ref=e51]: 作业练习
+          - img [ref=e52]
+        - generic [ref=e54]:
+          - link "出题组卷" [ref=e55] [cursor=pointer]:
+            - /url: /dashboard/exercises
+            - img [ref=e56]
+            - generic [ref=e58]: 出题组卷
+          - link "题库管理" [ref=e59] [cursor=pointer]:
+            - /url: /dashboard/question-bank
+            - img [ref=e60]
+            - generic [ref=e62]: 题库管理
+          - link "批阅管理" [ref=e63] [cursor=pointer]:
+            - /url: /dashboard/grading
+            - img [ref=e64]
+            - generic [ref=e67]: 批阅管理
+      - generic [ref=e68]:
+        - button "教学数据" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e72]: 教学数据
+          - img [ref=e73]
+        - generic [ref=e75]:
+          - link "班级学情" [ref=e76] [cursor=pointer]:
+            - /url: /dashboard/analytics
+            - img [ref=e77]
+            - generic [ref=e79]: 班级学情
+          - link "校长仪表盘" [ref=e80] [cursor=pointer]:
+            - /url: /dashboard/principal
+            - img [ref=e81]
+            - generic [ref=e84]: 校长仪表盘
+      - generic [ref=e85]:
+        - button "家校沟通" [ref=e86] [cursor=pointer]:
+          - img [ref=e87]
+          - generic [ref=e91]: 家校沟通
+          - img [ref=e92]
+        - link "家长签字" [ref=e95] [cursor=pointer]:
+          - /url: /dashboard/parent-sign
+          - img [ref=e96]
+          - generic [ref=e100]: 家长签字
+      - link "个人设置" [ref=e102] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e103]
+        - generic [ref=e106]: 个人设置
+    - generic [ref=e107]:
+      - generic [ref=e108]:
+        - generic [ref=e109]: 张
+        - generic [ref=e110]:
+          - generic [ref=e111]: 张老师
+          - generic [ref=e112]: 数学 · 4年级下
+      - button "退出登录" [ref=e113] [cursor=pointer]:
+        - img [ref=e114]
+        - text: 退出登录
+  - generic [ref=e117]:
+    - generic [ref=e118]:
+      - generic [ref=e119]:
+        - img [ref=e120]
+        - generic [ref=e123]: 演示环境
+        - generic [ref=e124]: "| 数据每日 02:00 自动重置"
+      - generic [ref=e125]:
+        - 'button "当前: 教师视角" [ref=e127] [cursor=pointer]':
+          - text: "当前: 教师视角"
+          - img [ref=e128]
+        - button "引导" [ref=e130] [cursor=pointer]:
+          - img [ref=e131]
+          - text: 引导
+        - button "重置" [ref=e134] [cursor=pointer]:
+          - img [ref=e135]
+          - text: 重置
+    - banner [ref=e138]:
+      - button [ref=e139] [cursor=pointer]:
+        - img [ref=e140]
+      - generic [ref=e141]: 知微教学
+      - button [ref=e142] [cursor=pointer]
+    - generic [ref=e144]:
+      - main [ref=e145]:
+        - generic [ref=e146]:
+          - generic [ref=e147]:
+            - button [ref=e148] [cursor=pointer]:
+              - img [ref=e149]
+            - generic [ref=e151]:
+              - heading "新建出题" [level=1] [ref=e152]
+              - paragraph [ref=e153]: "人教版 · 四年级下学期 · 第三单元: 运算定律"
+          - generic [ref=e155]:
+            - generic [ref=e156]: 当前进度
+            - generic [ref=e159]: 37%
+          - generic [ref=e161]:
+            - heading "命题用途" [level=3] [ref=e162]
+            - generic [ref=e163]:
+              - button "📝 课堂练习 当堂巩固 · 5-8分钟 3-5题 · L1" [ref=e164] [cursor=pointer]:
+                - generic [ref=e165]: 📝
+                - generic [ref=e166]: 课堂练习
+                - generic [ref=e167]: 当堂巩固 · 5-8分钟
+                - generic [ref=e168]: 3-5题 · L1
+              - button "📚 课后作业 课后巩固 · 15-20分钟 5-10题 · L1-L2" [ref=e169] [cursor=pointer]:
+                - generic [ref=e170]: 📚
+                - generic [ref=e171]: 课后作业
+                - generic [ref=e172]: 课后巩固 · 15-20分钟
+                - generic [ref=e173]: 5-10题 · L1-L2
+              - button "📋 单元检测 阶段测评 · 40分钟 15-20题 · L1-L2" [ref=e174] [cursor=pointer]:
+                - generic [ref=e175]: 📋
+                - generic [ref=e176]: 单元检测
+                - generic [ref=e177]: 阶段测评 · 40分钟
+                - generic [ref=e178]: 15-20题 · L1-L2
+              - button "📅 月考 月度检测 · 60分钟 20-25题 · L1-L3" [ref=e179] [cursor=pointer]:
+                - generic [ref=e180]: 📅
+                - generic [ref=e181]: 月考
+                - generic [ref=e182]: 月度检测 · 60分钟
+                - generic [ref=e183]: 20-25题 · L1-L3
+              - button "📊 期中考试 学期中测评 · 90分钟 25-30题 · L1-L3" [ref=e184] [cursor=pointer]:
+                - generic [ref=e185]: 📊
+                - generic [ref=e186]: 期中考试
+                - generic [ref=e187]: 学期中测评 · 90分钟
+                - generic [ref=e188]: 25-30题 · L1-L3
+              - button "🏆 期末考试 学期末测评 · 90分钟 30-35题 · L1-L3" [ref=e189] [cursor=pointer]:
+                - generic [ref=e190]: 🏆
+                - generic [ref=e191]: 期末考试
+                - generic [ref=e192]: 学期末测评 · 90分钟
+                - generic [ref=e193]: 30-35题 · L1-L3
+              - button "🎯 模拟考试 升学适应 · 90分钟 20-30题 · L2-L3" [ref=e194] [cursor=pointer]:
+                - generic [ref=e195]: 🎯
+                - generic [ref=e196]: 模拟考试
+                - generic [ref=e197]: 升学适应 · 90分钟
+                - generic [ref=e198]: 20-30题 · L2-L3
+              - button "🌟 奥数拓展 竞赛预备 · 40分钟 10-15题 · L3-L4" [ref=e199] [cursor=pointer]:
+                - generic [ref=e200]: 🌟
+                - generic [ref=e201]: 奥数拓展
+                - generic [ref=e202]: 竞赛预备 · 40分钟
+                - generic [ref=e203]: 10-15题 · L3-L4
+          - generic [ref=e204]:
+            - generic [ref=e206]:
+              - generic [ref=e207]:
+                - generic [ref=e208]:
+                  - generic [ref=e209]: 学科
+                  - combobox [ref=e210]:
+                    - option "语文"
+                    - option "数学" [selected]
+                    - option "英语"
+                - generic [ref=e211]:
+                  - generic [ref=e212]: 年级
+                  - combobox [ref=e213]:
+                    - option "一年级"
+                    - option "二年级"
+                    - option "三年级"
+                    - option "四年级" [selected]
+                    - option "五年级"
+                    - option "六年级"
+                    - option "七年级"
+                    - option "八年级"
+                    - option "九年级"
+                - generic [ref=e214]:
+                  - generic [ref=e215]: 难度
+                  - combobox [ref=e216]:
+                    - option "L1-基础"
+                    - option "L2-中等" [selected]
+                    - option "L3-进阶"
+                    - option "L4-挑战"
+                - generic [ref=e217]:
+                  - generic [ref=e218]: 知识点（选填，默认取当前单元）
+                  - 'textbox "第2课时: 乘法分配律" [ref=e219]'
+                - generic [ref=e220]:
+                  - generic [ref=e221]: 题量
+                  - combobox [ref=e222]:
+                    - option "3题"
+                    - option "5题" [selected]
+                    - option "8题"
+                    - option "10题"
+                    - option "15题"
+                    - option "20题"
+                    - option "25题"
+                    - option "30题"
+                    - option "35题"
+              - generic [ref=e223]:
+                - generic [ref=e224]: 题型（已选 4 种）
+                - generic [ref=e225]:
+                  - button "选择" [ref=e226] [cursor=pointer]
+                  - button "填空" [ref=e227] [cursor=pointer]
+                  - button "计算" [ref=e228] [cursor=pointer]
+                  - button "判断题" [ref=e229] [cursor=pointer]
+                  - button "解答题" [ref=e230] [cursor=pointer]
+                  - button "作图题" [ref=e231] [cursor=pointer]
+              - generic [ref=e232]:
+                - generic [ref=e233]: 名校风格（可选）
+                - generic [ref=e234]:
+                  - button "标准" [ref=e235] [cursor=pointer]
+                  - button "北京四中" [ref=e236] [cursor=pointer]
+                  - button "人大附中" [ref=e237] [cursor=pointer]
+                  - button "上海中学" [ref=e238] [cursor=pointer]
+                  - button "华南师大附中" [ref=e239] [cursor=pointer]
+                  - button "深圳中学" [ref=e240] [cursor=pointer]
+                  - button "南京师大附中" [ref=e241] [cursor=pointer]
+              - button "AI 智能出题" [ref=e242] [cursor=pointer]:
+                - img [ref=e243]
+                - text: AI 智能出题
+            - generic [ref=e246]:
+              - generic [ref=e247]:
+                - heading "已选考点" [level=3] [ref=e249]:
+                  - img [ref=e250]
+                  - text: 已选考点
+                - paragraph [ref=e254]: 点击下方图谱节点选择出题范围
+              - button "知识图谱 已开启" [ref=e255] [cursor=pointer]:
+                - generic [ref=e256]:
+                  - img [ref=e257]
+                  - text: 知识图谱
+                - generic [ref=e259]: 已开启
+      - generic [ref=e261]:
+        - generic [ref=e262]:
+          - img [ref=e263]
+          - generic [ref=e270]: 拖拽调整高度
+        - generic [ref=e271]:
+          - generic [ref=e272]: 知识图谱
+          - generic [ref=e273]:
+            - button "全屏展开" [ref=e274] [cursor=pointer]:
+              - img [ref=e275]
+            - button "关闭" [ref=e280] [cursor=pointer]:
+              - img [ref=e281]
+        - generic [ref=e285]:
+          - img [ref=e286]
+          - textbox "搜索知识点..." [ref=e289]
+        - generic [ref=e291]:
+          - generic [ref=e292]:
+            - generic [ref=e294]:
+              - generic [ref=e295]:
+                - button "树状" [ref=e296] [cursor=pointer]
+                - button "螺旋" [ref=e297] [cursor=pointer]
+                - button "网状" [ref=e298] [cursor=pointer]
+              - generic [ref=e299]:
+                - button "知识点" [ref=e300] [cursor=pointer]
+                - button "能力" [ref=e301] [cursor=pointer]
+                - button "难度" [ref=e302] [cursor=pointer]
+                - button "课标" [ref=e303] [cursor=pointer]
+            - generic [ref=e306]:
+              - generic: L1
+              - generic: L4
+              - img [ref=e308]
+              - img [ref=e311]
+          - generic [ref=e313]:
+            - generic [ref=e316]: 知识点分类
+            - generic [ref=e318]:
+              - button "适应画布" [ref=e319] [cursor=pointer]
+              - button "重置" [ref=e320] [cursor=pointer]
+            - generic [ref=e321]: 当前筛选条件下暂无知识点
+  - button "小微" [ref=e322] [cursor=pointer]:
+    - img "小微" [ref=e323]
+  - navigation [ref=e324]:
+    - generic [ref=e325]:
+      - button "工作台" [ref=e326] [cursor=pointer]:
+        - img [ref=e327]
+        - generic [ref=e332]: 工作台
+      - button "批阅" [ref=e333] [cursor=pointer]:
+        - img [ref=e334]
+        - generic [ref=e337]: 批阅
+      - button "学情" [ref=e338] [cursor=pointer]:
+        - img [ref=e339]
+        - generic [ref=e342]: 学情
+      - button "我的" [ref=e343] [cursor=pointer]:
+        - img [ref=e344]
+        - generic [ref=e347]: 我的
+  - button [ref=e349] [cursor=pointer]:
+    - img [ref=e350]

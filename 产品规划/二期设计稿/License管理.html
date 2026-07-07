@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · License管理 · 平台运营</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .license-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: var(--transition-fast);
+  }
+  .license-card:hover { border-color: var(--border-default); }
+  .license-card.expiring { border-left: 3px solid var(--color-warning); }
+  .license-card.expired { border-left: 3px solid var(--color-danger); opacity: 0.7; }
+  .license-icon { width: 44px; height: 44px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .license-icon.active { background: var(--color-success-light); color: var(--color-success); }
+  .license-icon.expiring { background: var(--color-warning-light); color: var(--color-warning); }
+  .license-icon.expired { background: var(--color-danger-light); color: var(--color-danger); }
+  .license-info { flex: 1; }
+  .license-info .name { font-size: 14px; font-weight: 600; }
+  .license-info .meta { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .license-info .meta span { margin-right: 16px; }
+  .license-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .expire-warning {
+    padding: 8px 12px;
+    background: var(--color-warning-light);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--color-warning);
+    margin-top: 8px;
+  }
+  .upgrade-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .upgrade-card {
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .upgrade-card:hover { border-color: var(--brand-blue); }
+  .upgrade-card.current { border-color: var(--brand-blue); background: var(--brand-blue-light-04); }
+  .upgrade-card .plan-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .upgrade-card .plan-price { font-size: 20px; font-weight: 700; color: var(--brand-blue); margin-bottom: 8px; }
+  .upgrade-card .plan-price .unit { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+  .upgrade-card .plan-features { font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（平台运营） ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      运营 Dashboard
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Token 管理
+    </div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+      License 管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>
+      公告管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      教材审核
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      财务对账
+    </div>
+  </div>
+  <div class="footer">知微平台 · 运营管理</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">平台运营 · 知微教学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>运营主管 王经理</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      License 到期前30天、15天、3天自动发送提醒。过期后禁止新建内容，已发布内容只读可访问。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 统计卡片 ═══ -->
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">授权学校总数</div><div class="value blue">47</div></div>
+      <div class="stat-card"><div class="label">即将到期</div><div class="value orange">8</div></div>
+      <div class="stat-card"><div class="label">已过期</div><div class="value" style="color:var(--color-danger)">3</div></div>
+      <div class="stat-card"><div class="label">本月续费</div><div class="value green">12</div></div>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>License 管理</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="toggleNewLicenseModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新增授权
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 筛选栏 ═══ -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" placeholder="搜索学校名称...">
+      <select><option>全部状态</option><option>正常</option><option>即将到期</option><option>已过期</option></select>
+      <select><option>全部版本</option><option>标准版</option><option>专业版</option><option>旗舰版</option></select>
+    </div>
+
+    <!-- ═══ License 列表 ═══ -->
+    <div class="license-card">
+      <div class="license-icon active">✅</div>
+      <div class="license-info">
+        <div class="name">成都市金牛区第一小学 <span class="tag tag-blue" style="margin-left:6px">专业版</span></div>
+        <div class="meta"><span>到期：2027-06-30</span><span>教师数：68人</span><span>学生数：1,086人</span></div>
+      </div>
+      <div class="license-actions">
+        <button class="btn btn-sm btn-default">续费</button>
+        <button class="btn btn-sm btn-default">升级</button>
+        <button class="btn btn-sm btn-text danger">停用</button>
+      </div>
+    </div>
+
+    <div class="license-card expiring">
+      <div class="license-icon expiring">⚠️</div>
+      <div class="license-info">
+        <div class="name">北京海淀区实验小学 <span class="tag tag-warning" style="margin-left:6px">标准版</span></div>
+        <div class="meta"><span>到期：2026-08-15</span><span>教师数：42人</span><span>学生数：856人</span></div>
+        <div class="expire-warning">⚠ 剩余 42 天，已发送提醒（第2次）</div>
+      </div>
+      <div class="license-actions">
+        <button class="btn btn-sm btn-primary">续费</button>
+        <button class="btn btn-sm btn-default">升级</button>
+      </div>
+    </div>
+
+    <div class="license-card expiring">
+      <div class="license-icon expiring">⚠️</div>
+      <div class="license-info">
+        <div class="name">上海浦东新区第一小学 <span class="tag tag-warning" style="margin-left:6px">专业版</span></div>
+        <div class="meta"><span>到期：2026-08-01</span><span>教师数：35人</span><span>学生数：720人</span></div>
+        <div class="expire-warning">⚠ 剩余 28 天，已发送提醒（第2次）</div>
+      </div>
+      <div class="license-actions">
+        <button class="btn btn-sm btn-primary">续费</button>
+        <button class="btn btn-sm btn-default">升级</button>
+      </div>
+    </div>
+
+    <div class="license-card expired">
+      <div class="license-icon expired">❌</div>
+      <div class="license-info">
+        <div class="name">重庆巴蜀小学 <span class="tag tag-default" style="margin-left:6px">标准版</span></div>
+        <div class="meta"><span>到期：2026-05-01（已过期 64天）</span><span>教师数：28人</span><span>学生数：560人</span></div>
+      </div>
+      <div class="license-actions">
+        <button class="btn btn-sm btn-primary">续费</button>
+        <button class="btn btn-sm btn-text danger">停用</button>
+      </div>
+    </div>
+
+    <!-- ═══ 分页 ═══ -->
+    <div class="pagination">
+      <span>共 47 个 License，第 1/5 页</span>
+      <div class="pages"><span class="active">1</span><span>2</span><span>3</span><span>...</span><span>5</span></div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
+      <div class="empty-text">暂无 License 数据</div>
+    </div>
+
+    <!-- ═══ 骨架屏 ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态 ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">数据加载失败</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ 新增授权弹窗 ═══ -->
+<div class="modal-overlay" id="new-license-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>新增 License 授权</h3>
+      <span class="close" onclick="toggleNewLicenseModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">学校</label>
+        <select><option>— 选择学校 —</option><option>成都金牛一小</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">版本</label>
+        <div class="upgrade-options">
+          <div class="upgrade-card">
+            <div class="plan-name">标准版</div>
+            <div class="plan-price">¥9,800<span class="unit">/年</span></div>
+            <div class="plan-features">基础功能<br>50教师上限<br>5M Token/月</div>
+          </div>
+          <div class="upgrade-card current">
+            <div class="plan-name">专业版</div>
+            <div class="plan-price">¥19,800<span class="unit">/年</span></div>
+            <div class="plan-features">全部功能<br>100教师上限<br>20M Token/月</div>
+          </div>
+          <div class="upgrade-card">
+            <div class="plan-name">旗舰版</div>
+            <div class="plan-price">¥39,800<span class="unit">/年</span></div>
+            <div class="plan-features">全部功能+定制<br>不限教师<br>50M Token/月</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="required">起始日期</label>
+        <input type="date" value="2026-07-04">
+      </div>
+      <div class="form-group">
+        <label class="required">到期日期</label>
+        <input type="date" value="2027-07-04">
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <textarea rows="2" placeholder="备注信息..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleNewLicenseModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('授权创建成功！');toggleNewLicenseModal()">确认授权</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function toggleNewLicenseModal() {
+  var m = document.getElementById('new-license-modal');
+  m.classList.toggle('show');
+}
+</script>
+
+</body>
+</html>

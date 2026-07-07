@@ -1,0 +1,67 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e9]: 知微教学(AI)
+      - navigation [ref=e10]:
+        - generic [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - generic [ref=e14]: 运营 Dashboard
+        - generic [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - generic [ref=e18]: Token 管理
+        - generic [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e22]: License 管理
+        - generic [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e26]: 公告管理
+        - generic [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e30]: 教材审核
+        - generic [ref=e31] [cursor=pointer]:
+          - img [ref=e32]
+          - generic [ref=e34]: 财务对账
+        - generic [ref=e35] [cursor=pointer]:
+          - img [ref=e36]
+          - generic [ref=e38]: 发票管理
+        - generic [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - generic [ref=e42]: 客服工单
+      - generic [ref=e43]: 知微平台 · 运营管理
+      - generic "收起侧边栏" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+    - main [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e50]: 平台运营 · 知微教学
+        - generic [ref=e51]:
+          - img [ref=e52] [cursor=pointer]
+          - generic [ref=e55]:
+            - img [ref=e56]
+            - generic [ref=e59]: 运营主管
+      - generic [ref=e61]:
+        - generic [ref=e62]: 数据加载失败
+        - button "重新加载" [ref=e63] [cursor=pointer]
+  - generic [ref=e65]:
+    - generic [ref=e66]:
+      - generic [ref=e67]:
+        - img [ref=e68]
+        - heading "AI使用提示" [level=3] [ref=e70]
+      - button [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - paragraph [ref=e77]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e78]:
+          - listitem [ref=e79]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e80]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e81]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e82]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e83]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e84] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e85]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e86]:
+      - button "取消" [ref=e87] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e88]

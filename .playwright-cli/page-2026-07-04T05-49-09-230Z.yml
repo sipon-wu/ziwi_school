@@ -1,0 +1,69 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - heading "成长足迹" [level=1] [ref=e50]
+        - generic [ref=e51]:
+          - textbox "搜索学生姓名..." [ref=e52]
+          - combobox [ref=e53]:
+            - option "全部学生" [selected]
+          - combobox [ref=e54]:
+            - option "本学期" [selected]
+            - option "上学期"
+        - generic [ref=e55]:
+          - heading "成长时间线" [level=3] [ref=e56]
+          - generic [ref=e57]:
+            - generic [ref=e59]:
+              - generic [ref=e61]: 2026-06-26
+              - generic [ref=e62]: 李明同学完成《观潮》读后感
+              - generic [ref=e63]: 获得优秀评价，写作能力显著提升
+            - generic [ref=e64]:
+              - generic [ref=e66]: 2026-06-24
+              - generic [ref=e67]: 班级古诗词背诵比赛
+              - generic [ref=e68]: 王芳获得第一名，背诵10首古诗无错误
+            - generic [ref=e69]:
+              - generic [ref=e71]: 2026-06-20
+              - generic [ref=e72]: 期中考试成绩公布
+              - generic [ref=e73]: 班级平均分82.5，优秀率38.1%
+            - generic [ref=e74]:
+              - generic [ref=e76]: 2026-06-15
+              - generic [ref=e77]: 作文《我的家乡》展示
+              - generic [ref=e78]: 张伟的作文被选为班级范文
+            - generic [ref=e79]:
+              - generic [ref=e81]: 2026-06-10
+              - generic [ref=e82]: 书法比赛获奖
+              - generic [ref=e83]: 刘洋获得校级书法比赛三等奖
+  - button "小微" [ref=e84] [cursor=pointer]:
+    - img "小微" [ref=e85]

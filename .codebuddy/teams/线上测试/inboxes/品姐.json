@@ -1,0 +1,11 @@
+[
+  {
+    "id": "msg-1783151780125-d5teyi",
+    "from": "team-lead",
+    "to": "品姐",
+    "type": "message",
+    "content": "小Q已用演示账号（教师13800000002）登录后重新截图，部分结果如下：\n\n已有截图（7张）：\n- prod-login.png ✅ 已核对\n- prod-admin-users.png ✅ 已核对\n- prod-dashboard.png — 教师首页（新）\n- prod-platform-tokens.png — 可能被权限拦截（教师无运营权限）\n- prod-research-review-pool.png — 互审池（已登录）\n- prod-ops-monitor.png — 被权限拦截（教师无运维权限）\n- prod-dean-classes.png — 被权限拦截（教师无教务权限）\n\n请核对新截图：dashboard、research-review-pool、platform-tokens（如显示的是登录页或403则标注为权限拦截正常）。ops和dean被权限拦截标注为\"符合安全预期\"。完成后给出最终汇总。",
+    "timestamp": "2026-07-04T07:56:20.125Z",
+    "read": true
+  }
+]

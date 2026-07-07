@@ -1,0 +1,41 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "互审池" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 互审池
+      - button "教研数据看板" [ref=e15] [cursor=pointer]:
+        - img [ref=e16]
+        - text: 教研数据看板
+      - button "模板与方法论" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: 模板与方法论
+      - button "教研活动" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: 教研活动
+      - button "个人中心" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: 个人中心
+    - generic [ref=e36]: 金牛区第一小学 · 教研组长
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - img [ref=e39] [cursor=pointer]
+      - generic [ref=e41]: 教研管理 · 语文组 · 金牛区第一小学
+      - button [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+      - generic [ref=e46]:
+        - img [ref=e48]
+        - text: 教研组长 赵敏
+    - main [ref=e51]
+    - contentinfo [ref=e58]:
+      - generic [ref=e59]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e60]:
+        - link "关于知微" [ref=e61] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e62] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e63] [cursor=pointer]:
+          - /url: "#"

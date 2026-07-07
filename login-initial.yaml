@@ -1,0 +1,13 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - heading "知微教学平台" [level=1] [ref=e7]
+    - paragraph [ref=e8]: AI 驱动的智能教学助手
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]: 手机号
+      - textbox "请输入手机号" [ref=e12]
+    - generic [ref=e13]:
+      - generic [ref=e14]: 密码
+      - textbox "请输入密码" [ref=e15]
+    - button "登录" [ref=e16]
+  - paragraph [ref=e17]: 演示账号：13800000002 / teacher123

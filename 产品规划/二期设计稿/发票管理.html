@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 发票管理 · 平台运营</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .tab-nav { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 1px solid var(--border-light); }
+  .tab-nav .tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    transition: var(--transition-fast);
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: var(--font-family);
+  }
+  .tab-nav .tab:hover { color: var(--text-primary); }
+  .tab-nav .tab.active { color: var(--brand-blue); border-bottom-color: var(--brand-blue); font-weight: 500; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  /* 统计卡片 */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .summary-card .icon-wrap { width: 40px; height: 40px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .summary-card .icon-wrap.orange { background: var(--color-warning-light); color: var(--color-warning); }
+  .summary-card .icon-wrap.blue { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .summary-card .icon-wrap.green { background: var(--color-success-light); color: var(--color-success); }
+  .summary-card .icon-wrap.red { background: var(--color-danger-light); color: var(--color-danger); }
+  .summary-card .info .num { font-size: 20px; font-weight: 700; }
+  .summary-card .info .lbl { font-size: 12px; color: var(--text-secondary); }
+  .amount { font-family: "SF Mono", "Menlo", monospace; }
+  /* 发票申请列表 */
+  .invoice-list { display: flex; flex-direction: column; gap: 8px; }
+  .invoice-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    transition: var(--transition-fast);
+  }
+  .invoice-item:hover { border-color: var(--border-default); }
+  .invoice-item.pending { border-left: 3px solid var(--color-warning); }
+  .invoice-item.issued { border-left: 3px solid var(--color-success); }
+  .invoice-item.rejected { border-left: 3px solid var(--color-danger); opacity: 0.8; }
+  .invoice-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .invoice-header .inv-title { font-size: 14px; font-weight: 600; }
+  .invoice-meta { font-size: 12px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 6px; }
+  .invoice-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .invoice-amount { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+  .invoice-amount .currency { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+  .invoice-footer { display: flex; align-items: center; justify-content: space-between; }
+  .invoice-actions { display: flex; gap: 8px; }
+  /* 物流跟踪 */
+  .logistics-info { margin-top: 8px; padding: 10px 12px; background: var(--bg-stripe); border-radius: var(--radius-sm); font-size: 12px; }
+  .logistics-step { display: flex; gap: 8px; padding: 4px 0; }
+  .logistics-step .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-blue); margin-top: 4px; flex-shrink: 0; }
+  .logistics-step .dot.done { background: var(--color-success); }
+  .logistics-step .dot.current { background: var(--color-warning); box-shadow: 0 0 0 3px var(--color-warning-light); }
+  .logistics-step .step-text { color: var(--text-secondary); }
+  .logistics-step .step-text.active { color: var(--text-primary); font-weight: 500; }
+  /* 开具弹窗表单 */
+  .inv-type-select { display: flex; gap: 12px; }
+  .inv-type-option {
+    flex: 1;
+    padding: 12px;
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-md);
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .inv-type-option:hover { border-color: var(--brand-blue); }
+  .inv-type-option.selected { border-color: var(--brand-blue); background: var(--brand-blue-light-04); }
+  .inv-type-option .type-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .inv-type-option .type-desc { font-size: 11px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>运营 Dashboard</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Token 管理</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>License 管理</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/></svg>公告管理</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/></svg>教材审核</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>教材版本库</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>财务对账</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>客服工单</div>
+    <div class="item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="6" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="6" y1="16" x2="12" y2="16"/></svg>发票管理</div>
+  </div>
+  <div class="footer">知微平台 · 运营管理</div>
+</aside>
+
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">平台运营 · 知微教学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>运营主管 王经理</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      发票管理涵盖申请处理、开具、邮寄跟踪全流程。电子发票开具后自动发送至学校预留邮箱，纸质发票支持物流跟踪。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 统计概览 ═══ -->
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="icon-wrap orange"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <div class="info"><div class="num">12</div><div class="lbl">待处理申请</div></div>
+      </div>
+      <div class="summary-card">
+        <div class="icon-wrap blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="6" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="18" y2="12"/></svg></div>
+        <div class="info"><div class="num">48</div><div class="lbl">本月已开具</div></div>
+      </div>
+      <div class="summary-card">
+        <div class="icon-wrap green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div>
+        <div class="info"><div class="num amount">¥386,500</div><div class="lbl">本月开票总额</div></div>
+      </div>
+      <div class="summary-card">
+        <div class="icon-wrap red"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        <div class="info"><div class="num">3</div><div class="lbl">邮寄中</div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 标题栏 ═══ -->
+    <div class="page-title-area">
+      <h2>发票管理</h2>
+      <div class="actions">
+        <button class="btn btn-default">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出报表
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ Tab 切换 ═══ -->
+    <div class="tab-nav">
+      <button class="tab active" onclick="switchInvTab('pending')">待处理 (12)</button>
+      <button class="tab" onclick="switchInvTab('issued')">已开具</button>
+      <button class="tab" onclick="switchInvTab('shipping')">邮寄跟踪</button>
+    </div>
+
+    <!-- ═══ 筛选栏 ═══ -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" placeholder="搜索学校名称或发票号...">
+      <select><option>全部类型</option><option>电子发票</option><option>纸质发票</option></select>
+      <select><option>全部状态</option><option>待开具</option><option>已开具</option><option>已作废</option></select>
+      <select><option>本月</option><option>近3个月</option><option>本年度</option></select>
+    </div>
+
+    <!-- ═══ Tab: 待处理 ═══ -->
+    <div class="tab-content active" id="tab-pending">
+      <div class="invoice-list">
+        <div class="invoice-item pending">
+          <div class="invoice-header">
+            <div class="inv-title">成都市金牛区第一小学 - License续费发票</div>
+            <span class="tag tag-warning">待开具</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260703-001</span>
+            <span>🏫 金牛区第一小学</span>
+            <span>📅 申请日期：2026-07-03</span>
+            <span>📧 电子发票</span>
+          </div>
+          <div class="invoice-amount"><span class="currency">¥</span>19,800</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+            关联流水：TX20260703001 · License续费-专业版 · 开票信息：增值税普通发票
+          </div>
+          <div class="invoice-footer">
+            <span class="handler">申请人：IT管理员 陈工</span>
+            <div class="invoice-actions">
+              <button class="btn btn-sm btn-primary" onclick="toggleIssueModal()">开具发票</button>
+              <button class="btn btn-sm btn-default">查看详情</button>
+              <button class="btn btn-sm btn-text danger">退回</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="invoice-item pending">
+          <div class="invoice-header">
+            <div class="inv-title">北京海淀区实验小学 - Token充值发票</div>
+            <span class="tag tag-warning">待开具</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260702-002</span>
+            <span>🏫 北京海淀区实验小学</span>
+            <span>📅 申请日期：2026-07-02</span>
+            <span>📮 纸质发票</span>
+          </div>
+          <div class="invoice-amount"><span class="currency">¥</span>5,000</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+            关联流水：TX20260702001 · Token充值 · 开票信息：增值税专用发票 · 邮寄地址：北京市海淀区中关村南大街5号
+          </div>
+          <div class="invoice-footer">
+            <span class="handler">申请人：财务 张老师</span>
+            <div class="invoice-actions">
+              <button class="btn btn-sm btn-primary" onclick="toggleIssueModal()">开具发票</button>
+              <button class="btn btn-sm btn-default">查看详情</button>
+              <button class="btn btn-sm btn-text danger">退回</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="invoice-item pending">
+          <div class="invoice-header">
+            <div class="inv-title">上海浦东新区第一小学 - License续费发票</div>
+            <span class="tag tag-warning">待开具</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260701-003</span>
+            <span>🏫 上海浦东新区第一小学</span>
+            <span>📅 申请日期：2026-07-01</span>
+            <span>📧 电子发票</span>
+          </div>
+          <div class="invoice-amount"><span class="currency">¥</span>19,800</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+            关联流水：TX20260701001 · License续费-标准版 · 开票信息：增值税普通发票
+          </div>
+          <div class="invoice-footer">
+            <span class="handler">申请人：校长办公室</span>
+            <div class="invoice-actions">
+              <button class="btn btn-sm btn-primary" onclick="toggleIssueModal()">开具发票</button>
+              <button class="btn btn-sm btn-default">查看详情</button>
+              <button class="btn btn-sm btn-text danger">退回</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Tab: 已开具 ═══ -->
+    <div class="tab-content" id="tab-issued">
+      <div class="invoice-list">
+        <div class="invoice-item issued">
+          <div class="invoice-header">
+            <div class="inv-title">深圳南山实验学校 - Token充值发票</div>
+            <span class="tag tag-success">已开具</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260628-004</span>
+            <span>🏫 深圳南山实验学校</span>
+            <span>📅 开具日期：2026-06-28</span>
+            <span>📧 电子发票</span>
+            <span>发票号：044001900101</span>
+          </div>
+          <div class="invoice-amount"><span class="currency">¥</span>3,000</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+            关联流水：TX20260628001 · 已发送至邮箱 nanshan@school.cn
+          </div>
+          <div class="invoice-footer">
+            <span class="handler">开具人：运营主管 王经理</span>
+            <div class="invoice-actions">
+              <button class="btn btn-sm btn-default">查看发票</button>
+              <button class="btn btn-sm btn-text">重新发送</button>
+              <button class="btn btn-sm btn-text danger">作废</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="invoice-item issued">
+          <div class="invoice-header">
+            <div class="inv-title">重庆巴蜀小学 - License续费发票</div>
+            <span class="tag tag-success">已开具</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260625-005</span>
+            <span>🏫 重庆巴蜀小学</span>
+            <span>📅 开具日期：2026-06-25</span>
+            <span>📮 纸质发票</span>
+            <span>发票号：044001900087</span>
+          </div>
+          <div class="invoice-amount"><span class="currency">¥</span>9,800</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+            关联流水：TX20260630001 · 已邮寄 · 快递单号：SF1234567890
+          </div>
+          <div class="invoice-footer">
+            <span class="handler">开具人：运营主管 王经理</span>
+            <div class="invoice-actions">
+              <button class="btn btn-sm btn-default">查看发票</button>
+              <button class="btn btn-sm btn-default">跟踪物流</button>
+              <button class="btn btn-sm btn-text danger">作废</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Tab: 邮寄跟踪 ═══ -->
+    <div class="tab-content" id="tab-shipping">
+      <div class="invoice-list">
+        <div class="invoice-item issued">
+          <div class="invoice-header">
+            <div class="inv-title">重庆巴蜀小学 - License续费发票（纸质）</div>
+            <span class="tag tag-success">已签收</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260625-005</span>
+            <span>📦 快递单号：SF1234567890</span>
+            <span>🚚 顺丰快递</span>
+          </div>
+          <div class="logistics-info">
+            <div class="logistics-step"><span class="dot done"></span><span class="step-text">2026-06-27 14:30 已签收 - 本人签收</span></div>
+            <div class="logistics-step"><span class="dot done"></span><span class="step-text">2026-06-27 09:15 派送中 - 快递员李师傅 138****5678</span></div>
+            <div class="logistics-step"><span class="dot done"></span><span class="step-text">2026-06-26 22:00 已到达【重庆渝中集散中心】</span></div>
+            <div class="logistics-step"><span class="dot done"></span><span class="step-text">2026-06-25 16:00 已揽收 - 【知微平台运营中心】</span></div>
+          </div>
+        </div>
+
+        <div class="invoice-item issued">
+          <div class="invoice-header">
+            <div class="inv-title">成都七中附属小学 - Token充值发票（纸质）</div>
+            <span class="tag tag-blue">运输中</span>
+          </div>
+          <div class="invoice-meta">
+            <span>📋 INV-20260701-006</span>
+            <span>📦 快递单号：YT9876543210</span>
+            <span>🚚 圆通快递</span>
+          </div>
+          <div class="logistics-info">
+            <div class="logistics-step"><span class="dot"></span><span class="step-text" style="color:var(--text-placeholder);">待签收</span></div>
+            <div class="logistics-step"><span class="dot current"></span><span class="step-text active">2026-07-03 08:00 派送中 - 快递员王师傅 139****4321</span></div>
+            <div class="logistics-step"><span class="dot done"></span><span class="step-text">2026-07-02 20:00 已到达【成都锦江集散中心】</span></div>
+            <div class="logistics-step"><span class="dot done"></span><span class="step-text">2026-07-01 15:00 已揽收 - 【知微平台运营中心】</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pagination">
+      <span>共 63 条发票记录，第 1/7 页</span>
+      <div class="pages"><span class="active">1</span><span>2</span><span>3</span><span>...</span><span>7</span></div>
+    </div>
+
+    <!-- ═══ 空态 ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="6" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+      <div class="empty-text">暂无发票记录</div>
+    </div>
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">发票数据加载失败</div>
+      <button class="btn btn-primary">重新加载</button>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ 开具发票弹窗 ═══ -->
+<div class="modal-overlay" id="issue-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h3>开具发票</h3>
+      <span class="close" onclick="toggleIssueModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:16px;padding:12px;background:var(--bg-stripe);border-radius:var(--radius-md);">
+        <div style="font-size:13px;font-weight:500;">成都市金牛区第一小学 - License续费</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+          金额：¥19,800 · 流水号：TX20260703001 · 申请人：IT管理员 陈工
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="required">发票类型</label>
+        <div class="inv-type-select">
+          <div class="inv-type-option selected" onclick="selectInvType(this, '电子发票')">
+            <div class="type-name">电子发票</div>
+            <div class="type-desc">开具后自动发送至学校邮箱</div>
+          </div>
+          <div class="inv-type-option" onclick="selectInvType(this, '纸质发票')">
+            <div class="type-name">纸质发票</div>
+            <div class="type-desc">打印后快递邮寄</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="required">发票抬头</label>
+        <input type="text" value="成都市金牛区第一小学">
+      </div>
+      <div class="form-group">
+        <label class="required">纳税人识别号</label>
+        <input type="text" placeholder="统一社会信用代码">
+      </div>
+      <div class="form-group">
+        <label class="required">发票内容</label>
+        <select><option>License续费-专业版</option><option>Token充值</option><option>增值服务</option></select>
+      </div>
+      <div class="form-group">
+        <label class="required">金额</label>
+        <input type="text" value="¥19,800" readonly style="background:var(--bg-disabled);">
+      </div>
+      <div class="form-group" id="shipping-addr-group" style="display:none;">
+        <label class="required">邮寄地址</label>
+        <textarea rows="2" placeholder="请输入收件人、电话和详细地址..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleIssueModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('发票开具成功！');toggleIssueModal()">确认开具</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span>
+</footer>
+
+<script>
+function switchInvTab(tabName) {
+  document.querySelectorAll('.tab-nav .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  document.getElementById('tab-' + tabName).classList.add('active');
+}
+function toggleIssueModal() {
+  var m = document.getElementById('issue-modal');
+  m.classList.toggle('show');
+}
+function selectInvType(el, type) {
+  document.querySelectorAll('.inv-type-option').forEach(function(o) { o.classList.remove('selected'); });
+  el.classList.add('selected');
+  var addr = document.getElementById('shipping-addr-group');
+  addr.style.display = type === '纸质发票' ? 'block' : 'none';
+}
+</script>
+
+</body>
+</html>

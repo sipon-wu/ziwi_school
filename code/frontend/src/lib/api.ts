@@ -1,6 +1,6 @@
 /** 知微AI教学助手 — 前端API工具类 */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
+const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 // 存储Token
 let token: string | null = localStorage.getItem('zhiwei_token') || null
@@ -50,10 +50,28 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
     window.location.href = '/login'
     throw new Error('登录已过期')
   }
+  // Token 不足时触发全局弹窗
+  if (res.status === 429 || res.status === 402) {
+    window.dispatchEvent(new CustomEvent('token-insufficient', { detail: await res.json().catch(() => ({})) }))
+    throw new Error('Token 不足，请充值')
+  }
 
-  const data = await res.json()
+  const body = await res.text()
+
+  // 安全解析 JSON — 防止服务器返回 HTML 错误页面时崩溃
+  let data: any
+  try {
+    data = body ? JSON.parse(body) : {}
+  } catch (parseErr) {
+    // 服务器返回了 HTML（通常是 404/500 错误页面）
+    if (body.trim().startsWith('<')) {
+      throw new Error(`服务器返回了 HTML 错误页面 (HTTP ${res.status})，请检查后端服务是否正常运行`)
+    }
+    throw new Error(`服务器响应格式错误: ${parseErr}`)
+  }
+
   if (!res.ok) {
-    throw new Error(data.message || '请求失败')
+    throw new Error(data.message || data.error || `请求失败 (HTTP ${res.status})`)
   }
   return data
 }
@@ -315,9 +333,11 @@ export const assignmentAPI = {
   /** 创建作业（支持旧版 questions JSONB 或新版 question_ids） */
   create: (data: {
     class_id: string; subject: string; title: string; type: string
-    questions?: string; question_ids?: string[]; difficulty_level?: string; knowledge_node_ids?: string
+    questions?: string; question_ids?: string[]; content?: string; tier?: string; estimated_duration?: number; difficulty_level?: string; knowledge_node_ids?: string
   }) =>
     request<any>('/assignments', { method: 'POST', body: JSON.stringify(data) }),
 }
+
+export const api = request
 
 export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, dashboardAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI }

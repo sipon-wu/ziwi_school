@@ -1,0 +1,63 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e6]:
+        - heading "微信公众平台" [level=1] [ref=e8]:
+          - link "微信公众平台" [ref=e9] [cursor=pointer]:
+            - /url: /
+        - generic [ref=e11]:
+          - link "立即注册" [ref=e12] [cursor=pointer]:
+            - /url: javascript:;
+          - generic [ref=e13]:
+            - text: "|"
+            - generic [ref=e14]: 简体中文
+      - generic [ref=e18]:
+        - link "使用账号登录" [ref=e19] [cursor=pointer]:
+          - /url: javascript:;
+        - heading "登录" [level=4] [ref=e22]
+        - generic [ref=e24]:
+          - paragraph [ref=e26]: 微信扫一扫，选择公众平台账号登录
+          - paragraph
+          - paragraph
+    - generic [ref=e28]:
+      - paragraph [ref=e30] [cursor=pointer]: 微信公众平台
+      - generic [ref=e31]:
+        - term [ref=e32]: 系统公告
+        - definition [ref=e34]:
+          - link "查看更多" [ref=e35] [cursor=pointer]:
+            - /url: /cgi-bin/announce?action=getannouncementlist&lang=zh_CN
+            - text: 查看更多
+      - generic [ref=e37]:
+        - heading "账号分类" [level=3] [ref=e39]
+        - generic [ref=e40]:
+          - generic [ref=e43]:
+            - term [ref=e44]: 服务号
+            - definition [ref=e46]: 给企业和组织提供更强大的业务服务与用户管理能力，帮助企业在微信内快速实现全新的服务平台。
+          - generic [ref=e49]:
+            - term [ref=e50]: 公众号
+            - definition [ref=e52]: 为媒体和个人提供一种新的信息传播方式，构建与读者之间更好的沟通与管理模式。
+          - generic [ref=e55]:
+            - term [ref=e56]: 小程序
+            - definition [ref=e58]: 一种新的开放能力，可以在微信内被便捷地获取和传播，同时具有出色的使用体验。
+      - link "企业微信 原企业号 企业的专业办公管理工具。与微信一致的沟通体验，提供丰富免费的办公应用，并与微信消息、小程序、微信支付等互通，助力企业高效办公和管理。" [ref=e60] [cursor=pointer]:
+        - /url: https://work.weixin.qq.com/?from=mp_home
+        - generic [ref=e63]:
+          - paragraph [ref=e64]:
+            - text: 企业微信
+            - generic [ref=e65]: 原企业号
+          - paragraph [ref=e66]: 企业的专业办公管理工具。与微信一致的沟通体验，提供丰富免费的办公应用，并与微信消息、小程序、微信支付等互通，助力企业高效办公和管理。
+  - generic [ref=e68]:
+    - paragraph [ref=e70]:
+      - link "关于腾讯" [ref=e71] [cursor=pointer]:
+        - /url: http://www.tencent.com/zh-cn/index.shtml
+      - link "| 服务协议" [ref=e72] [cursor=pointer]:
+        - /url: /cgi-bin/announce?action=getannouncement&key=1503979103&version=1&lang=zh_CN&platform=2
+      - link "| 规则中心" [ref=e73] [cursor=pointer]:
+        - /url: "/webpoc/ruleCenter?type=oa "
+      - link "| 腾讯客服" [ref=e74] [cursor=pointer]:
+        - /url: http://kf.qq.com/product/weixinmp.html
+      - link "| 侵权投诉" [ref=e75] [cursor=pointer]:
+        - /url: /acct/infringementlogin?action=getkey_brand&lang=zh_CN
+      - link "| 上传日志" [ref=e76] [cursor=pointer]:
+        - /url: /advanced/mplog?action=index
+    - paragraph [ref=e78]: Copyright © 2012-2026 Tencent. All Rights Reserved.

@@ -1,49 +1,41 @@
 {
   "pages": [
-    "pages/index/index",
-    "pages/errorbook/errorbook",
-    "pages/mine/mine",
-    "pages/sign/sign"
+    "pages/assignments/assignments",
+    "pages/error-book/error-book",
+    "pages/profile/profile"
   ],
   "window": {
-    "navigationBarBackgroundColor": "#1A3A6B",
-    "navigationBarTitleText": "知微教学",
+    "navigationBarBackgroundColor": "#02A7F0",
+    "navigationBarTitleText": "知微学堂",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#F5F5F5"
+    "backgroundColor": "#f5f5f5"
   },
   "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#1A3A6B",
-    "backgroundColor": "#FFFFFF",
-    "borderStyle": "black",
+    "color": "#9A9A9A",
+    "selectedColor": "#02A7F0",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
     "list": [
       {
-        "pagePath": "pages/index/index",
+        "pagePath": "pages/assignments/assignments",
         "text": "作业",
-        "iconPath": "images/tab-assign.png",
-        "selectedIconPath": "images/tab-assign-active.png"
+        "iconPath": "images/icon-assignment.png",
+        "selectedIconPath": "images/icon-assignment-active.png"
       },
       {
-        "pagePath": "pages/errorbook/errorbook",
+        "pagePath": "pages/error-book/error-book",
         "text": "错题本",
-        "iconPath": "images/tab-error.png",
-        "selectedIconPath": "images/tab-error-active.png"
+        "iconPath": "images/icon-error.png",
+        "selectedIconPath": "images/icon-error-active.png"
       },
       {
-        "pagePath": "pages/mine/mine",
+        "pagePath": "pages/profile/profile",
         "text": "我的",
-        "iconPath": "images/tab-mine.png",
-        "selectedIconPath": "images/tab-mine-active.png"
+        "iconPath": "images/icon-profile.png",
+        "selectedIconPath": "images/icon-profile-active.png"
       }
     ]
   },
-  "networkTimeout": {
-    "request": 30000,
-    "downloadFile": 60000
-  },
-  "permission": {
-    "scope.userLocation": { "desc": "获取位置信息用于学校验证" }
-  },
-  "requiredPrivateInfos": ["getLocation"],
+  "style": "v2",
   "sitemapLocation": "sitemap.json"
 }

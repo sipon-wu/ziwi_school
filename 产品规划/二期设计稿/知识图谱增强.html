@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 知识图谱增强</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .kg-demo { display: flex; gap: 16px; }
+  .kg-canvas { flex: 1; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); min-height: 400px; position: relative; overflow: hidden; }
+  .kg-canvas .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-secondary); }
+  .kg-canvas .node { position: absolute; background: var(--bg-card); border: 2px solid var(--brand-blue); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; cursor: pointer; transition: var(--transition-fast); z-index: 2; }
+  .kg-canvas .node:hover { background: var(--brand-blue-light); transform: scale(1.15); }
+  .kg-canvas .node.current { border-color: var(--color-success); background: var(--color-success-light); }
+  .kg-canvas .node.focus { border-width: 3px; box-shadow: 0 0 0 4px var(--brand-blue-light-25); }
+  .kg-canvas .edge { position: absolute; height: 2px; background: var(--border-light); transform-origin: left center; z-index: 1; }
+  .kg-panel { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+  .kg-panel .card { flex: 1; }
+  .kg-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .mode-switch { display: flex; gap: 4px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); overflow: hidden; }
+  .mode-switch button { flex: 1; padding: 6px 10px; font-size: 12px; border: none; background: var(--bg-card); cursor: pointer; color: var(--text-secondary); font-family: var(--font-family); transition: var(--transition-fast); }
+  .mode-switch button.active { background: var(--brand-blue); color: white; }
+  .mode-switch button:hover:not(.active) { background: var(--bg-hover); }
+  .dimension-list { list-style: none; }
+  .dimension-list li { padding: 6px 0; font-size: 13px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+  .dimension-list li.active { color: var(--brand-blue); font-weight: 500; }
+  .dimension-list li .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dimension-list li .dot.knowledge { background: var(--brand-blue); }
+  .dimension-list li .dot.ability { background: var(--color-success); }
+  .dimension-list li .dot.difficulty { background: var(--color-warning); }
+  .dimension-list li .dot.standard { background: #9B51E0; }
+  .guide-tip { padding: 10px 14px; background: var(--brand-blue-light-04); border: 1px solid var(--brand-blue-light-25); border-radius: var(--radius-md); font-size: 12px; color: var(--brand-blue); }
+  .guide-tip .countdown { font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>首页</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20H18"/><path d="M4 4C4 3 5 2 6 2H18V20H6C5 20 4 19 4 18V4Z"/></svg>教学备课</div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+<main class="main">
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">语文 · 四年级（1班） · 部编版</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <span class="token">Token 5%</span>
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>张真真</div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="page-title-area"><h2>知识图谱</h2></div>
+
+    <div class="kg-demo">
+      <div class="kg-canvas" id="kg-canvas">
+        <!-- 模拟节点 -->
+        <div class="node focus" style="top:180px;left:200px;" title="描写顺序">描写<br>顺序</div>
+        <div class="node" style="top:80px;left:100px;" title="比喻修辞">比喻<br>修辞</div>
+        <div class="node" style="top:120px;left:320px;" title="由远及近">由远<br>及近</div>
+        <div class="node" style="top:280px;left:150px;" title="景物描写">景物<br>描写</div>
+        <div class="node" style="top:300px;left:300px;" title="动态描写">动态<br>描写</div>
+        <div class="node" style="top:60px;left:280px;" title="修辞手法">修辞<br>手法</div>
+        <div class="node" style="top:220px;left:380px;" title="段落结构">段落<br>结构</div>
+        <div class="node current" style="top:340px;left:420px;" title="中心思想">中心<br>思想</div>
+        <!-- 引导提示 -->
+        <div class="guide-tip" style="position:absolute;top:12px;left:12px;z-index:3;">
+          图谱上的节点是本节课涉及的知识点，点击可查看详情。
+          <div class="countdown">3秒后自动消失</div>
+        </div>
+      </div>
+      <div class="kg-panel">
+        <div class="card">
+          <h4>视图模式</h4>
+          <div class="mode-switch">
+            <button class="active" onclick="switchMode(this, 'tree')">树状</button>
+            <button onclick="switchMode(this, 'spiral')">螺旋</button>
+            <button onclick="switchMode(this, 'mesh')">网状</button>
+          </div>
+        </div>
+        <div class="card">
+          <h4>维度筛选（着色）</h4>
+          <ul class="dimension-list">
+            <li class="active" onclick="switchDimension(this)"><span class="dot knowledge"></span>知识点</li>
+            <li onclick="switchDimension(this)"><span class="dot ability"></span>能力维度</li>
+            <li onclick="switchDimension(this)"><span class="dot difficulty"></span>难度等级</li>
+            <li onclick="switchDimension(this)"><span class="dot standard"></span>课标要求</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>视图范围</h4>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-primary" onclick="this.style.background='var(--brand-blue)';this.nextElementSibling.style.background='var(--bg-card)';">聚焦当前课时</button>
+            <button class="btn btn-sm btn-default" onclick="this.style.background='var(--brand-blue)';this.style.color='white';this.previousElementSibling.style.background='var(--bg-card)';this.previousElementSibling.style.color='var(--text-primary)';">展开全部</button>
+          </div>
+        </div>
+        <div class="card">
+          <h4>难度标尺</h4>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+            <span style="color:var(--color-success)">L1 基础</span>
+            <span style="color:var(--brand-blue)">L2 理解</span>
+            <span style="color:var(--color-warning)">L3 分析</span>
+            <span style="color:var(--color-danger)">L4 创造</span>
+          </div>
+          <div style="height:4px;background:linear-gradient(90deg,var(--color-success),var(--brand-blue),var(--color-warning),var(--color-danger));border-radius:2px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-state" style="display:none" id="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/></svg><div class="empty-text">图谱数据加载中...</div></div>
+    <div class="skeleton-loading" style="display:none" id="skeleton"><div class="skeleton-row"><div class="skeleton"></div></div></div>
+    <div class="error-state" style="display:none" id="error-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg><div class="error-text">图谱加载失败，已降级为全宽表单模式</div><button class="btn btn-primary">重试加载</button></div>
+  </div>
+</main>
+<footer class="page-footer"><span>© 2026 知微网版权所有</span><span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a></span></footer>
+<script>
+function switchMode(el, mode) {
+  el.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function switchDimension(el) {
+  el.parentElement.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+  el.classList.add('active');
+}
+// 引导提示自动消失
+setTimeout(function() {
+  var tip = document.querySelector('.guide-tip');
+  if (tip) tip.style.display = 'none';
+}, 3000);
+</script>
+</body>
+</html>

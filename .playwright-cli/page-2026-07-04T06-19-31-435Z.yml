@@ -1,0 +1,154 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - heading "素材库" [level=1] [ref=e50]
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - textbox "搜索素材..." [ref=e53]
+            - generic [ref=e54]: 🔍
+          - generic [ref=e55]:
+            - button "全部" [ref=e56] [cursor=pointer]
+            - button "图片" [ref=e57] [cursor=pointer]
+            - button "音频" [ref=e58] [cursor=pointer]
+            - button "视频" [ref=e59] [cursor=pointer]
+            - button "课件" [ref=e60] [cursor=pointer]
+            - button "题目" [ref=e61] [cursor=pointer]
+          - button "+ 上传素材" [ref=e62] [cursor=pointer]
+        - generic [ref=e63]:
+          - generic [ref=e64] [cursor=pointer]:
+            - generic [ref=e65]: 🖼️
+            - generic [ref=e66]:
+              - generic [ref=e67]: 钱塘江大潮实景图
+              - generic [ref=e68]:
+                - generic [ref=e69]: 图片
+                - generic [ref=e70]: 2.3MB
+              - generic [ref=e71]: 观潮
+          - generic [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]: 🎵
+            - generic [ref=e74]:
+              - generic [ref=e75]: 古诗朗诵音频
+              - generic [ref=e76]:
+                - generic [ref=e77]: 音频
+                - generic [ref=e78]: 5.1MB
+              - generic [ref=e79]: 古诗词
+          - generic [ref=e80] [cursor=pointer]:
+            - generic [ref=e81]: 📹
+            - generic [ref=e82]:
+              - generic [ref=e83]: 爬山虎生长延时
+              - generic [ref=e84]:
+                - generic [ref=e85]: 视频
+                - generic [ref=e86]: 18.6MB
+              - generic [ref=e87]: 植物
+          - generic [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]: 📊
+            - generic [ref=e90]:
+              - generic [ref=e91]: 四年级语文课件
+              - generic [ref=e92]:
+                - generic [ref=e93]: 课件
+                - generic [ref=e94]: 4.2MB
+              - generic [ref=e95]: 教案
+          - generic [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: 📝
+            - generic [ref=e98]:
+              - generic [ref=e99]: 阅读理解题库
+              - generic [ref=e100]:
+                - generic [ref=e101]: 题目
+                - generic [ref=e102]: 156题
+              - generic [ref=e103]: 阅读
+          - generic [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: 🖼️
+            - generic [ref=e106]:
+              - generic [ref=e107]: 昆虫标本图片集
+              - generic [ref=e108]:
+                - generic [ref=e109]: 图片
+                - generic [ref=e110]: 8.4MB
+              - generic [ref=e111]: 昆虫记
+          - generic [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]: 🎵
+            - generic [ref=e114]:
+              - generic [ref=e115]: 课文朗读示范
+              - generic [ref=e116]:
+                - generic [ref=e117]: 音频
+                - generic [ref=e118]: 3.2MB
+              - generic [ref=e119]: 朗读
+          - generic [ref=e120] [cursor=pointer]:
+            - generic [ref=e121]: 📹
+            - generic [ref=e122]:
+              - generic [ref=e123]: 神话故事动画
+              - generic [ref=e124]:
+                - generic [ref=e125]: 视频
+                - generic [ref=e126]: 32.1MB
+              - generic [ref=e127]: 神话
+          - generic [ref=e128] [cursor=pointer]:
+            - generic [ref=e129]: 📊
+            - generic [ref=e130]:
+              - generic [ref=e131]: 期末复习课件
+              - generic [ref=e132]:
+                - generic [ref=e133]: 课件
+                - generic [ref=e134]: 6.8MB
+              - generic [ref=e135]: 复习
+          - generic [ref=e136] [cursor=pointer]:
+            - generic [ref=e137]: 📝
+            - generic [ref=e138]:
+              - generic [ref=e139]: 作文素材积累
+              - generic [ref=e140]:
+                - generic [ref=e141]: 题目
+                - generic [ref=e142]: 48篇
+              - generic [ref=e143]: 作文
+          - generic [ref=e144] [cursor=pointer]:
+            - generic [ref=e145]: 🖼️
+            - generic [ref=e146]:
+              - generic [ref=e147]: 古诗词配图
+              - generic [ref=e148]:
+                - generic [ref=e149]: 图片
+                - generic [ref=e150]: 5.6MB
+              - generic [ref=e151]: 古诗
+          - generic [ref=e152] [cursor=pointer]:
+            - generic [ref=e153]: 🎵
+            - generic [ref=e154]:
+              - generic [ref=e155]: 背景音乐合集
+              - generic [ref=e156]:
+                - generic [ref=e157]: 音频
+                - generic [ref=e158]: 12.3MB
+              - generic [ref=e159]: 通用
+        - generic [ref=e160]:
+          - button "上一页" [ref=e161] [cursor=pointer]
+          - button "1" [ref=e162] [cursor=pointer]
+          - button "2" [ref=e163] [cursor=pointer]
+          - button "下一页" [ref=e164] [cursor=pointer]
+          - generic [ref=e165]: 共 96 条
+  - button "小微" [ref=e166] [cursor=pointer]:
+    - img "小微" [ref=e167]

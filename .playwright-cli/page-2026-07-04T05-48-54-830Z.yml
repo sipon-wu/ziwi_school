@@ -1,0 +1,169 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - heading "班级学情数据" [level=1] [ref=e52]
+            - paragraph [ref=e53]: 全面掌握班级学习情况，精准定位薄弱知识点
+          - combobox [ref=e54]:
+            - option "本周" [selected]
+            - option "本月"
+            - option "本学期"
+        - generic [ref=e55]:
+          - generic [ref=e56]:
+            - generic [ref=e57]:
+              - generic [ref=e58]: 班级平均分
+              - img [ref=e60]
+            - generic [ref=e63]: 85分
+            - generic [ref=e64]: 较上次↑2分
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - generic [ref=e67]: 作业完成率
+              - img [ref=e69]
+            - generic [ref=e73]: 92%
+            - generic [ref=e74]: 38/40人按时提交
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e77]: 家长签字率
+              - img [ref=e79]
+            - generic [ref=e84]: 88%
+            - generic [ref=e85]: 35/40人已签
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - generic [ref=e88]: 平均批阅耗时
+              - img [ref=e90]
+            - generic [ref=e93]: 2.3天
+            - generic [ref=e94]: 较上周↓0.5天
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - generic [ref=e97]:
+              - img [ref=e98]
+              - heading "知识点掌握度" [level=3] [ref=e102]
+            - generic [ref=e103]:
+              - generic [ref=e105]:
+                - generic [ref=e106]: 分数加减法
+                - generic [ref=e107]: 85%
+              - generic [ref=e111]:
+                - generic [ref=e112]: 分数乘除法
+                - generic [ref=e113]: 72%
+              - generic [ref=e117]:
+                - generic [ref=e118]: 分数应用题
+                - generic [ref=e119]: 58%
+              - generic [ref=e123]:
+                - generic [ref=e124]: 小数运算
+                - generic [ref=e125]: 90%
+              - generic [ref=e129]:
+                - generic [ref=e130]: 几何图形
+                - generic [ref=e131]: 78%
+              - generic [ref=e135]:
+                - generic [ref=e136]: 单位换算
+                - generic [ref=e137]: 65%
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - img [ref=e142]
+              - heading "学生个体情况" [level=3] [ref=e144]
+            - table [ref=e145]:
+              - rowgroup [ref=e146]:
+                - row "姓名 得分 趋势 薄弱点" [ref=e147]:
+                  - columnheader "姓名" [ref=e148]
+                  - columnheader "得分" [ref=e149]
+                  - columnheader "趋势" [ref=e150]
+                  - columnheader "薄弱点" [ref=e151]
+              - rowgroup [ref=e152]:
+                - 'row "李明 92 第1次: 88分 第2次: 90分 第3次: 95分 第4次: 92分 第5次: 94分 第6次: 92分 —" [ref=e153] [cursor=pointer]':
+                  - cell "李明" [ref=e154]
+                  - cell "92" [ref=e155]
+                  - 'cell "第1次: 88分 第2次: 90分 第3次: 95分 第4次: 92分 第5次: 94分 第6次: 92分" [ref=e156]':
+                    - generic [ref=e157]:
+                      - 'generic "第1次: 88分" [ref=e158]'
+                      - 'generic "第2次: 90分" [ref=e159]'
+                      - 'generic "第3次: 95分" [ref=e160]'
+                      - 'generic "第4次: 92分" [ref=e161]'
+                      - 'generic "第5次: 94分" [ref=e162]'
+                      - 'generic "第6次: 92分" [ref=e163]'
+                  - cell "—" [ref=e164]
+                - 'row "王小红 85 第1次: 82分 第2次: 85分 第3次: 88分 第4次: 80分 第5次: 85分 第6次: 85分 分数应用题" [ref=e165] [cursor=pointer]':
+                  - cell "王小红" [ref=e166]
+                  - cell "85" [ref=e167]
+                  - 'cell "第1次: 82分 第2次: 85分 第3次: 88分 第4次: 80分 第5次: 85分 第6次: 85分" [ref=e168]':
+                    - generic [ref=e169]:
+                      - 'generic "第1次: 82分" [ref=e170]'
+                      - 'generic "第2次: 85分" [ref=e171]'
+                      - 'generic "第3次: 88分" [ref=e172]'
+                      - 'generic "第4次: 80分" [ref=e173]'
+                      - 'generic "第5次: 85分" [ref=e174]'
+                      - 'generic "第6次: 85分" [ref=e175]'
+                  - cell "分数应用题" [ref=e176]
+                - 'row "张伟 重点关注 72 第1次: 75分 第2次: 72分 第3次: 70分 第4次: 68分 第5次: 71分 第6次: 72分 分数乘除法" [ref=e177] [cursor=pointer]':
+                  - cell "张伟 重点关注" [ref=e178]:
+                    - text: 张伟
+                    - generic "重点关注" [ref=e179]
+                  - cell "72" [ref=e180]
+                  - 'cell "第1次: 75分 第2次: 72分 第3次: 70分 第4次: 68分 第5次: 71分 第6次: 72分" [ref=e181]':
+                    - generic [ref=e182]:
+                      - 'generic "第1次: 75分" [ref=e183]'
+                      - 'generic "第2次: 72分" [ref=e184]'
+                      - 'generic "第3次: 70分" [ref=e185]'
+                      - 'generic "第4次: 68分" [ref=e186]'
+                      - 'generic "第5次: 71分" [ref=e187]'
+                      - 'generic "第6次: 72分" [ref=e188]'
+                  - cell "分数乘除法" [ref=e189]
+                - 'row "刘洋 88 第1次: 85分 第2次: 88分 第3次: 90分 第4次: 88分 第5次: 87分 第6次: 88分 —" [ref=e190] [cursor=pointer]':
+                  - cell "刘洋" [ref=e191]
+                  - cell "88" [ref=e192]
+                  - 'cell "第1次: 85分 第2次: 88分 第3次: 90分 第4次: 88分 第5次: 87分 第6次: 88分" [ref=e193]':
+                    - generic [ref=e194]:
+                      - 'generic "第1次: 85分" [ref=e195]'
+                      - 'generic "第2次: 88分" [ref=e196]'
+                      - 'generic "第3次: 90分" [ref=e197]'
+                      - 'generic "第4次: 88分" [ref=e198]'
+                      - 'generic "第5次: 87分" [ref=e199]'
+                      - 'generic "第6次: 88分" [ref=e200]'
+                  - cell "—" [ref=e201]
+                - 'row "陈静 78 第1次: 80分 第2次: 82分 第3次: 78分 第4次: 75分 第5次: 79分 第6次: 78分 单位换算" [ref=e202] [cursor=pointer]':
+                  - cell "陈静" [ref=e203]
+                  - cell "78" [ref=e204]
+                  - 'cell "第1次: 80分 第2次: 82分 第3次: 78分 第4次: 75分 第5次: 79分 第6次: 78分" [ref=e205]':
+                    - generic [ref=e206]:
+                      - 'generic "第1次: 80分" [ref=e207]'
+                      - 'generic "第2次: 82分" [ref=e208]'
+                      - 'generic "第3次: 78分" [ref=e209]'
+                      - 'generic "第4次: 75分" [ref=e210]'
+                      - 'generic "第5次: 79分" [ref=e211]'
+                      - 'generic "第6次: 78分" [ref=e212]'
+                  - cell "单位换算" [ref=e213]
+  - button "小微" [ref=e214] [cursor=pointer]:
+    - img "小微" [ref=e215]

@@ -1,0 +1,76 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img "知微" [ref=e6]
+        - generic [ref=e7]: 知微教学
+      - navigation [ref=e8]:
+        - link "工作台" [ref=e9] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e10]
+          - generic [ref=e15]: 工作台
+        - link "系统管理" [ref=e17] [cursor=pointer]:
+          - /url: /dashboard/admin
+          - img [ref=e18]
+          - generic [ref=e20]: 系统管理
+        - link "个人设置" [ref=e21] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e22]
+          - generic [ref=e25]: 个人设置
+      - generic [ref=e26]:
+        - button [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+        - generic [ref=e30]:
+          - generic [ref=e32]: 张
+          - generic [ref=e33]:
+            - generic [ref=e34]: 张老师
+            - generic [ref=e35]: 4年级下 · 语文
+            - generic [ref=e36]: 成都市金牛区第一小学
+    - generic [ref=e37]:
+      - banner [ref=e38]:
+        - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+        - generic [ref=e42]:
+          - generic [ref=e43]: Token 5%
+          - button [ref=e44] [cursor=pointer]
+          - button "张真真" [ref=e46] [cursor=pointer]
+      - main [ref=e48]:
+        - generic [ref=e50]:
+          - button "四年级·语文 部编版（统编版） · 四1、四2（2个班）" [ref=e51] [cursor=pointer]:
+            - generic [ref=e52]: 四年级·语文
+            - generic [ref=e53]: 部编版（统编版） · 四1、四2（2个班）
+          - button "四年级·语文 苏教版 · 四3（1个班）" [ref=e54] [cursor=pointer]:
+            - generic [ref=e55]: 四年级·语文
+            - generic [ref=e56]: 苏教版 · 四3（1个班）
+          - button "三年级·数学 人教版 · 三2（1个班）" [ref=e57] [cursor=pointer]:
+            - generic [ref=e58]: 三年级·数学
+            - generic [ref=e59]: 人教版 · 三2（1个班）
+          - button "六年级·语文 部编版（统编版） · 六1（1个班）" [ref=e60] [cursor=pointer]:
+            - generic [ref=e61]: 六年级·语文
+            - generic [ref=e62]: 部编版（统编版） · 六1（1个班）
+          - button "五年级·英语 PEP（三年级起） · 五1（1个班）" [ref=e63] [cursor=pointer]:
+            - generic [ref=e64]: 五年级·英语
+            - generic [ref=e65]: PEP（三年级起） · 五1（1个班）
+    - button "小微" [ref=e66] [cursor=pointer]:
+      - img "小微" [ref=e67]
+  - generic [ref=e69]:
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - img [ref=e72]
+        - heading "AI使用提示" [level=3] [ref=e74]
+      - button [ref=e75] [cursor=pointer]:
+        - img [ref=e76]
+    - generic [ref=e79]:
+      - generic [ref=e80]:
+        - paragraph [ref=e81]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e82]:
+          - listitem [ref=e83]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e84]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e85]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e86]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e87]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e88] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e89]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e90]:
+      - button "取消" [ref=e91] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e92]

@@ -1,0 +1,100 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - heading "题库管理" [level=1] [ref=e51]
+          - paragraph [ref=e52]: 管理个人题目和校本题库资源
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e55]:
+              - generic [ref=e56]: 个人题目
+              - img [ref=e58]
+            - generic [ref=e61]: "0"
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]: 校本题目
+              - img [ref=e66]
+            - generic [ref=e70]: "0"
+          - generic [ref=e71]:
+            - generic [ref=e72]:
+              - generic [ref=e73]: 已评分
+              - img [ref=e75]
+            - generic [ref=e77]: "0"
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: 平均评分
+              - img [ref=e82]
+            - generic [ref=e84]: "-"
+        - generic [ref=e85]:
+          - button "个人题库" [ref=e86] [cursor=pointer]:
+            - img [ref=e87]
+            - text: 个人题库
+          - button "校本题库" [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+            - text: 校本题库
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - img [ref=e97]
+            - textbox "搜索题目内容..." [ref=e100]
+          - combobox [ref=e101]:
+            - option "全部学科" [selected]
+            - option "语文"
+            - option "数学"
+            - option "英语"
+          - combobox [ref=e102]:
+            - option "全部题型" [selected]
+            - option "选择"
+            - option "填空"
+            - option "计算"
+            - option "判断"
+            - option "匹配"
+            - option "完形"
+            - option "阅读"
+            - option "解答"
+            - option "作图"
+            - option "写作"
+          - combobox [ref=e103]:
+            - option "全部难度" [selected]
+            - option "基础"
+            - option "中等"
+            - option "进阶"
+            - option "挑战"
+          - button "搜索" [ref=e104] [cursor=pointer]:
+            - img [ref=e105]
+            - text: 搜索
+        - generic [ref=e108]: 加载中...
+  - button "小微" [ref=e109] [cursor=pointer]:
+    - img "小微" [ref=e110]

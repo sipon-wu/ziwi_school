@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知微教学(AI) · 班级调度 · 教务员</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="base.css">
+<style>
+  .grade-section { margin-bottom: 24px; }
+  .grade-section .grade-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .grade-section .grade-header h3 { font-size: 15px; font-weight: 600; }
+  .grade-section .grade-header .grade-info { font-size: 12px; color: var(--text-secondary); }
+  .class-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .class-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    transition: var(--transition-fast);
+    cursor: pointer;
+    position: relative;
+  }
+  .class-card:hover { border-color: var(--border-default); }
+  .class-card .class-name { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .class-card .class-name .type-tag { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-sm); }
+  .class-card .class-name .type-tag.normal { background: var(--brand-blue-light); color: var(--brand-blue); }
+  .class-card .class-name .type-tag.experiment { background: var(--color-warning-light); color: var(--color-warning); }
+  .class-card .info-row { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .class-card .info-row .label { width: 48px; flex-shrink: 0; }
+  .class-card .actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); }
+  .class-card.add-card {
+    border-style: dashed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: var(--text-secondary);
+    min-height: 160px;
+  }
+  .class-card.add-card:hover { color: var(--brand-blue); border-color: var(--brand-blue); }
+  .class-card.add-card svg { margin-bottom: 8px; }
+  .class-card.add-card span { font-size: 13px; }
+  .student-count-popup {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+    z-index: 100;
+    padding: 12px;
+    margin-top: 4px;
+  }
+  .student-count-popup table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .student-count-popup table td { padding: 3px 8px; }
+  .student-count-popup table td:last-child { text-align: right; font-weight: 600; }
+  .student-count-popup table tr:last-child { border-top: 1px solid var(--border-light); font-weight: 600; }
+  .transfer-area { margin-top: 8px; padding: 8px 12px; background: var(--bg-stripe); border-radius: var(--radius-sm); font-size: 12px; color: var(--text-secondary); }
+  .transfer-area a { color: var(--brand-blue); cursor: pointer; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 侧边栏（教务员角色）═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    知微教学<span class="sub">(AI)</span>
+  </div>
+  <div class="nav">
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      班级调度
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      课程安排
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      教师管理
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      学期管理
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:8px 0"></div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      教务 Dashboard
+    </div>
+    <div class="item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M6 20C6 17 9 15 12 15 15 15 18 17 18 20"/></svg>
+      个人中心
+    </div>
+  </div>
+  <div class="footer">成都市金牛区第一小学</div>
+</aside>
+
+<main class="main">
+  <!-- ═══ 顶部标题栏 ═══ -->
+  <div class="main-header">
+    <div class="left">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="cursor:pointer"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10 18 4 12 10 6"/></svg>
+      <span class="context">教务管理 · 金牛区第一小学</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="right">
+      <svg class="notify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="avatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>教务员 李华</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ═══ 提示态 ═══ -->
+    <div class="tip-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      班级调度结果将自动同步到教师的「班级认领」可选池，教师可在系统设置中认领所教班级。
+      <span class="close" onclick="this.parentElement.style.display='none'">×</span>
+    </div>
+
+    <!-- ═══ 统计卡片 ═══ -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="label">总班级数</div>
+        <div class="value">24</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">在校学生</div>
+        <div class="value blue">1,086</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">在职教师</div>
+        <div class="value green">68</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">未分配班级</div>
+        <div class="value orange">2</div>
+      </div>
+    </div>
+
+    <!-- ═══ 筛选栏 ═══ -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" placeholder="搜索班级名称...">
+      <select>
+        <option>全部年级</option>
+        <option>一年级</option>
+        <option>二年级</option>
+        <option>三年级</option>
+        <option selected>四年级</option>
+        <option>五年级</option>
+        <option>六年级</option>
+      </select>
+      <select>
+        <option>全部学科</option>
+        <option>语文</option>
+        <option>数学</option>
+        <option>英语</option>
+      </select>
+      <span class="spacer"></span>
+      <button class="btn btn-default" onclick="toggleAddClassModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        创建班级
+      </button>
+    </div>
+
+    <!-- ═══ 班级网格 ═══ -->
+    <!-- 四年级 -->
+    <div class="grade-section">
+      <div class="grade-header">
+        <h3>四年级</h3>
+        <span class="grade-info">6个班级 · 272名学生</span>
+      </div>
+      <div class="class-cards">
+        <div class="class-card" onclick="alert('进入班级详情: 四(1)班')">
+          <div class="class-name">
+            四（1）班
+            <span class="type-tag normal">普通班</span>
+          </div>
+          <div class="info-row"><span class="label">班主任</span> 张丽华</div>
+          <div class="info-row"><span class="label">学生数</span> 46人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default" onclick="event.stopPropagation(); alert('编辑班级')">编辑</button>
+            <button class="btn btn-sm btn-default" onclick="event.stopPropagation(); toggleTransfer(event)">调班</button>
+            <button class="btn btn-sm btn-text danger" onclick="event.stopPropagation(); confirm('确定删除该班级吗？')">删除</button>
+          </div>
+          <div class="student-count-popup" id="transfer-popup-1">
+            <table>
+              <tr><td>语文</td><td>46人</td></tr>
+              <tr><td>数学</td><td>46人</td></tr>
+              <tr><td>英语</td><td>46人</td></tr>
+              <tr><td>科学</td><td>46人</td></tr>
+              <tr><td>道法</td><td>46人</td></tr>
+              <tr><td>合计</td><td>46人</td></tr>
+            </table>
+            <div class="transfer-area"><a href="#">+ 调班学生</a></div>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 四(2)班')">
+          <div class="class-name">
+            四（2）班
+            <span class="type-tag normal">普通班</span>
+          </div>
+          <div class="info-row"><span class="label">班主任</span> 王建国</div>
+          <div class="info-row"><span class="label">学生数</span> 45人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 四(3)班')">
+          <div class="class-name">
+            四（3）班
+            <span class="type-tag experiment">实验班</span>
+          </div>
+          <div class="info-row"><span class="label">班主任</span> 赵敏</div>
+          <div class="info-row"><span class="label">学生数</span> 40人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法 / 信息</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 四(4)班')">
+          <div class="class-name">
+            四（4）班
+            <span class="type-tag normal">普通班</span>
+          </div>
+          <div class="info-row"><span class="label">班主任</span> 陈晓东</div>
+          <div class="info-row"><span class="label">学生数</span> 48人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 四(5)班')">
+          <div class="class-name">
+            四（5）班
+            <span class="type-tag normal">普通班</span>
+          </div>
+          <div class="info-row"><span class="label">班主任</span> 刘芳</div>
+          <div class="info-row"><span class="label">学生数</span> 47人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 四(6)班')">
+          <div class="class-name">
+            四（6）班
+            <span class="type-tag normal">普通班</span>
+          </div>
+          <div class="info-row"><span class="label">班主任</span> 周伟</div>
+          <div class="info-row"><span class="label">学生数</span> 46人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card add-card" onclick="toggleAddClassModal()">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>创建新班级</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 五年级 -->
+    <div class="grade-section">
+      <div class="grade-header">
+        <h3>五年级</h3>
+        <span class="grade-info">6个班级 · 264名学生</span>
+      </div>
+      <div class="class-cards">
+        <div class="class-card" onclick="alert('进入班级详情: 五(1)班')">
+          <div class="class-name">五（1）班<span class="type-tag normal">普通班</span></div>
+          <div class="info-row"><span class="label">班主任</span> 黄志强</div>
+          <div class="info-row"><span class="label">学生数</span> 44人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 五(2)班')">
+          <div class="class-name">五（2）班<span class="type-tag normal">普通班</span></div>
+          <div class="info-row"><span class="label">班主任</span> 杨丽</div>
+          <div class="info-row"><span class="label">学生数</span> 43人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card" onclick="alert('进入班级详情: 五(3)班')">
+          <div class="class-name">五（3）班<span class="type-tag normal">普通班</span></div>
+          <div class="info-row"><span class="label">班主任</span> 吴强</div>
+          <div class="info-row"><span class="label">学生数</span> 45人</div>
+          <div class="info-row"><span class="label">科目</span> 语文 / 数学 / 英语 / 科学 / 道法</div>
+          <div class="actions">
+            <button class="btn btn-sm btn-default">编辑</button>
+            <button class="btn btn-sm btn-default">调班</button>
+            <button class="btn btn-sm btn-text danger">删除</button>
+          </div>
+        </div>
+        <div class="class-card add-card" onclick="toggleAddClassModal()">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>创建新班级</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 空态（默认隐藏） ═══ -->
+    <div class="empty-state" style="display:none" id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg>
+      <div class="empty-text">暂无班级数据</div>
+      <button class="btn btn-primary" onclick="toggleAddClassModal()">+ 创建第一个班级</button>
+    </div>
+
+    <!-- ═══ 骨架屏（加载中） ═══ -->
+    <div class="skeleton-loading" style="display:none" id="skeleton">
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
+
+    <!-- ═══ 错误态（默认隐藏） ═══ -->
+    <div class="error-state" style="display:none" id="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <div class="error-text">数据加载失败</div>
+      <div class="error-detail">网络连接异常，请检查网络后重试</div>
+      <button class="btn btn-primary" onclick="document.getElementById('error-state').style.display='none'">重新加载</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ 创建班级弹窗 ═══ -->
+<div class="modal-overlay" id="add-class-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>创建班级</h3>
+      <span class="close" onclick="toggleAddClassModal()">×</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="required">年级</label>
+        <select>
+          <option>一年级</option>
+          <option>二年级</option>
+          <option>三年级</option>
+          <option selected>四年级</option>
+          <option>五年级</option>
+          <option>六年级</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="required">班级名称</label>
+        <input type="text" placeholder="如：四（7）班">
+      </div>
+      <div class="form-group">
+        <label class="required">班级类型</label>
+        <select>
+          <option>普通班</option>
+          <option>实验班</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>班主任</label>
+        <select>
+          <option>-- 暂不指定 --</option>
+          <option>张丽华</option>
+          <option>王建国</option>
+          <option>赵敏</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>开设科目</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:4px;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox" checked> 语文</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox" checked> 数学</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox" checked> 英语</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox" checked> 科学</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox" checked> 道法</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox"> 信息</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox"> 音乐</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox"> 美术</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400"><input type="checkbox"> 体育</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="toggleAddClassModal()">取消</button>
+      <button class="btn btn-primary" onclick="alert('班级创建成功！');toggleAddClassModal()">创建</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span>© 2026 知微网版权所有 | 渝ICP备2026009247号</span>
+  <span><a href="#">关于知微</a><a href="#">服务协议</a><a href="#">客服</a><a href="#">上传日志</a></span>
+</footer>
+
+<script>
+function toggleAddClassModal() {
+  var m = document.getElementById('add-class-modal');
+  m.classList.toggle('show');
+}
+function toggleTransfer(e) {
+  e.stopPropagation();
+  var popup = e.target.closest('.class-card').querySelector('.student-count-popup');
+  if (popup) popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+}
+</script>
+
+</body>
+</html>

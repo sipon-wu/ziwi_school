@@ -1,0 +1,114 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - img [ref=e51]
+          - text: 选择模板后进入教案工作台，AI将按模板结构生成教案。校本模板由教研组长维护。
+        - generic [ref=e53]:
+          - heading "教案模板库" [level=2] [ref=e54]
+          - combobox [ref=e55]:
+            - option "全部类型" [selected]
+            - option "平台模板"
+            - option "校本模板"
+        - generic [ref=e56]:
+          - generic [ref=e57] [cursor=pointer]:
+            - generic [ref=e58]: 📄
+            - generic [ref=e59]: 空白模板
+            - generic [ref=e60]: 自由发挥，从零开始创建教案。无预设结构。
+            - generic [ref=e61]: 适用：全部学科 · 平台模板
+            - generic [ref=e62]:
+              - button "选用" [ref=e63]
+              - button "预览" [ref=e64]
+          - generic [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: 📋
+            - generic [ref=e67]: 标准教案模板
+            - generic [ref=e68]: 经典五段式：目标→重难点→准备→过程→反思
+            - generic [ref=e69]: 适用：全部学科 · 平台模板
+            - generic [ref=e70]:
+              - button "选用" [ref=e71]
+              - button "预览" [ref=e72]
+          - generic [ref=e73] [cursor=pointer]:
+            - generic [ref=e74]: 🔍
+            - generic [ref=e75]: 探究式教学模板
+            - generic [ref=e76]: 问题驱动，学生自主探究知识。含分组活动设计。
+            - generic [ref=e77]: 适用：科学/数学 · 平台模板
+            - generic [ref=e78]:
+              - button "选用" [ref=e79]
+              - button "预览" [ref=e80]
+          - generic [ref=e81] [cursor=pointer]:
+            - generic [ref=e82]: 🎯
+            - generic [ref=e83]: 项目式学习模板
+            - generic [ref=e84]: 以项目为驱动，跨课时综合性学习设计。
+            - generic [ref=e85]: 适用：语文/综合 · 平台模板
+            - generic [ref=e86]:
+              - button "选用" [ref=e87]
+              - button "预览" [ref=e88]
+          - generic [ref=e89] [cursor=pointer]:
+            - generic [ref=e90]: 🔄
+            - generic [ref=e91]: 翻转课堂模板
+            - generic [ref=e92]: 课前自学+课上深度讨论，以学生为中心。
+            - generic [ref=e93]: 适用：英语/数学 · 平台模板
+            - generic [ref=e94]:
+              - button "选用" [ref=e95]
+              - button "预览" [ref=e96]
+          - generic [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: 📝
+            - generic [ref=e99]: 复习课模板
+            - generic [ref=e100]: 系统梳理知识点，查漏补缺，强化巩固。
+            - generic [ref=e101]: 适用：全部学科 · 平台模板
+            - generic [ref=e102]:
+              - button "选用" [ref=e103]
+              - button "预览" [ref=e104]
+          - generic [ref=e105] [cursor=pointer]:
+            - generic [ref=e106]: ✏️
+            - generic [ref=e107]: 习题课模板
+            - generic [ref=e108]: 以题带点，精讲多练，举一反三。
+            - generic [ref=e109]: 适用：数学/物理 · 平台模板
+            - generic [ref=e110]:
+              - button "选用" [ref=e111]
+              - button "预览" [ref=e112]
+          - generic [ref=e113] [cursor=pointer]:
+            - generic [ref=e114]: 🏫
+            - generic [ref=e115]:
+              - text: 金牛一小语文特色模板
+              - generic [ref=e116]: 校本
+            - generic [ref=e117]: 导入激趣→初读感知→品读赏析→拓展延伸→读写结合
+            - generic [ref=e118]: 适用：语文 · 校本模板
+            - generic [ref=e119]:
+              - button "选用" [ref=e120]
+              - button "预览" [ref=e121]
+  - button "小微" [ref=e122] [cursor=pointer]:
+    - img "小微" [ref=e123]

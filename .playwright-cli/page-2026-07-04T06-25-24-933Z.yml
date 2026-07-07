@@ -1,0 +1,58 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e9]: 知微教学(AI)
+      - navigation [ref=e10]:
+        - generic [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - generic [ref=e14]: 系统监控
+        - generic [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - generic [ref=e18]: 日志管理
+        - generic [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e22]: 性能管理
+        - generic [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e26]: 安全管理
+        - generic [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e30]: 告警配置
+      - generic [ref=e31]: 知微平台 · 运维管理
+      - generic "收起侧边栏" [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+    - main [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e38]: 平台运维 · 知微教学
+        - generic [ref=e39]:
+          - img [ref=e40] [cursor=pointer]
+          - generic [ref=e43]:
+            - img [ref=e44]
+            - generic [ref=e47]: 运维工程师
+      - generic [ref=e49]:
+        - img [ref=e50]
+        - generic [ref=e52]: 监控数据加载中...
+  - generic [ref=e54]:
+    - generic [ref=e55]:
+      - generic [ref=e56]:
+        - img [ref=e57]
+        - heading "AI使用提示" [level=3] [ref=e59]
+      - button [ref=e60] [cursor=pointer]:
+        - img [ref=e61]
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - paragraph [ref=e66]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e67]:
+          - listitem [ref=e68]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e69]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e70]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e71]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e72]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e73] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e74]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e75]:
+      - button "取消" [ref=e76] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e77]

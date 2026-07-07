@@ -1,0 +1,82 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e9]: 知微教学(AI)
+    - navigation [ref=e10]:
+      - button "互审池" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: 互审池
+      - button "教研数据看板" [ref=e15] [cursor=pointer]:
+        - img [ref=e16]
+        - text: 教研数据看板
+      - button "模板与方法论" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: 模板与方法论
+      - button "教研活动" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: 教研活动
+      - button "个人中心" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: 个人中心
+    - generic [ref=e36]: 金牛区第一小学 · 教研组长
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - img [ref=e39] [cursor=pointer]
+      - generic [ref=e41]: 教研管理 · 语文组 · 金牛区第一小学
+      - button [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+      - generic [ref=e46]:
+        - img [ref=e48]
+        - text: 教研组长 赵敏
+    - main [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - img [ref=e54]
+          - text: 互审池展示本组所有教师的教案互审进度。可批量分配审核或指定审核人。
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e58]: "0"
+            - generic [ref=e59]: 待审核
+          - generic [ref=e60]:
+            - generic [ref=e61]: "0"
+            - generic [ref=e62]: 审核中
+          - generic [ref=e63]:
+            - generic [ref=e64]: "0"
+            - generic [ref=e65]: 本月通过
+          - generic [ref=e66]:
+            - generic [ref=e67]: "0"
+            - generic [ref=e68]: 退回修改
+        - generic [ref=e69]:
+          - heading "互审池" [level=2] [ref=e70]
+          - generic [ref=e71]:
+            - button "批量分配" [ref=e72] [cursor=pointer]
+            - button "+ 分配审核" [ref=e73] [cursor=pointer]
+        - generic [ref=e74]:
+          - textbox "搜索教案标题..." [ref=e75]
+          - combobox [ref=e76]:
+            - option "全部状态" [selected]
+            - option "待审核"
+            - option "审核中"
+            - option "已通过"
+            - option "退回修改"
+          - combobox [ref=e77]:
+            - option "全部教师" [selected]
+            - option "全部教师"
+          - combobox [ref=e78]:
+            - option "全部年级" [selected]
+            - option "一年级"
+            - option "二年级"
+            - option "三年级"
+            - option "四年级"
+            - option "五年级"
+            - option "六年级"
+    - contentinfo [ref=e98]:
+      - generic [ref=e99]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+      - generic [ref=e100]:
+        - link "关于知微" [ref=e101] [cursor=pointer]:
+          - /url: "#"
+        - link "服务协议" [ref=e102] [cursor=pointer]:
+          - /url: "#"
+        - link "客服" [ref=e103] [cursor=pointer]:
+          - /url: "#"

@@ -1,0 +1,137 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e9]: 演示环境
+        - generic [ref=e10]: "| 数据每日 02:00 自动重置"
+      - generic [ref=e11]:
+        - 'button "当前: 教师" [ref=e13] [cursor=pointer]':
+          - text: "当前: 教师"
+          - img [ref=e14]
+        - button "引导" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - text: 引导
+        - button "重置" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+          - text: 重置
+    - banner [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]: 家
+        - generic [ref=e27]: 知微家校通李小明家长 · 四年级2班
+      - generic [ref=e28]:
+        - button "1" [ref=e29] [cursor=pointer]:
+          - img [ref=e30]
+          - generic [ref=e33]: "1"
+        - generic [ref=e34]:
+          - generic [ref=e35]: 李
+          - generic [ref=e36]: 李爸爸
+    - main [ref=e37]:
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - generic [ref=e41]: 李
+            - generic [ref=e42]:
+              - paragraph [ref=e43]: 李明 的作业
+              - paragraph [ref=e44]: 三年级2班
+          - generic [ref=e45]:
+            - generic [ref=e46]:
+              - generic [ref=e47]: "2"
+              - generic [ref=e48]: 待签字
+            - generic [ref=e49]:
+              - generic [ref=e50]: "2"
+              - generic [ref=e51]: 已签字
+            - button "全部提醒" [ref=e52] [cursor=pointer]:
+              - img [ref=e53]
+              - text: 全部提醒
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - img [ref=e60]
+              - generic [ref=e63]:
+                - generic [ref=e64]:
+                  - generic [ref=e65]: 数学
+                  - generic [ref=e66]: 李老师·李明
+                - heading "分数加减法练习" [level=3] [ref=e67]
+                - generic [ref=e68]:
+                  - generic [ref=e69]: 85分
+                  - generic [ref=e70]:
+                    - img [ref=e71]
+                    - text: 2026-06-17 20:30
+              - img [ref=e74]
+            - button "打印试卷" [ref=e77] [cursor=pointer]:
+              - img [ref=e78]
+              - text: 打印试卷
+          - generic [ref=e82]:
+            - generic [ref=e83]:
+              - img [ref=e85]
+              - generic [ref=e89]:
+                - generic [ref=e90]:
+                  - generic [ref=e91]: 语文
+                  - generic [ref=e92]: 张老师·李明
+                - heading "《观潮》课后练习" [level=3] [ref=e93]
+                - generic [ref=e94]:
+                  - generic [ref=e95]: 70分
+                  - generic [ref=e96]:
+                    - img [ref=e97]
+                    - text: 逾期未签
+              - button "去签字" [ref=e100] [cursor=pointer]
+            - button "打印试卷" [ref=e102] [cursor=pointer]:
+              - img [ref=e103]
+              - text: 打印试卷
+          - generic [ref=e107]:
+            - generic [ref=e108]:
+              - img [ref=e110]
+              - generic [ref=e113]:
+                - generic [ref=e114]:
+                  - generic [ref=e115]: 英语
+                  - generic [ref=e116]: 王老师·李明
+                - heading "Unit 3 词汇听读" [level=3] [ref=e117]
+                - generic [ref=e118]:
+                  - generic [ref=e119]: 待评分
+                  - generic [ref=e120]:
+                    - img [ref=e121]
+                    - text: 待签字
+              - button "去签字" [ref=e124] [cursor=pointer]
+            - button "播放听读" [ref=e126] [cursor=pointer]:
+              - img [ref=e127]
+              - text: 播放听读
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - img [ref=e134]
+              - generic [ref=e137]:
+                - generic [ref=e138]:
+                  - generic [ref=e139]: 数学
+                  - generic [ref=e140]: 李老师·李明
+                - heading "小数运算练习" [level=3] [ref=e141]
+                - generic [ref=e142]:
+                  - generic [ref=e143]: 92分
+                  - generic [ref=e144]:
+                    - img [ref=e145]
+                    - text: 2026-06-14 19:15
+              - img [ref=e148]
+            - button "打印试卷" [ref=e151] [cursor=pointer]:
+              - img [ref=e152]
+              - text: 打印试卷
+  - generic [ref=e157]:
+    - generic [ref=e158]:
+      - generic [ref=e159]:
+        - img [ref=e160]
+        - heading "AI使用提示" [level=3] [ref=e162]
+      - button [ref=e163] [cursor=pointer]:
+        - img [ref=e164]
+    - generic [ref=e167]:
+      - generic [ref=e168]:
+        - paragraph [ref=e169]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e170]:
+          - listitem [ref=e171]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e172]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e173]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e174]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e175]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e176] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e177]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e178]:
+      - button "取消" [ref=e179] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e180]

@@ -1,0 +1,94 @@
+# 知微教学平台 · 开发环境
+version: "3.8"
+
+services:
+  # PostgreSQL 16 + pgvector
+  postgres:
+    image: postgres:16
+    container_name: zhiwei-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-zhiwei}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zhiwei123}
+      POSTGRES_DB: ${DB_NAME:-zhiwei_school}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-zhiwei} -d ${DB_NAME:-zhiwei_school}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 7
+  redis:
+    image: redis:7-alpine
+    container_name: zhiwei-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Go 后端 API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zhiwei-backend
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgresql://${DB_USER:-zhiwei}:${DB_PASSWORD:-zhiwei123}@postgres:5432/${DB_NAME:-zhiwei_school}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-zhiwei-dev-secret-change-in-production}
+      AI_BASE_URL: http://ai-service:8000
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Python AI 服务
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: zhiwei-ai
+    restart: unless-stopped
+    environment:
+      AI_PORT: "8000"
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DATABASE_URL: postgresql://${DB_USER:-zhiwei}:${DB_PASSWORD:-zhiwei123}@postgres:5432/${DB_NAME:-zhiwei_school}?sslmode=disable
+      REDIS_URL: redis://redis:6379/1
+    ports:
+      - "${AI_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: zhiwei-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - ai-service
+
+volumes:
+  postgres_data:
+  redis_data:

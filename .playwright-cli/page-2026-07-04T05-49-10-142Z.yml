@@ -1,0 +1,97 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e49]:
+        - heading "成长关爱" [level=1] [ref=e50]
+        - generic [ref=e51]:
+          - textbox "搜索学生姓名..." [ref=e52]
+          - combobox [ref=e53]:
+            - option "全部类型" [selected]
+            - option "学习关注"
+            - option "行为关注"
+            - option "心理关注"
+          - button "+ 新建关爱记录" [ref=e54] [cursor=pointer]
+        - table [ref=e56]:
+          - rowgroup [ref=e57]:
+            - row "学生 关注类型 问题描述 跟进措施 记录时间 状态 操作" [ref=e58]:
+              - columnheader "学生" [ref=e59]
+              - columnheader "关注类型" [ref=e60]
+              - columnheader "问题描述" [ref=e61]
+              - columnheader "跟进措施" [ref=e62]
+              - columnheader "记录时间" [ref=e63]
+              - columnheader "状态" [ref=e64]
+              - columnheader "操作" [ref=e65]
+          - rowgroup [ref=e66]:
+            - row "周杰 学习关注 近期作业完成质量下降 已约谈家长，制定学习计划 2026-06-26 跟进中 查看 编辑" [ref=e67]:
+              - cell "周杰" [ref=e68]
+              - cell "学习关注" [ref=e69]:
+                - generic [ref=e70]: 学习关注
+              - cell "近期作业完成质量下降" [ref=e71]
+              - cell "已约谈家长，制定学习计划" [ref=e72]
+              - cell "2026-06-26" [ref=e73]
+              - cell "跟进中" [ref=e74]:
+                - generic [ref=e75]: 跟进中
+              - cell "查看 编辑" [ref=e76]:
+                - generic [ref=e77]:
+                  - button "查看" [ref=e78] [cursor=pointer]
+                  - button "编辑" [ref=e79] [cursor=pointer]
+            - row "孙丽 心理关注 课堂参与度降低 安排心理老师沟通 2026-06-24 已解决 查看 编辑" [ref=e80]:
+              - cell "孙丽" [ref=e81]
+              - cell "心理关注" [ref=e82]:
+                - generic [ref=e83]: 心理关注
+              - cell "课堂参与度降低" [ref=e84]
+              - cell "安排心理老师沟通" [ref=e85]
+              - cell "2026-06-24" [ref=e86]
+              - cell "已解决" [ref=e87]:
+                - generic [ref=e88]: 已解决
+              - cell "查看 编辑" [ref=e89]:
+                - generic [ref=e90]:
+                  - button "查看" [ref=e91] [cursor=pointer]
+                  - button "编辑" [ref=e92] [cursor=pointer]
+            - row "赵强 学习关注 数学成绩下滑明显 安排课后辅导 2026-06-22 跟进中 查看 编辑" [ref=e93]:
+              - cell "赵强" [ref=e94]
+              - cell "学习关注" [ref=e95]:
+                - generic [ref=e96]: 学习关注
+              - cell "数学成绩下滑明显" [ref=e97]
+              - cell "安排课后辅导" [ref=e98]
+              - cell "2026-06-22" [ref=e99]
+              - cell "跟进中" [ref=e100]:
+                - generic [ref=e101]: 跟进中
+              - cell "查看 编辑" [ref=e102]:
+                - generic [ref=e103]:
+                  - button "查看" [ref=e104] [cursor=pointer]
+                  - button "编辑" [ref=e105] [cursor=pointer]
+  - button "小微" [ref=e106] [cursor=pointer]:
+    - img "小微" [ref=e107]

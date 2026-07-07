@@ -1,0 +1,53 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "知微" [ref=e6]
+      - generic [ref=e7]: 知微教学
+    - navigation [ref=e8]:
+      - link "工作台" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - generic [ref=e15]: 工作台
+      - link "系统管理" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard/admin
+        - img [ref=e18]
+        - generic [ref=e20]: 系统管理
+      - link "个人设置" [ref=e21] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - img [ref=e22]
+        - generic [ref=e25]: 个人设置
+    - generic [ref=e26]:
+      - button [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e32]: 张
+        - generic [ref=e33]:
+          - generic [ref=e34]: 张老师
+          - generic [ref=e35]: 4年级下 · 语文
+          - generic [ref=e36]: 成都市金牛区第一小学
+  - generic [ref=e37]:
+    - banner [ref=e38]:
+      - generic [ref=e40] [cursor=pointer]: 语文 · 4年级
+      - generic [ref=e42]:
+        - generic [ref=e43]: Token 5%
+        - button [ref=e44] [cursor=pointer]
+        - button "张真真" [ref=e46] [cursor=pointer]
+    - main [ref=e48]:
+      - generic [ref=e50]:
+        - button "四年级·语文 部编版（统编版） · 四1、四2（2个班）" [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]: 四年级·语文
+          - generic [ref=e53]: 部编版（统编版） · 四1、四2（2个班）
+        - button "四年级·语文 苏教版 · 四3（1个班）" [ref=e54] [cursor=pointer]:
+          - generic [ref=e55]: 四年级·语文
+          - generic [ref=e56]: 苏教版 · 四3（1个班）
+        - button "三年级·数学 人教版 · 三2（1个班）" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: 三年级·数学
+          - generic [ref=e59]: 人教版 · 三2（1个班）
+        - button "六年级·语文 部编版（统编版） · 六1（1个班）" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: 六年级·语文
+          - generic [ref=e62]: 部编版（统编版） · 六1（1个班）
+        - button "五年级·英语 PEP（三年级起） · 五1（1个班）" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: 五年级·英语
+          - generic [ref=e65]: PEP（三年级起） · 五1（1个班）
+  - button "小微" [ref=e66] [cursor=pointer]:
+    - img "小微" [ref=e67]

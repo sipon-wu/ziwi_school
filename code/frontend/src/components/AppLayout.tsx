@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import HeaderRight from './HeaderRight'
 import LogoText from './LogoText'
+import XiaoWeiChat from './XiaoWeiChat'
 
 /* ──────── Sidebar ──────── */
 type SidebarGroup = { id: string; label: string; icon: ReactNode; to?: string; children?: SidebarChild[] }
@@ -146,7 +147,7 @@ export default function AppLayout({ children }: Props) {
       </aside>
 
       {/* ── Main ── */}
-      <div style={{ marginLeft: sidebarW, flex: 1, minWidth: 0 }}>
+      <div className="flex flex-col overflow-hidden" style={{ marginLeft: sidebarW, width: sidebarW ? `calc(100% - ${sidebarW}px)` : undefined, height: '100%' }}>
         {/* Header */}
         <header className="h-12 bg-white border-b border-[#E7E7EB] flex items-center pr-5 justify-between sticky top-0 z-40" style={{ paddingLeft: 0 }}>
           <div className="flex items-center gap-2">
@@ -169,9 +170,12 @@ export default function AppLayout({ children }: Props) {
         </header>
 
         {/* Content */}
-        <main className="p-4">
+        <main className="p-4 flex-1 min-h-0 overflow-hidden">
           {children}
         </main>
+
+        {/* 小微助手插件 — 个人中心页不显示 */}
+        {!path.startsWith('/settings') && <XiaoWeiChat />}
       </div>
     </div>
   )

@@ -1,19 +1,19 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import ErrorBoundary from './components/ErrorBoundary'
-import { ToastProvider } from './components/Toast'
-import { TeachingProvider } from './lib/TeachingContext'
 import './index.css'
+import { TeachingProvider } from './lib/TeachingContext'
+import { KnowledgeGraphProvider } from './lib/KnowledgeGraphContext'
+import { ToastProvider } from './components/Toast'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <ToastProvider>
-        <TeachingProvider>
+    <ToastProvider>
+      <TeachingProvider>
+        <KnowledgeGraphProvider>
           <App />
-        </TeachingProvider>
-      </ToastProvider>
-    </ErrorBoundary>
-  </React.StrictMode>,
+        </KnowledgeGraphProvider>
+      </TeachingProvider>
+    </ToastProvider>
+  </React.StrictMode>
 )

@@ -1,0 +1,194 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e9]: 知微教学(AI)
+      - navigation [ref=e10]:
+        - button "系统 Dashboard" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - text: 系统 Dashboard
+        - button "用户管理与权限" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+          - text: 用户管理与权限
+        - button "校园通讯录" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - text: 校园通讯录
+        - button "教材版本库" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+          - text: 教材版本库
+        - button "数据管理" [ref=e31] [cursor=pointer]:
+          - img [ref=e32]
+          - text: 数据管理
+        - button "系统配置" [ref=e37] [cursor=pointer]:
+          - img [ref=e38]
+          - text: 系统配置
+        - button "操作日志" [ref=e40] [cursor=pointer]:
+          - img [ref=e41]
+          - text: 操作日志
+      - generic [ref=e44]: 金牛区第一小学 · IT管理
+    - generic [ref=e45]:
+      - banner [ref=e46]:
+        - img [ref=e47] [cursor=pointer]
+        - generic [ref=e49]: 系统管理 · 金牛区第一小学
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - generic [ref=e54]:
+          - img [ref=e56]
+          - text: IT管理员 陈工
+      - main [ref=e59]:
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - img [ref=e62]
+            - text: 教材版本选择池管理本校可选教材版本。教师申请新增的自编版本需经平台运营审核后纳入选择池。
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - generic [ref=e66]: 已发布版本
+              - generic [ref=e67]: "3"
+            - generic [ref=e68]:
+              - generic [ref=e69]: 待审核
+              - generic [ref=e70]: "2"
+            - generic [ref=e71]:
+              - generic [ref=e72]: 本校自编
+              - generic [ref=e73]: "2"
+            - generic [ref=e74]:
+              - generic [ref=e75]: 已下架
+              - generic [ref=e76]: "1"
+          - generic [ref=e77]:
+            - heading "教材版本选择池" [level=2] [ref=e78]
+            - generic [ref=e79]:
+              - button "搜索版本" [ref=e80] [cursor=pointer]:
+                - img [ref=e81]
+                - text: 搜索版本
+              - button "新增版本" [ref=e84] [cursor=pointer]:
+                - img [ref=e85]
+                - text: 新增版本
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - img [ref=e88]
+              - textbox "搜索版本名称..." [ref=e91]
+            - combobox [ref=e92]:
+              - option "全部学科" [selected]
+              - option "语文"
+              - option "数学"
+              - option "英语"
+              - option "科学"
+            - combobox [ref=e93]:
+              - option "全部状态" [selected]
+              - option "已发布"
+              - option "待审核"
+              - option "已下架"
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - img [ref=e97]
+              - generic [ref=e99]:
+                - generic [ref=e100]: 部编版语文（四年级下册）
+                - generic [ref=e101]:
+                  - generic [ref=e102]: 学科：语文
+                  - generic [ref=e103]: 适用年级：四年级
+                  - generic [ref=e104]: 发布者：平台运营
+                  - generic [ref=e105]: 使用班级：6个班
+              - generic [ref=e107]: 已发布
+              - generic [ref=e108]:
+                - button "查看" [ref=e109] [cursor=pointer]
+                - button "下架" [ref=e110] [cursor=pointer]
+            - generic [ref=e111]:
+              - img [ref=e113]
+              - generic [ref=e115]:
+                - generic [ref=e116]: 人教版数学（四年级下册）
+                - generic [ref=e117]:
+                  - generic [ref=e118]: 学科：数学
+                  - generic [ref=e119]: 适用年级：四年级
+                  - generic [ref=e120]: 发布者：平台运营
+                  - generic [ref=e121]: 使用班级：6个班
+              - generic [ref=e123]: 已发布
+              - generic [ref=e124]:
+                - button "查看" [ref=e125] [cursor=pointer]
+                - button "下架" [ref=e126] [cursor=pointer]
+            - generic [ref=e127]:
+              - img [ref=e129]
+              - generic [ref=e131]:
+                - generic [ref=e132]: PEP英语（四年级下册）
+                - generic [ref=e133]:
+                  - generic [ref=e134]: 学科：英语
+                  - generic [ref=e135]: 适用年级：四年级
+                  - generic [ref=e136]: 发布者：平台运营
+                  - generic [ref=e137]: 使用班级：6个班
+              - generic [ref=e139]: 已发布
+              - generic [ref=e140]:
+                - button "查看" [ref=e141] [cursor=pointer]
+                - button "下架" [ref=e142] [cursor=pointer]
+            - generic [ref=e143]:
+              - img [ref=e145]
+              - generic [ref=e147]:
+                - generic [ref=e148]: 金牛一小校本语文补充教材（四下）
+                - generic [ref=e149]:
+                  - generic [ref=e150]: 学科：语文
+                  - generic [ref=e151]: 适用年级：四年级
+                  - generic [ref=e152]: 发布者：自编
+                  - generic [ref=e153]: 提交者：张丽华
+                  - generic [ref=e154]: 提交时间：2026-06-28
+              - generic [ref=e156]: ⏳ 待平台审核
+              - generic [ref=e157]:
+                - button "查看" [ref=e158] [cursor=pointer]
+                - button "撤回" [ref=e159] [cursor=pointer]
+            - generic [ref=e160]:
+              - img [ref=e162]
+              - generic [ref=e164]:
+                - generic [ref=e165]: 金牛一小趣味数学思维训练（四下）
+                - generic [ref=e166]:
+                  - generic [ref=e167]: 学科：数学
+                  - generic [ref=e168]: 适用年级：四年级
+                  - generic [ref=e169]: 发布者：自编
+                  - generic [ref=e170]: 提交者：李强
+                  - generic [ref=e171]: 提交时间：2026-06-25
+              - generic [ref=e173]: ⏳ 待平台审核
+              - generic [ref=e174]:
+                - button "查看" [ref=e175] [cursor=pointer]
+                - button "撤回" [ref=e176] [cursor=pointer]
+            - generic [ref=e177]:
+              - img [ref=e179]
+              - generic [ref=e181]:
+                - generic [ref=e182]: 旧版部编版语文（三年级下册）
+                - generic [ref=e183]:
+                  - generic [ref=e184]: 学科：语文
+                  - generic [ref=e185]: 适用年级：三年级
+                  - generic [ref=e186]: 发布者：平台运营
+              - generic [ref=e188]: 已下架
+              - generic [ref=e189]:
+                - button "查看" [ref=e190] [cursor=pointer]
+                - button "重新上架" [ref=e191] [cursor=pointer]
+          - generic [ref=e192]:
+            - strong [ref=e193]: 与教材审核联动说明：
+            - text: 教师提交的自编教材版本申请，先由系统自动审核（AI提取目录和知识点），通过后立即可供本校教师使用。同步推送至平台运营进行人工终审。
+      - contentinfo [ref=e194]:
+        - generic [ref=e195]: © 2026 知微网版权所有 | 渝ICP备2026009247号
+        - generic [ref=e196]:
+          - link "关于知微" [ref=e197] [cursor=pointer]:
+            - /url: "#"
+          - link "服务协议" [ref=e198] [cursor=pointer]:
+            - /url: "#"
+          - link "客服" [ref=e199] [cursor=pointer]:
+            - /url: "#"
+  - generic [ref=e201]:
+    - generic [ref=e202]:
+      - generic [ref=e203]:
+        - img [ref=e204]
+        - heading "AI使用提示" [level=3] [ref=e206]
+      - button [ref=e207] [cursor=pointer]:
+        - img [ref=e208]
+    - generic [ref=e211]:
+      - generic [ref=e212]:
+        - paragraph [ref=e213]: 您即将使用AI辅助教学功能。请注意以下事项：
+        - list [ref=e214]:
+          - listitem [ref=e215]: AI生成内容仅供参考，最终决策应由教师根据实际教学情况做出
+          - listitem [ref=e216]: AI可能存在偏见或错误，请在使用前进行审查和调整
+          - listitem [ref=e217]: 学生个人信息不会被用于AI训练
+          - listitem [ref=e218]: 请遵守学校和教育部门的相关规定使用AI工具
+          - listitem [ref=e219]: AI生成内容的知识产权归属请参考平台服务协议
+      - generic [ref=e220] [cursor=pointer]:
+        - checkbox "我已阅读并理解以上提示，同意继续使用AI功能" [ref=e221]
+        - text: 我已阅读并理解以上提示，同意继续使用AI功能
+    - generic [ref=e222]:
+      - button "取消" [ref=e223] [cursor=pointer]
+      - button "同意并继续" [disabled] [ref=e224]
