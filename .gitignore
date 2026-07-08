@@ -4,7 +4,7 @@ Thumbs.db
 code/.DS_Store
 
 # Go build
-backend/server
+**/backend/server
 *.exe
 
 # IDE
@@ -47,3 +47,7 @@ logs/
 
 # CodeBuddy
 .codebuddy/plans/
+
+# Local backups (large tarballs, never commit)
+code_backup_*.tar
+*.tar.gz.bak
