@@ -93,28 +93,27 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
   // 获取上下文
   const getContext = () => {
     try {
-      const raw = localStorage.getItem('zhiwei_user')
+      const raw = localStorage.getItem('zhiwei_user') || localStorage.getItem('user')
       const user = raw ? JSON.parse(raw) : {}
       const role = localStorage.getItem('demo_role') || 'teacher'
+      const teacherName = user.name || '老师'
+      const roleLabel = role === 'principal' ? '校长' : role === 'director' ? '教务主任' : role === 'it_admin' ? 'IT管理员' : '教师'
       return {
-        teacher_name: user.name || '老师', subject: user.subject || '语文', grade: user.grade || '四年级',
+        teacher_name: teacherName, subject: user.subject || '语文', grade: user.grade || '四年级',
         school_name: user.school_name || '成都市金牛区第一小学',
         textbook_version: user.textbook_version || '部编版',
         knowledge_boundary: '当前聚焦四年级语文，知识边界：字词积累、阅读理解、写作表达、古诗文背诵',
         teacher_style: user.ai_style || '目标清晰可测，四环节结构，评语先鼓励后建议',
         role,
-你是${role === 'principal' ? '校长' : role === 'director' ? '教务主任' : role === 'it_admin' ? 'IT管理员' : '教师'}，有权限查看全校数据。
-当前平台数据：
+        // BUG-004：按登录用户真实姓名称呼，去掉写死的"张老师/李老师"，避免小微错认对象
+        system_prompt: `你是${roleLabel}助教，正在与${teacherName}（任教学科：${user.subject || '语文'}）沟通。请始终用"${teacherName}"或直接用"您"来称呼用户，不要臆测或错称用户的姓名。
+当前平台示例数据（供学情问答参考，不涉及具体老师的隐私归属）：
 - 全校8个班级298名学生，全校均分82分
-- 四年级1班85分(张老师)、2班82分(李老师)
-- 三年级1班78分(王老师)、2班80分(赵老师)
-- 五年级1班88分(陈老师)、2班83分(刘老师)
-- 六年级1班76分(周老师)、2班81分(吴老师)
+- 四年级1班85分、2班82分；三年级1班78分、2班80分；五年级1班88分、2班83分；六年级1班76分、2班81分
 - 作业完成率：四1班92%、四2班88%、三1班85%、三2班90%、五1班95%、五2班87%、六1班82%、六2班89%
-- 本月教案：张老师12份、李老师10份、王老师9份、赵老师8份、陈老师7份、刘老师8份、周老师7份、吴老师10份
+- 本月教案总量约70份（由多位老师共同完成）
 - Token总量100万/月，当前已用约85万
-如果用户用口语问数据，请从以上数据中提取并自然回答。如果问的数据不在以上列表中，如实说明暂无该数据。
-` : '',
+如果用户用口语问数据，请从以上数据中提取并自然回答。如果问的数据不在以上列表中，如实说明暂无该数据。`,
       }
     } catch { /* ignore */ }
     return { teacher_name: '老师', subject: '语文', grade: '四年级', role: 'teacher', platform_data: '' }
