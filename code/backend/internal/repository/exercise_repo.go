@@ -3,6 +3,7 @@ package repository
 import (
 	"time"
 
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -16,17 +17,17 @@ type Question struct {
 	Content      string    `gorm:"column:content;type:text" json:"content"`
 	Type         string    `gorm:"column:type;type:varchar(20)" json:"type"`
 	Difficulty   string    `gorm:"column:difficulty;type:varchar(10)" json:"difficulty"`
-	Options      string    `gorm:"column:options;type:jsonb" json:"options"`
+	Options      datatypes.JSON `gorm:"column:options;type:jsonb" json:"options"`
 	Answer       string    `gorm:"column:answer;type:text" json:"answer"`
 	AnswerDetail string    `gorm:"column:answer_detail;type:text" json:"answer_detail"`
 	Source       string    `gorm:"column:source;type:varchar(50)" json:"source"`
 	IsPublic     bool      `gorm:"column:is_public" json:"is_public"`
 	AuditStatus  string    `gorm:"column:audit_status;type:varchar(20)" json:"audit_status"`
-	KnowledgePoints string `gorm:"column:knowledge_points;type:jsonb" json:"knowledge_points"`
+	KnowledgePoints datatypes.JSON `gorm:"column:knowledge_points;type:jsonb" json:"knowledge_points"`
 	UsageCount   int       `gorm:"column:usage_count;default:0" json:"usage_count"`
 	AvgRating    float64   `gorm:"column:avg_rating;default:0" json:"avg_rating"`
 	CorrectRate  float64   `gorm:"column:correct_rate" json:"correct_rate"`
-	AutoTags     string    `gorm:"column:auto_tags;type:jsonb" json:"auto_tags"`
+	AutoTags     datatypes.JSON `gorm:"column:auto_tags;type:jsonb" json:"auto_tags"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	// 兼容旧字段（写入时使用）

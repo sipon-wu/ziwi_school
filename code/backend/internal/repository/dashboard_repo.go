@@ -71,7 +71,7 @@ func (r *DashboardRepository) GetTeacherStats(teacherID string) (*TeacherStats, 
 func (r *DashboardRepository) GetRecentLessonPlans(teacherID string, limit int) ([]RecentLessonPlan, error) {
 	var plans []RecentLessonPlan
 	err := r.db.Table("lesson_plans").
-		Select("id, COALESCE(title, lesson_title, '') as title, subject, grade, status, updated_at").
+		Select("id, COALESCE(title, '') as title, subject, grade, status, updated_at").
 		Where("teacher_id = ?", teacherID).
 		Order("updated_at DESC").
 		Limit(limit).

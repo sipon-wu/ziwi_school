@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/datatypes"
 
 	"github.com/zhiwei/backend/internal/repository"
 )
@@ -57,6 +58,21 @@ func (h *ExerciseHandler) ListQuestions(c *gin.Context) {
 	})
 }
 
+// GetQuestion 获取题目详情
+// GET /api/questions/:id
+func (h *ExerciseHandler) GetQuestion(c *gin.Context) {
+	teacherID, _ := c.Get("user_id")
+	teacherIDStr, _ := teacherID.(string)
+	id := c.Param("id")
+
+	q, err := h.repo.FindByID(id, teacherIDStr)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "题目不存在或已删除"})
+		return
+	}
+	c.JSON(http.StatusOK, q)
+}
+
 // CreateQuestion 创建题目
 // POST /api/questions
 func (h *ExerciseHandler) CreateQuestion(c *gin.Context) {
@@ -92,6 +108,17 @@ func (h *ExerciseHandler) CreateQuestion(c *gin.Context) {
 		AuditStatus:  "approved",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
+	}
+
+	// jsonb 字段空值归一到合法 JSON，避免空字符串触发 Postgres jsonb 报错（BUG-002）
+	if q.Options == nil {
+		q.Options = datatypes.JSON("[]")
+	}
+	if q.KnowledgePoints == nil {
+		q.KnowledgePoints = datatypes.JSON("[]")
+	}
+	if q.AutoTags == nil {
+		q.AutoTags = datatypes.JSON("[]")
 	}
 
 	if err := h.repo.Create(q); err != nil {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +37,7 @@ func (h *AnalyticsHandler) GetTeacherDashboard(c *gin.Context) {
 
 	recent, err := h.dashboardRepo.GetRecentLessonPlans(teacherIDStr, 5)
 	if err != nil {
+		log.Printf("[analytics] GetRecentLessonPlans failed for %s: %v", teacherIDStr, err)
 		recent = []repository.RecentLessonPlan{} // 空数组而非 null
 	}
 
