@@ -46,7 +46,7 @@ function AccountTab() {
   const [userRegion, setUserRegion] = useState('中国 四川 成都')
   const [userId] = useState(user.id || 'js_3025510d5cb2')
   const [reviewEnabled, setReviewEnabled] = useState(localStorage.getItem('review_enabled') !== 'false')
-  const [avatarErr, setAvatarErr = useState(false)
+  const [avatarErr, setAvatarErr] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState('/avatar.jpg?v=3')
   const [avatarMsg, setAvatarMsg] = useState('')
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Eye, Copy, Save, Check } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
@@ -14,15 +14,12 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   L1: '基础', L2: '中等', L3: '进阶', L4: '挑战',
 }
 
-const MOCK_DATA: Record<string, any> = {
-  'q1': { id: 'q1', content: '下列哪个数是分数？A. 3 B. ½ C. 0.5 D. 5', answer: 'B', subject: '数学', grade: '三年级', type: 'choice', difficulty: 'L1', status: 'published', usage_count: 12, knowledge_points: ['分数的初步认识'], updated_at: '2026-07-04 14:30' },
-  'q2': { id: 'q2', content: '一个蛋糕平均分成8份，每份是（  ）/8。', answer: '1', subject: '数学', grade: '三年级', type: 'fill', difficulty: 'L2', status: 'published', usage_count: 8, knowledge_points: ['分数加减法'], updated_at: '2026-07-03 10:15' },
-  'q3': { id: 'q3', content: '计算：3/4 + 1/6 = ?', answer: '11/12', subject: '数学', grade: '四年级', type: 'calculation', difficulty: 'L3', status: 'draft', usage_count: 0, knowledge_points: ['分数四则运算'], updated_at: '2026-07-02 16:00' },
-  'q4': { id: 'q4', content: '阅读《观潮》选段，回答：作者是按什么顺序描写钱塘江大潮的？', answer: '时间顺序（潮来前→潮来时→潮来后）', subject: '语文', grade: '四年级', type: 'reading', difficulty: 'L2', status: 'published', usage_count: 15, knowledge_points: ['叙述顺序分析'], updated_at: '2026-07-01 09:20' },
-  'q5': { id: 'q5', content: '2/5 读作：A. 二分之五 B. 五分之二 C. 五分二 D. 二五', answer: 'B', subject: '数学', grade: '三年级', type: 'choice', difficulty: 'L1', status: 'draft', usage_count: 0, knowledge_points: ['分数的意义'], updated_at: '2026-06-30 11:45' },
-  'q6': { id: 'q6', content: '下列词语中，没有错别字的一项是：A. 蜿蜒 B. 蜿蜒 C. 蜿蜒 D. 蜿蜒', answer: 'A', subject: '语文', grade: '四年级', type: 'choice', difficulty: 'L1', status: 'published', usage_count: 6, knowledge_points: ['字形辨析'], updated_at: '2026-06-28 08:00' },
-  'q7': { id: 'q7', content: '一个长方形的长是8cm，宽是5cm，面积是多少平方厘米？', answer: '40平方厘米', subject: '数学', grade: '三年级', type: 'calculation', difficulty: 'L1', status: 'draft', usage_count: 0, knowledge_points: ['长方形面积'], updated_at: '2026-06-25 13:30' },
-  'q8': { id: 'q8', content: 'There ___ some milk in the glass. A. is B. are C. has D. have', answer: 'A', subject: '英语', grade: '五年级', type: 'choice', difficulty: 'L2', status: 'published', usage_count: 10, knowledge_points: ['There be句型'], updated_at: '2026-06-22 15:00' },
+function toArr(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[]
+  if (typeof v === 'string') {
+    try { const p = JSON.parse(v); if (Array.isArray(p)) return p as string[] } catch { /* ignore */ }
+  }
+  return []
 }
 
 export default function ExerciseEditor() {
@@ -31,19 +28,55 @@ export default function ExerciseEditor() {
   const [searchParams] = useSearchParams()
   const isPreview = searchParams.get('preview') === '1'
 
-  const question = useMemo(() => (id ? MOCK_DATA[id] : null), [id])
+  // 从真实 API 按 id 拉取题目（MOCK_DATA 仅 q1–q8，与列表真实 UUID 不匹配，会误报"题目不存在"）
+  const [question, setQuestion] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!id) { setLoading(false); return }
+    setLoading(true)
+    api(`/exercises/${id}`)
+      .then((q: any) => setQuestion(q ? { ...q, knowledge_points: toArr(q.knowledge_points) } : null))
+      .catch(() => setQuestion(null))
+      .finally(() => setLoading(false))
+  }, [id])
 
   // 编辑模式下的状态
-  const [editContent, setEditContent] = useState(question?.content || '')
-  const [editAnswer, setEditAnswer] = useState(question?.answer || '')
-  const [editType, setEditType] = useState(question?.type || 'choice')
-  const [editDifficulty, setEditDifficulty] = useState(question?.difficulty || 'L1')
-  const [editAnalysis, setEditAnalysis] = useState(question?.analysis || question?.answer_detail || '')
-  const [editScore, setEditScore] = useState(question?.score || 10)
-  const [editKnowledge, setEditKnowledge] = useState(question?.knowledge_points || '')
-  const [editDifferentiation, setEditDifferentiation] = useState(question?.differentiation || '0.3')
+  const [editContent, setEditContent] = useState('')
+  const [editAnswer, setEditAnswer] = useState('')
+  const [editType, setEditType] = useState('choice')
+  const [editDifficulty, setEditDifficulty] = useState('L1')
+  const [editAnalysis, setEditAnalysis] = useState('')
+  const [editScore, setEditScore] = useState(10)
+  const [editKnowledge, setEditKnowledge] = useState('')
+  const [editDifferentiation, setEditDifferentiation] = useState('0.3')
   const [saving, setSaving] = useState(false)
   const [showTemplate, setShowTemplate] = useState(false)
+
+  // 题目加载完成后同步进编辑态
+  useEffect(() => {
+    if (!question) return
+    setEditContent(question.content || '')
+    setEditAnswer(question.answer || '')
+    setEditType(question.type || 'choice')
+    setEditDifficulty(question.difficulty || 'L1')
+    setEditAnalysis(question.analysis || question.answer_detail || '')
+    setEditScore(question.score || 10)
+    setEditKnowledge(Array.isArray(question.knowledge_points) ? question.knowledge_points.join('，') : '')
+    setEditDifferentiation(question.differentiation || '0.3')
+  }, [question])
+
+  const [saveMsg, setSaveMsg] = useState('')
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-[13px] text-[#9A9A9A]">加载中…</p>
+        </div>
+      </AppLayout>
+    )
+  }
 
   if (!question) {
     return (
@@ -57,8 +90,6 @@ export default function ExerciseEditor() {
 
   // 草稿 → 直接编辑；已发布 + preview → 预览模式
   const isEditMode = question.status === 'draft' || (!isPreview && question.status === 'published')
-
-  const [saveMsg, setSaveMsg] = useState('')
 
   const handleSave = async () => {
     setSaving(true)

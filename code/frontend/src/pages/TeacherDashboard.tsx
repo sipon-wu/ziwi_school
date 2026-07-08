@@ -11,7 +11,7 @@ interface DashboardData { stats: { lesson_plan_count: number; pending_grading: n
 
 /* ──────── Quick Create ──────── */
 const QUICK_CREATE = [
-  { label: '教案', icon: <FileText size={24} />, to: '/lesson-plans/new' },
+  { label: '教案', icon: <FileText size={24} />, to: '/lesson-plans/new', newTab: true },
   { label: '习题', icon: <PenTool size={24} />, to: '/exercises/new' },
   { label: '试卷', icon: <Files size={24} />, to: '/exams/new' },
   { label: '作业', icon: <Send size={24} />, to: '/assignments/new' },
@@ -143,7 +143,7 @@ export default function TeacherDashboard() {
                 <td className="py-3 px-3 text-[#9A9A9A]">{formatDate(d.updated_at)}</td>
                 <td className="py-3 px-3">
                   <div className="flex items-center gap-2">
-                    <a href={`/lesson-plans/${d.id}`} className="text-[#9A9A9A] hover:text-[#02A7F0]"><Eye size={14} /></a>
+                    <a href={`/lesson-plans/${d.id}`} target="_blank" rel="noopener noreferrer" className="text-[#9A9A9A] hover:text-[#02A7F0]"><Eye size={14} /></a>
                     <button className="text-[#9A9A9A] hover:text-[#02A7F0]"><Copy size={14} /></button>
                     <button className="text-[#9A9A9A] hover:text-[#FF4D4F]"><Trash2 size={14} /></button>
                   </div>

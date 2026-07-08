@@ -95,11 +95,11 @@ export default function ExamEditor() {
                     <div><span className="text-[#9A9A9A]">课标对齐: </span><span className="font-medium text-green-600">92%</span></div>
                   </div>
                 </div>
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
+                  {saving ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />} 保存
+                </button>
               </>
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
-                {saving ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />} 保存
-              </button>
             )}
           </div>
         </div>

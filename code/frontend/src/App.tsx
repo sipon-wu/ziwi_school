@@ -25,6 +25,8 @@ const PublishedLessons = lazy(() => import('./pages/PublishedLessons'))
 const ReviewPool = lazy(() => import('./pages/ReviewPool'))
 const ClassSwitchPage = lazy(() => import('./pages/ClassSwitchPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const ITAdminPage = lazy(() => import('./pages/ITAdminPage'))
+const PrincipalPage = lazy(() => import('./pages/PrincipalPage'))
 
 const Loading = () => <div className="flex items-center justify-center h-screen bg-[#F6F7F8]"><div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" /></div>
 

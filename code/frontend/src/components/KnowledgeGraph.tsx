@@ -89,6 +89,7 @@ export default function KnowledgeGraph({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<Graph | null>(null)
+  const renderedRef = useRef(false)
   const [layout, setLayout] = useState<LayoutMode>(layoutMode || 'tree')
   const [dimension, setDimension] = useState<Dimension>(colorDimension || 'knowledge')
   const [difficultyRange, setDifficultyRange] = useState<[number, number]>(diffRange || [1, 4])
@@ -141,10 +142,12 @@ export default function KnowledgeGraph({
 
   useEffect(() => {
     if (!containerRef.current || visibleNodes.length === 0) return
+    renderedRef.current = false
     if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null }
 
     const w = containerRef.current.clientWidth || 800
-    const h = graphHeight
+    // 内嵌模式：画布高度跟随容器，避免硬编码 600 导致底部被裁切（BUG-005）
+    const h = inline ? (containerRef.current?.clientHeight || graphHeight) : graphHeight
     const colorMap = new Map<string, string>()
     visibleNodes.forEach(n => colorMap.set(n.id, getColor(n)))
 
@@ -270,9 +273,10 @@ export default function KnowledgeGraph({
   }, [visibleNodes, layout, dimension, getColor, graphHeight, inline])
 
   // 选中状态更新：只改节点样式，不销毁重建图谱
+  // G6 v5 中 setElementState 会自动触发重绘，无需 v4 的 graph.draw()（该行是 v4 遗留，v5 实例无此 API，调用即抛未捕获异常）
   useEffect(() => {
-    if (!graphRef.current) return
     const graph = graphRef.current
+    if (!graph || !renderedRef.current) return
     try {
       const nodeData = graph.getNodeData?.() || []
       const states: Record<string, string[]> = {}
@@ -280,19 +284,18 @@ export default function KnowledgeGraph({
         states[nd.id] = selectedIds.includes(nd.id) ? ['selected'] : []
       })
       graph.setElementState(states)
-      graph.draw()
     } catch {
-      // graph 可能已被销毁
+      // graph 可能已被销毁或未就绪
     }
   }, [selectedIds, layout])
 
   // inline 模式下：面板宽度变化时 resize G6 实例（不调 fitView，保留用户缩放）
   useEffect(() => {
-    if (!inline || !graphRef.current || !width || !height) return
+    if (!inline || !graphRef.current || !width) return
     try {
-      graphRef.current.setSize(width - 16, height)
+      graphRef.current.setSize(width - 16, containerRef.current?.clientHeight || graphHeight)
     } catch { /* ignore */ }
-  }, [width, height, inline])
+  }, [width, height, inline, graphHeight])
 
   const gradeLabel = grade ? GRADE_NAMES[grade - 1] || '' : ''
   const summary = `${subject || ''} · ${gradeLabel}${semester || ''}学期 · ${textbook || ''}`
@@ -434,7 +437,7 @@ export default function KnowledgeGraph({
   // ── 内嵌模式 ──
   if (inline) {
     return (
-      <div className={`relative bg-gray-50/50 ${isMobile ? 'flex flex-col' : ''}`} style={{ height: isMobile ? 'auto' : (graphHeight || 420) }}>
+      <div className={`relative bg-gray-50/50 ${isMobile ? 'flex flex-col' : 'h-full'}`}>
         {isMobile ? (
           /* 移动端：工具栏 + 滑块上下堆叠，图在下方 */
           <>

@@ -42,6 +42,18 @@ const MOCK_QUESTIONS: QuestionItem[] = [
   { id: 'q8', content: 'There ___ some milk in the glass. A. is B. are C. has D. have', subject: '英语', grade: '五年级', type: 'choice', difficulty: 'L2', status: 'published', usage_count: 10, updated_at: '2026-06-22 15:00', knowledge_points: ['There be句型'] },
 ]
 
+// jsonb 字段在库里可能是"字符串包裹的数组"(双重编码)，或已是数组；统一归一为数组，避免 .map/.some 崩溃白屏（BUG-001）
+function asArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[]
+  if (typeof v === 'string') {
+    try {
+      const p = JSON.parse(v)
+      if (Array.isArray(p)) return p as string[]
+    } catch { /* ignore */ }
+  }
+  return []
+}
+
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
 
 const subjectColors: Record<string, string> = {
@@ -69,7 +81,7 @@ export default function Exercises() {
   }, [questions, teaching.subject, teaching.grade])
 
   const filtered = classFiltered.filter(q => {
-    if (searchTerm && !q.content.includes(searchTerm) && !q.knowledge_points.some(kp => kp.includes(searchTerm))) return false
+    if (searchTerm && !q.content.includes(searchTerm) && !asArray(q.knowledge_points).some(kp => kp.includes(searchTerm))) return false
     if (filterSubject && q.subject !== filterSubject) return false
     if (filterType && q.type !== filterType) return false
     if (filterDifficulty && q.difficulty !== filterDifficulty) return false
@@ -173,7 +185,7 @@ export default function Exercises() {
                         <div className="max-w-md">
                           <span className="text-[13px] text-[#353535] leading-relaxed line-clamp-2">{q.content}</span>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {q.knowledge_points.map((kp, i) => (
+                            {asArray(q.knowledge_points).map((kp, i) => (
                               <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[#F6F7F8] text-[#9A9A9A] rounded-[3px]">{kp}</span>
                             ))}
                           </div>

@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { BookOpen, Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
@@ -39,7 +38,6 @@ const subjectColors: Record<string, string> = {
 const GRADE_MAP: Record<number, string> = { 1:'一年级',2:'二年级',3:'三年级',4:'四年级',5:'五年级',6:'六年级',7:'七年级',8:'八年级',9:'九年级' }
 
 export default function LessonPlanList() {
-  const navigate = useNavigate()
   const teaching = useTeaching()
   const [plans, setPlans] = useState<LessonPlan[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -151,7 +149,7 @@ export default function LessonPlanList() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F0F0]">
                   {paginated.map(plan => (
-                    <tr key={plan.id} onClick={() => navigate(`/lesson-plans/${plan.id}`)} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
+                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <BookOpen size={14} className="text-[#9A9A9A] shrink-0" />
@@ -181,7 +179,7 @@ export default function LessonPlanList() {
                       <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{plan.updated_at}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => { e.stopPropagation(); navigate(`/lesson-plans/${plan.id}`) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
+                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
                             <Edit size={14} />
                           </button>
                           <button onClick={(e) => e.stopPropagation()} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">

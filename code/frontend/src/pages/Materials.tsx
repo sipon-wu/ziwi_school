@@ -92,7 +92,7 @@ export default function Materials() {
     else setSelected(new Set(filtered.map(m => m.id)))
   }
 
-  const const renderHeat = (n: number) => {
+  const renderHeat = (n: number) => {
     const labels = ['冷', '温', '热', '火', '爆']
     const colors = ['text-gray-400', 'text-blue-500', 'text-orange-500', 'text-red-500', 'text-red-600 font-bold']
     return <span className={`text-[9px] ml-1 ${colors[n-1] || colors[0]}`}>🔥{labels[n-1] || labels[0]}</span>
