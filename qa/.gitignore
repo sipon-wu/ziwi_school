@@ -1,0 +1,8 @@
+# 依赖与浏览器二进制（体积大，不入库）
+node_modules/
+pw-browsers/
+
+# 运行产物（截图与报告，按需本地生成）
+shots/
+smoke_report.json
+regress_report.json

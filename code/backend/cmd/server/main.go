@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,8 +37,13 @@ func main() {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// 自动迁移（开发阶段）
-	if err := db.AutoMigrate(&model.School{}, &model.User{}, &model.Class{}, &model.ImportBatch{}); err != nil {
+	// 自动迁移（开发阶段）→ 现作为发布管线的一部分：每次部署后端重启即同步全表结构与运行时代码 model 一致
+	if err := db.AutoMigrate(
+		&model.School{}, &model.User{}, &model.Class{},
+		&model.TeacherClass{}, &model.StudentClass{}, &model.LessonPlan{},
+		&model.Exam{}, &model.Material{}, &model.ImportBatch{},
+		&repository.Question{}, &repository.Assignment{},
+	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
 
@@ -53,6 +60,64 @@ func main() {
 	researchRepo := repository.NewResearchRepository(db)
 	materialRepo := repository.NewMaterialRepository(db)
 	examRepo := repository.NewExamRepository(db)
+
+	// 其余 GORM 托管的业务表随 model 演进自动同步（发布管线的一部分，幂等）
+	for _, m := range []func() error{researchRepo.AutoMigrate, deanRepo.AutoMigrate, opsRepo.AutoMigrate} {
+		if err := m(); err != nil {
+			log.Printf("Warning: AutoMigrate failed: %v", err)
+		}
+	}
+	// 无 GORM model 但运行必需的表（幂等建表，对齐 seed/full）
+	db.Exec(`CREATE TABLE IF NOT EXISTS growth_care_records (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		student_id VARCHAR(30) REFERENCES users(id),
+		teacher_id VARCHAR(30) REFERENCES users(id),
+		school_id VARCHAR(30) REFERENCES schools(id),
+		current_status TEXT,
+		data_basis JSONB,
+		ai_assessment TEXT,
+		teacher_observation TEXT,
+		weekly_plan JSONB,
+		plan_status VARCHAR(20) DEFAULT 'draft',
+		kindness_reviewed BOOLEAN DEFAULT FALSE,
+		parent_notified BOOLEAN DEFAULT FALSE,
+		parent_confirmed BOOLEAN DEFAULT FALSE,
+		teacher_group VARCHAR(50),
+		created_at TIMESTAMPTZ DEFAULT NOW(),
+		updated_at TIMESTAMPTZ DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE TABLE IF NOT EXISTS parent_signatures (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		parent_id VARCHAR(30) REFERENCES users(id),
+		student_id VARCHAR(30) REFERENCES users(id),
+		assignment_id VARCHAR(50) REFERENCES assignments(id),
+		signed_at TIMESTAMPTZ DEFAULT NOW(),
+		reminded_at TIMESTAMPTZ
+	)`)
+	db.Exec(`CREATE TABLE IF NOT EXISTS submissions (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		assignment_id VARCHAR(50) REFERENCES assignments(id),
+		student_id VARCHAR(30) REFERENCES users(id),
+		answers JSONB,
+		submitted_at TIMESTAMPTZ DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE TABLE IF NOT EXISTS grading_results (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		submission_id UUID REFERENCES submissions(id),
+		question_id VARCHAR(50),
+		ai_score DECIMAL(5,2),
+		ai_confidence DECIMAL(4,3),
+		status VARCHAR(20) DEFAULT 'pending',
+		graded_at TIMESTAMPTZ
+	)`)
+	db.Exec(`CREATE TABLE IF NOT EXISTS student_observations (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		student_id VARCHAR(30) REFERENCES users(id),
+		teacher_id VARCHAR(30) REFERENCES users(id),
+		school_id VARCHAR(30) REFERENCES schools(id),
+		description TEXT,
+		observed_at TIMESTAMPTZ DEFAULT NOW()
+	)`)
 
 	// 初始化 handler
 	authHandler := handler.NewAuthHandler(userRepo, cfg.JWTSecret)
@@ -84,6 +149,21 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "version": "1.0.0"})
 	})
 
+	// AI 服务反向代理：/api/ai/* -> ai-service（AIBaseURL）
+	if cfg.AIBaseURL != "" {
+		if aiTarget, aerr := url.Parse(cfg.AIBaseURL); aerr == nil {
+			aiProxy := httputil.NewSingleHostReverseProxy(aiTarget)
+			aiProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadGateway)
+				w.Write([]byte(`{"message":"ai_service_unavailable","error":"` + e.Error() + `"}`))
+			}
+			r.Any("/api/ai/*path", func(c *gin.Context) {
+				aiProxy.ServeHTTP(c.Writer, c.Request)
+			})
+		}
+	}
+
 	// 认证路由（无需 JWT）
 	auth := r.Group("/api/auth")
 	{
@@ -109,6 +189,7 @@ func main() {
 		teacher.DELETE("/lesson-plans/:id", lessonHandler.DeleteLessonPlan)
 		// 出题
 		teacher.GET("/exercises", exerciseHandler.ListQuestions)
+		teacher.GET("/exercises/:id", exerciseHandler.GetQuestion)
 		teacher.POST("/exercises", exerciseHandler.CreateQuestion)
 		teacher.PUT("/exercises/:id", exerciseHandler.UpdateQuestion)
 		// 组卷

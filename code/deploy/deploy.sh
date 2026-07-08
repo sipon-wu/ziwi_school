@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# 知微双环境部署脚本（本地运行，同源代码推到 prod/staging）
+# 用法: ./deploy.sh <prod|staging>
+set -euo pipefail
+
+ENV=${1:?"用法: ./deploy.sh <prod|staging>"}
+
+# ---- 服务器与目标路径 ----
+SERVER=${SERVER:-root@193.112.163.147}
+REMOTE_CODE=${REMOTE_CODE:-/opt/zhiwei/code}
+COMPOSE_DIR=$REMOTE_CODE/deploy
+
+case "$ENV" in
+  prod)
+    COMPOSE=docker-compose.prod.yml
+    DOCROOT=/var/www/school.ziwi.cn
+    ENV_FILE=$COMPOSE_DIR/.env
+    PROJECT=""          # prod 沿用默认项目名 deploy，不动现有容器
+    BUILD_SVC="backend" # prod 只重建后端，避免重启 ai/redis
+    ;;
+  staging)
+    COMPOSE=docker-compose.staging.yml
+    DOCROOT=/var/www/school1.ziwi.cn
+    ENV_FILE=$COMPOSE_DIR/.env.staging
+    PROJECT="-p zhiwei-staging"  # 隔离项目名，避免覆盖 prod 镜像
+    BUILD_SVC=""                 # staging 首次拉起全部服务
+    ;;
+  *) echo "未知环境: $ENV"; exit 1 ;;
+esac
+
+# ── 回滚子命令：恢复最近一次前端快照 ──
+if [ "${2:-}" = "rollback" ]; then
+  SNAP=$(ssh "$SERVER" "ls -t /var/www/.deploy_snapshots/${ENV}/${ENV}_*.tar.gz 2>/dev/null | head -1")
+  if [ -z "$SNAP" ]; then echo "无可用快照，无法回滚"; exit 1; fi
+  echo "==> [${ENV}] 回滚前端到快照: $SNAP"
+  ssh "$SERVER" "rm -rf $DOCROOT && mkdir -p $DOCROOT && tar xzf $SNAP -C $DOCROOT"
+  echo "==> [${ENV}] 回滚完成（后端未变动；如需回退后端请 git revert 后重新 deploy）"
+  exit 0
+fi
+
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+FE_DIR="$HERE/frontend"
+BE_DIR="$HERE/backend"
+
+echo "==> [${ENV}] 1/4 本地构建前端"
+( cd "$FE_DIR" && ./node_modules/.bin/vite build )
+
+echo "==> [${ENV}] 2/4 同步后端源码到服务器"
+# 修复历史坑：后端容器在服务器本地用 /opt/zhiwei/code/backend 现编译，
+# 若不同步源码，docker compose --build 跑的是旧后端（曾导致 P0 迁移改动不生效）。
+# 排除 .env（含密钥）、bin/、编译产物 server，避免覆盖线上配置与上传二进制。
+ssh "$SERVER" "mkdir -p $REMOTE_CODE/backend"
+rsync -az --delete --exclude='.env' --exclude='bin/' --exclude='server' \
+  "$BE_DIR/" "$SERVER:$REMOTE_CODE/backend/"
+
+echo "==> [${ENV}] 3/4 上传前端到 ${DOCROOT}"
+ssh "$SERVER" "mkdir -p $DOCROOT"
+# 发布前快照（保留最近 3 份，供 rollback 使用）
+SNAP_DIR=/var/www/.deploy_snapshots/${ENV}
+TS=$(ssh "$SERVER" "date +%Y%m%d_%H%M%S")
+ssh "$SERVER" "mkdir -p $SNAP_DIR && tar czf $SNAP_DIR/${ENV}_${TS}.tar.gz -C $DOCROOT . 2>/dev/null || true"
+ssh "$SERVER" "ls -t $SNAP_DIR/${ENV}_*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f"
+( cd "$FE_DIR" && tar czf - dist ) | ssh "$SERVER" "rm -rf $DOCROOT && mkdir -p $DOCROOT && tar xzf - -C $DOCROOT --strip-components=1"
+
+echo "==> [${ENV}] 4/4 重建后端容器"
+if [ -z "$BUILD_SVC" ]; then
+  ssh "$SERVER" "cd $COMPOSE_DIR && docker compose $PROJECT -f $COMPOSE --env-file $ENV_FILE up -d --build"
+else
+  ssh "$SERVER" "cd $COMPOSE_DIR && docker compose $PROJECT -f $COMPOSE --env-file $ENV_FILE up -d --build $BUILD_SVC"
+fi
+
+echo "==> [${ENV}] 完成"

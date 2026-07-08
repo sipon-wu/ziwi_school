@@ -1,0 +1,14 @@
+{
+  "name": "zhiwei-qa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "知微 AI 教学助手 — Playwright 冒烟/回归脚本（前端 P0/P1 验证用）",
+  "scripts": {
+    "smoke": "node smoke.cjs",
+    "regress": "node regress.cjs"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.61.1"
+  }
+}
