@@ -21,7 +21,12 @@ export default function LoginPage() {
       })
       setToken(res.token)
       localStorage.setItem('user', JSON.stringify(res.user))
-      nav('/teacher', { replace: true })
+      const role = res.user?.role
+      let target = '/teacher'
+      if (role === 'principal') target = '/principal'
+      else if (role === 'it_admin') target = '/it-admin'
+      else if (role === 'student') target = '/login'
+      nav(target, { replace: true })
     } catch (ex: any) {
       setErr(ex.message || '登录失败')
     } finally {

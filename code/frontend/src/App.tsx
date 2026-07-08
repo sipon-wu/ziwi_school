@@ -57,6 +57,8 @@ export default function App() {
         <Route path="/review-pool" element={<Suspense fallback={<Loading />}><ReviewPool /></Suspense>} />
         <Route path="/classes" element={<Suspense fallback={<Loading />}><ClassSwitchPage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<Loading />}><SettingsPage /></Suspense>} />
+        <Route path="/it-admin" element={<Suspense fallback={<Loading />}><ITAdminPage /></Suspense>} />
+        <Route path="/principal" element={<Suspense fallback={<Loading />}><PrincipalPage /></Suspense>} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>

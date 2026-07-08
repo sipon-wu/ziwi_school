@@ -43,6 +43,9 @@ type User struct {
 	Email          string     `gorm:"type:varchar(200)" json:"email"`
 	AvatarURL      string     `gorm:"type:varchar(500)" json:"avatar_url"`
 	WechatOpenID   string     `gorm:"type:varchar(100)" json:"wechat_openid"`
+	CampusID       *string    `gorm:"type:varchar(50)" json:"campus_id"`
+	StudentNumber  *string    `gorm:"type:varchar(50);index" json:"student_number"`
+	ForceReset     bool       `gorm:"type:boolean;default:false" json:"force_reset"`
 	Status         string     `gorm:"type:varchar(20);default:active" json:"status"`
 	PhoneUpdatedAt *time.Time `json:"phone_updated_at"`
 	LeftAt         *time.Time `json:"left_at"`
@@ -56,6 +59,7 @@ type User struct {
 type Class struct {
 	ID            string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
 	SchoolID      string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	CampusID      *string   `gorm:"type:varchar(50)" json:"campus_id"`
 	Name          string    `gorm:"type:varchar(100);not null" json:"name"`
 	Grade         string    `gorm:"type:varchar(20);not null" json:"grade"`
 	ClassType     string    `gorm:"type:varchar(20);default:normal" json:"class_type"`
@@ -79,6 +83,28 @@ type StudentClass struct {
 	StudentID string    `gorm:"type:varchar(50);not null;index" json:"student_id"`
 	ClassID   string    `gorm:"type:varchar(50);not null;index" json:"class_id"`
 	EnrolledAt time.Time `json:"enrolled_at"`
+}
+
+// ImportBatch 导入批次记录（支持按 batch_id 全回滚）
+type ImportBatch struct {
+	ID           string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID     string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	Type         string    `gorm:"type:varchar(20);not null" json:"type"` // classes/teachers/students/relations
+	CreatedBy    string    `gorm:"type:varchar(50)" json:"created_by"`
+	Status       string    `gorm:"type:varchar(20);default:committed" json:"status"` // committed/rolled_back
+	TotalRows    int       `json:"total_rows"`
+	CreatedRows  int       `json:"created_rows"`
+	SkippedRows  int       `json:"skipped_rows"`
+	Summary      string    `gorm:"type:jsonb" json:"summary"` // ImportBatchSummary 的 JSON
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// ImportBatchSummary 记录本批次新建的实体 ID，供回滚时按逆序删除
+type ImportBatchSummary struct {
+	CreatedUserIDs         []string `json:"created_user_ids"`
+	CreatedClassIDs        []string `json:"created_class_ids"`
+	CreatedStudentClassIDs []string `json:"created_student_class_ids"`
+	CreatedTeacherClassIDs []string `json:"created_teacher_class_ids"`
 }
 
 // ── 教案 ──

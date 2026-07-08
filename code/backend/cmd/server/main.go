@@ -36,7 +36,7 @@ func main() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 自动迁移（开发阶段）
-	if err := db.AutoMigrate(&model.School{}, &model.User{}); err != nil {
+	if err := db.AutoMigrate(&model.School{}, &model.User{}, &model.Class{}, &model.ImportBatch{}); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
 
@@ -48,6 +48,7 @@ func main() {
 	assignmentRepo := repository.NewAssignmentRepository(db)
 	deanRepo := repository.NewDeanRepository(db)
 	itRepo := repository.NewITRepository(db)
+	importRepo := repository.NewImportRepository(db)
 	opsRepo := repository.NewOpsRepository(db)
 	researchRepo := repository.NewResearchRepository(db)
 	materialRepo := repository.NewMaterialRepository(db)
@@ -62,7 +63,8 @@ func main() {
 	materialHandler := handler.NewMaterialHandler(materialRepo)
 	examHandler := handler.NewExamHandler(examRepo)
 	deanHandler := handler.NewDeanHandler(deanRepo)
-	itHandler := handler.NewITHandler(itRepo)
+	itHandler := handler.NewITHandler(itRepo, deanRepo)
+	importHandler := handler.NewImportHandler(importRepo)
 	opsHandler := handler.NewOpsHandler(opsRepo)
 	researchHandler := handler.NewResearchHandler(researchRepo)
 	devopsHandler := handler.NewDevOpsHandler()
@@ -174,6 +176,18 @@ func main() {
 		itAdmin.GET("/admin/users", itHandler.ListUsers)
 		itAdmin.GET("/admin/contacts", itHandler.ListContacts)
 		itAdmin.GET("/admin/textbooks", itHandler.ListTextbookVersions)
+		// 角色分配（G2）
+		itAdmin.PUT("/admin/users/:id/role", itHandler.UpdateUserRole)
+		// 教材版本学校级覆盖（G3）
+		itAdmin.PUT("/admin/textbooks", itHandler.UpsertTextbook)
+		// 学期配置（G7，复用教务仓储）
+		itAdmin.GET("/admin/semesters", itHandler.ListSemesters)
+		itAdmin.POST("/admin/semesters", itHandler.CreateSemester)
+		// 数据初始化批量导入
+		itAdmin.POST("/admin/import/:type", importHandler.Import)
+		itAdmin.GET("/admin/import/history", importHandler.History)
+		// 注意：与上方 :type 同前缀，rollback 必须用静态段避免通配符冲突
+		itAdmin.POST("/admin/import/rollback/:batchId", importHandler.Rollback)
 	}
 
 	// 平台运营端

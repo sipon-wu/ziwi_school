@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -85,4 +86,68 @@ func (r *ITRepository) ListTextbookVersions(schoolID string) ([]TextbookVersionV
 		Order("subject, grade").
 		Find(&versions).Error
 	return versions, err
+}
+
+// ── 角色分配（G2）──
+
+// validSchoolRoles 学校 IT 后台可分配的校内角色（不含平台角色/学生）
+var validSchoolRoles = map[string]bool{
+	"teacher":      true,
+	"head_teacher": true,
+	"research_lead": true,
+	"registrar":    true,
+	"principal":    true,
+	"it_admin":     true,
+}
+
+// UpdateUserRole 单用户改角色（角色分配/一键初始化的原子操作）
+func (r *ITRepository) UpdateUserRole(schoolID, userID, role string) error {
+	if !validSchoolRoles[role] {
+		return fmt.Errorf("invalid role: %s", role)
+	}
+	res := r.db.Table("users").
+		Where("id = ? AND school_id = ?", userID, schoolID).
+		Update("role", role)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// ── 教材版本学校级覆盖（G3）──
+
+// UpsertSchoolTextbook 按 (学校, 学科, 年级) upsert 一条 scope='school' 覆盖行。
+// 年级可能为 NULL（全校统一某学科），用 IS NOT DISTINCT FROM 处理 NULL 匹配。
+func (r *ITRepository) UpsertSchoolTextbook(schoolID, subject, grade, publisher, versionName string) error {
+	var existingID string
+	err := r.db.Table("textbook_versions").
+		Select("id").
+		Where("school_id = ? AND subject = ? AND grade IS NOT DISTINCT FROM ?", schoolID, subject, grade).
+		Limit(1).
+		Scan(&existingID).Error
+	if err != nil {
+		return err
+	}
+	if existingID != "" {
+		return r.db.Table("textbook_versions").
+			Where("id = ?", existingID).
+			Updates(map[string]interface{}{
+				"publisher":    publisher,
+				"version_name": versionName,
+				"scope":        "school",
+				"status":       "active",
+			}).Error
+	}
+	return r.db.Table("textbook_versions").Create(map[string]interface{}{
+		"school_id":    schoolID,
+		"subject":      subject,
+		"grade":        grade,
+		"publisher":    publisher,
+		"version_name": versionName,
+		"scope":        "school",
+		"status":       "active",
+	}).Error
 }

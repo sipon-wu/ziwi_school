@@ -49,15 +49,16 @@ var RoleMatrix = map[string][]string{
 		"material:read", "material:write",
 	},
 	"head_teacher": {
+		// 班主任 = 教师全部能力 + 家长签字统计(parent:read) + 学情(analytics:read)
+		// 班级管理(class:manage)、家长关系维护(parent:write)归任课/教务职能（A5）
 		"lesson:read", "lesson:write", "lesson:review",
 		"question:read", "question:write",
 		"exam:read", "exam:write",
 		"assignment:read", "assignment:write",
 		"grading:read", "grading:write",
 		"analytics:read",
-		"parent:read", "parent:write",
+		"parent:read",
 		"material:read", "material:write",
-		"class:manage",
 	},
 	"research_lead": {
 		"lesson:read", "lesson:review", "review:assign",

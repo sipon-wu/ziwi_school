@@ -340,4 +340,65 @@ export const assignmentAPI = {
 
 export const api = request
 
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, dashboardAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI }
+// ── 数据初始化批量导入接口 ──
+
+async function uploadFile(path: string, file: File): Promise<any> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    body: fd,
+    headers,
+    credentials: 'same-origin',
+  })
+  if (res.status === 401) {
+    clearToken()
+    window.location.href = '/login'
+    throw new Error('登录已过期')
+  }
+  const body = await res.text()
+  let data: any
+  try {
+    data = body ? JSON.parse(body) : {}
+  } catch {
+    throw new Error('服务器响应格式错误')
+  }
+  if (!res.ok) {
+    throw new Error(data.message || data.error || `请求失败 (HTTP ${res.status})`)
+  }
+  return data
+}
+
+export const importAPI = {
+  /** 预校验（dry-run） */
+  preview: (type: string, file: File) => uploadFile(`/admin/import/${type}?dry_run=1`, file),
+  /** 正式执行导入 */
+  commit: (type: string, file: File) => uploadFile(`/admin/import/${type}`, file),
+  /** 导入历史 */
+  history: () => request<any>('/admin/import/history'),
+  /** 按批次回滚 */
+  rollback: (batchId: string) => request<any>(`/admin/import/rollback/${batchId}`, { method: 'POST' }),
+}
+
+// ── IT 管理后台：角色 / 教材版本 / 学期（P1）──
+export const adminAPI = {
+  /** 用户列表（角色管理） */
+  listUsers: () => request<any>('/admin/users'),
+  /** 单用户改角色 */
+  updateUserRole: (id: string, role: string) =>
+    request<any>(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  /** 教材版本列表（平台默认 + 学校覆盖） */
+  listTextbooks: () => request<any>('/admin/textbooks'),
+  /** 批量 upsert 学校级教材版本覆盖 */
+  upsertTextbook: (rows: { subject: string; grade?: string; publisher: string; version_name: string }[]) =>
+    request<any>('/admin/textbooks', { method: 'PUT', body: JSON.stringify({ rows }) }),
+  /** 学期列表 */
+  listSemesters: () => request<any>('/admin/semesters'),
+  /** 创建学期 */
+  createSemester: (data: { name: string; start_date: string; end_date: string }) =>
+    request<any>('/admin/semesters', { method: 'POST', body: JSON.stringify(data) }),
+}
+
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, dashboardAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI }
