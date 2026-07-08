@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { GitPullRequest, Search, Eye, CheckCircle2, XCircle, MessageSquare, Trash2 } from 'lucide-react'
-import { useTeaching } from '@/lib/TeachingContext'
+import { useTeaching } from '../lib/TeachingContext'
 import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import AppLayout from '../components/AppLayout'

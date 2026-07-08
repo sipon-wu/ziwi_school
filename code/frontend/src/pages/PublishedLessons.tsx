@@ -221,9 +221,9 @@ export default function PublishedLessons() {
         {/* 删除确认 */}
         {deleteTarget && (
           <ConfirmDialog
+            open={!!deleteTarget}
             title="确认删除"
             message="删除后教案将移至回收站，30天内可恢复。"
-            confirmText="确认删除"
             onConfirm={() => setDeleteTarget(null)}
             onCancel={() => setDeleteTarget(null)}
           />

@@ -38,7 +38,7 @@ export default function ClassSwitchPage() {
 
   const handleSwitch = () => {
     if (cls && !isCurrent) {
-      teaching.setSubject(cls.subject)
+      teaching.setSubject(cls.subject as '语文' | '数学' | '英语')
       teaching.setGrade(cls.grade)
       setSwitched(true)
       setTimeout(() => setSwitched(false), 2000)

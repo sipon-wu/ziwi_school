@@ -3,7 +3,7 @@ import { BookOpen, Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } 
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { useTeaching } from '@/lib/TeachingContext'
+import { useTeaching } from '../lib/TeachingContext'
 import { api } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
@@ -18,7 +18,7 @@ interface LessonPlan {
   format_template: string
 }
 
-const MOCK_PLANS: LessonPlan[] = [
+const _MOCK_PLANS: LessonPlan[] = [
   { id: '1', lesson_title: '《观潮》第一课时', subject: '语文', grade: '四年级', school_year: '2025-2026', status: 'final', updated_at: '2026-06-17 14:30', format_template: 'core_literacy' },
   { id: '2', lesson_title: '分数的意义和性质', subject: '数学', grade: '三年级', status: 'final', updated_at: '2026-06-17 10:15', format_template: 'core_literacy' },
   { id: '3', lesson_title: 'Unit 3 My School - 阅读课', subject: '英语', grade: '五年级', status: 'draft', updated_at: '2026-06-16 16:00', format_template: '3d_objective' },
@@ -41,7 +41,7 @@ export default function LessonPlanList() {
   const teaching = useTeaching()
   const [plans, setPlans] = useState<LessonPlan[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [_loading, setLoading] = useState(true)
 
   useEffect(() => {
     api<{ items: any[] }>('/lesson-plans').then(res => {

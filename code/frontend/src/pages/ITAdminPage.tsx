@@ -135,7 +135,7 @@ export default function ITAdminPage() {
       const items = r.items || []
       setBooks(items)
       const subs = Array.from(new Set(items.map((t: any) => t.subject)))
-      if (!bookSubject && subs.length) setBookSubject(subs[0])
+      if (!bookSubject && subs.length) setBookSubject(subs[0] as string)
     } catch (e: any) { setBookMsg(e.message || '加载教材版本失败') }
     finally { setBookLoading(false) }
   }

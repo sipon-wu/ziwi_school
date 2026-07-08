@@ -3,6 +3,10 @@
  * 在新窗口渲染清洁 HTML → 自动触发打印 → 用户保存为 PDF
  */
 
+const showToast = (msg: string, _type?: string) => {
+  console.warn('[printPdf]', msg)
+}
+
 interface ExamQuestion {
   id: number
   type: string

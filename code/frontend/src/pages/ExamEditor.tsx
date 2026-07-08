@@ -144,9 +144,9 @@ export default function ExamEditor() {
             <div>
               <label className="block text-[12px] font-medium text-[#353535] mb-2">题型分布</label>
               <div className="grid grid-cols-2 gap-2">
-                {totalTypes.map(([type, count]) => (
+                {(totalTypes as [string, number][]).map(([type, count]) => (
                   <div key={type} className="flex items-center justify-between px-3 py-2 bg-[#F6F7F8] rounded-[4px]">
-                    <span className="text-[12px] text-[#353535]">{TYPE_LABELS[type] || type}</span>
+                    <span className="text-[12px] text-[#353535]">{TYPE_LABELS[type as string] || (type as string)}</span>
                     <span className="text-[12px] font-medium text-[#02A7F0]">{count} 题</span>
                   </div>
                 ))}

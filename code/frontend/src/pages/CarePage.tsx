@@ -47,7 +47,7 @@ export default function CarePage() {
       return INIT_STUDENTS.map(s => {
         if (edits[s.id]) {
           return { ...s, focusArea: edits[s.id].focusArea || s.focusArea,
-            plan: { ...s.plan, focusArea: edits[s.id].focusArea || s.plan.focusArea, teacherNote: edits[s.id].teacherNote || s.plan.teacherNote } }
+            plan: { ...(s as any).plan, focusArea: edits[s.id].focusArea || (s as any).plan.focusArea, teacherNote: edits[s.id].teacherNote || (s as any).plan.teacherNote } }
         }
         return s
       }) as CareStudent[]

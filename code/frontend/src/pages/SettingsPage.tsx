@@ -298,7 +298,7 @@ function SchoolClassTab() {
     setConfirmArchive(null)
   }
 
-  const startEditClass = (schoolId: string, cls: Class) => {
+  const startEditClass = (_schoolId: string, cls: Class) => {
     setEditClassTarget(cls)
     setEditSubjects([...cls.subjects])
   }
@@ -307,9 +307,9 @@ function SchoolClassTab() {
     setEditSubjects(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub])
   }
 
-  const saveEditClass = () => {
+  const _saveEditClass = () => {
     if (!editClassTarget || !editSubjects.length) return
-    const cls = editClassTarget
+    const _cls = editClassTarget
     setConfirmSave(true)
   }
   const doSaveEditClass = () => {

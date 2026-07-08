@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut, Minimize2 } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut } from 'lucide-react'
 import { aiAPI, lessonPlanAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
-import AiPreviewBadge from '../components/AiPreviewBadge'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useToast } from '../components/Toast'
@@ -57,7 +56,7 @@ export default function LessonPlanEditor() {
   const [loadingExisting, setLoadingExisting] = useState(false)
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [showPresentation, setShowPresentation] = useState(false)
-  const [autoSaveTip, setAutoSaveTip] = useState('')
+  const [_autoSaveTip, setAutoSaveTip] = useState('')
   const [customTags, setCustomTags] = useState<string[]>(['自定义标签1'])
   const [newTagInput, setNewTagInput] = useState('')
 
@@ -226,7 +225,7 @@ export default function LessonPlanEditor() {
     } catch (e: any) { toast('导出失败: ' + (e.message || '未知错误'), 'error') }
   }
 
-  const handleExportH5 = () => {
+  const _handleExportH5 = () => {
     if (!content) return
     const blob = exportH5Courseware(content, {
       subject, grade, title: lessonTitle || '未命名教案', teacherName: safeGetUser().name || '教师',
@@ -234,7 +233,7 @@ export default function LessonPlanEditor() {
     h5Download(blob, `${lessonTitle||'课件'}_${subject}${grade}.html`)
   }
 
-  const handlePrintPdf = () => {
+  const _handlePrintPdf = () => {
     if (!content) return
     printLessonPlan(content, {
       subject, grade, title: lessonTitle || '未命名教案',

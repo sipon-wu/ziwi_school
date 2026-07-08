@@ -203,14 +203,14 @@ export default function CareDetail() {
   const [msgText, setMsgText] = useState('')
   const [showKindnessReview, setShowKindnessReview] = useState(false)
 
-  const startEditFocus = () => { if (!s) return; setEditFocusText(s.plan.focusArea); setEditFocus(true) }
-  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, focusArea: editFocusText } }); setEditFocus(false); 
+  const startEditFocus = () => { if (!s) return; setEditFocusText((s as any).plan.focusArea); setEditFocus(true) }
+  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, focusArea: editFocusText } } as any); setEditFocus(false); 
     const blocked = ['最差','最笨','不行','没救','比所有人都']
     const hasBlocked = blocked.some(w => editFocusText.includes(w))
     if (hasBlocked) { toast('⚠️ 请避免绝对化或比较性表述，使用建设性建议', 'warning'); return }
     toast('关注点已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { focusArea: editFocusText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
-  const startEditNote = () => { if (!s) return; setEditNoteText(s.plan.teacherNote || ''); setEditNote(true) }
-  const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...s.plan, teacherNote: editNoteText } }); setEditNote(false); toast('备注已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { teacherNote: editNoteText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
+  const startEditNote = () => { if (!s) return; setEditNoteText((s as any).plan.teacherNote || ''); setEditNote(true) }
+  const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, teacherNote: editNoteText } } as any); setEditNote(false); toast('备注已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { teacherNote: editNoteText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
   const addAssessment = () => {
     if (!s || !newAssess.text.trim()) return
     const today = new Date().toISOString().slice(0, 10)
@@ -235,14 +235,14 @@ export default function CareDetail() {
           <span className="text-[#E7E7EB]">|</span>
           <span className="text-[13px] font-medium text-[#353535]">{s.name}</span>
           <span className="text-[10px] text-[#9A9A9A]">{s.studentNo} · {s.gender} · {gradeName}</span>
-          {s.status === 'removed' ? (
+          {(s as any).status === 'removed' ? (
             <span className="text-[10px] text-[#9A9A9A] bg-[#F0F0F0] px-1.5 py-0.5 rounded">已移出关爱小组</span>
           ) : s.status === 'activated' ? (
             <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">家长已阅</span>
           ) : (
             <span className="text-[10px] text-[#9A9A9A] bg-[#F6F7F8] px-1.5 py-0.5 rounded">家长未读</span>
           )}
-          {s.status !== 'removed' && (
+          {(s as any).status !== 'removed' && (
             <button onClick={() => setShowRemoveConfirm(true)} className="text-[9px] text-red-400 hover:text-red-500 hover:underline ml-2">移出关爱小组</button>
           )}
           <span className="text-[10px] text-[#9A9A9A] ml-auto">入组 {enrolledStr}</span>
@@ -337,7 +337,7 @@ export default function CareDetail() {
             </div>
 
             {/* ── 本周提升方案（§4.1-4.3）── */}
-            {s.status === 'removed' && (
+            {(s as any).status === 'removed' && (
               /* 已移出提示 */
               <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden mb-0">
                 <div className="p-4 bg-[#F9FAFB] flex items-center justify-between">
@@ -354,12 +354,12 @@ export default function CareDetail() {
               <div className="px-4 py-2.5 bg-[#F6F7F8] border-b border-[#E7E7EB] flex items-center gap-1.5">
                 <FileText size={13} className="text-[#353535]" />
                 <span className="text-[12px] font-semibold text-[#353535]">本周提升方案</span>
-                {s.plan && s.status !== 'removed' && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded ml-auto ${s.plan.status === 'executing' ? 'bg-green-50 text-green-600' : 'bg-[#F9FAFB] text-[#9A9A9A]'}`}>
-                    {s.plan.status === 'executing' ? '执行中' : s.plan.status === 'draft' ? '待确认' : '已确认'}
+                {(s as any).plan && (s as any).status !== 'removed' && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded ml-auto ${(s as any).plan.status === 'executing' ? 'bg-green-50 text-green-600' : 'bg-[#F9FAFB] text-[#9A9A9A]'}`}>
+                    {(s as any).plan.status === 'executing' ? '执行中' : (s as any).plan.status === 'draft' ? '待确认' : '已确认'}
                   </span>
                 )}
-                {s.status === 'removed' && s.plan && (
+                {(s as any).status === 'removed' && (s as any).plan && (
                   <span className="text-[9px] text-[#9A9A9A] bg-[#F0F0F0] px-1.5 py-0.5 rounded ml-auto">已停止</span>
                 )}
                 {!s.plan && (

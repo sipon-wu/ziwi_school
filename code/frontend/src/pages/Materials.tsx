@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Search, Plus, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, Tag, TrendingUp, BookOpen } from 'lucide-react'
+import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, TrendingUp, BookOpen } from 'lucide-react'
+import type { JSX } from 'react'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import { api } from '../lib/api'
@@ -24,7 +25,7 @@ interface Material {
 }
 
 /* ── 模拟数据 ── */
-const MOCK_DATA: Material[] = [
+const _MOCK_DATA: Material[] = [
   { id: '1', name: '《观潮》课文插图', type: 'image', group: '四上语文', tags: ['插图', '观潮', '自然景观'], stars: 5, usage: 23, version: 'v1.2', size: '2.3MB', updatedAt: '2026-07-02', shared: true },
   { id: '2', name: '《走月亮》朗读音频', type: 'audio', group: '四上语文', tags: ['朗读', '走月亮', '音频'], stars: 4, usage: 18, version: 'v1.0', size: '5.1MB', updatedAt: '2026-06-28', shared: true },
   { id: '3', name: '四则运算练习题', type: 'doc', group: '四下数学', tags: ['练习', '四则运算', '计算'], stars: 4, usage: 31, version: 'v2.1', size: '156KB', updatedAt: '2026-07-04', shared: false },

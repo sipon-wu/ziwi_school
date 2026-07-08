@@ -158,7 +158,7 @@ export default function KnowledgeGraph({
       const gData = treeToGraphData(treeJson)
 
       graph = new Graph({
-        container: containerRef.current, width: w, height: h, autoFit: { type: 'view', padding: 40 }, data: gData,
+        container: containerRef.current, width: w, height: h, autoFit: { type: 'view' }, data: gData,
         node: {
           type: 'rect',
           state: {

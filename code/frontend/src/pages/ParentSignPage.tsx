@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PenLine, FileText, CheckCircle2, Clock, MessageCircle, Send, TrendingUp } from 'lucide-react'
+import { PenLine, FileText, CheckCircle2, MessageCircle, Send, TrendingUp } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
 import AppLayout from '../components/AppLayout'
 

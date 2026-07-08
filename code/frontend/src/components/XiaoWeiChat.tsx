@@ -8,6 +8,7 @@ import {
 import { aiAPI } from '@/lib/api'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useTeaching } from '@/lib/TeachingContext'
+import { useToast } from '../components/Toast'
 
 interface Message {
   role: 'user' | 'xiaowei'
@@ -61,6 +62,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const teaching = useTeaching()
+  const { toast } = useToast()
 
   const [open, setOpen] = useState(embedded ? true : false)
   const [minimized, setMinimized] = useState(false)
