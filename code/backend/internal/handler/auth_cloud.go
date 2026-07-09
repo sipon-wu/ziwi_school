@@ -116,6 +116,17 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	cloudEmail, _ := claims["email"].(string)
 	log.Printf("[cloud-login] 步骤2 ✓ 验签通过: sub=%s email=%s", cloudSub, cloudEmail)
 
+	// 2.5 产品级鉴权：检查用户是否订阅了 school（指南 §4.1 require_product）
+	if !hasProduct(claims["products"], "school") {
+		log.Printf("[cloud-login] 拒绝: 未订阅 school 产品 products=%v", claims["products"])
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":    "PRODUCT_NOT_SUBSCRIBED",
+			"message": "当前知微云账号未订阅「知微教学」产品，请联系管理员开通订阅。",
+		})
+		return
+	}
+	log.Printf("[cloud-login] 步骤2.5 ✓ 产品鉴权通过")
+
 	// 3. 按邮箱匹配 school 用户
 	user, findErr := h.userRepo.FindByEmail(cloudEmail)
 	if findErr != nil {
@@ -257,4 +268,18 @@ func maskEmail(email string) string {
 		return email[:2] + "***" + email[at:]
 	}
 	return email
+}
+
+// hasProduct 检查 cloud token 的 products[] claims 中是否包含指定产品（指南 §4.1）
+func hasProduct(productsClaim interface{}, target string) bool {
+	products, ok := productsClaim.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, p := range products {
+		if s, ok := p.(string); ok && s == target {
+			return true
+		}
+	}
+	return false
 }
