@@ -82,3 +82,19 @@ type KGEdge struct {
 }
 
 func (KGEdge) TableName() string { return "tb_kg_edge" }
+
+// SchoolTextbookOverride 学校自用教材版本覆盖层
+// 学校基于平台公共库 tb_textbook_version 做本地化调整时落在此表：
+// 仅对本校生效、不影响公共库，多校互不影响。上报平台审核并回灌公共库的能力后续扩展。
+type SchoolTextbookOverride struct {
+	ID          string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID    string    `gorm:"type:varchar(50);not null;uniqueIndex:uk_school_tb_override" json:"school_id"`
+	Subject     string    `gorm:"type:varchar(20);not null;uniqueIndex:uk_school_tb_override" json:"subject"`
+	Grade       string    `gorm:"type:varchar(20);not null;default:'';uniqueIndex:uk_school_tb_override" json:"grade"`
+	Publisher   string    `gorm:"type:varchar(100)" json:"publisher"`
+	VersionName string    `gorm:"type:varchar(200)" json:"version_name"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (SchoolTextbookOverride) TableName() string { return "school_textbook_override" }
