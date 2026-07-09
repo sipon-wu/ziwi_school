@@ -2,8 +2,9 @@ package main
 
 // 知识库初始化种子程序（数据团队 v0.7 产物）
 // 读取 build_knowledge_artifacts.py 产出的 knowledge_seed.json（规范化列名对齐 DB），
-// 内存维护 version_key / node_key -> 自增 id 映射按层级插入，规避 PG 下单条 INSERT
-// 同表子查询看不到未提交行（parent_id 全 NULL）的问题。
+// 内存维护 version_key / node_key -> 自增 id 映射，按层级批量插入：
+//   - 教材版本 / 课标条款 / 映射 / 节点 / 边 全部用 GORM CreateInBatches 批量写入
+//   - parent_id 通过单条 CASE 语句一次性回填，规避 PG 同表子查询与逐行回写的高延迟
 // 可重跑：启动先 TRUNCATE 5 张 tb_* 表（一次性初始化，非用户数据）。
 
 import (
@@ -12,9 +13,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/zhiwei/backend/internal/model"
 )
@@ -30,6 +33,10 @@ func must(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %v", msg, err)
 	}
+}
+
+func loggerSilent() logger.Interface {
+	return logger.Default.LogMode(logger.Silent)
 }
 
 // findSeed 定位 knowledge_seed.json：优先环境变量，其次相对可执行文件 / 工作目录
@@ -59,11 +66,11 @@ func findSeed() string {
 
 // ── JSON 结构（键名对齐 build 脚本产出）──
 type seedJSON struct {
-	TextbookVersions   []tvSeed `json:"textbook_versions"`
-	StandardClauses    []scSeed `json:"standard_clauses"`
+	TextbookVersions    []tvSeed `json:"textbook_versions"`
+	StandardClauses     []scSeed `json:"standard_clauses"`
 	VersionStandardMaps []vsSeed `json:"version_standard_maps"`
-	KGNodes            []knSeed `json:"kg_nodes"`
-	KGEdges            []keSeed `json:"kg_edges"`
+	KGNodes             []knSeed `json:"kg_nodes"`
+	KGEdges             []keSeed `json:"kg_edges"`
 }
 type tvSeed struct {
 	VersionKey    string `json:"version_key"`
@@ -78,18 +85,18 @@ type tvSeed struct {
 	Inferred      bool   `json:"inferred"`
 }
 type scSeed struct {
-	XueDuan       string `json:"xue_duan"`
-	XueKe         string `json:"xue_ke"`
-	TiaoMuLuJing  string `json:"tiao_mu_lu_jing"`
-	YeZiBianHao   string `json:"ye_zi_bian_hao"`
-	ZhengWen      string `json:"zheng_wen"`
+	XueDuan      string `json:"xue_duan"`
+	XueKe        string `json:"xue_ke"`
+	TiaoMuLuJing string `json:"tiao_mu_lu_jing"`
+	YeZiBianHao  string `json:"ye_zi_bian_hao"`
+	ZhengWen     string `json:"zheng_wen"`
 }
 type vsSeed struct {
-	VersionKey    string `json:"version_key"`
-	DanYuan       string `json:"dan_yuan"`
-	KeBiaoTiaoMu  string `json:"ke_biao_tiao_mu"`
-	PiPeiDu       string `json:"pi_pei_du"`
-	ZhiShiDian    string `json:"zhi_shi_dian"`
+	VersionKey   string `json:"version_key"`
+	DanYuan      string `json:"dan_yuan"`
+	KeBiaoTiaoMu string `json:"ke_biao_tiao_mu"`
+	PiPeiDu      string `json:"pi_pei_du"`
+	ZhiShiDian   string `json:"zhi_shi_dian"`
 }
 type knSeed struct {
 	NodeKey     string   `json:"node_key"`
@@ -134,7 +141,7 @@ func main() {
 		dbname := getEnv("DB_NAME", "zhiwei")
 		dsn = "postgresql://" + user + ":" + pass + "@" + host + ":" + port + "/" + dbname + "?sslmode=disable"
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: loggerSilent()})
 	must(err, "connect db")
 
 	// ── 确保表结构 ──
@@ -154,37 +161,43 @@ func main() {
 		}
 	}
 
-	// ── 1. 教材版本 ──
+	// ── 1. 教材版本（批量）──
 	log.Printf("[init] 插入教材版本 %d ...", len(s.TextbookVersions))
-	verKey2ID := make(map[string]int64, len(s.TextbookVersions))
+	tvRecs := make([]model.TextbookVersion, 0, len(s.TextbookVersions))
 	for _, t := range s.TextbookVersions {
-		rec := model.TextbookVersion{
+		tvRecs = append(tvRecs, model.TextbookVersion{
 			VersionKey: t.VersionKey, XueDuan: t.XueDuan, NianJi: t.NianJi, XueKe: t.XueKe,
 			JiaoCaiMing: t.JiaoCaiMing, ChuBanShe: t.ChuBanShe, BanBenBiaoShi: t.BanBenBiaoShi,
 			CeBie: t.CeBie, MuLuURL: t.MuLuURL, Inferred: t.Inferred,
-		}
-		must(db.Create(&rec).Error, "create textbook_version "+t.VersionKey)
-		verKey2ID[t.VersionKey] = rec.ID
+		})
+	}
+	must(db.CreateInBatches(&tvRecs, 200).Error, "batch textbook_version")
+	verKey2ID := make(map[string]int64, len(tvRecs))
+	for _, r := range tvRecs {
+		verKey2ID[r.VersionKey] = r.ID
 	}
 
-	// ── 2. 课标条款 ──
+	// ── 2. 课标条款（批量）──
 	log.Printf("[init] 插入课标条款 %d ...", len(s.StandardClauses))
-	clausePath2ID := make(map[string]int64, len(s.StandardClauses))
+	scRecs := make([]model.StandardClause, 0, len(s.StandardClauses))
 	for _, c := range s.StandardClauses {
-		rec := model.StandardClause{
+		scRecs = append(scRecs, model.StandardClause{
 			XueDuan: c.XueDuan, XueKe: c.XueKe, TiaoMuLuJing: c.TiaoMuLuJing,
 			YeZiBianHao: c.YeZiBianHao, ZhengWen: c.ZhengWen,
-		}
-		must(db.Create(&rec).Error, "create standard_clause")
-		// 按路径索引（映射表用 ke_biao_tiao_mu 即路径匹配）
-		if _, ok := clausePath2ID[c.TiaoMuLuJing]; !ok {
-			clausePath2ID[c.TiaoMuLuJing] = rec.ID
+		})
+	}
+	must(db.CreateInBatches(&scRecs, 200).Error, "batch standard_clause")
+	clausePath2ID := make(map[string]int64, len(scRecs))
+	for _, r := range scRecs {
+		if _, ok := clausePath2ID[r.TiaoMuLuJing]; !ok {
+			clausePath2ID[r.TiaoMuLuJing] = r.ID
 		}
 	}
 
-	// ── 3. 教材-课标映射 ──
+	// ── 3. 教材-课标映射（批量，跳过未知引用）──
 	log.Printf("[init] 插入教材-课标映射 %d ...", len(s.VersionStandardMaps))
-	missClause, missVer := 0, 0
+	vsRecs := make([]model.VersionStandardMap, 0, len(s.VersionStandardMaps))
+	missVer, missClause := 0, 0
 	for _, m := range s.VersionStandardMaps {
 		vid, ok1 := verKey2ID[m.VersionKey]
 		cid, ok2 := clausePath2ID[m.KeBiaoTiaoMu]
@@ -195,58 +208,71 @@ func main() {
 		if !ok2 {
 			missClause++
 		}
-		rec := model.VersionStandardMap{
+		vsRecs = append(vsRecs, model.VersionStandardMap{
 			VersionID: vid, DanYuan: m.DanYuan, StandardClauseID: cid,
 			PiPeiDu: m.PiPeiDu, ZhiShiDian: m.ZhiShiDian,
-		}
-		must(db.Create(&rec).Error, "create version_standard_map")
+		})
 	}
+	must(db.CreateInBatches(&vsRecs, 200).Error, "batch version_standard_map")
 	if missVer > 0 || missClause > 0 {
 		log.Printf("[warn] 映射缺失引用: 未知版本=%d, 未知课标路径=%d", missVer, missClause)
 	}
 
-	// ── 4. 知识图谱节点（先插，parent_id 留空，再回填）──
+	// ── 4. 知识图谱节点（批量）──
 	log.Printf("[init] 插入知识图谱节点 %d ...", len(s.KGNodes))
-	nodeKey2ID := make(map[string]int64, len(s.KGNodes))
+	knRecs := make([]model.KGNode, 0, len(s.KGNodes))
+	skipNode := 0
 	for _, n := range s.KGNodes {
 		vid, ok := verKey2ID[n.VersionKey]
 		if !ok {
-			// 节点引用了未知版本，跳过但记录
-			log.Printf("[warn] 节点 %s 引用未知版本 %s，跳过", n.NodeKey, n.VersionKey)
+			skipNode++
 			continue
 		}
-		rec := model.KGNode{
+		knRecs = append(knRecs, model.KGNode{
 			NodeKey: n.NodeKey, VersionID: vid, DanYuan: n.DanYuan,
 			MingCheng: n.MingCheng, Level: n.Level,
 			QianZhi: qianZhiJSON(n.QianZhi), NanDu: n.NanDu, NengLiWeiDu: n.NengLiWeiDu,
-		}
-		must(db.Create(&rec).Error, "create kg_node "+n.NodeKey)
-		nodeKey2ID[n.NodeKey] = rec.ID
+		})
 	}
-	// 回填 parent_id
-	updParent := 0
+	must(db.CreateInBatches(&knRecs, 300).Error, "batch kg_node")
+	nodeKey2ID := make(map[string]int64, len(knRecs))
+	for _, r := range knRecs {
+		nodeKey2ID[r.NodeKey] = r.ID
+	}
+	if skipNode > 0 {
+		log.Printf("[warn] 跳过未知版本的节点 %d 条", skipNode)
+	}
+
+	// ── 4b. parent_id 单条 CASE 语句一次性回填 ──
+	type pidPair struct{ child, parent int64 }
+	pairs := make([]pidPair, 0, len(s.KGNodes))
 	for _, n := range s.KGNodes {
 		if n.ParentKey == "" {
 			continue
 		}
-		pid, ok := nodeKey2ID[n.ParentKey]
-		if !ok {
+		childID, ok1 := nodeKey2ID[n.NodeKey]
+		parentID, ok2 := nodeKey2ID[n.ParentKey]
+		if !ok1 || !ok2 {
 			continue
 		}
-		childID, ok := nodeKey2ID[n.NodeKey]
-		if !ok {
-			continue
-		}
-		if err := db.Model(&model.KGNode{}).Where("id = ?", childID).Update("parent_id", pid).Error; err != nil {
-			log.Printf("[warn] 回填 parent_id 失败 %s: %v", n.NodeKey, err)
-			continue
-		}
-		updParent++
+		pairs = append(pairs, pidPair{childID, parentID})
 	}
-	log.Printf("[init] 回填 parent_id %d 条", updParent)
+	if len(pairs) > 0 {
+		var b strings.Builder
+		b.WriteString("UPDATE tb_kg_node AS t SET parent_id = c.parent_id FROM (VALUES ")
+		vals := make([]string, 0, len(pairs))
+		for _, p := range pairs {
+			vals = append(vals, fmt.Sprintf("(%d,%d)", p.child, p.parent))
+		}
+		b.WriteString(strings.Join(vals, ","))
+		b.WriteString(") AS c(id, parent_id) WHERE t.id = c.id")
+		must(db.Exec(b.String()).Error, "batch update parent_id")
+	}
+	log.Printf("[init] 回填 parent_id %d 条", len(pairs))
 
-	// ── 5. 知识图谱边 ──
+	// ── 5. 知识图谱边（批量）──
 	log.Printf("[init] 插入知识图谱边 %d ...", len(s.KGEdges))
+	keRecs := make([]model.KGEdge, 0, len(s.KGEdges))
 	missEdge := 0
 	for _, e := range s.KGEdges {
 		fid, ok1 := nodeKey2ID[e.FromKey]
@@ -255,9 +281,9 @@ func main() {
 			missEdge++
 			continue
 		}
-		rec := model.KGEdge{FromID: fid, ToID: tid, RelationType: e.RelationType}
-		must(db.Create(&rec).Error, "create kg_edge")
+		keRecs = append(keRecs, model.KGEdge{FromID: fid, ToID: tid, RelationType: e.RelationType})
 	}
+	must(db.CreateInBatches(&keRecs, 300).Error, "batch kg_edge")
 	if missEdge > 0 {
 		log.Printf("[warn] 边缺失端点引用 %d 条", missEdge)
 	}
