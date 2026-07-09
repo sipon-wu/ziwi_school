@@ -9,6 +9,7 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	JWTSecret   string
+	CloudJWKSURL string // cloud IdP 的 JWKS 公钥端点，供 school 独立验签 RS256 token
 	AIBaseURL   string
 	OSS         OSSConfig
 }
@@ -26,6 +27,7 @@ func Load() (*Config, error) {
 		DatabaseURL: getEnv("DATABASE_URL", buildDatabaseURL()),
 		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecret:   getEnv("JWT_SECRET", "zhiwei-dev-secret-change-in-production"),
+		CloudJWKSURL: getEnv("CLOUD_JWKS_URL", "https://cloud.ziwi.cn/api/v1/auth/public-key"),
 		AIBaseURL:   getEnv("AI_BASE_URL", "http://localhost:8000"),
 		OSS: OSSConfig{
 			Endpoint:  getEnv("OSS_ENDPOINT", ""),

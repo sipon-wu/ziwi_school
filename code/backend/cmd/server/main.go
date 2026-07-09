@@ -17,6 +17,8 @@ import (
 	"github.com/zhiwei/backend/internal/middleware"
 	"github.com/zhiwei/backend/internal/model"
 	"github.com/zhiwei/backend/internal/repository"
+
+	"github.com/zhiwei/backend/internal/cloud"
 )
 
 func main() {
@@ -45,6 +47,7 @@ func main() {
 		&repository.Question{}, &repository.Assignment{},
 		&model.TextbookVersion{}, &model.StandardClause{},
 		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
+		&model.SchoolTextbookOverride{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
@@ -173,6 +176,14 @@ func main() {
 		auth.POST("/refresh", authHandler.RefreshToken)
 	}
 
+	// 统一登录 P0：cloud.ziwi.cn 作为 IdP，school 用 JWKS 公钥独立验签其 RS256 token
+	cloudJWKS := cloud.NewCloudJWKS(cfg.CloudJWKSURL)
+	cloudAuth := r.Group("/api/auth/cloud")
+	cloudAuth.Use(middleware.CloudTokenAuth(cloudJWKS))
+	{
+		cloudAuth.POST("/verify", authHandler.VerifyCloudToken)
+	}
+
 	// 需要 JWT 认证的路由
 	api := r.Group("/api")
 	api.Use(middleware.JWTAuth(cfg.JWTSecret))
@@ -261,7 +272,7 @@ func main() {
 		itAdmin.GET("/admin/textbooks", itHandler.ListTextbookVersions)
 		// 角色分配（G2）
 		itAdmin.PUT("/admin/users/:id/role", itHandler.UpdateUserRole)
-		// 教材版本学校级覆盖（G3）
+		// 教材版本（读公共库 tb_textbook_version，平台统一维护；PUT 为学校级覆盖已下线）
 		itAdmin.PUT("/admin/textbooks", itHandler.UpsertTextbook)
 		// 学期配置（G7，复用教务仓储）
 		itAdmin.GET("/admin/semesters", itHandler.ListSemesters)

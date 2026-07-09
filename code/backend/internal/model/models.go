@@ -22,6 +22,7 @@ type School struct {
 	ID               string    `gorm:"type:varchar(30);primaryKey" json:"id"`
 	FullName         string    `gorm:"type:varchar(200);not null" json:"full_name"`
 	ShortName        string    `gorm:"type:varchar(100)" json:"short_name"`
+	CloudTenantID    *string   `gorm:"type:varchar(50);index" json:"cloud_tenant_id"` // 对应 cloud IdP 的 tenant_id（统一登录 P0）
 	SystemType       string    `gorm:"type:varchar(10);default:六三制" json:"system_type"`
 	Region           string    `gorm:"type:varchar(100)" json:"region"`
 	Status           string    `gorm:"type:varchar(20);default:active" json:"status"`
@@ -41,6 +42,7 @@ type User struct {
 	Role           string     `gorm:"type:varchar(30);not null" json:"role"`
 	Name           string     `gorm:"type:varchar(100);not null" json:"name"`
 	Email          string     `gorm:"type:varchar(200)" json:"email"`
+	CloudUserID    *string    `gorm:"type:varchar(50);index" json:"cloud_user_id"` // 对应 cloud IdP 账号 sub（统一登录 P0，P1 用于绑定）
 	AvatarURL      string     `gorm:"type:varchar(500)" json:"avatar_url"`
 	WechatOpenID   string     `gorm:"type:varchar(100)" json:"wechat_openid"`
 	CampusID       *string    `gorm:"type:varchar(50)" json:"campus_id"`
