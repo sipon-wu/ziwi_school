@@ -43,6 +43,8 @@ func main() {
 		&model.TeacherClass{}, &model.StudentClass{}, &model.LessonPlan{},
 		&model.Exam{}, &model.Material{}, &model.ImportBatch{},
 		&repository.Question{}, &repository.Assignment{},
+		&model.TextbookVersion{}, &model.StandardClause{},
+		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}

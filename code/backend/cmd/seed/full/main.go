@@ -57,6 +57,8 @@ func main() {
 		&model.TeacherClass{}, &model.StudentClass{}, &model.LessonPlan{},
 		&model.Exam{}, &model.Material{}, &model.ImportBatch{},
 		&repository.Question{}, &repository.Assignment{},
+		&model.TextbookVersion{}, &model.StandardClause{},
+		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
 	), "automigrate")
 
 	// 无 GORM model 但 QA 需要的表（按 001 schema 关键列建立）
