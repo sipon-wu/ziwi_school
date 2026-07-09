@@ -176,13 +176,19 @@ func main() {
 		auth.POST("/refresh", authHandler.RefreshToken)
 	}
 
-	// 统一登录 P0：cloud.ziwi.cn 作为 IdP，school 用 JWKS 公钥独立验签其 RS256 token
+	// 统一登录 P0+P1：cloud.ziwi.cn 作为 IdP
 	cloudJWKS := cloud.NewCloudJWKS(cfg.CloudJWKSURL)
+	authHandler.SetCloudJWKS(cloudJWKS)
+
+	// P0：纯验证端点（挂 CloudTokenAuth，接收 Bearer cloud_token）
 	cloudAuth := r.Group("/api/auth/cloud")
 	cloudAuth.Use(middleware.CloudTokenAuth(cloudJWKS))
 	{
 		cloudAuth.POST("/verify", authHandler.VerifyCloudToken)
 	}
+
+	// P1：云登录绑定端点（不挂中间件，接收 email+password，自调 cloud 验证）
+	r.POST("/api/auth/cloud/login", authHandler.CloudLogin)
 
 	// 需要 JWT 认证的路由
 	api := r.Group("/api")

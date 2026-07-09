@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/zhiwei/backend/internal/cloud"
 	"github.com/zhiwei/backend/internal/model"
 	"github.com/zhiwei/backend/internal/repository"
 )
@@ -16,6 +17,12 @@ import (
 type AuthHandler struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string
+	cloudJWKS *cloud.CloudJWKS // P1: 云登录验签
+}
+
+// SetCloudJWKS 注入 cloud JWKS 验签器（P1）
+func (h *AuthHandler) SetCloudJWKS(jwks *cloud.CloudJWKS) {
+	h.cloudJWKS = jwks
 }
 
 // NewAuthHandler 创建认证处理器

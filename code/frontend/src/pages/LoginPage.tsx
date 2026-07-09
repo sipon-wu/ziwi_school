@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, setToken } from '../lib/api'
+import { api, setToken, authAPI } from '../lib/api'
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('')
   const [pwd, setPwd] = useState('')
+  const [loginMode, setLoginMode] = useState<'phone' | 'cloud'>('phone')
+  const [cloudEmail, setCloudEmail] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const nav = useNavigate()
@@ -12,13 +14,22 @@ export default function LoginPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setErr('')
-    if (!/^1[3-9][0-9]{9}$/.test(phone)) { setErr('请输入正确的11位手机号'); return }
     setLoading(true)
     try {
-      const res = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ phone, password: pwd }),
-      })
+      let res: any
+
+      if (loginMode === 'cloud') {
+        if (!cloudEmail.includes('@')) { setErr('请输入正确的邮箱'); setLoading(false); return }
+        if (pwd.length < 6) { setErr('密码至少6位'); setLoading(false); return }
+        res = await authAPI.cloudLogin(cloudEmail, pwd)
+      } else {
+        if (!/^1[3-9][0-9]{9}$/.test(phone)) { setErr('请输入正确的11位手机号'); setLoading(false); return }
+        res = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ phone, password: pwd }),
+        })
+      }
+
       setToken(res.token)
       localStorage.setItem('user', JSON.stringify(res.user))
       const role = res.user?.role
@@ -49,26 +60,50 @@ export default function LoginPage() {
       {/* 右侧登录表单 */}
       <div className="flex-1 flex items-center justify-center bg-white p-8">
         <form onSubmit={submit} className="w-[360px]">
-          <h2 className="text-xl font-semibold text-center text-[#353535] mb-8">欢迎登录</h2>
+          <h2 className="text-xl font-semibold text-center text-[#353535] mb-6">欢迎登录</h2>
+
+          {/* 登录模式切换 */}
+          <div className="flex mb-5 rounded-[3px] overflow-hidden border border-[#E7E7EB]">
+            <button type="button" onClick={() => { setLoginMode('phone'); setErr('') }}
+              className={`flex-1 py-1.5 text-[12px] transition-colors ${loginMode === 'phone' ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#595959] hover:bg-[#f5f5f5]'}`}>
+              手机号登录
+            </button>
+            <button type="button" onClick={() => { setLoginMode('cloud'); setErr('') }}
+              className={`flex-1 py-1.5 text-[12px] transition-colors ${loginMode === 'cloud' ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#595959] hover:bg-[#f5f5f5]'}`}>
+              知微云登录
+            </button>
+          </div>
 
           {err && <div className="mb-4 p-3 bg-[#FFF2F0] border border-[#FFCCC7] rounded text-xs text-[#FF4D4F]">{err}</div>}
 
-          <div className="mb-4">
-            <label className="block text-[13px] text-[#353535] mb-1.5">手机号</label>
-            <input
-              type="tel" value={phone} maxLength={11}
-              onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-              placeholder="请输入手机号" required
-              className="w-full px-3 py-2.5 text-[13px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#02A7F0] transition-colors"
-            />
-          </div>
+          {loginMode === 'phone' ? (
+            <div className="mb-4">
+              <label className="block text-[13px] text-[#353535] mb-1.5">手机号</label>
+              <input
+                type="tel" value={phone} maxLength={11}
+                onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                placeholder="请输入手机号"
+                className="w-full px-3 py-2.5 text-[13px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#02A7F0] transition-colors"
+              />
+            </div>
+          ) : (
+            <div className="mb-4">
+              <label className="block text-[13px] text-[#353535] mb-1.5">知微云邮箱</label>
+              <input
+                type="email" value={cloudEmail}
+                onChange={e => setCloudEmail(e.target.value)}
+                placeholder="请输入知微云账号邮箱"
+                className="w-full px-3 py-2.5 text-[13px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#02A7F0] transition-colors"
+              />
+            </div>
+          )}
 
           <div className="mb-6">
             <label className="block text-[13px] text-[#353535] mb-1.5">密码</label>
             <input
               type="password" value={pwd}
               onChange={e => setPwd(e.target.value)}
-              placeholder="请输入密码" required
+              placeholder="请输入密码"
               className="w-full px-3 py-2.5 text-[13px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#02A7F0] transition-colors"
             />
           </div>
@@ -79,13 +114,15 @@ export default function LoginPage() {
             {loading ? '登录中...' : '登 录'}
           </button>
 
-          <div className="flex items-center justify-between mt-4 text-[11px]">
-            <span className="text-[#02A7F0] cursor-pointer hover:underline">申请开通</span>
-            <span className="text-[#9A9A9A] cursor-pointer hover:text-[#02A7F0]">忘记密码</span>
-          </div>
+          {loginMode === 'phone' && (
+            <div className="flex items-center justify-between mt-4 text-[11px]">
+              <span className="text-[#02A7F0] cursor-pointer hover:underline">申请开通</span>
+              <span className="text-[#9A9A9A] cursor-pointer hover:text-[#02A7F0]">忘记密码</span>
+            </div>
+          )}
 
           <p className="mt-8 text-center text-[11px] text-[#A3A3A3]">
-            演示：13800000002 / teacher123
+            {loginMode === 'phone' ? '演示：13800000002 / teacher123' : '使用知微云邮箱登录，首次将自动绑定已有账号'}
           </p>
         </form>
       </div>

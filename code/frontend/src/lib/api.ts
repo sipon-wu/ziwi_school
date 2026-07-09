@@ -109,6 +109,24 @@ export const authAPI = {
 
   /** 获取当前用户信息 */
   me: () => request<any>('/auth/me'),
+
+  /** 知微云登录（统一登录 P1）：用 cloud 邮箱+密码验证并绑定 school 账号。
+   *  不经过全局 request（避免 401 被当作"登录已过期"跳转）。 */
+  cloudLogin: async (email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/auth/cloud/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+      credentials: 'same-origin',
+    })
+    const body = await res.text()
+    let data: any
+    try { data = body ? JSON.parse(body) : {} } catch { throw new Error('服务器响应格式错误') }
+    if (!res.ok) {
+      throw new Error(data.message || data.error || `云登录失败 (HTTP ${res.status})`)
+    }
+    return data
+  },
 }
 
 // ── 学校接口 ──
@@ -391,7 +409,7 @@ export const adminAPI = {
     request<any>(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   /** 教材版本列表（平台默认 + 学校覆盖） */
   listTextbooks: () => request<any>('/admin/textbooks'),
-  /** 批量 upsert 学校级教材版本覆盖 */
+  /** 批量 upsert 学校自用教材版本覆盖（仅本校生效，不影响公共库） */
   upsertTextbook: (rows: { subject: string; grade?: string; publisher: string; version_name: string }[]) =>
     request<any>('/admin/textbooks', { method: 'PUT', body: JSON.stringify({ rows }) }),
   /** 学期列表 */

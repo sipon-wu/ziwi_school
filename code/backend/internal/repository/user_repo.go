@@ -34,6 +34,16 @@ func (r *UserRepository) FindByID(id string) (*model.User, error) {
 	return &user, nil
 }
 
+// FindByEmail 按邮箱查找活跃用户（P1 统一登录绑定）
+func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("email = ? AND status = ?", email, "active").First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 // GetSchool 获取学校信息
 func (r *UserRepository) GetSchool(schoolID string) (*model.School, error) {
 	var school model.School
