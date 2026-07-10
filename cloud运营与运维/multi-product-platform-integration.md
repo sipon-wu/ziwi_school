@@ -334,7 +334,7 @@ sequenceDiagram
 - 到期提醒：到期前 30 天/7 天站内通知
 - 离线检测：**连续 24 小时无成功心跳 → 标记失联 + 标红 + 告警邮件，并进入降级模式**（限制新建/云端能力，已有内容只读；心跳恢复后自动解除）
 - 注：本段参数已与《补充需求书合集》§6.2 对齐，原「每天 1 次 / 3 天失联」作废
-- ⚠️ **H5（服务端阈值待对齐）**：`heartbeat.ziwi.cn` 当前服务端配置为 `timeout=15min + misses=3 ≈ 45min` 即判失联；若客户端按 1h 上报，服务端会在 45min 误判失联，**与上方 24h 基线严重冲突**。需改服务端配置，建议值：**`check=60`（分钟）/ `timeout=60`（分钟）/ `misses=24`**（即连续 24 次检查失败≈24h 判失联）。属心跳服务端小配置变更，需动手改运行服务（见评审 §H5），**待授权后执行，建议先 staging 验证再上生产**。
+- ✅ **H5（服务端阈值已对齐，2026-07-10 修复）**：原 `heartbeat` 服务配置为 `timeout=15min + misses=3 + check=5min ≈ 30–45min` 即判失联，与 24h 基线冲突。**已修复**：在该服务 `.env` + `docker-compose.yml` 注入 `HEARTBEAT_TIMEOUT_MINUTES=60 / HEARTBEAT_OFFLINE_THRESHOLD_MISSES=24 / HEARTBEAT_CHECK_INTERVAL_MINUTES=60`（纯 env 覆盖，未改源码），重启 `heartbeat-backend` 容器。容器内 env 与启动日志（`check_interval=60 min`）已核验生效：客户端按 1h 上报时不再误判，需连续 24 次检查失败（≈24h）才标记失联，与基线一致。该服务当前 vhost 未建、无真实客户端接入（上线前状态），配置可经 env 随时回退。
 
 ---
 
