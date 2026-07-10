@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+腾讯云免费 SSL 证书 — 全自动监控 / 续期 / 部署脚本（修复版 v2）
+=============================================================================
+
+【给 KIKI 助手的说明】
+本脚本是 ssl_auto_renew.py 的修复版，目标是「全自动续上证书，运维不手工干预」。
+原版三个致命问题已修复：
+  1) 原版 CertificateType=["CA"] 过滤，免费 DV 证书类型是 "SVR"，会导致列表为空、
+     脚本直接打印「无需操作」退出。本版去掉 API 层类型过滤，改为在 Python 里按
+     PackageType=="83" / 名称含 "Free" / "DV Free" 判定免费证书。
+  2) 原版下载的 zip 只丢进 /etc/nginx/ssl 从不覆盖活证书；auto_deploy=True 时又解压到
+     错误的 /etc/nginx/certs/{domain}/，vhost 根本不读。本版引入 domain_cert_map，
+     把每个域名精确部署到其 vhost 实际引用的 crt/key 路径。
+  3) 原版 auto_deploy 没有 nginx -t 校验、且 reload 用 check=False 吞掉失败、全程零告警。
+     本版：部署前必跑 nginx -t，通过才 reload；任一环节失败都通过 webhook 告警。
+
+【仍需 KIKI / 运维确认并填空的 3 点】
+  A) alert_webhook：填企业微信机器人 / Server酱 / 飞书 webhook 地址（失败才通知，平时不打扰）。
+  B) domain_cert_map：下方已按本机实测路径预填 mfg/school/ecms，其余域名建好 vhost 后补上即可。
+  C) 腾讯云下载的 Nginx 格式 zip 内部文件名（通常 fullchain.crt / {domain}.key），
+     脚本已做「按名匹配 + 兜底」容错，首次跑请留意日志确认解出的文件名对得上。
+
+【不在本脚本范围的】
+  ziwi.cn 主站用的是 acme.sh 通配符证书（*.ziwi.cn_ecc），由 acme.sh 自带 cron 续期，
+  本脚本不纳管它，避免和单域证书并存冲突。两台机制分而治之。
+
+crontab（每周一早 9 点）：
+  0 9 * * 1 /usr/bin/python3 /root/ssl_auto_renew.py >> /var/log/ssl-renew.log 2>&1
+=============================================================================
+"""
+
+import os
+import sys
+import json
+import time
+import zipfile
+import logging
+import subprocess
+import urllib.request
+from datetime import datetime
+from typing import Optional
+
+# ======================== 用户可配置区域 ========================
+
+CONFIG = {
+    # ---------- 密钥（建议用环境变量，不要明文写在这里）----------
+    "secret_id": os.environ.get("TENCENT_SECRET_ID", ""),
+    "secret_key": os.environ.get("TENCENT_SECRET_KEY", ""),
+
+    # ---------- 监控策略 ----------
+    "renew_days_before": 25,          # 到期前多少天触发自动续期（免费证书 90 天，建议 20~30）
+    "wait_issue_timeout": 600,        # 申请后等待签发的最大秒数（10 分钟）
+    "poll_interval": 10,              # 轮询签发状态的间隔秒数
+
+    # ---------- 域名白名单（留空 = 监控账号下所有免费证书）----------
+    "monitor_domains": [],
+
+    # ---------- 下载与部署 ----------
+    "download_dir": "/tmp/ssl_renew", # 临时下载目录（不污染 /etc/nginx/ssl）
+    "service_type": "nginx",          # 下载格式：nginx / apache / tomcat / iis / jks / other
+    "auto_deploy": True,              # True = 续期后自动部署到 vhost 引用路径并 reload
+
+    # 每个域名 -> 其 vhost 实际引用的 crt / key 目标路径（按本机实测预填）
+    # 没出现在这里的域名：只续期+下载，不部署（不会误改其他站点）
+    "domain_cert_map": {
+        "mfg.ziwi.cn": {
+            "crt": "/etc/nginx/ssl/mfg.ziwi.cn.crt",
+            "key": "/etc/nginx/ssl/mfg.ziwi.cn.key",
+        },
+        "school.ziwi.cn": {
+            "crt": "/etc/nginx/ssl/school/fullchain.cer",
+            "key": "/etc/nginx/ssl/school/school.ziwi.cn.key",
+        },
+        "ecms.ziwi.cn": {
+            "crt": "/etc/nginx/ssl/ecms.ziwi.cn.fullchain.crt",
+            "key": "/etc/nginx/ssl/ecms.ziwi.cn.key",
+        },
+        # "cloud.ziwi.cn":  {"crt": "...", "key": "..."},   # vhost 建好后补
+        # "heartbeat.ziwi.cn": {"crt": "...", "key": "..."},# vhost 建好后补
+    },
+
+    # ---------- 命令 ----------
+    "nginx_test_cmd": "nginx -t",                 # 部署前必跑的校验闸门
+    "nginx_reload_cmd": "systemctl reload nginx", # 校验通过后才执行
+
+    # ---------- 告警（失败才通知，平时不打扰）----------
+    # 企业微信机器人：https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+    # Server酱：https://sctapi.ftqq.com/<sendkey>.send
+    "alert_webhook": "",            # ← 填空则只写日志不告警
+    "alert_on_success": False,      # True 则每次成功也发一条（默认关，避免刷屏）
+}
+
+# ======================== 以下为脚本主体 ========================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+log = logging.getLogger("ssl-monitor")
+
+
+def send_alert(title: str, msg: str) -> None:
+    """通过 webhook 发送告警；未配置则仅记录日志。"""
+    text = f"【SSL续期】{title}\n{msg}"
+    log.warning(text)
+    url = CONFIG.get("alert_webhook", "")
+    if not url:
+        return
+    try:
+        payload = json.dumps({"msgtype": "text", "text": {"content": text}}).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        log.error(f"告警发送失败（不影响续期）: {e}")
+
+
+def load_dotenv(path: str = ".env") -> None:
+    if os.path.isfile(path):
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+
+def check_config() -> bool:
+    if not CONFIG["secret_id"] or not CONFIG["secret_key"]:
+        send_alert("配置缺失", "缺少 SecretId/SecretKey，请通过环境变量或 .env 配置")
+        return False
+    os.makedirs(CONFIG["download_dir"], exist_ok=True)
+    return True
+
+
+def get_ssl_client():
+    from tencentcloud.common import credential
+    from tencentcloud.ssl.v20191205 import ssl_client
+    cred = credential.Credential(CONFIG["secret_id"], CONFIG["secret_key"])
+    return ssl_client.SslClient(cred, "")
+
+
+def is_free_cert(cert: dict) -> bool:
+    """判定是否为免费 DV 证书（避免原版 CA 类型过滤导致漏判）。"""
+    if cert.get("PackageType") == "83":
+        return True
+    name = cert.get("ProductZhName", "") + cert.get("ProductEnName", "")
+    return "FREE" in name.upper() or "DV FREE" in name.upper()
+
+
+def list_certificates(client) -> list:
+    """列出账号下所有已签发的免费证书。"""
+    from tencentcloud.ssl.v20191205 import models
+    all_certs, offset, limit = [], 0, 100
+    while True:
+        req = models.DescribeCertificatesRequest()
+        req.Offset = offset
+        req.Limit = limit
+        req.CertificateStatus = [1]  # 1 = 已签发
+        # 注意：不按 CertificateType 过滤，否则免费 DV(SVR) 会被漏掉
+        resp = client.DescribeCertificates(req)
+        certs = json.loads(resp.to_json_string())
+        total = certs.get("TotalCount", 0)
+        for cert in certs.get("Certificates", []):
+            if is_free_cert(cert):
+                if not CONFIG["monitor_domains"] or cert.get("Domain") in CONFIG["monitor_domains"]:
+                    all_certs.append(cert)
+        offset += limit
+        if offset >= total:
+            break
+    return all_certs
+
+
+def days_until(expire_time: str) -> int:
+    expire_dt = datetime.strptime(expire_time, "%Y-%m-%d %H:%M:%S")
+    return (expire_dt - datetime.now()).days
+
+
+def apply_certificate(client, domain: str, old_cert_id: str = "") -> Optional[str]:
+    from tencentcloud.ssl.v20191205 import models
+    log.info(f"正在为 {domain} 申请免费证书 ...")
+    req = models.ApplyCertificateRequest()
+    req.DvAuthMethod = "DNS_AUTO"   # 需域名在腾讯云解析（DNSPod）
+    req.DomainName = domain
+    req.PackageType = "83"
+    req.ValidityPeriod = "3"
+    req.CsrEncryptAlgo = "RSA"
+    if old_cert_id:
+        req.OldCertificateId = old_cert_id
+        log.info(f"  关联旧证书 ID: {old_cert_id}")
+    try:
+        resp = client.ApplyCertificate(req)
+        new_id = json.loads(resp.to_json_string()).get("CertificateId", "")
+        log.info(f"  申请成功！新证书 ID: {new_id}")
+        return new_id
+    except Exception as e:
+        send_alert("申请失败", f"{domain} 申请证书失败: {e}")
+        return None
+
+
+def wait_for_issue(client, cert_id: str) -> bool:
+    from tencentcloud.ssl.v20191205 import models
+    log.info(f"  等待证书 {cert_id} 签发 ...")
+    waited = 0
+    status_map = {0: "审核中", 1: "已签发", 2: "审核失败", 3: "已过期", 4: "已吊销"}
+    while waited < CONFIG["wait_issue_timeout"]:
+        time.sleep(CONFIG["poll_interval"])
+        waited += CONFIG["poll_interval"]
+        req = models.DescribeCertificateRequest()
+        req.CertificateId = cert_id
+        detail = json.loads(client.DescribeCertificate(req).to_json_string())
+        status = detail.get("Status", 0)
+        log.info(f"    状态: {status_map.get(status, status)}（已等待 {waited}s）")
+        if status == 1:
+            return True
+        if status in (2, 3, 4):
+            send_alert("签发失败", f"证书 {cert_id} 签发失败，状态: {status_map.get(status)}")
+            return False
+    send_alert("签发超时", f"证书 {cert_id} 在 {CONFIG['wait_issue_timeout']}s 内未签发")
+    return False
+
+
+def download_certificate(client, cert_id: str, domain: str) -> Optional[str]:
+    from tencentcloud.ssl.v20191205 import models
+    import requests
+    log.info(f"  获取证书 {cert_id} 的下载链接 ...")
+    req = models.DescribeDownloadCertificateUrlRequest()
+    req.CertificateId = cert_id
+    req.ServiceType = CONFIG["service_type"]
+    result = json.loads(client.DescribeDownloadCertificateUrl(req).to_json_string())
+    url = result.get("DownloadCertificateUrl", "")
+    filename = result.get("DownloadFilename", f"{domain}_nginx.zip")
+    if not url:
+        send_alert("下载失败", f"{domain} 未获取到下载链接")
+        return None
+    r = requests.get(url, timeout=60)
+    if r.status_code != 200:
+        send_alert("下载失败", f"{domain} 下载 HTTP {r.status_code}")
+        return None
+    save_path = os.path.join(CONFIG["download_dir"], filename)
+    with open(save_path, "wb") as f:
+        f.write(r.content)
+    log.info(f"  已保存到: {save_path}")
+    return save_path
+
+
+def _pick_from_zip(names: list, domain: str):
+    """从 zip 文件名列表里挑出 crt 和 key（容错匹配）。"""
+    crt = next((n for n in names if "fullchain" in n and n.endswith(".crt")), None)
+    if not crt:
+        crt = next((n for n in names if n.endswith(".crt") and domain.replace("*", "wildcard") in n.lower()), None)
+    if not crt:
+        crt = next((n for n in names if n.endswith(".crt")), None)
+    key = next((n for n in names if n.endswith(".key")), None)
+    return crt, key
+
+
+def deploy_cert(zip_path: str, domain: str) -> bool:
+    """部署证书到 vhost 引用路径：先 nginx -t 闸门，通过才 reload。"""
+    targets = CONFIG["domain_cert_map"].get(domain)
+    if not targets:
+        log.warning(f"  {domain} 无 domain_cert_map 映射，仅续期+下载，跳过部署")
+        return True  # 非失败
+
+    extract_dir = os.path.join(CONFIG["download_dir"], domain)
+    os.makedirs(extract_dir, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(extract_dir)
+        crt_in, key_in = _pick_from_zip(zf.namelist(), domain)
+
+    if not crt_in or not key_in:
+        send_alert("部署失败", f"{domain} 解压后未找到 crt/key（zip内文件: {zf.namelist()}）")
+        return False
+
+    try:
+        import shutil
+        shutil.copyfile(os.path.join(extract_dir, crt_in), targets["crt"])
+        shutil.copyfile(os.path.join(extract_dir, key_in), targets["key"])
+        log.info(f"  已部署: crt->{targets['crt']}  key->{targets['key']}")
+    except Exception as e:
+        send_alert("部署失败", f"{domain} 复制证书出错: {e}")
+        return False
+
+    # 闸门：nginx -t 通过才 reload
+    try:
+        subprocess.run(CONFIG["nginx_test_cmd"], shell=True, check=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+    except subprocess.CalledProcessError as e:
+        out = e.stdout.decode("utf-8", "ignore") if e.stdout else ""
+        send_alert("nginx -t 失败", f"{domain} 部署后配置校验未通过，已停止 reload 以防全站中断：\n{out}")
+        return False
+
+    try:
+        subprocess.run(CONFIG["nginx_reload_cmd"], shell=True, check=True, timeout=30)
+        log.info(f"  {domain} nginx reload 成功")
+        return True
+    except subprocess.CalledProcessError as e:
+        send_alert("reload 失败", f"{domain} nginx reload 失败，但证书已就位，请手动检查：{e}")
+        return False
+
+
+def print_summary(certs: list):
+    log.info("=" * 70)
+    log.info(f"{'域名':<30} {'证书ID':<16} {'到期时间':<22} {'剩余':>6}")
+    log.info("-" * 70)
+    for cert in certs:
+        domain = cert.get("Domain", "?")
+        days = days_until(cert.get("CertEndTime", ""))
+        flag = " ⚠️" if days <= CONFIG["renew_days_before"] else ""
+        log.info(f"{domain:<30} {cert.get('CertificateId','?'):<16} {cert.get('CertEndTime','?'):<22} {days:>4}天{flag}")
+    log.info("=" * 70)
+
+
+def main():
+    log.info("===== 腾讯云 SSL 证书 全自动监控&续期&部署 =====")
+    load_dotenv()
+    if not check_config():
+        sys.exit(1)
+
+    client = get_ssl_client()
+    certs = list_certificates(client)
+    log.info(f"共监控 {len(certs)} 张免费证书")
+    print_summary(certs)
+
+    renew_list = [c for c in certs if days_until(c.get("CertEndTime", "")) <= CONFIG["renew_days_before"]]
+    if not renew_list:
+        log.info("所有证书尚未到续期阈值，无需操作。")
+        return
+    log.info(f"发现 {len(renew_list)} 张证书需要续期")
+
+    ok, fail = [], []
+    for cert in renew_list:
+        domain = cert.get("Domain", "")
+        old_id = cert.get("CertificateId", "")
+        log.info(f"\n{'='*50}\n处理: {domain}（旧证书: {old_id}）")
+        new_id = apply_certificate(client, domain, old_id)
+        if not new_id or not wait_for_issue(client, new_id):
+            fail.append(domain)
+            continue
+        zip_path = download_certificate(client, new_id, domain)
+        if not zip_path:
+            fail.append(domain)
+            continue
+        if CONFIG["auto_deploy"] and not deploy_cert(zip_path, domain):
+            fail.append(domain)
+            continue
+        ok.append(domain)
+
+    if fail:
+        send_alert("续期存在失败项", f"成功: {ok}\n失败: {fail}\n请检查日志 /var/log/ssl-renew.log")
+    elif CONFIG.get("alert_on_success"):
+        send_alert("续期完成", f"本次续期并部署: {ok}")
+
+    log.info("===== 自动续期任务完成 =====")
+
+
+if __name__ == "__main__":
+    main()

@@ -37,7 +37,7 @@ ziwi.cn
 ├── static.ziwi.cn           CDN 静态资源
 ├── storage.ziwi.cn          对象存储
 ├── license.ziwi.cn          License 服务 API
-├── heartbeat.ziwi.cn        License 心跳（Phase 2）
+├── heartbeat.ziwi.cn        License 心跳（随 cloud.ziwi.cn 同批，Phase 1 配套）
 │
 ├── ai.ziwi.cn               AI 能力分销总入口（Phase 2/3）
 │
@@ -120,6 +120,7 @@ http://{客户自定IP或域名}:8080
 | `static.ziwi.cn` | CNAME | CDN/OSS |
 | `storage.ziwi.cn` | CNAME | CDN/OSS |
 | `license.ziwi.cn` | CNAME | `cloud.ziwi.cn` |
+| `heartbeat.ziwi.cn` | CNAME | `cloud.ziwi.cn` |
 
 ## 五、关键决策
 
