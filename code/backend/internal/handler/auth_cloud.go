@@ -15,8 +15,8 @@ import (
 // ----- 请求 / 响应类型 -----
 
 type cloudLoginReq struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type cloudLoginAPIResp struct {
@@ -74,7 +74,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	if h.cloudJWKS == nil {
 		log.Printf("[cloud-login] 拒绝: CloudJWKS 未配置")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"code":    "CLOUD_NOT_CONFIGURED",
+			"error":   "CLOUD_NOT_CONFIGURED",
 			"message": "云端验签未配置",
 		})
 		return
@@ -83,7 +83,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	var req cloudLoginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "INVALID_REQUEST",
+			"error":   "INVALID_REQUEST",
 			"message": "请提供邮箱和密码",
 		})
 		return
@@ -95,7 +95,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	if err != nil {
 		log.Printf("[cloud-login] 失败(cloud auth): email=%s err=%v", maskEmail(req.Email), err)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "CLOUD_AUTH_FAILED",
+			"error":   "CLOUD_AUTH_FAILED",
 			"message": "知微云账号验证失败，" + err.Error(),
 		})
 		return
@@ -107,7 +107,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	if err != nil {
 		log.Printf("[cloud-login] 失败(验签): %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "CLOUD_VERIFY_FAILED",
+			"error":   "CLOUD_VERIFY_FAILED",
 			"message": "云端令牌验签失败",
 		})
 		return
@@ -120,7 +120,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	if !hasProduct(claims["products"], "school") {
 		log.Printf("[cloud-login] 拒绝: 未订阅 school 产品 products=%v", claims["products"])
 		c.JSON(http.StatusForbidden, gin.H{
-			"code":    "PRODUCT_NOT_SUBSCRIBED",
+			"error":   "PRODUCT_NOT_SUBSCRIBED",
 			"message": "当前知微云账号未订阅「知微教学」产品，请联系管理员开通订阅。",
 		})
 		return
@@ -132,7 +132,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	if findErr != nil {
 		log.Printf("[cloud-login] 未匹配: cloud_email=%s 在 school 中无对应账号", cloudEmail)
 		c.JSON(http.StatusNotFound, gin.H{
-			"code":    "CLOUD_USER_NOT_MATCHED",
+			"error":   "CLOUD_USER_NOT_MATCHED",
 			"message": "未找到与知微云邮箱匹配的账号。请先在知微教学中用手机号注册，并填写相同邮箱，或联系管理员手动绑定。",
 			"hint":    "register_first",
 		})
@@ -147,7 +147,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 		if err := h.userRepo.UpdateUser(user.ID, map[string]interface{}{"cloud_user_id": cloudSub}); err != nil {
 			log.Printf("[cloud-login] 绑定失败(write): user_id=%s cloud_sub=%s err=%v", user.ID, cloudSub, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    "BIND_FAILED",
+				"error":   "BIND_FAILED",
 				"message": "绑定云端账号失败，请重试",
 			})
 			return
@@ -157,7 +157,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	} else if *user.CloudUserID != cloudSub {
 		log.Printf("[cloud-login] 冲突: email=%s 已绑定 cloud_sub=%s 但本次请求是 %s", cloudEmail, *user.CloudUserID, cloudSub)
 		c.JSON(http.StatusConflict, gin.H{
-			"code":    "CLOUD_ID_MISMATCH",
+			"error":   "CLOUD_ID_MISMATCH",
 			"message": "该邮箱已绑定到另一个知微云账号",
 		})
 		return
@@ -170,7 +170,7 @@ func (h *AuthHandler) CloudLogin(c *gin.Context) {
 	if err != nil {
 		log.Printf("[cloud-login] 签发 school token 失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    "TOKEN_GENERATION_FAILED",
+			"error":   "TOKEN_GENERATION_FAILED",
 			"message": "登录失败，请重试",
 		})
 		return

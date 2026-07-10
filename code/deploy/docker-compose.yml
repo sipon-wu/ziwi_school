@@ -4,7 +4,7 @@ version: "3.8"
 services:
   # PostgreSQL 16 + pgvector
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: zhiwei-postgres
     restart: unless-stopped
     environment:
@@ -70,6 +70,8 @@ services:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       DATABASE_URL: postgresql://${DB_USER:-zhiwei}:${DB_PASSWORD:-zhiwei123}@postgres:5432/${DB_NAME:-zhiwei_school}?sslmode=disable
       REDIS_URL: redis://redis:6379/1
+    volumes:
+      - /opt/zhiwei/data:/data:ro
     ports:
       - "${AI_PORT:-8000}:8000"
     depends_on:

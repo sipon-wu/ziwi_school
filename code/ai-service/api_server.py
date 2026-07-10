@@ -7,11 +7,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 import uvicorn
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # 百炼（阿里云 DashScope）凭证，由 docker-compose 注入 DASHSCOPE_API_KEY
 # DASHSCOPE_BASE_URL 为兼容模式端点，dashscope 原生 SDK 走官方域名即可，这里仅读 key
 dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 DEFAULT_MODEL = os.getenv("DASHSCOPE_MODEL", "qwen-turbo")
+
+# 向量检索（备课包/教材底料 RAG）
+from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
+from vector_store import ensure_schema, search as vs_search  # noqa: E402
 
 app = FastAPI(
     title="知微 AI 服务",
@@ -185,6 +192,61 @@ async def auto_grading(req: Request):
     except Exception as e:
         content = f"AI 批阅失败：{e}"
     return {"result": content, "model": "qwen-turbo", "generation_time_ms": int((time.time() - start) * 1000)}
+
+
+@app.post("/api/ai/embed")
+async def embed(req: Request):
+    """批量文本向量化：{texts:[...]} -> {embeddings:[[...]], model, dim}。"""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    texts = body.get("texts") or []
+    if not texts:
+        return {"embeddings": [], "model": EMBED_MODEL, "dim": EMBED_DIM}
+    embs = await run_in_threadpool(embed_texts, texts)
+    return {"embeddings": embs, "model": EMBED_MODEL, "dim": EMBED_DIM}
+
+
+@app.post("/api/ai/rag/init")
+async def rag_init():
+    """建表 + vector 扩展 + HNSW 索引（幂等）。部署/首次入库前调用。"""
+    try:
+        await run_in_threadpool(ensure_schema, EMBED_DIM)
+        return {"status": "ok", "table": "tb_lesson_source", "dim": EMBED_DIM}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/ai/rag/search")
+async def rag_search(req: Request):
+    """向量检索备课包/教材底料：{query, subject?, grade?, volume?, version?, source_type?, top_k?}
+    -> {results:[{chunk_id, subject, grade, unit, chapter, content, similarity, ...}]}
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    query = (body.get("query") or "").strip()
+    if not query:
+        return {"results": [], "query": query}
+    filters = {
+        "subject": body.get("subject"),
+        "grade": body.get("grade"),
+        "volume": body.get("volume"),
+        "version": body.get("version"),
+        "source_type": body.get("source_type"),
+    }
+
+    def _do():
+        q_emb = embed_texts([query])[0]
+        return vs_search(q_emb, filters, int(body.get("top_k", 5)))
+
+    try:
+        results = await run_in_threadpool(_do)
+    except Exception as e:  # noqa: BLE001
+        return {"results": [], "query": query, "error": str(e)}
+    return {"results": results, "query": query}
 
 
 if __name__ == "__main__":

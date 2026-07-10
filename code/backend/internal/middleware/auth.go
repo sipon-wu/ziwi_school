@@ -12,13 +12,19 @@ func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":   "MISSING_AUTHORIZATION_HEADER",
+				"message": "缺少认证信息",
+			})
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":   "INVALID_AUTHORIZATION_FORMAT",
+				"message": "认证格式错误，请使用 Bearer Token",
+			})
 			return
 		}
 
@@ -30,13 +36,19 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":   "INVALID_TOKEN",
+				"message": "无效的认证凭证",
+			})
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":   "INVALID_TOKEN_CLAIMS",
+				"message": "认证凭证信息无效",
+			})
 			return
 		}
 

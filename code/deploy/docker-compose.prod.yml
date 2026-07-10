@@ -7,7 +7,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: zhiwei-postgres-prod
     restart: always
     environment:
@@ -85,6 +85,8 @@ services:
       DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
       REDIS_URL: redis://redis:6379/1
+    volumes:
+      - /opt/zhiwei/data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy

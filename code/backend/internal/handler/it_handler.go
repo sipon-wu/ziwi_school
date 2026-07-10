@@ -94,7 +94,7 @@ func (h *ITHandler) UpdateUserRole(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "角色已更新", "role": req.Role})
 }
 
-// UpsertTextbook 教材版本学校级覆盖（批量 upsert）
+// UpsertTextbook 保存学校自用教材覆盖层（仅本校生效，不影响公共库 tb_textbook_version）
 // PUT /api/admin/textbooks  body: { "rows": [ {subject, grade, publisher, version_name}, ... ] }
 func (h *ITHandler) UpsertTextbook(c *gin.Context) {
 	schoolID, _ := c.Get("school_id")
@@ -118,7 +118,7 @@ func (h *ITHandler) UpsertTextbook(c *gin.Context) {
 			return
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "教材版本已保存", "count": len(req.Rows)})
+	c.JSON(http.StatusOK, gin.H{"message": "本校教材覆盖已保存", "count": len(req.Rows)})
 }
 
 // ListSemesters 学期列表（复用教务仓储，供 IT 初始化学期配置）

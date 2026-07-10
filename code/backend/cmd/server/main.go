@@ -169,8 +169,9 @@ func main() {
 		}
 	}
 
-	// 认证路由（无需 JWT）
+	// 认证路由（无需 JWT）：限制登录/刷新频率，防凭据爆破
 	auth := r.Group("/api/auth")
+	auth.Use(middleware.AuthRateLimiter(20, time.Minute))
 	{
 		auth.POST("/login", authHandler.Login)
 		auth.POST("/refresh", authHandler.RefreshToken)
@@ -182,13 +183,14 @@ func main() {
 
 	// P0：纯验证端点（挂 CloudTokenAuth，接收 Bearer cloud_token）
 	cloudAuth := r.Group("/api/auth/cloud")
+	cloudAuth.Use(middleware.AuthRateLimiter(30, time.Minute))
 	cloudAuth.Use(middleware.CloudTokenAuth(cloudJWKS))
 	{
 		cloudAuth.POST("/verify", authHandler.VerifyCloudToken)
 	}
 
-	// P1：云登录绑定端点（不挂中间件，接收 email+password，自调 cloud 验证）
-	r.POST("/api/auth/cloud/login", authHandler.CloudLogin)
+	// P1：云登录绑定端点（不挂 CloudTokenAuth，接收 email+password，自调 cloud 验证）
+	r.POST("/api/auth/cloud/login", middleware.AuthRateLimiter(20, time.Minute), authHandler.CloudLogin)
 
 	// 需要 JWT 认证的路由
 	api := r.Group("/api")

@@ -169,7 +169,7 @@ export default function ITAdminPage() {
     try {
       await adminAPI.upsertTextbook(rows)
       setBookSel({})
-      setBookMsg('教材版本已保存（学校级覆盖）')
+      setBookMsg('教材版本已保存（本校覆盖，仅对本校生效）')
       loadBooks()
     } catch (e: any) { setBookMsg(e.message || '保存失败') }
   }
@@ -333,8 +333,8 @@ export default function ITAdminPage() {
 
           {tab === '教材版本' && (
             <div className="bg-white border border-[#E7E7EB] rounded p-4">
-              <div className="text-[13px] font-medium mb-2">教材版本（学校级覆盖）</div>
-              <div className="text-[12px] text-[#9A9A9A] mb-3">默认沿用平台预置版本；选择学科后可按年级批量设置或单格更换，保存后生成学校覆盖。</div>
+              <div className="text-[13px] font-medium mb-2">教材版本（学校自用覆盖）</div>
+              <div className="text-[12px] text-[#9A9A9A] mb-3">默认沿用平台统一预置版本；可按年级批量或单格修改，保存后仅对本校生效，不影响公共库。</div>
               {bookLoading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
               {!bookLoading && subjectsOf().length > 0 && (
                 <>

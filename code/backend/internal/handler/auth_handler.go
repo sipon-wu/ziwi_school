@@ -61,7 +61,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "INVALID_REQUEST",
+			"error":   "INVALID_REQUEST",
 			"message": "请输入正确的11位手机号和密码",
 		})
 		return
@@ -71,7 +71,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, err := h.userRepo.FindByPhone(req.Phone)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "INVALID_CREDENTIALS",
+			"error":   "INVALID_CREDENTIALS",
 			"message": "手机号或密码错误",
 		})
 		return
@@ -80,7 +80,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// 2. 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    "INVALID_CREDENTIALS",
+			"error":   "INVALID_CREDENTIALS",
 			"message": "手机号或密码错误",
 		})
 		return
@@ -101,7 +101,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	token, err := h.generateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    "TOKEN_GENERATION_FAILED",
+			"error":   "TOKEN_GENERATION_FAILED",
 			"message": "登录失败，请重试",
 		})
 		return
@@ -125,7 +125,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "MISSING_TOKEN", "message": "缺少认证信息"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "MISSING_TOKEN", "message": "缺少认证信息"})
 		return
 	}
 
@@ -136,26 +136,26 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	})
 
 	if token == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "无效的认证信息"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "INVALID_TOKEN", "message": "无效的认证信息"})
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "无效的认证信息"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "INVALID_TOKEN", "message": "无效的认证信息"})
 		return
 	}
 
 	userID, _ := claims["sub"].(string)
 	user, err := h.userRepo.FindByID(userID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "USER_NOT_FOUND", "message": "用户不存在"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "USER_NOT_FOUND", "message": "用户不存在"})
 		return
 	}
 
 	newToken, err := h.generateToken(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "REFRESH_FAILED", "message": "刷新失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "REFRESH_FAILED", "message": "刷新失败"})
 		return
 	}
 
