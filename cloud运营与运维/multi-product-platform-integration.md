@@ -1,12 +1,12 @@
 # 知微多产品 SaaS 平台统一身份与授权体系 · 总体说明
 
 > 文档用途：供 school / mfg / cloud 三方团队评审，明确 cloud/mfg/school 三者的架构关系与对接方式
-> 版本：v0.2（统一基线稿）
+> 版本：v0.3（基线修正稿，H1/H2/H3 已修）
 > 日期：2026-07-10
 
-> ⚠️ **统一基线声明（2026-07-10 据 mfg 团队评审反馈修订，请 mfg / cloud 团队重点查看）**
+> ⚠️ **统一基线声明（v0.2 据 mfg/cloud 评审反馈修订；v0.3 据实测核对修正 §3.3 与措辞，现文档为权威基线，请 mfg / cloud / school 团队以本稿为准）**
 >
-> 1. **JWT claim 字段名统一为 `products`**：本方案与 school 端代码（`claims["products"]` + `hasProduct(...,"school")`）一致。mfg 团队反馈其 cloud 实际注入为 `features`，存在不一致。**决议**：cloud IdP 统一下发 `products`；过渡期 cloud **同时双发 `features`（值同 `products`）** 以兼容 mfg 现有逻辑；mfg 下个迭代将读取切到 `products` 后，cloud 停发 `features`。`products` 为**字符串数组**（产品标识），如 `["school","mfg"]`（纠正原 §3.3 示例中的对象数组写法）。
+> 1. **JWT claim 字段名统一为 `products`**（**字符串数组**，如 `["school","mfg"]`）：经 cloud 端代码实测（`jwt_service.py:25`），cloud IdP **始终注入 `products`，从未注入过 `features`**；历史上 mfg 旧代码曾读取 `features` 造成不一致，mfg 已完成迁移、当前代码 `payload.get("products", [])` 按字符串数组跑通。**因此 v0.2 原描述「cloud 实际注入 features」措辞有误，以本段为准**。**决议**：cloud 维持主发 `products`；过渡期**保留双发 `features`（值同 `products`）** 仅作旧消费方兼容，对 mfg 非必需；后续可停发。§3.3 的对象数组示例已据本基线修正为字符串数组。
 > 2. **私有部署心跳参数统一为「每 1 小时上报 / 连续 24 小时无心跳即失联降级」**：与《补充需求书合集》§6.2 对齐，原讨论稿的「每天 1 次 / 3 天失联」作废。详见 §5.5。
 >
 > 以上两项为三方对接契约基线，如有异议请在评审中反馈，否则按此执行。
@@ -126,10 +126,7 @@
     "sub": "550e8400-e29b-41d4-a716-446655440000",
     "email": "admin@acme.com",
     "tenant_id": "acme_factory",
-    "products": [
-      {"id": "mfg", "roles": ["tenant_admin"], "license_exp": "2026-12-31"},
-      {"id": "school", "roles": ["teacher"], "license_exp": "2026-12-31"}
-    ],
+    "products": ["mfg", "school"],
     "iat": 1700000000,
     "exp": 1700086400
   }
@@ -143,9 +140,9 @@
 | `sub` | 用户 UUID | 各平台识别用户身份 |
 | `email` | 用户邮箱 | 各平台匹配已有账号 |
 | `tenant_id` | 用户所属租户 | 各平台做多租户隔离 |
-| `products` | 用户有权限的产品列表 | 各平台判断该用户能访问哪些功能 |
-| `roles` | 用户在该产品中的角色 | 各平台做权限判断 |
-| `license_exp` | 该产品的 License 到期日 | 各平台做 License 校验 |
+| `products` | 用户有权限的产品标识列表（**字符串数组**，如 `["mfg","school"]`） | 各平台判断该用户能访问哪些产品 |
+
+> **H2 明确（角色 / License 不进 JWT）**：`roles`（用户在产品内的角色，如 `tenant_admin`）走**各产品本地角色体系**；`license_exp`（License 到期）走 **License 服务 / DB**（见 §6）。二者均**不塞入 JWT**，避免与字符串数组模型冲突、也避免 License 状态被长时效 token 缓存。§3.3 旧版对象数组写法（含 `roles`/`license_exp` 嵌套）作废。
 
 ---
 
@@ -337,6 +334,7 @@ sequenceDiagram
 - 到期提醒：到期前 30 天/7 天站内通知
 - 离线检测：**连续 24 小时无成功心跳 → 标记失联 + 标红 + 告警邮件，并进入降级模式**（限制新建/云端能力，已有内容只读；心跳恢复后自动解除）
 - 注：本段参数已与《补充需求书合集》§6.2 对齐，原「每天 1 次 / 3 天失联」作废
+- ⚠️ **H5（服务端阈值待对齐）**：`heartbeat.ziwi.cn` 当前服务端配置为 `timeout=15min + misses=3 ≈ 45min` 即判失联；若客户端按 1h 上报，服务端会在 45min 误判失联，**与上方 24h 基线严重冲突**。需改服务端配置，建议值：**`check=60`（分钟）/ `timeout=60`（分钟）/ `misses=24`**（即连续 24 次检查失败≈24h 判失联）。属心跳服务端小配置变更，需动手改运行服务（见评审 §H5），**待授权后执行，建议先 staging 验证再上生产**。
 
 ---
 
