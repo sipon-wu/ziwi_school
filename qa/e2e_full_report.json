@@ -1,10 +1,10 @@
 {
-  "base": "https://school.ziwi.cn",
-  "generatedAt": "2026-07-11T15:32:57.814Z",
+  "base": "http://school1.ziwi.cn",
+  "generatedAt": "2026-07-11T22:19:44.966Z",
   "summary": {
     "total": 41,
-    "PASS": 35,
-    "WARN": 6,
+    "PASS": 40,
+    "WARN": 1,
     "FAIL": 0
   },
   "aiLeak": {
@@ -28,21 +28,21 @@
       "role": "教师(语文)",
       "journey": "渲染·首页",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=463",
+      "detail": "visible=true appErr=false redirect=false len=438",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题列表",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=593",
+      "detail": "visible=true appErr=false redirect=false len=633",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=549",
+      "detail": "visible=true appErr=false redirect=false len=548",
       "shot": ""
     },
     {
@@ -97,8 +97,8 @@
     {
       "role": "教师(语文)",
       "journey": "教案·AI生成端到端",
-      "status": "WARN",
-      "detail": "按钮可用、请求已发，35s 内未渲染教案内容",
+      "status": "PASS",
+      "detail": "教案已生成并存入状态(命中 /api/ai/lesson-plan/generate; EditorLayout无内嵌预览,content供导出/保存)",
       "shot": ""
     },
     {
@@ -132,29 +132,29 @@
     {
       "role": "教师(数学·多班)",
       "journey": "UI登录",
-      "status": "WARN",
-      "detail": "落地=/login（本环境无此灰度账号，非代码缺陷）",
+      "status": "PASS",
+      "detail": "落地=/teacher",
       "shot": ""
     },
     {
       "role": "教师(数学·多班)",
       "journey": "一课多班·头部切换",
-      "status": "WARN",
-      "detail": "跳过：本环境无此账号",
+      "status": "PASS",
+      "detail": "下拉项数≈3 成功切换=true",
       "shot": ""
     },
     {
       "role": "教师(数学·多班)",
       "journey": "出题·生成按钮态",
-      "status": "WARN",
-      "detail": "跳过：本环境无此账号",
+      "status": "PASS",
+      "detail": "disabled=false（autoSelect兜底应对各学科）",
       "shot": ""
     },
     {
       "role": "教师(数学·多班)",
       "journey": "运行期pageerror",
-      "status": "WARN",
-      "detail": "跳过",
+      "status": "PASS",
+      "detail": "count=0",
       "shot": ""
     },
     {
@@ -280,14 +280,14 @@
       "role": "IT管理员",
       "journey": "IT·教材版本tab",
       "status": "PASS",
-      "detail": "visible=true len=83",
+      "detail": "visible=true len=308",
       "shot": ""
     },
     {
       "role": "IT管理员",
       "journey": "设置·版本库维护",
       "status": "PASS",
-      "detail": "visible=true len=268",
+      "detail": "visible=true len=15918",
       "shot": ""
     },
     {

@@ -192,23 +192,24 @@ export default function ExerciseGenerator() {
   /** 将百炼 v2 返回的 Markdown 题目列表解析为结构化 questions */
   const parseAiExamMarkdown = (md: string): AiQuestion[] => {
     const qs: AiQuestion[] = []
-    // 按 "- **题目" 拆分
-    const blocks = md.split(/\n- \*\*题目/)
+    // 正向前瞻 split：在 "- **题目" 之前切分，保留分隔符
+    const blocks = md.split(/\n(?=- \*\*题目)/)
     for (const block of blocks) {
-      if (!block.trim()) continue
-      // 提取题型：**题目一：选择题**
-      const typeMatch = block.match(/\*\*题目[一二三四五六七八九十]+[：:]\s*(\S+?)\s*\*\*/)
+      const clean = block.trim()
+      if (!clean || !clean.startsWith('- **题目')) continue
+      // 提取题型：- **题目一：选择题**
+      const typeMatch = clean.match(/\*\*题目[一二三四五六七八九十]+[：:]\s*(\S+?)\s*\*\*/)
       const qtype = typeMatch?.[1]?.trim() || 'choice'
       // 提取答案：**答案：X**
-      const ansMatch = block.match(/\*\*答案[：:]\*\*[：:]?\s*(.+)/)
+      const ansMatch = clean.match(/\*\*答案[：:]\*\*[：:]?\s*(.+)/)
       const answer = ansMatch?.[1]?.trim() || ''
       // 提取内容：跳过题型/答案/解析行
-      const lines = block.split('\n')
+      const lines = clean.split('\n')
       const bodyLines = lines.filter(l => {
         const t = l.trim()
-        return t && !t.startsWith('**题目') && !/\*\*答案/.test(t) && !/\*\*解析/.test(t)
+        return t && !t.startsWith('- **题目') && !/\*\*答案/.test(t) && !/\*\*解析/.test(t)
       })
-      qs.push({ type: qtype, content: bodyLines.join('\n').trim() || block.trim().slice(0, 200), answer })
+      qs.push({ type: qtype, content: bodyLines.join('\n').trim() || clean.slice(0, 200), answer })
     }
     return qs
   }

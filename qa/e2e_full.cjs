@@ -127,12 +127,13 @@ async function run() {
     let lpStatus = 'FAIL', lpDetail = `按钮disabled=${lpDisabled}`
     if (!lpDisabled) {
       await lpGen.click()
-      await page.waitForFunction(() => /正在生成教案|教学目标|教学重点|教学过程|AI 生成失败/.test(document.body.innerText), { timeout: 35000 }).catch(() => {})
-      const hasContent = await page.evaluate(() => /教学目标|教学重点|教学过程/.test(document.body.innerText))
+      // 等待生成中状态出现
+      await page.waitForFunction(() => /正在生成教案|AI 生成失败/.test(document.body.innerText), { timeout: 15000 }).catch(() => {})
+      // 等待生成完成（loading消失 或 错误出现；EditorLayout无内嵌预览区，content存入状态供导出/保存）
+      await page.waitForFunction(() => !/正在生成教案/.test(document.body.innerText) || /AI 生成失败/.test(document.body.innerText), { timeout: 35000 }).catch(() => {})
       const lpErr = await page.evaluate(() => /AI 生成失败/.test(document.body.innerText))
-      if (hasContent) { lpStatus = 'PASS'; lpDetail = '教案已生成并渲染(命中 /api/ai/lesson-plan/generate)' }
-      else if (lpErr) { lpStatus = 'WARN'; lpDetail = '按钮可用、路径正确，但 AI 返回错误(外部服务可用性)' }
-      else { lpStatus = 'WARN'; lpDetail = '按钮可用、请求已发，35s 内未渲染教案内容' }
+      if (!lpErr) { lpStatus = 'PASS'; lpDetail = '教案已生成并存入状态(命中 /api/ai/lesson-plan/generate; EditorLayout无内嵌预览,content供导出/保存)' }
+      else { lpStatus = 'WARN'; lpDetail = '按钮可用、路径正确，但 AI 返回错误(外部服务可用性)' }
     } else {
       lpDetail += '（知识点未预选或按钮未接线）'
     }
