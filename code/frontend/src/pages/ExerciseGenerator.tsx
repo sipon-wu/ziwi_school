@@ -168,19 +168,49 @@ export default function ExerciseGenerator() {
         }),
       })
       const data = await res.json()
-      // 净化：AI 可能返回跨学科题型（如语文产出"计算题"），统一归一到本学科允许题型
+      // 净化：AI 可能返回跨学科题型，统一归一到本学科允许题型
       const allowed = getQuestionTypes(teaching.subject).map((t) => t.id)
-      const raw = data.questions || []
+      // 百炼 v2 响应兼容：优先 questions 数组，缺失时从 content(Markdown) 解析
+      let raw = data.questions || []
+      if (raw.length === 0 && data.content) {
+        raw = parseAiExamMarkdown(data.content)
+      }
       const norm = raw.map((q: any) =>
         isTypeAllowed(teaching.subject, q.type) ? q : { ...q, type: allowed[0] }
       )
       setQuestions(norm)
-      setTotalCount(data.total_questions || 0)
+      setTotalCount(data.total_questions || norm.length)
       setAiPreview(true)
       setConfirmedSet(new Set())
       setEditingQuestion(null)
     } catch (e: any) { toast('出题失败: ' + (e.message || '网络错误'), 'error') }
     setGenerating(false)
+  }
+
+  type AiQuestion = { type: string; content: string; answer?: string }
+
+  /** 将百炼 v2 返回的 Markdown 题目列表解析为结构化 questions */
+  const parseAiExamMarkdown = (md: string): AiQuestion[] => {
+    const qs: AiQuestion[] = []
+    // 按 "- **题目" 拆分
+    const blocks = md.split(/\n- \*\*题目/)
+    for (const block of blocks) {
+      if (!block.trim()) continue
+      // 提取题型：**题目一：选择题**
+      const typeMatch = block.match(/\*\*题目[一二三四五六七八九十]+[：:]\s*(\S+?)\s*\*\*/)
+      const qtype = typeMatch?.[1]?.trim() || 'choice'
+      // 提取答案：**答案：X**
+      const ansMatch = block.match(/\*\*答案[：:]\*\*[：:]?\s*(.+)/)
+      const answer = ansMatch?.[1]?.trim() || ''
+      // 提取内容：跳过题型/答案/解析行
+      const lines = block.split('\n')
+      const bodyLines = lines.filter(l => {
+        const t = l.trim()
+        return t && !t.startsWith('**题目') && !/\*\*答案/.test(t) && !/\*\*解析/.test(t)
+      })
+      qs.push({ type: qtype, content: bodyLines.join('\n').trim() || block.trim().slice(0, 200), answer })
+    }
+    return qs
   }
 
   const handleSaveToBank = async () => {
