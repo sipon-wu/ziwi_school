@@ -1,0 +1,3554 @@
+{
+  "工作台": {
+    "path": "/teacher",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "立即催办",
+        "title": "",
+        "disabled": false,
+        "className": "text-[13px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "7日内",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[13px] rounded-[3px] bg-["
+      },
+      {
+        "type": "button",
+        "text": "30日内",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[13px] rounded-[3px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "教案草稿箱",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "教案发布库",
+        "href": "/published-lessons"
+      },
+      {
+        "type": "a",
+        "text": "教案互审",
+        "href": "/review-pool"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "教案",
+        "href": "/lesson-plans/new"
+      },
+      {
+        "type": "a",
+        "text": "习题",
+        "href": "/exercises/new"
+      },
+      {
+        "type": "a",
+        "text": "试卷",
+        "href": "/exams/new"
+      },
+      {
+        "type": "a",
+        "text": "作业",
+        "href": "/assignments/new"
+      },
+      {
+        "type": "a",
+        "text": "插图",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "音频",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "视频",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "全部草稿",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "回归自建教案",
+        "href": "/lesson-plans/lp_8f44f492f9f8"
+      },
+      {
+        "type": "a",
+        "text": "回归自建教案",
+        "href": "/lesson-plans/lp_a66fbf9a7819"
+      },
+      {
+        "type": "a",
+        "text": "回归自建教案",
+        "href": "/lesson-plans/lp_ee2a0f023991"
+      },
+      {
+        "type": "a",
+        "text": "回归自建教案",
+        "href": "/lesson-plans/lp_0d18aaf7b72a"
+      },
+      {
+        "type": "a",
+        "text": "回归自建教案",
+        "href": "/lesson-plans/lp_d158e68355ad"
+      }
+    ],
+    "bodyLen": 438
+  },
+  "出题列表": {
+    "path": "/exercises",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "出题",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-4 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "1",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[12px] rounded-[3px] bg-["
+      },
+      {
+        "type": "button",
+        "text": "2",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[12px] rounded-[3px] bord"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索题目内容或知识点...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部题型",
+          "选择",
+          "填空",
+          "计算",
+          "判断",
+          "匹配",
+          "完形",
+          "阅读"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部难度",
+          "基础",
+          "中等",
+          "进阶",
+          "挑战"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部状态",
+          "草稿",
+          "已发布"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "出题·题库",
+        "href": "/exercises"
+      },
+      {
+        "type": "a",
+        "text": "组卷·试卷库",
+        "href": "/exams"
+      },
+      {
+        "type": "a",
+        "text": "作业布置",
+        "href": "/assignments"
+      }
+    ],
+    "bodyLen": 633
+  },
+  "出题新建": {
+    "path": "/exercises/new",
+    "elements": [
+      {
+        "type": "button",
+        "text": "📝课堂练习当堂巩固 · 5-8分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "📚课后作业课后巩固 · 15-20分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "📋单元检测阶段测评 · 40分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "📅月考月度检测 · 60分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "📊期中考试学期中测评 · 90分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "🏆期末考试学期末测评 · 90分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "🎯模拟考试升学适应 · 90分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "🌟奥数拓展竞赛预备 · 40分钟",
+        "title": "",
+        "disabled": false,
+        "className": "text-left p-2.5 rounded-[4px] border tra"
+      },
+      {
+        "type": "button",
+        "text": "选择素材",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1 text"
+      },
+      {
+        "type": "button",
+        "text": "选择题",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "填空题",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "判断题",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "匹配题",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "完形填空",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "阅读理解",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "写作题",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1 text-[11px] rounded-[4px] bo"
+      },
+      {
+        "type": "button",
+        "text": "标准",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "北京四中",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "人大附中",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "上海中学",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "华南师大附中",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "深圳中学",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "南京师大附中",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded-[4px] bord"
+      },
+      {
+        "type": "button",
+        "text": "有什么需求，支持会话式补充出题要求...",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center gap-3 px-4 py-3"
+      },
+      {
+        "type": "button",
+        "text": "保存为草稿",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-whit"
+      },
+      {
+        "type": "button",
+        "text": "预览",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "button",
+        "text": "发布到题库",
+        "title": "",
+        "disabled": true,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索知识点",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "L1 - 基础",
+          "L2 - 中等",
+          "L3 - 进阶",
+          "L4 - 挑战"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "3 题",
+          "5 题",
+          "8 题",
+          "10 题",
+          "15 题",
+          "20 题",
+          "25 题",
+          "30 题"
+        ]
+      }
+    ],
+    "bodyLen": 574
+  },
+  "教案列表": {
+    "path": "/lesson-plans",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "新建教案",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-4 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索教案标题...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部状态",
+          "草稿",
+          "已定稿"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部学年",
+          "2025-2026",
+          "2026-2027"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "教案草稿箱",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "教案发布库",
+        "href": "/published-lessons"
+      },
+      {
+        "type": "a",
+        "text": "教案互审",
+        "href": "/review-pool"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      }
+    ],
+    "bodyLen": 542
+  },
+  "教案新建": {
+    "path": "/lesson-plans/new",
+    "elements": [
+      {
+        "type": "button",
+        "text": "AI 生成教案",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-center "
+      },
+      {
+        "type": "button",
+        "text": "保存为草稿",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-whit"
+      },
+      {
+        "type": "button",
+        "text": "预览",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "button",
+        "text": "发布",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "请在这里输入标题",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "+ 请输入",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索知识点",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "请选择",
+          "第一单元",
+          "第二单元",
+          "第三单元",
+          "第四单元",
+          "第五单元",
+          "第六单元",
+          "第七单元"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "第1课时",
+          "第2课时",
+          "第3课时",
+          "第4课时",
+          "第5课时",
+          "第6课时",
+          "第7课时",
+          "第8课时"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "核心素养模板",
+          "三维目标模板",
+          "单元教学模板"
+        ]
+      }
+    ],
+    "bodyLen": 315
+  },
+  "素材库": {
+    "path": "/materials",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "教辅频道",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-3 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "上传素材",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-4 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "全部",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "图片",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "文档",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "音频",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "视频",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "其他",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "全选",
+        "title": "",
+        "disabled": false,
+        "className": "hover:text-[#02A7F0]"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索素材名称或标签...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部",
+          "四上语文",
+          "四下数学",
+          "未分组"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "教案草稿箱",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "教案发布库",
+        "href": "/published-lessons"
+      },
+      {
+        "type": "a",
+        "text": "教案互审",
+        "href": "/review-pool"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      }
+    ],
+    "bodyLen": 460
+  },
+  "试卷库": {
+    "path": "/exams",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "新建试卷",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-4 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索试卷标题...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部状态",
+          "草稿",
+          "已发布"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部类型",
+          "单元检测",
+          "期中考试",
+          "课堂练习"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "出题·题库",
+        "href": "/exercises"
+      },
+      {
+        "type": "a",
+        "text": "组卷·试卷库",
+        "href": "/exams"
+      },
+      {
+        "type": "a",
+        "text": "作业布置",
+        "href": "/assignments"
+      }
+    ],
+    "bodyLen": 386
+  },
+  "组卷新建": {
+    "path": "/exams/new",
+    "elements": [
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "引用题目",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1 text"
+      },
+      {
+        "type": "button",
+        "text": "有什么需求，支持会话式补充组卷要求...",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center gap-3 px-4 py-3"
+      },
+      {
+        "type": "button",
+        "text": "保存为草稿",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-whit"
+      },
+      {
+        "type": "button",
+        "text": "预览",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "button",
+        "text": "发布",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "button",
+        "text": "树状",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "螺旋",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "网状",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "知识点",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "能力",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "难度",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "课标",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "适应画布",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1.5 text-[11px] bg-white/95 ro"
+      },
+      {
+        "type": "button",
+        "text": "重置",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1.5 text-[11px] bg-white/95 ro"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "如：四年级语文第一单元检测",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索知识点",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "40 分",
+          "50 分",
+          "60 分",
+          "80 分",
+          "100 分",
+          "120 分",
+          "150 分"
+        ]
+      }
+    ],
+    "bodyLen": 395
+  },
+  "作业列表": {
+    "path": "/assignments",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "布置作业",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-4 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "编辑",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索作业标题或班级...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部状态",
+          "草稿",
+          "已发布",
+          "定时中"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "出题·题库",
+        "href": "/exercises"
+      },
+      {
+        "type": "a",
+        "text": "组卷·试卷库",
+        "href": "/exams"
+      },
+      {
+        "type": "a",
+        "text": "作业布置",
+        "href": "/assignments"
+      }
+    ],
+    "bodyLen": 394
+  },
+  "作业布置": {
+    "path": "/assignments/new",
+    "elements": [
+      {
+        "type": "button",
+        "text": "引用题目",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 px-2.5 py-1 text"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "✕",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#FF4D4F]"
+      },
+      {
+        "type": "button",
+        "text": "保存为草稿",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-whit"
+      },
+      {
+        "type": "button",
+        "text": "预览",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "button",
+        "text": "立即发布",
+        "title": "",
+        "disabled": false,
+        "className": "flex-1 px-4 py-2.5 text-[13px] text-[#35"
+      },
+      {
+        "type": "button",
+        "text": "树状",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "螺旋",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "网状",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "知识点",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "能力",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "难度",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "课标",
+        "title": "",
+        "disabled": false,
+        "className": "px-2 py-1 text-[11px] rounded transition"
+      },
+      {
+        "type": "button",
+        "text": "适应画布",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1.5 text-[11px] bg-white/95 ro"
+      },
+      {
+        "type": "button",
+        "text": "重置",
+        "title": "",
+        "disabled": false,
+        "className": "px-2.5 py-1.5 text-[11px] bg-white/95 ro"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "如：《观潮》课后阅读练习",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索知识点",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "请选择班级",
+          "四年级 (1)班",
+          "四年级 (2)班",
+          "四年级 (3)班"
+        ]
+      }
+    ],
+    "bodyLen": 335
+  },
+  "学情分析": {
+    "path": "/analytics",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "select",
+        "options": [
+          "本周",
+          "本月",
+          "本学期"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "学情分析",
+        "href": "/analytics"
+      },
+      {
+        "type": "a",
+        "text": "成长足迹",
+        "href": "/growth"
+      }
+    ],
+    "bodyLen": 557
+  },
+  "批阅": {
+    "path": "/grading",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "赵大鹏20240007 · 07-07 21:30",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 border-b bo"
+      },
+      {
+        "type": "button",
+        "text": "孙小飞20240008 · 07-07 20:15",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 border-b bo"
+      },
+      {
+        "type": "button",
+        "text": "钱小强20240011 · 07-07 19:45",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 border-b bo"
+      },
+      {
+        "type": "button",
+        "text": "0",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "1",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "2",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "3",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "4",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "5",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "6",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "7",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "8",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "9",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "10",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "0",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "1",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "2",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "3",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "4",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "5",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "6",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "7",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "8",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "9",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "10",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "0",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "1",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "2",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "3",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "4",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "5",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "6",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "7",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "8",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "9",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "10",
+        "title": "",
+        "disabled": false,
+        "className": "w-6 h-6 rounded-full text-[10px] border "
+      },
+      {
+        "type": "button",
+        "text": "确认批阅",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-4 py-1.5 te"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "教案草稿箱",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "教案发布库",
+        "href": "/published-lessons"
+      },
+      {
+        "type": "a",
+        "text": "教案互审",
+        "href": "/review-pool"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      }
+    ],
+    "bodyLen": 578
+  },
+  "成长足迹": {
+    "path": "/growth",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "开学摸底652月",
+        "title": "",
+        "disabled": false,
+        "className": "flex flex-col items-center gap-2 group"
+      },
+      {
+        "type": "button",
+        "text": "第一单元703月",
+        "title": "",
+        "disabled": false,
+        "className": "flex flex-col items-center gap-2 group"
+      },
+      {
+        "type": "button",
+        "text": "期中744月",
+        "title": "",
+        "disabled": false,
+        "className": "flex flex-col items-center gap-2 group"
+      },
+      {
+        "type": "button",
+        "text": "第三单元785月",
+        "title": "",
+        "disabled": false,
+        "className": "flex flex-col items-center gap-2 group"
+      },
+      {
+        "type": "button",
+        "text": "期末806月",
+        "title": "",
+        "disabled": false,
+        "className": "flex flex-col items-center gap-2 group"
+      },
+      {
+        "type": "button",
+        "text": "全部 (48)",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[11px] rounded-[3px] tran"
+      },
+      {
+        "type": "button",
+        "text": "成长关爱",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[11px] rounded-[3px] tran"
+      },
+      {
+        "type": "button",
+        "text": "20240001张张小明77分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240002李李小红62分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240003王王大力68分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240004陈陈小花88分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240005刘刘小月60分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240006赵赵大鹏74分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240007孙孙小飞69分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240008周周小红73分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240009吴吴小华84分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "20240010郑郑小丽92分",
+        "title": "",
+        "disabled": false,
+        "className": "relative flex flex-col items-center gap-"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "加入成长关爱",
+        "disabled": false,
+        "className": "absolute top-1 right-1 transition-opacit"
+      },
+      {
+        "type": "button",
+        "text": "查看全部 48 名学生",
+        "title": "",
+        "disabled": false,
+        "className": "w-full py-2.5 text-[13px] text-[#02A7F0]"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "学情分析",
+        "href": "/analytics"
+      },
+      {
+        "type": "a",
+        "text": "成长足迹",
+        "href": "/growth"
+      }
+    ],
+    "bodyLen": 633
+  },
+  "关爱": {
+    "path": "/care",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "添加关怀",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1.5 px-3 py-2 text"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "家长签字",
+        "href": "/parent-sign"
+      },
+      {
+        "type": "a",
+        "text": "成长关爱",
+        "href": "/care"
+      }
+    ],
+    "bodyLen": 540
+  },
+  "家长签字": {
+    "path": "/parent-sign",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "全部（5）",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[11px] rounded-[3px] tran"
+      },
+      {
+        "type": "button",
+        "text": "作业",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[11px] rounded-[3px] tran"
+      },
+      {
+        "type": "button",
+        "text": "周报",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[11px] rounded-[3px] tran"
+      },
+      {
+        "type": "button",
+        "text": "通知",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1 text-[11px] rounded-[3px] tran"
+      },
+      {
+        "type": "button",
+        "text": "催办",
+        "title": "",
+        "disabled": false,
+        "className": "inline-flex items-center gap-1 text-[10p"
+      },
+      {
+        "type": "button",
+        "text": "催办07-06 已催",
+        "title": "",
+        "disabled": false,
+        "className": "inline-flex items-center gap-1 text-[10p"
+      },
+      {
+        "type": "button",
+        "text": "催办",
+        "title": "",
+        "disabled": false,
+        "className": "inline-flex items-center gap-1 text-[10p"
+      },
+      {
+        "type": "button",
+        "text": "催办07-06 已催",
+        "title": "",
+        "disabled": false,
+        "className": "inline-flex items-center gap-1 text-[10p"
+      },
+      {
+        "type": "button",
+        "text": "催办",
+        "title": "",
+        "disabled": false,
+        "className": "inline-flex items-center gap-1 text-[10p"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "家长签字",
+        "href": "/parent-sign"
+      },
+      {
+        "type": "a",
+        "text": "成长关爱",
+        "href": "/care"
+      }
+    ],
+    "bodyLen": 448
+  },
+  "教案发布库": {
+    "path": "/published-lessons",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "引用创建新教案",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#722ED1"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "引用创建新教案",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#722ED1"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "预览",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#353535"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索教案标题...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部学科",
+          "语文",
+          "数学",
+          "英语"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部学年",
+          "2025-2026",
+          "2026-2027"
+        ]
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部状态",
+          "已通过",
+          "待审核",
+          "需修改"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "教案草稿箱",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "教案发布库",
+        "href": "/published-lessons"
+      },
+      {
+        "type": "a",
+        "text": "教案互审",
+        "href": "/review-pool"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      }
+    ],
+    "bodyLen": 371
+  },
+  "教案互审": {
+    "path": "/review-pool",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "审阅",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "通过",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-green-60"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "退回",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-orange-5"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "留言",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#722ED1"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-red-500 "
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "审阅",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#02A7F0"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "通过",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-green-60"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "退回",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-orange-5"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "留言",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-[#722ED1"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "删除",
+        "disabled": false,
+        "className": "p-1.5 text-[#9A9A9A] hover:text-red-500 "
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "input[text]",
+        "placeholder": "搜索教案标题或作者...",
+        "disabled": false,
+        "value": ""
+      },
+      {
+        "type": "select",
+        "options": [
+          "全部单元",
+          "第一单元",
+          "第二单元",
+          "第三单元",
+          "第四单元",
+          "第五单元",
+          "第六单元",
+          "第七单元"
+        ]
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "教案草稿箱",
+        "href": "/lesson-plans"
+      },
+      {
+        "type": "a",
+        "text": "教案发布库",
+        "href": "/published-lessons"
+      },
+      {
+        "type": "a",
+        "text": "教案互审",
+        "href": "/review-pool"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      }
+    ],
+    "bodyLen": 334
+  },
+  "班级切换": {
+    "path": "/classes",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级 (四年级(1)班)▾",
+        "title": "",
+        "disabled": false,
+        "className": "flex items-center gap-1 text-[13px] bg-w"
+      },
+      {
+        "type": "button",
+        "text": "打开班级切换",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 py-2 text-[13px] text-white bg-[#02"
+      },
+      {
+        "type": "button",
+        "text": "金牛一小",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 text-[12px]"
+      },
+      {
+        "type": "button",
+        "text": "金牛一小分校",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 text-[12px]"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级（1班）",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 rounded-[3p"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级（2班）",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 rounded-[3p"
+      },
+      {
+        "type": "button",
+        "text": "语文 · 四年级（实验班）",
+        "title": "",
+        "disabled": false,
+        "className": "w-full text-left px-4 py-2.5 rounded-[3p"
+      },
+      {
+        "type": "button",
+        "text": "关闭",
+        "title": "",
+        "disabled": false,
+        "className": "px-5 py-2 text-[13px] text-white bg-[#02"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "小微AI助教",
+        "disabled": false,
+        "className": "fixed z-50 rounded-full shadow-lg flex i"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "班级切换",
+        "href": "/classes"
+      },
+      {
+        "type": "a",
+        "text": "系统设置",
+        "href": "/settings"
+      }
+    ],
+    "bodyLen": 295
+  },
+  "系统设置": {
+    "path": "/settings",
+    "elements": [
+      {
+        "type": "button",
+        "text": "教学备课",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "作业练习",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "教学数据",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "家校沟通",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "个人中心",
+        "title": "",
+        "disabled": false,
+        "className": "w-full flex items-center justify-between"
+      },
+      {
+        "type": "button",
+        "text": "",
+        "title": "收起侧边栏",
+        "disabled": false,
+        "className": "text-[#9A9A9A] hover:text-[#353535] px-2"
+      },
+      {
+        "type": "button",
+        "text": "帐号设置",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 h-[38px] text-[13px] rounded-[5px] "
+      },
+      {
+        "type": "button",
+        "text": "学校 · 班级",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 h-[38px] text-[13px] rounded-[5px] "
+      },
+      {
+        "type": "button",
+        "text": "教材版本",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 h-[38px] text-[13px] rounded-[5px] "
+      },
+      {
+        "type": "button",
+        "text": "学期配置",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 h-[38px] text-[13px] rounded-[5px] "
+      },
+      {
+        "type": "button",
+        "text": "训练小微",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 h-[38px] text-[13px] rounded-[5px] "
+      },
+      {
+        "type": "button",
+        "text": "日志 · 反馈",
+        "title": "",
+        "disabled": false,
+        "className": "px-4 h-[38px] text-[13px] rounded-[5px] "
+      },
+      {
+        "type": "button",
+        "text": "修改",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "复制",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "修改",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "修改",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "修改",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "修改",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "修改",
+        "title": "",
+        "disabled": false,
+        "className": "text-[11px] text-[#02A7F0] hover:underli"
+      },
+      {
+        "type": "button",
+        "text": "帐号移交",
+        "title": "",
+        "disabled": false,
+        "className": "text-[#02A7F0] hover:underline text-[11p"
+      },
+      {
+        "type": "a",
+        "text": "首页",
+        "href": "/teacher"
+      },
+      {
+        "type": "a",
+        "text": "素材库",
+        "href": "/materials"
+      },
+      {
+        "type": "a",
+        "text": "班级切换",
+        "href": "/classes"
+      },
+      {
+        "type": "a",
+        "text": "系统设置",
+        "href": "/settings"
+      }
+    ],
+    "bodyLen": 274
+  },
+  "IT管理": {
+    "path": "/it-admin",
+    "elements": [
+      {
+        "type": "button",
+        "text": "数据导入",
+        "title": "",
+        "disabled": false,
+        "className": "block w-full text-left px-3 py-2 rounded"
+      },
+      {
+        "type": "button",
+        "text": "角色管理",
+        "title": "",
+        "disabled": false,
+        "className": "block w-full text-left px-3 py-2 rounded"
+      },
+      {
+        "type": "button",
+        "text": "教材版本",
+        "title": "",
+        "disabled": false,
+        "className": "block w-full text-left px-3 py-2 rounded"
+      },
+      {
+        "type": "button",
+        "text": "学期配置",
+        "title": "",
+        "disabled": false,
+        "className": "block w-full text-left px-3 py-2 rounded"
+      },
+      {
+        "type": "button",
+        "text": "班级",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1.5 rounded text-[13px] bg-[#02A"
+      },
+      {
+        "type": "button",
+        "text": "教师",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1.5 rounded text-[13px] bg-white"
+      },
+      {
+        "type": "button",
+        "text": "学生",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1.5 rounded text-[13px] bg-white"
+      },
+      {
+        "type": "button",
+        "text": "任课关系",
+        "title": "",
+        "disabled": false,
+        "className": "px-3 py-1.5 rounded text-[13px] bg-white"
+      },
+      {
+        "type": "button",
+        "text": "预校验",
+        "title": "",
+        "disabled": true,
+        "className": "px-3 py-1.5 bg-[#02A7F0] text-white text"
+      },
+      {
+        "type": "button",
+        "text": "确认导入",
+        "title": "",
+        "disabled": true,
+        "className": "px-3 py-1.5 bg-[#15A85F] text-white text"
+      },
+      {
+        "type": "a",
+        "text": "下载「班级」导入模板",
+        "href": "/classes_template.csv"
+      }
+    ],
+    "bodyLen": 94
+  },
+  "校长": {
+    "path": "/principal",
+    "elements": [],
+    "bodyLen": 30
+  }
+}

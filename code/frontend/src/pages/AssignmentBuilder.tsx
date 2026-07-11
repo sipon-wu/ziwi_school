@@ -6,6 +6,8 @@ import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import ResourcePicker from '../components/ResourcePicker'
+import { assignmentAPI } from '../lib/api'
+import { useToast } from '../components/Toast'
 import { Plus, X, Clock } from 'lucide-react'
 
 const CLASSES = [
@@ -18,6 +20,7 @@ const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年
 
 export default function AssignmentBuilder() {
   const teaching = useTeaching()
+  const { toast } = useToast()
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
 
   const picker = useKnowledgePicker({ autoSelect: true })
@@ -58,6 +61,23 @@ export default function AssignmentBuilder() {
   // 退出提醒
   const hasChanges = assignmentTitle.length > 0 || selectedClass.length > 0 || selectedQuestions.length > 0
   useUnsavedChanges(hasChanges)
+
+  // ── 保存与发布 ──
+  const [saving, setSaving] = useState(false)
+  const handleSaveDraft = async () => {
+    if (!selectedClass || !assignmentTitle.trim()) { toast('请选择班级并填写作业标题', 'warning'); return }
+    setSaving(true)
+    try {
+      await assignmentAPI.create({
+        class_id: selectedClass, subject: teaching.subject, title: assignmentTitle, type: 'homework',
+        content: assignmentDesc || undefined,
+        question_ids: selectedQuestions.map(q => q.id),
+        knowledge_node_ids: JSON.stringify(picker.selectedIds),
+      })
+      toast('作业已保存为草稿', 'success')
+    } catch (e: any) { toast('保存失败: ' + (e.message || '网络错误'), 'error') }
+    setSaving(false)
+  }
 
   // 生成未来7天的日期选项
   const dateOptions = Array.from({ length: 7 }, (_, i) => {
@@ -252,13 +272,16 @@ export default function AssignmentBuilder() {
 
       {/* Fixed Bottom Buttons */}
       <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
-        <button className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
-          保存为草稿
+        <button onClick={handleSaveDraft} disabled={saving}
+          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
+          {saving ? '保存中...' : '保存为草稿'}
         </button>
-        <button className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
+        <button onClick={() => toast('预览功能开发中', 'warning')}
+          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           预览
         </button>
-        <button className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
+        <button onClick={() => toast(enableSchedule ? '定时发布功能开发中' : '发布功能开发中，请先保存草稿后在作业列表手动发布', 'warning')}
+          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           {enableSchedule ? '定时发布' : '立即发布'}
         </button>
       </div>

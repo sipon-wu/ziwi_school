@@ -1,11 +1,11 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-07-11T22:26:16.367Z",
+  "generatedAt": "2026-07-11T23:13:12.604Z",
   "summary": {
-    "total": 41,
-    "PASS": 39,
+    "total": 42,
+    "PASS": 41,
     "WARN": 1,
-    "FAIL": 1
+    "FAIL": 0
   },
   "aiLeak": {
     "v1": false,
@@ -120,6 +120,13 @@
       "journey": "设置·教材版本入口",
       "status": "PASS",
       "detail": "教材版本tab可见数=1",
+      "shot": ""
+    },
+    {
+      "role": "教师(语文)",
+      "journey": "学校班级·编辑保存",
+      "status": "PASS",
+      "detail": "内联编辑UI已出现+学科已切换+已保存",
       "shot": ""
     },
     {
@@ -244,8 +251,8 @@
     {
       "role": "教研",
       "journey": "渲染·出题",
-      "status": "FAIL",
-      "detail": "visible=false len=0",
+      "status": "PASS",
+      "detail": "visible=true len=259",
       "shot": ""
     },
     {

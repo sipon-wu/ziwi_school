@@ -1,0 +1,432 @@
+{
+  "base": "http://school1.ziwi.cn",
+  "results": [
+    {
+      "page": "教师",
+      "check": "登录",
+      "status": "SKIP",
+      "detail": "已登录"
+    },
+    {
+      "page": "工作台",
+      "check": "点击:教辅频道",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "工作台",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "出题列表",
+      "check": "点击:新建出题",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "出题列表",
+      "check": "点击:编辑",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "出题列表",
+      "check": "点击:删除",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "出题列表",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "教案列表",
+      "check": "点击:新建教案",
+      "status": "PASS",
+      "detail": "len=542 crash=false"
+    },
+    {
+      "page": "教案列表",
+      "check": "点击:编辑",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案列表",
+      "check": "点击:删除",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案列表",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "素材库",
+      "check": "点击:上传素材",
+      "status": "PASS",
+      "detail": "len=460 crash=false"
+    },
+    {
+      "page": "素材库",
+      "check": "点击:全选",
+      "status": "PASS",
+      "detail": "len=482 crash=false"
+    },
+    {
+      "page": "素材库",
+      "check": "点击:教辅频道",
+      "status": "PASS",
+      "detail": "len=567 crash=false"
+    },
+    {
+      "page": "素材库",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "试卷库",
+      "check": "点击:新建试卷",
+      "status": "PASS",
+      "detail": "len=386 crash=false"
+    },
+    {
+      "page": "试卷库",
+      "check": "点击:编辑",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "试卷库",
+      "check": "点击:预览",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "试卷库",
+      "check": "点击:删除",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "试卷库",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "作业列表",
+      "check": "点击:布置作业",
+      "status": "PASS",
+      "detail": "len=394 crash=false"
+    },
+    {
+      "page": "作业列表",
+      "check": "点击:编辑",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "作业列表",
+      "check": "点击:删除",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "作业列表",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "教案发布库",
+      "check": "点击:编辑",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案发布库",
+      "check": "点击:预览",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案发布库",
+      "check": "点击:删除",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案发布库",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "教案互审",
+      "check": "点击:审阅",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案互审",
+      "check": "点击:通过",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案互审",
+      "check": "点击:退回",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案互审",
+      "check": "点击:留言",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "教案互审",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "家长签字",
+      "check": "点击:全部",
+      "status": "PASS",
+      "detail": "len=448 crash=false"
+    },
+    {
+      "page": "家长签字",
+      "check": "点击:催办",
+      "status": "PASS",
+      "detail": "len=448 crash=false"
+    },
+    {
+      "page": "家长签字",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "班级切换",
+      "check": "点击:打开班级切换",
+      "status": "PASS",
+      "detail": "len=208 crash=false"
+    },
+    {
+      "page": "班级切换",
+      "check": "点击:关闭",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "班级切换",
+      "check": "点击:金牛一小",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "班级切换",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "关爱",
+      "check": "点击:添加关怀",
+      "status": "PASS",
+      "detail": "len=566 crash=false"
+    },
+    {
+      "page": "关爱",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "成长足迹",
+      "check": "点击:加入成长关爱",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "成长足迹",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "批阅",
+      "check": "点击:确认批阅",
+      "status": "PASS",
+      "detail": "len=583 crash=false"
+    },
+    {
+      "page": "批阅",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "学情",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "设置",
+      "check": "学校 · 班级",
+      "status": "SKIP",
+      "detail": "tab=学校 · 班级"
+    },
+    {
+      "page": "设置-学校班级",
+      "check": "添加学校弹窗",
+      "status": "PASS",
+      "detail": "len=312 crash=false"
+    },
+    {
+      "page": "设置-学校班级",
+      "check": "弹窗内容",
+      "status": "PASS",
+      "detail": "已显示"
+    },
+    {
+      "page": "设置",
+      "check": "教材版本",
+      "status": "SKIP",
+      "detail": "tab=教材版本"
+    },
+    {
+      "page": "设置-教材",
+      "check": "学科:语文",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "设置-教材",
+      "check": "学科:数学",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "设置-教材",
+      "check": "学科:英语",
+      "status": "WARN",
+      "detail": "notfound"
+    },
+    {
+      "page": "设置",
+      "check": "学期配置",
+      "status": "SKIP",
+      "detail": "tab=学期配置"
+    },
+    {
+      "page": "设置",
+      "check": "训练小微",
+      "status": "SKIP",
+      "detail": "tab=训练小微"
+    },
+    {
+      "page": "设置",
+      "check": "日志 · 反馈",
+      "status": "SKIP",
+      "detail": "tab=日志 · 反馈"
+    },
+    {
+      "page": "出题新建",
+      "check": "AI生成→题目渲染",
+      "status": "PASS",
+      "detail": "已渲染"
+    },
+    {
+      "page": "小微",
+      "check": "对话",
+      "status": "PASS",
+      "detail": "消息发送"
+    },
+    {
+      "page": "教师",
+      "check": "totalPageError",
+      "status": "PASS",
+      "detail": "cnt=0"
+    },
+    {
+      "page": "IT-数据导入",
+      "check": "切换",
+      "status": "PASS",
+      "detail": "len=94 crash=false"
+    },
+    {
+      "page": "IT-角色管理",
+      "check": "切换",
+      "status": "PASS",
+      "detail": "len=1735 crash=false"
+    },
+    {
+      "page": "IT-教材版本",
+      "check": "切换",
+      "status": "PASS",
+      "detail": "len=308 crash=false"
+    },
+    {
+      "page": "IT-学期配置",
+      "check": "切换",
+      "status": "PASS",
+      "detail": "len=73 crash=false"
+    },
+    {
+      "page": "IT-版本库",
+      "check": "列表",
+      "status": "len=15918 crash=false",
+      "detail": ""
+    },
+    {
+      "page": "IT管理员",
+      "check": "totalPageError",
+      "status": "PASS",
+      "detail": "cnt=0"
+    },
+    {
+      "page": "班主任",
+      "check": "渲染",
+      "status": "len=284 crash=false",
+      "detail": "undefined"
+    },
+    {
+      "page": "班主任",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    },
+    {
+      "page": "校长",
+      "check": "渲染",
+      "status": "len=30 crash=false",
+      "detail": "undefined"
+    },
+    {
+      "page": "校长",
+      "check": "pageError",
+      "status": "PASS",
+      "detail": "0errs"
+    }
+  ],
+  "fails": [],
+  "summary": {
+    "total": 70,
+    "PASS": 37,
+    "WARN": 24,
+    "FAIL": 0
+  }
+}

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Sparkles } from 'lucide-react'
 import { useTeaching, getQuestionTypes } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
+import { useToast } from '../components/Toast'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
@@ -12,6 +13,7 @@ const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年
 
 export default function ExamBuilder() {
   const teaching = useTeaching()
+  const { toast } = useToast()
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
 
   const picker = useKnowledgePicker({ autoSelect: true })
@@ -39,6 +41,57 @@ export default function ExamBuilder() {
   // 退出提醒
   const hasChanges = examTitle.length > 0 || picker.selectedIds.length > 0 || selectedQuestions.length > 0
   useUnsavedChanges(hasChanges)
+
+  // ── AI 智能组卷 ──
+  const [generating, setGenerating] = useState(false)
+  const handleAiGenerate = async () => {
+    if (picker.selectedIds.length === 0) return
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/ai/exam/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || '') },
+        body: JSON.stringify({
+          subject: teaching.subject, grade: gradeName, semester: teaching.semester,
+          difficulty: 'L2', count: Object.values(typeCounts).reduce((a, b) => a + b, 0) || 10,
+          purpose: 'midterm', question_types: Object.entries(typeCounts).filter(([, c]) => c > 0).map(([t]) => t),
+          selected_knowledge_ids: picker.selectedIds,
+          textbook_version: teaching.currentTextbook(),
+        }),
+      })
+      const data = await res.json()
+      let questions = data.questions || []
+      if (questions.length === 0 && data.content) {
+        questions = parseAiExamContent(data.content)
+      }
+      setSelectedQuestions(questions.map((q: any, i: number) => ({ id: `ai_${Date.now()}_${i}`, ...q })))
+      toast(`AI 已生成 ${questions.length} 道题目`, 'success')
+    } catch (e: any) { toast('生成失败: ' + (e.message || '网络错误'), 'error') }
+    setGenerating(false)
+  }
+
+  /** 解析百炼返回的 Markdown 题目（复用出题模块逻辑） */
+  const parseAiExamContent = (md: string): any[] => {
+    const qs: any[] = []
+    let text = md.replace(/^```markdown\s*/, '').replace(/\s*```$/, '')
+    const blocks = text.split(/\n(?=## \d+[.．]\s+|[-\*]\s*\*\*题目)/)
+    for (const raw of blocks) {
+      const block = raw.trim()
+      if (!block) continue
+      const headingMatch = block.match(/^#{1,3}\s*\d+[.．]\s*(\S+)/)
+      const listMatch = block.match(/^[-\*]\s*\*\*题目[一二三四五六七八九十\d]+[：:]\s*(\S+?)\s*\*\*/)
+      const qtype = (headingMatch || listMatch)?.[1]?.trim() || 'choice'
+      const ansMatch = block.match(/\*\*答案[：:]\*\*\s*[：:]?\s*(.+)/) || block.match(/\*\*答案[：:]\*\*?\s*(.+)/)
+      const answer = ansMatch?.[1]?.trim() || ''
+      const lines = block.split('\n')
+      const bodyLines = lines.filter(l => {
+        const t = l.trim()
+        return t && !/^#{1,3}\s*\d+[.．]/.test(t) && !/^[-\*]\s*\*\*题目/.test(t) && !/\*\*答案/.test(t) && !/\*\*解析/.test(t)
+      })
+      qs.push({ type: qtype, content: bodyLines.join('\n').trim() || block.slice(0, 200), answer })
+    }
+    return qs
+  }
 
   const updateTypeCount = (typeId: string, value: number) => {
     setTypeCounts(prev => ({ ...prev, [typeId]: Math.max(0, value) }))
@@ -161,24 +214,28 @@ export default function ExamBuilder() {
           )}
         </div>
 
-        {/* AI 会话式入口 */}
+        {/* AI 智能组卷 */}
         <div className="px-5 py-3">
-          <button className="w-full flex items-center gap-3 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#02A7F0" strokeWidth="2"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6.4-4.8-6.4 4.8 2.4-7.2-6-4.8h7.6z"/></svg>
-            <span className="text-[12px]">有什么需求，支持会话式补充组卷要求...</span>
+          <button onClick={handleAiGenerate} disabled={generating || picker.selectedIds.length === 0}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-[4px] transition-colors disabled:opacity-50 ${generating ? 'bg-[#4A4A4A] text-white' : 'bg-[#353535] text-white hover:bg-[#1A1A1A]'}`}>
+            <Sparkles size={20} className={generating ? 'animate-pulse text-[#02A7F0]' : 'text-[#02A7F0]'} />
+            <span className="text-[13px]">{generating ? '正在生成题目...' : (picker.selectedIds.length === 0 ? '请先选取知识点范围' : 'AI 智能组卷')}</span>
           </button>
         </div>
       </div>
 
       {/* Fixed Bottom Buttons */}
       <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
-        <button className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
+        <button onClick={() => toast('组卷保存功能开发中，已选题目可在出题页导出为 Word/PDF', 'warning')}
+          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
           保存为草稿
         </button>
-        <button className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
+        <button onClick={() => toast('组卷预览功能开发中，请先在出题页导出查看', 'warning')}
+          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           预览
         </button>
-        <button className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
+        <button onClick={() => toast('组卷发布功能开发中', 'warning')}
+          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           发布
         </button>
       </div>
