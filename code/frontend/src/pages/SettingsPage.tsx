@@ -795,7 +795,8 @@ function SchoolClassTab() {
   }, [])
 
   const openModal = (mode: 'addSchool' | 'editSchool' | 'addClass', schoolId?: string) => {
-    setModalMode(mode); setModalSchoolId(schoolId || null); setEditClassTarget(null)
+    setModalMode(mode); setModalSchoolId(schoolId || null)
+    // 不重置 editClassTarget — 由 doSaveEditClass / ✕按钮各自清理，否则 startEditClass 设置的 target 被抹掉导致编辑UI不显示
     if (mode === 'addSchool') { setFormF({ fullName: '', shortName: '' }); setStep(0) }
     if (mode === 'editSchool' && schoolId) {
       const s = schools.find(s => s.id === schoolId)
