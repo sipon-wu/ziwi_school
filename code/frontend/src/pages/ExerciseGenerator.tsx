@@ -189,27 +189,38 @@ export default function ExerciseGenerator() {
 
   type AiQuestion = { type: string; content: string; answer?: string }
 
-  /** 将百炼 v2 返回的 Markdown 题目列表解析为结构化 questions */
+  /** 将百炼返回的 Markdown 题目列表解析为结构化 questions（兼容多种AI输出格式） */
   const parseAiExamMarkdown = (md: string): AiQuestion[] => {
     const qs: AiQuestion[] = []
-    // 正向前瞻 split：在 "- **题目" 之前切分，保留分隔符
-    const blocks = md.split(/\n(?=- \*\*题目)/)
-    for (const block of blocks) {
-      const clean = block.trim()
-      if (!clean || !clean.startsWith('- **题目')) continue
-      // 提取题型：- **题目一：选择题**
-      const typeMatch = clean.match(/\*\*题目[一二三四五六七八九十]+[：:]\s*(\S+?)\s*\*\*/)
-      const qtype = typeMatch?.[1]?.trim() || 'choice'
-      // 提取答案：**答案：X**
-      const ansMatch = clean.match(/\*\*答案[：:]\*\*[：:]?\s*(.+)/)
+    // 去掉代码块包裹（百炼偶发 ```markdown ... ```）
+    let text = md.replace(/^```markdown\s*/, '').replace(/\s*```$/, '')
+    // 按题目分隔符拆分：兼容 ## N. type（标题格式）和 - **题目N：type**（列表格式）
+    const blocks = text.split(/\n(?=## \d+[.．]\s+|[-\*]\s*\*\*题目)/)
+    let idx = 0
+    for (const raw of blocks) {
+      const block = raw.trim()
+      if (!block) continue
+      // 提取题号：## 1. 选择题  或  - **题目一：选择题**
+      const headingMatch = block.match(/^#{1,3}\s*\d+[.．]\s*(\S+)/)
+      const listMatch = block.match(/^[-\*]\s*\*\*题目[一二三四五六七八九十\d]+[：:]\s*(\S+?)\s*\*\*/)
+      const qtype = (headingMatch || listMatch)?.[1]?.trim() || 'choice'
+      // 提取答案
+      const ansMatch = block.match(/\*\*答案[：:]\*\*\s*[：:]?\s*(.+)/)
+          || block.match(/\*\*答案[：:]\*\*?\s*(.+)/)
       const answer = ansMatch?.[1]?.trim() || ''
-      // 提取内容：跳过题型/答案/解析行
-      const lines = clean.split('\n')
+      // 提取内容：去掉标题行、答案行、解析行
+      const lines = block.split('\n')
       const bodyLines = lines.filter(l => {
         const t = l.trim()
-        return t && !t.startsWith('- **题目') && !/\*\*答案/.test(t) && !/\*\*解析/.test(t)
+        if (!t) return false
+        if (/^#{1,3}\s*\d+[.．]/.test(t)) return false       // ## N. 标题行
+        if (/^[-\*]\s*\*\*题目/.test(t)) return false         // - **题目...**
+        if (/\*\*答案/.test(t)) return false
+        if (/\*\*解析/.test(t)) return false
+        return true
       })
-      qs.push({ type: qtype, content: bodyLines.join('\n').trim() || clean.slice(0, 200), answer })
+      qs.push({ type: qtype, content: bodyLines.join('\n').trim() || block.slice(0, 200), answer })
+      idx++
     }
     return qs
   }

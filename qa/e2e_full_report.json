@@ -1,11 +1,11 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-07-11T22:19:44.966Z",
+  "generatedAt": "2026-07-11T22:26:16.367Z",
   "summary": {
     "total": 41,
-    "PASS": 40,
+    "PASS": 39,
     "WARN": 1,
-    "FAIL": 0
+    "FAIL": 1
   },
   "aiLeak": {
     "v1": false,
@@ -244,8 +244,8 @@
     {
       "role": "教研",
       "journey": "渲染·出题",
-      "status": "PASS",
-      "detail": "visible=true len=259",
+      "status": "FAIL",
+      "detail": "visible=false len=0",
       "shot": ""
     },
     {
