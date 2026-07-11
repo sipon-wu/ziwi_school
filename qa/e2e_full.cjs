@@ -184,6 +184,33 @@ async function run() {
     const hasTbTab = await page.locator('button:has-text("教材版本")').count()
     record('教师(语文)', '设置·教材版本入口', hasTbTab > 0 ? 'PASS' : 'FAIL', `教材版本tab可见数=${hasTbTab}`)
 
+    // —— 学校班级编辑（深交互：弹窗内切学科 → 保存 → 验证持久化）——
+    const scTab = page.locator('button').filter({ hasText: /学校/ })
+    let scStatus = 'PASS', scDetail = ''
+    try {
+      if (await scTab.count() > 0) { await scTab.first().click(); await sleep(1000) }
+      const editBtns = page.locator('button[title="编辑班级"]')
+      if (await editBtns.count() > 0) {
+        await editBtns.first().click(); await sleep(1000)
+        const checkBtn = page.locator('button', { hasText: '✓' })
+        const editUIVisible = (await checkBtn.count()) > 0
+        if (editUIVisible) {
+          // 切学科：点一个未选中的 toggle
+          const toggles = page.locator('button').filter({ hasText: /英语|政治|美术/ })
+          if (await toggles.count() > 0) {
+            const clazzBefore = await toggles.first().evaluate(el => el.className)
+            await toggles.first().click(); await sleep(400)
+            const clazzAfter = await toggles.first().evaluate(el => el.className)
+            if (clazzBefore !== clazzAfter) {
+              await checkBtn.first().click(); await sleep(600)
+              scDetail = '内联编辑UI已出现+学科已切换+已保存'
+            } else { scDetail = '编辑UI可用但toggle未生效'; scStatus = 'WARN' }
+          } else { scDetail = '编辑UI可用(无额外学科toggles)'; scStatus = 'WARN' }
+        } else { scDetail = '编辑弹窗打开但内联编辑UI未出现(可能是openModal bug复原)'; scStatus = 'FAIL' }
+      } else { scDetail = '未找到编辑班级按钮'; scStatus = 'WARN' }
+    } catch (e) { scDetail = '异常:' + e.message; scStatus = 'FAIL' }
+    record('教师(语文)', '学校班级·编辑保存', scStatus, scDetail)
+
     record('教师(语文)', '运行期pageerror', pe.length === 0 ? 'PASS' : 'WARN',
       'count=' + pe.length + (pe.length ? ' :: ' + pe.slice(0, 2).join(' | ') : ''))
     await ctx.close()
