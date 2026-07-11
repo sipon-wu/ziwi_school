@@ -762,6 +762,30 @@ function SchoolClassTab() {
   const [confirmArchive, setConfirmArchive] = useState<{ schoolId?: string; classId?: string; label: string; count?: number } | null>(null)
   const [editClassTarget, setEditClassTarget] = useState<Class | null>(null)
   const [editSubjects, setEditSubjects] = useState<string[]>([])
+  const [editVersions, setEditVersions] = useState<Record<string, string>>({})
+
+  // 教材版本库（供班级编辑时选版本）
+  const [tvBooks, setTvBooks] = useState<any[]>([])
+  const [tvLoading, setTvLoading] = useState(true)
+  const [myPrefs, setMyPrefs] = useState<any[]>([])  // 个人已保存的教材版本偏好（用于编辑时回显）
+  const versionOpts = useCallback((subject: string) => {
+    const m = new Map<string, { publisher: string; version_name: string }>()
+    tvBooks.filter((b: any) => b.subject === subject).forEach((b: any) =>
+      m.set(`${b.publisher}|${b.version_name}`, { publisher: b.publisher, version_name: b.version_name }))
+    return Array.from(m.values())
+  }, [tvBooks])
+  const loadVersions = async () => {
+    try {
+      const [tb, pf] = await Promise.all([
+        adminAPI.listTextbooks(),
+        teacherPrefAPI.list(),
+      ])
+      setTvBooks(tb.items || [])
+      setMyPrefs(pf.items || [])
+    } catch {}
+    setTvLoading(false)
+  }
+  useEffect(() => { loadVersions() }, [])
 
   const sc: Record<string, string> = { '语文': 'bg-blue-50 text-blue-600', '数学': 'bg-orange-50 text-orange-600', '英语': 'bg-green-50 text-green-600' }
 
@@ -869,6 +893,12 @@ function SchoolClassTab() {
   const startEditClass = (_schoolId: string, cls: Class) => {
     setEditClassTarget(cls)
     setEditSubjects([...cls.subjects])
+    // 回显已保存的版本偏好
+    const initVer: Record<string, string> = {}
+    myPrefs.filter((p: any) => (p.grade || '') === cls.grade && (p.class_id || '') === cls.id).forEach((p: any) => {
+      if (p.version_name) initVer[p.subject] = p.version_name
+    })
+    setEditVersions(initVer)
   }
 
   const toggleEditSubject = (sub: string) => {
@@ -886,6 +916,19 @@ function SchoolClassTab() {
     setSchools(prev => prev.map(s => ({
       ...s, classes: s.classes.map(c => c.id === cls.id ? { ...c, subjects: editSubjects } : c)
     })))
+    // 同步保存所选学科的教材版本偏好
+    const saves: Promise<void>[] = []
+    for (const sub of editSubjects) {
+      const ver = editVersions[sub]
+      if (ver) {
+        const opt = versionOpts(sub).find(o => o.version_name === ver)
+        if (opt) saves.push(teacherPrefAPI.upsert({ subject: sub, grade: cls.grade, class_id: cls.id, publisher: opt.publisher, version_name: opt.version_name }).then(() => {}))
+      }
+    }
+    // 保存后重新拉取偏好以便下次编辑回显
+    Promise.allSettled(saves).finally(() => {
+      teacherPrefAPI.list().then(r => setMyPrefs(r.items || [])).catch(() => {})
+    })
     setEditClassTarget(null)
     setConfirmSave(false)
   }
@@ -1000,13 +1043,36 @@ function SchoolClassTab() {
                     <div className="flex-1 flex items-center gap-2">
                       <span className="text-[12px] font-medium text-[#353535]">{cls.grade}（{cls.name}）</span>
                       {editClassTarget?.id === cls.id ? (
-                        <div className="flex-1 flex items-center gap-1 flex-wrap">
-                          {subjectsForGrade(cls.grade).map(sub => (
-                            <button key={sub} onClick={() => toggleEditSubject(sub)}
-                              className={`px-2 py-0.5 text-[11px] rounded-[3px] border transition-colors ${editSubjects.includes(sub) ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#353535] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>{sub}</button>
-                          ))}
-                          <button onClick={() => doSaveEditClass()} className="ml-1 text-[10px] text-green-600">✓</button>
-                          <button onClick={() => setEditClassTarget(null)} className="text-[10px] text-[#9A9A9A]">✕</button>
+                        <div className="flex-1 flex flex-col gap-2">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {subjectsForGrade(cls.grade).map(sub => (
+                              <button key={sub} onClick={() => toggleEditSubject(sub)}
+                                className={`px-2 py-0.5 text-[11px] rounded-[3px] border transition-colors ${editSubjects.includes(sub) ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#353535] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>{sub}</button>
+                            ))}
+                          </div>
+                          {editSubjects.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                              <span className="text-[#9A9A9A]">版本：</span>
+                              {tvLoading ? <span className="text-[#9A9A9A]">加载中...</span> : (
+                                editSubjects.map(sub => {
+                                  const opts = versionOpts(sub)
+                                  if (opts.length === 0) return <span key={sub} className="text-[#9A9A9A]">{sub} 无版本库</span>
+                                  return <label key={sub} className="flex items-center gap-1">
+                                    <span className="text-[#353535] w-10">{sub}</span>
+                                    <select value={editVersions[sub] || ''} onChange={e => setEditVersions(prev => ({ ...prev, [sub]: e.target.value }))}
+                                      className="px-1.5 py-0.5 border border-[#E7E7EB] rounded-[3px] text-[11px] focus:outline-none focus:border-[#02A7F0]">
+                                      <option value="">默认</option>
+                                      {opts.map(o => <option key={o.version_name} value={o.version_name}>{o.publisher} {o.version_name}</option>)}
+                                    </select>
+                                  </label>
+                                })
+                              )}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => doSaveEditClass()} className="text-[10px] text-green-600">✓ 保存</button>
+                            <button onClick={() => setEditClassTarget(null)} className="text-[10px] text-[#9A9A9A]">✕ 取消</button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 flex-wrap">
