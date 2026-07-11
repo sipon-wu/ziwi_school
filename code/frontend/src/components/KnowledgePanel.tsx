@@ -86,7 +86,7 @@ function GraphView({
       subject={teaching.subject}
       grade={teaching.grade}
       semester={teaching.semester}
-      textbook={teaching.textbook_math}
+      textbook={teaching.currentTextbook()}
       selectedIds={picker.selectedIds}
       onSelect={handleSelect}
       inline

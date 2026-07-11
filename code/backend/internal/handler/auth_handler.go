@@ -47,12 +47,15 @@ type LoginResponse struct {
 
 // UserProfile 用户基本信息
 type UserProfile struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Role       string `json:"role"`
-	SchoolID   string `json:"school_id"`
-	SchoolName string `json:"school_name"`
-	AvatarURL  string `json:"avatar_url,omitempty"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	SchoolID      string `json:"school_id"`
+	SchoolName    string `json:"school_name"`
+	LicenseStatus string `json:"license_status"` // V2.5：学校License状态 active/trial/none（驱动教材配置模式）
+	AvatarURL     string `json:"avatar_url,omitempty"`
+	Subject       string `json:"subject,omitempty"` // 默认任教学科
+	Grade         string `json:"grade,omitempty"`   // 默认任教学段
 }
 
 // Login 用户登录
@@ -61,7 +64,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "INVALID_REQUEST",
+			"code":   "INVALID_REQUEST",
 			"message": "请输入正确的11位手机号和密码",
 		})
 		return
@@ -71,7 +74,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, err := h.userRepo.FindByPhone(req.Phone)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "INVALID_CREDENTIALS",
+			"code":   "INVALID_CREDENTIALS",
 			"message": "手机号或密码错误",
 		})
 		return
@@ -80,20 +83,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// 2. 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "INVALID_CREDENTIALS",
+			"code":   "INVALID_CREDENTIALS",
 			"message": "手机号或密码错误",
 		})
 		return
 	}
 
-	// 3. 获取学校名称
+	// 3. 获取学校名称与 License 状态
 	schoolName := ""
 	schoolID := ""
+	licenseStatus := ""
 	if user.SchoolID != nil {
 		school, err := h.userRepo.GetSchool(*user.SchoolID)
 		if err == nil {
 			schoolName = school.FullName
 			schoolID = school.ID
+			licenseStatus = school.LicenseStatus
 		}
 	}
 
@@ -101,7 +106,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	token, err := h.generateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "TOKEN_GENERATION_FAILED",
+			"code":   "TOKEN_GENERATION_FAILED",
 			"message": "登录失败，请重试",
 		})
 		return
@@ -110,12 +115,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, LoginResponse{
 		Token: token,
 		User: UserProfile{
-			ID:         user.ID,
-			Name:       user.Name,
-			Role:       user.Role,
-			SchoolID:   schoolID,
-			SchoolName: schoolName,
-			AvatarURL:  user.AvatarURL,
+			ID:            user.ID,
+			Name:          user.Name,
+			Role:          user.Role,
+			SchoolID:      schoolID,
+			SchoolName:    schoolName,
+			LicenseStatus: licenseStatus,
+			AvatarURL:     user.AvatarURL,
+			Subject:       user.Subject,
+			Grade:         user.Grade,
 		},
 	})
 }
@@ -125,7 +133,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "MISSING_TOKEN", "message": "缺少认证信息"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "MISSING_TOKEN", "message": "缺少认证信息"})
 		return
 	}
 
@@ -136,26 +144,26 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	})
 
 	if token == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "INVALID_TOKEN", "message": "无效的认证信息"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "无效的认证信息"})
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "INVALID_TOKEN", "message": "无效的认证信息"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "无效的认证信息"})
 		return
 	}
 
 	userID, _ := claims["sub"].(string)
 	user, err := h.userRepo.FindByID(userID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "USER_NOT_FOUND", "message": "用户不存在"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "USER_NOT_FOUND", "message": "用户不存在"})
 		return
 	}
 
 	newToken, err := h.generateToken(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "REFRESH_FAILED", "message": "刷新失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "REFRESH_FAILED", "message": "刷新失败"})
 		return
 	}
 
@@ -190,7 +198,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		Avatar string `json:"avatar"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": err.Error()})
 		return
 	}
 	updates := map[string]interface{}{}
@@ -201,11 +209,11 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	if req.Region != "" { updates["region"] = req.Region }
 	if req.Avatar != "" { updates["avatar"] = req.Avatar }
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "no fields to update"})
 		return
 	}
 	if err := h.userRepo.UpdateUser(userID.(string), updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPDATE_FAILED", "message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})

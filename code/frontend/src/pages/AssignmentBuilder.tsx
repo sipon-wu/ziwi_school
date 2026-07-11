@@ -87,7 +87,10 @@ export default function AssignmentBuilder() {
               </div>
             </div>
             <div className="w-[80px] h-[100px] bg-[#F6F7F8] rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">
-              {teaching.textbook_math || '人教版'}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
+              {teaching.currentTextbook()}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
+              {teaching.licenseStatus === 'active'
+                ? <span className="text-[#15A85F]"> · 学校统一配置</span>
+                : <span className="text-[#9A9A9A]"> · 个人试用</span>}
             </div>
           </div>
         </div>

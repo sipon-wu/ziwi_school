@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { teacherPrefAPI } from './api'
 
 // ── 类型定义 ──
 
@@ -24,12 +25,91 @@ export interface ClassInfo {
   textbook: string
 }
 
+// ── 题型定义（按学科区分，避免语文出现"计算题"等不适配题型） ──
+
+export interface QuestionType {
+  id: string
+  label: string
+}
+
+/**
+ * 各学科可选题型。依据语文/数学/英语常规试卷结构：
+ * - 语文：字词句积累 + 阅读 + 习作，无计算/应用
+ * - 数学：选择/填空/计算/应用/判断 + 操作作图
+ * - 英语：选择/填空/完形/阅读/写作 + 听力/词汇
+ */
+export const QUESTION_TYPES_BY_SUBJECT: Record<string, QuestionType[]> = {
+  语文: [
+    { id: 'choice', label: '选择题' },
+    { id: 'fill', label: '填空题' },
+    { id: 'judge', label: '判断题' },
+    { id: 'match', label: '匹配题' },
+    { id: 'cloze', label: '完形填空' },
+    { id: 'reading', label: '阅读理解' },
+    { id: 'writing', label: '写作题' },
+  ],
+  数学: [
+    { id: 'choice', label: '选择题' },
+    { id: 'fill', label: '填空题' },
+    { id: 'calculation', label: '计算题' },
+    { id: 'application', label: '应用题' },
+    { id: 'judge', label: '判断题' },
+    { id: 'operation', label: '操作题' },
+  ],
+  英语: [
+    { id: 'choice', label: '选择题' },
+    { id: 'fill', label: '填空题' },
+    { id: 'cloze', label: '完形填空' },
+    { id: 'reading', label: '阅读理解' },
+    { id: 'writing', label: '写作题' },
+    { id: 'listening', label: '听力题' },
+    { id: 'vocab', label: '词汇运用' },
+  ],
+}
+
+/** 未知学科兜底（通用基础题型） */
+const DEFAULT_QTYPES: QuestionType[] = [
+  { id: 'choice', label: '选择题' },
+  { id: 'fill', label: '填空题' },
+  { id: 'judge', label: '判断题' },
+]
+
+/** 取得某学科的可选题型 */
+export function getQuestionTypes(subject: string): QuestionType[] {
+  return QUESTION_TYPES_BY_SUBJECT[subject] || DEFAULT_QTYPES
+}
+
+/** 题型 id → 中文名（用于渲染题目角标，覆盖所有已知题型） */
+export const QUESTION_TYPE_LABELS: Record<string, string> = {
+  choice: '选择题',
+  fill: '填空题',
+  judge: '判断题',
+  truefalse: '判断题',
+  short_answer: '简答题',
+  match: '匹配题',
+  cloze: '完形填空',
+  reading: '阅读理解',
+  writing: '写作题',
+  calculation: '计算题',
+  application: '应用题',
+  operation: '操作题',
+  listening: '听力题',
+  vocab: '词汇运用',
+}
+
+/** 返回某学科是否允许该题型（用于净化 AI 返回结果，防止跨学科串题） */
+export function isTypeAllowed(subject: string, type: string): boolean {
+  return getQuestionTypes(subject).some((t) => t.id === type)
+}
+
 export interface TeachingState {
-  subject: '语文' | '数学' | '英语'
+  subject: string
   grade: number
   semester: '上' | '下'
   textbook_math: string
   textbook_english: string
+  /** 各学科的教材版本（学校级覆盖后的真实版本，按学科存储） */
+  textbookBySubject: Record<string, string>
   textbook_locked: boolean
   current_unit_name: string
   current_lesson_name: string
@@ -41,12 +121,20 @@ export interface TeachingState {
   selectedClassId: string | null
 }
 
+/** 各学科默认教材版本（无本地/学校偏好时的回退值） */
+const DEFAULT_TEXTBOOK_BY_SUBJECT: Record<string, string> = {
+  '语文': '部编版（统编版）',
+  '数学': '人教版',
+  '英语': 'PEP（三年级起）',
+}
+
 const DEFAULT_STATE: TeachingState = {
   subject: '语文',
   grade: 4,
   semester: '下',
   textbook_math: '人教版',
   textbook_english: 'PEP',
+  textbookBySubject: {},
   textbook_locked: true,
   current_unit_name: '第三单元: 运算定律',
   current_lesson_name: '第2课时: 乘法分配律',
@@ -56,35 +144,56 @@ const DEFAULT_STATE: TeachingState = {
   selectedClassId: null,
 }
 
-const STORAGE_KEY = 'zhiwei_teaching'
+const STORAGE_PREFIX = 'zhiwei_teaching'
+/** 学段中文 → 年级序号（四年级→4） */
+export const GRADE_NAMES = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级']
+function gradeToNum(g?: string): number {
+  if (!g) return 4
+  const i = GRADE_NAMES.indexOf(g)
+  return i >= 0 ? i + 1 : 4
+}
+/** 当前登录账号 ID（用于按账号隔离教学上下文） */
+function currentUid(): string {
+  try { return (JSON.parse(localStorage.getItem('user') || '{}').id) || '' } catch { return '' }
+}
+function storageKey(): string {
+  const u = currentUid()
+  return u ? `${STORAGE_PREFIX}_${u}` : STORAGE_PREFIX
+}
 function loadState(): TeachingState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey())
     if (raw) {
       // 只允许合法 JSON 对象，排除 null/true/false/数字/字符串等非对象值
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         return { ...DEFAULT_STATE, ...parsed }
       }
-      // 格式不对 → 清除脏数据
-      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(storageKey())
+    }
+    // 无本地偏好时，回退到账号默认的学科/学段
+    const u = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') } catch { return {} } })()
+    if (u && u.subject) {
+      return { ...DEFAULT_STATE, subject: u.subject, grade: gradeToNum(u.grade) }
     }
   } catch {
-    // 解析失败 → 清除脏数据
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(storageKey())
   }
   return DEFAULT_STATE
 }
-function saveState(s: TeachingState) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)) }
+function saveState(s: TeachingState) { localStorage.setItem(storageKey(), JSON.stringify(s)) }
 
 // ── Context ──
 
-interface TeachingCtxValue extends TeachingState {
+export interface TeachingCtxValue extends TeachingState {
   setSubject: (s: TeachingState['subject']) => void
   setGrade: (g: number) => void
   setSemester: (s: TeachingState['semester']) => void
   setTextbookMath: (v: string) => void
   setTextbookEnglish: (v: string) => void
+  /** 按学科设置/读取教材版本（学校级覆盖后的真实版本） */
+  setTextbook: (subject: string, version: string) => void
+  currentTextbook: () => string
   setKnowledgeGraphEnabled: (v: boolean) => void
   setProgress: (unit: string, lesson: string, pct: number) => void
   /** v2.0: 选中课程组（入口级锚点） */
@@ -96,6 +205,8 @@ interface TeachingCtxValue extends TeachingState {
   /** 清除班级选中 */
   clearClass: () => void
   reset: () => void
+  /** V2.5 教材版本配置：学校 License 状态（active/trial/none），驱动教师端三种状态渲染 */
+  licenseStatus: string
 }
 
 const TeachingCtx = createContext<TeachingCtxValue | null>(null)
@@ -109,6 +220,15 @@ export function TeachingProvider({ children }: { children: ReactNode }) {
   const setSemester = useCallback((s: TeachingState['semester']) => setState(p => ({ ...p, semester: s })), [])
   const setTextbookMath = useCallback((v: string) => setState(p => ({ ...p, textbook_math: v })), [])
   const setTextbookEnglish = useCallback((v: string) => setState(p => ({ ...p, textbook_english: v })), [])
+  const setTextbook = useCallback((subject: string, version: string) =>
+    setState(p => ({ ...p, textbookBySubject: { ...p.textbookBySubject, [subject]: version } })), [])
+  const currentTextbook = useCallback((): string => {
+    const s = state.subject
+    if (state.textbookBySubject[s]) return state.textbookBySubject[s]
+    if (s === '数学') return state.textbook_math
+    if (s === '英语') return state.textbook_english
+    return DEFAULT_TEXTBOOK_BY_SUBJECT[s] || '人教版'
+  }, [state.subject, state.textbookBySubject, state.textbook_math, state.textbook_english])
   const setKnowledgeGraphEnabled = useCallback((v: boolean) => setState(p => ({ ...p, knowledgeGraphEnabled: v })), [])
   const setProgress = useCallback((u: string, l: string, pct: number) =>
     setState(p => ({ ...p, current_unit_name: u, current_lesson_name: l, progress_percent: pct })), [])
@@ -145,9 +265,39 @@ export function TeachingProvider({ children }: { children: ReactNode }) {
   const clearClass = useCallback(() => setState(p => ({ ...p, selectedClassId: null })), [])
   const reset = useCallback(() => setState(DEFAULT_STATE), [])
 
+  // V2.6 教材版本配置：解析当前 学科/年级/班级 的有效版本（个人偏好 > 学校配置 > 平台库），
+  // 写入 textbookBySubject。这样版本真正跟随 学科→年级→班级，而非只认学科。
+  // 任意已登录用户均生效（个人试用走个人偏好，学校版走学校配置），未登录不请求以免 401 清空会话。
+  useEffect(() => {
+    const tk = (typeof localStorage !== 'undefined') ? localStorage.getItem('zhiwei_token') : null
+    if (!tk) return
+    const subject = state.subject
+    const gradeName = GRADE_NAMES[state.grade - 1] || ''
+    const classId = state.selectedClassId || ''
+    teacherPrefAPI.effective({ subject, grade: gradeName, class_id: classId })
+      .then((r: any) => {
+        const v = r?.resolved?.version_name
+        if (!v) return
+        setState((prev) =>
+          prev.textbookBySubject[subject] === v
+            ? prev
+            : ({ ...prev, textbookBySubject: { ...prev.textbookBySubject, [subject]: v } }))
+      })
+      .catch(() => {})
+  // 学科/年级/选中班级变化时重新解析
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.subject, state.grade, state.selectedClassId])
+
+  // V2.5 教材版本配置：学校 License 状态（active/trial/none），驱动教师端三种状态渲染。
+  // 来源：登录时后端透传到 localStorage 的 user.license_status。
+  const licenseStatus: string = (() => {
+    try { return (JSON.parse(localStorage.getItem('user') || '{}').license_status as string) || 'none' } catch { return 'none' }
+  })()
+
   return (
     <TeachingCtx.Provider value={{
       ...state, setSubject, setGrade, setSemester, setTextbookMath, setTextbookEnglish,
+      setTextbook, currentTextbook, licenseStatus,
       setKnowledgeGraphEnabled, setProgress, selectCourseGroup, clearCourseGroup,
       selectClass, clearClass, reset,
     }}>
@@ -210,8 +360,8 @@ export function getRecommendedDefaults(teaching: TeachingState) {
   let difficulty = 'L2'
   if (grade <= 2) difficulty = 'L1'; else if (grade <= 4) difficulty = 'L2'; else if (grade <= 6) difficulty = 'L3'; else difficulty = 'L3'
   if (textbook_math === '苏教版') difficulty = grade <= 4 ? 'L2' : 'L3'
-  const typesBySubject: Record<string, string[]> = { '语文': ['choice','fill','reading','writing'], '数学': ['choice','fill','calculation','essay'], '英语': ['choice','cloze','reading','match'] }
-  return { purpose, count, difficulty, defaultTypes: typesBySubject[subject] || ['choice','fill','calculation'], semester }
+  const defaultTypes = getQuestionTypes(subject).slice(0, 3).map((t) => t.id)
+  return { purpose, count, difficulty, defaultTypes, semester }
 }
 
 export const PROVINCE_TO_TEXTBOOK_MATH: Record<string, string> = {

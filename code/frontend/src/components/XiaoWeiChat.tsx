@@ -23,7 +23,7 @@ const FEATURE_CARDS = [
   {
     icon: FileText, iconClass: 'text-[#1A3A6B]', bgClass: 'bg-brand/5',
     title: '制作教案', desc: 'AI 智能生成',
-    navigateTo: '/dashboard/lesson-plans/new', prompt: '帮我写一份教案',
+    navigateTo: '/lesson-plans/new', prompt: '帮我写一份教案',
   },
   {
     icon: BookOpen, iconClass: 'text-[#2B5DA8]', bgClass: 'bg-[#F0EDE8]',
@@ -45,7 +45,7 @@ const FEATURE_CARDS = [
 // 快捷指令
 const QUICK_COMMANDS = [
   { label: '教学设计', type: 'primary' as const, prompt: '帮我设计一堂课的教学设计', navigateTo: '/dashboard/lesson-plans/new' },
-  { label: '出题助手', type: 'outline' as const, prompt: '帮我出几道练习题', navigateTo: '/dashboard/exercises/new' },
+  { label: '出题助手', type: 'outline' as const, prompt: '帮我出几道练习题', navigateTo: '/exercises/new' },
   { label: '家长沟通', type: 'outline' as const, prompt: '帮我写一段家长沟通话术', navigateTo: null },
   { label: '班会方案', type: 'outline' as const, prompt: '帮我设计一个班会方案', navigateTo: null },
   { label: '教学反思', type: 'outline' as const, prompt: '帮我做一次教学反思总结', navigateTo: null },
@@ -141,7 +141,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       try {
         data = await aiAPI.chat({ message: fullMessage, context: ctx })
       } catch {
-        const res = await fetch('/api/v1/ai/chat', {
+        const res = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: fullMessage, context: ctx }),
@@ -183,7 +183,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
         try {
           const fd = new FormData()
           fd.append('audio', blob, 'recording.webm')
-          const res = await fetch('/api/v1/ai/speech-to-text', { method: 'POST', body: fd })
+          const res = await fetch('/api/ai/speech-to-text', { method: 'POST', body: fd })
           const data = await res.json()
           if (data.text) {
             setInput(prev => prev + data.text)

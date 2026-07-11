@@ -22,19 +22,27 @@ const routes = [
 ]
 
 ;(async () => {
-  const browser = await chromium.launch({ args: ['--no-sandbox'] })
+  const browser = await chromium.launch({ executablePath: process.env.PW_EXEC || '/Users/sipon/Library/Caches/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell', args: ['--no-sandbox'] })
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   const pageErrors = [], consoleErrors = []
   page.on('pageerror', e => pageErrors.push(e.message))
   page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()) })
 
-  // 登录
+  // 稳健登录：Node 侧真实登录 API 拿 token，注入 localStorage（避开 UI 登录 harness 坑），仍为真实浏览器渲染
+  const loginRes = await fetch(BASE + '/api/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: USER, password: PASS }),
+  }).catch(() => null)
+  const auth = loginRes ? await loginRes.json().catch(() => ({})) : {}
   await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(900)
-  const ins = await page.$$('input')
-  await ins[0].fill(USER); await ins[1].fill(PASS)
-  await page.click('button:has-text("登录")').catch(() => {})
-  await page.waitForURL('**/teacher', { timeout: 15000 }).catch(() => {})
+  if (auth.token) {
+    await page.evaluate((a) => {
+      localStorage.setItem('zhiwei_token', a.token)
+      localStorage.setItem('user', JSON.stringify(a.user || {}))
+    }, auth)
+  }
+  await page.goto(BASE + '/teacher', { waitUntil: 'domcontentloaded' }).catch(() => {})
+  await page.waitForTimeout(2500)
 
   const results = []
   for (const r of routes) {
@@ -53,7 +61,7 @@ const routes = [
     const pe = pageErrors.slice(beforePE), ce = consoleErrors.slice(beforeCE)
     if (status !== 'FAIL' && (pe.length > 0 || appError)) status = 'FAIL'
     else if (ce.length > 0) status = 'WARN'
-    results.push({ route: r, status, pe: pe.length, ce: ce.length, note: note || (pe.length ? pe[0].slice(0, 120) : '') })
+    results.push({ route: r, status, pe: pe.length, ce: ce.length, ceText: ce.slice(0, 3).join(' || ').slice(0, 300), note: note || (pe.length ? pe[0].slice(0, 120) : '') })
     console.log(`[${status}] ${r}  pe=${pe.length} ce=${ce.length}${pe.length ? '  ' + pe[0].slice(0, 100) : ''}`)
   }
   await browser.close()

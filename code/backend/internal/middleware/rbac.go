@@ -12,7 +12,7 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 		role, exists := c.Get("user_role")
 		if !exists {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "ROLE_NOT_FOUND",
+				"code":   "ROLE_NOT_FOUND",
 				"message": "会话角色缺失，请重新登录",
 			})
 			return
@@ -21,7 +21,7 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 		userRole, ok := role.(string)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":   "INVALID_ROLE_TYPE",
+				"code":   "INVALID_ROLE_TYPE",
 				"message": "会话角色无效，请重新登录",
 			})
 			return
@@ -35,7 +35,7 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 		}
 
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error":    "INSUFFICIENT_PERMISSIONS",
+			"code":    "INSUFFICIENT_PERMISSIONS",
 			"message":  "当前账号无访问该资源的权限",
 			"required": allowedRoles,
 			"current":  userRole,

@@ -2,6 +2,7 @@
  * 打印导出 PDF（通用）
  * 在新窗口渲染清洁 HTML → 自动触发打印 → 用户保存为 PDF
  */
+import { QUESTION_TYPE_LABELS } from './TeachingContext'
 
 const showToast = (msg: string, _type?: string) => {
   console.warn('[printPdf]', msg)
@@ -19,7 +20,7 @@ interface ExamQuestion {
 
 /** 试卷打印（学生卷） */
 export function printExamPaper(questions: ExamQuestion[], meta: { subject:string; grade:string; title:string; difficulty:string; teacherName:string }) {
-  const typeName: Record<string,string> = { choice:'选择题', fill:'填空题', calculation:'计算题', truefalse:'判断题', short_answer:'简答题' }
+  const typeName: Record<string,string> = QUESTION_TYPE_LABELS
   let qi = 0
   const questionsHtml = questions.map(q => {
     qi++

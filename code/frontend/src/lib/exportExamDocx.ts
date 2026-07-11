@@ -8,6 +8,7 @@ import {
   Table,
   Header, Footer, PageNumber,
 } from 'docx'
+import { QUESTION_TYPE_LABELS } from './TeachingContext'
 
 interface ExamQuestion {
   id: number
@@ -51,7 +52,7 @@ export async function exportExamPaper(questions: ExamQuestion[], meta: ExamMeta)
     }),
   )
 
-  const typeName: Record<string,string> = { choice:'选择题', fill:'填空题', calculation:'计算题', truefalse:'判断题', short_answer:'简答题' }
+  const typeName: Record<string,string> = QUESTION_TYPE_LABELS
 
   let qi = 0
   for (const q of questions) {
@@ -113,7 +114,7 @@ export async function exportExamAnswer(questions: ExamQuestion[], meta: ExamMeta
     }),
   )
 
-  const typeName: Record<string,string> = { choice:'选择题', fill:'填空题', calculation:'计算题', truefalse:'判断题', short_answer:'简答题' }
+  const typeName: Record<string,string> = QUESTION_TYPE_LABELS
 
   let qi = 0
   for (const q of questions) {

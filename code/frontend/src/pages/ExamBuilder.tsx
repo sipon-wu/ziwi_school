@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, X } from 'lucide-react'
-import { useTeaching } from '../lib/TeachingContext'
+import { useTeaching, getQuestionTypes } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
@@ -9,16 +9,6 @@ import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
-
-const QUESTION_TYPES = [
-  { id: 'choice', label: '选择题', count: 0 },
-  { id: 'fill', label: '填空题', count: 0 },
-  { id: 'judge', label: '判断题', count: 0 },
-  { id: 'match', label: '匹配题', count: 0 },
-  { id: 'cloze', label: '完形填空', count: 0 },
-  { id: 'reading', label: '阅读理解', count: 0 },
-  { id: 'writing', label: '写作题', count: 0 },
-]
 
 export default function ExamBuilder() {
   const teaching = useTeaching()
@@ -35,8 +25,12 @@ export default function ExamBuilder() {
   const [totalScore, setTotalScore] = useState(100)
   const [examDuration, setExamDuration] = useState(40)
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>(
-    Object.fromEntries(QUESTION_TYPES.map(t => [t.id, t.count]))
+    () => Object.fromEntries(getQuestionTypes(teaching.subject).map(t => [t.id, 0]))
   )
+  // 学科切换时重置题型配比（数学不出现阅读理解，语文不出现计算等）
+  useEffect(() => {
+    setTypeCounts(Object.fromEntries(getQuestionTypes(teaching.subject).map(t => [t.id, 0])))
+  }, [teaching.subject])
 
   // 选题状态
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([])
@@ -72,7 +66,10 @@ export default function ExamBuilder() {
               </div>
             </div>
             <div className="w-[80px] h-[100px] bg-[#F6F7F8] rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">
-              {teaching.textbook_math || '人教版'}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
+              {teaching.currentTextbook()}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
+              {teaching.licenseStatus === 'active'
+                ? <span className="text-[#15A85F]"> · 学校统一配置</span>
+                : <span className="text-[#9A9A9A]"> · 个人试用</span>}
             </div>
           </div>
         </div>
@@ -125,7 +122,7 @@ export default function ExamBuilder() {
         <div className="px-5 py-3 border-t border-[#F0F0F0]">
           <label className="block text-[12px] font-medium text-[#353535] mb-2">题型配比</label>
           <div className="space-y-2">
-            {QUESTION_TYPES.map(t => (
+            {getQuestionTypes(teaching.subject).map(t => (
               <div key={t.id} className="flex items-center gap-3">
                 <span className="text-[12px] text-[#353535] w-20 shrink-0">{t.label}</span>
                 <input type="range" min={0} max={20} value={typeCounts[t.id] || 0}

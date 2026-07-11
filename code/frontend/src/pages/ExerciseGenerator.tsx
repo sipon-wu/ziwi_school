@@ -2,7 +2,7 @@ import { useToast } from "../components/Toast"
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sparkles, Send, RefreshCw, X, Save, Check, AlertTriangle, Download, FileText, Mic, MicOff, Share2, Plus, Image } from 'lucide-react'
-import { useTeaching, getRecommendedDefaults } from '../lib/TeachingContext'
+import { useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LABELS, isTypeAllowed } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
@@ -24,14 +24,6 @@ const PURPOSES = [
   { id: 'final', label: '期末考试', icon: '🏆', desc: '学期末测评', count: [30, 35], difficulty: 'L1-L3', time: '90分钟' },
   { id: 'mock', label: '模拟考试', icon: '🎯', desc: '升学适应', count: [20, 30], difficulty: 'L2-L3', time: '90分钟' },
   { id: 'olympiad', label: '奥数拓展', icon: '🌟', desc: '竞赛预备', count: [10, 15], difficulty: 'L3-L4', time: '40分钟' },
-]
-
-const ADVANCED_TYPES = [
-  { id: 'judge', label: '判断题', subjects: ['语文'] },
-  { id: 'match', label: '匹配题', subjects: ['语文'] },
-  { id: 'cloze', label: '完形填空', subjects: ['语文'] },
-  { id: 'reading', label: '阅读理解', subjects: ['语文'] },
-  { id: 'writing', label: '写作题', subjects: ['语文'] },
 ]
 
 const SCHOOLS = [
@@ -67,7 +59,10 @@ export default function ExerciseGenerator() {
   const [count, setCount] = useState(10)
   const [purpose, setPurpose] = useState('classwork')
   const [showPurposeGrid, setShowPurposeGrid] = useState(true)
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(['choice', 'fill', 'judge', 'reading'])
+  // 题型默认随学科变化（语文不出现计算题等不适配题型）
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(
+    () => getQuestionTypes(teaching.subject).slice(0, 3).map((t) => t.id)
+  )
   const [selectedSchool, setSelectedSchool] = useState('')
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<any[]>([])
@@ -119,7 +114,7 @@ export default function ExerciseGenerator() {
       const text = e.results[0][0].transcript
       setVoiceText(text)
       try {
-        const res = await fetch('/api/v1/ai/homework/parse', {
+        const res = await fetch('/api/ai/homework/parse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || '') },
           body: JSON.stringify({ text, grade: gradeName }),
@@ -160,7 +155,7 @@ export default function ExerciseGenerator() {
     setGenerating(true)
     setSavedIds([]); setSaveMsg(''); setShowPublishPanel(false)
     try {
-      const res = await fetch('/api/v1/ai/exam/generate', {
+      const res = await fetch('/api/ai/exam/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || '') },
         body: JSON.stringify({
@@ -169,11 +164,17 @@ export default function ExerciseGenerator() {
           purpose, question_types: selectedTypes,
           school_style: selectedSchool || undefined,
           selected_knowledge_ids: picker.selectedIds,
-          textbook_version: teaching.textbook_math,
+          textbook_version: teaching.currentTextbook(),
         }),
       })
       const data = await res.json()
-      setQuestions(data.questions || [])
+      // 净化：AI 可能返回跨学科题型（如语文产出"计算题"），统一归一到本学科允许题型
+      const allowed = getQuestionTypes(teaching.subject).map((t) => t.id)
+      const raw = data.questions || []
+      const norm = raw.map((q: any) =>
+        isTypeAllowed(teaching.subject, q.type) ? q : { ...q, type: allowed[0] }
+      )
+      setQuestions(norm)
       setTotalCount(data.total_questions || 0)
       setAiPreview(true)
       setConfirmedSet(new Set())
@@ -310,7 +311,10 @@ export default function ExerciseGenerator() {
               </div>
             </div>
             <div className="w-[80px] h-[100px] bg-[#F6F7F8] rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">
-              {teaching.textbook_math || '人教版'}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
+              {teaching.currentTextbook()}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
+              {teaching.licenseStatus === 'active'
+                ? <span className="text-[#15A85F]"> · 学校统一配置</span>
+                : <span className="text-[#9A9A9A]"> · 个人试用</span>}
             </div>
           </div>
           {/* 进度条 */}
@@ -421,8 +425,7 @@ export default function ExerciseGenerator() {
         <div className="px-5 py-3 border-b border-[#E7E7EB]">
           <label className="block text-[12px] font-medium text-[#353535] mb-2">题型（已选 {selectedTypes.length} 种）</label>
           <div className="flex flex-wrap gap-1.5">
-            {[{ id: 'choice', label: '选择' }, { id: 'fill', label: '填空' },
-            ...ADVANCED_TYPES].map(t => (
+            {getQuestionTypes(teaching.subject).map(t => (
               <button key={t.id} onClick={() => toggleType(t.id)}
                 className={`px-2.5 py-1 text-[11px] rounded-[4px] border transition-colors ${selectedTypes.includes(t.id) ? 'bg-[#02A7F0]/10 text-[#02A7F0] border-[#02A7F0]/30' : 'border-[#E7E7EB] text-[#9A9A9A] hover:border-[#9A9A9A]'}`}>
                 {t.label}
@@ -517,7 +520,7 @@ export default function ExerciseGenerator() {
                       )}
                       {q.type && (
                         <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-[#E7E7EB] rounded text-[#9A9A9A]">
-                          {q.type === 'choice' ? '选择' : q.type === 'fill' ? '填空' : q.type === 'calculation' ? '计算' : q.type}
+                          {QUESTION_TYPE_LABELS[q.type] || q.type}
                         </span>
                       )}
                     </div>

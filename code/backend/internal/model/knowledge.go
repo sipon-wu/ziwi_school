@@ -98,3 +98,56 @@ type SchoolTextbookOverride struct {
 }
 
 func (SchoolTextbookOverride) TableName() string { return "school_textbook_override" }
+
+// ── V2.5 教材版本三级配置表 ──
+
+type TextbookConfigType string
+
+const (
+	ConfigTypeSchool       TextbookConfigType = "school"        // 学校级默认（学科→版本）
+	ConfigTypeGradeSubject TextbookConfigType = "grade_subject" // 年级-学科级覆盖
+	ConfigTypeClassSubject TextbookConfigType = "class_subject" // 班级级精细覆盖
+)
+
+// TextbookConfig 学校教材版本三级配置（V2.5 教材版本配置系统 P0）
+// 优先级：class_subject > grade_subject > school
+type TextbookConfig struct {
+	ID          string             `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID    string             `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	ConfigType  TextbookConfigType `gorm:"type:varchar(20);not null" json:"config_type"` // school / grade_subject / class_subject
+	Subject     string             `gorm:"type:varchar(20);not null" json:"subject"`     // 语文/数学/英语/...
+	Grade       string             `gorm:"type:varchar(20);default:''" json:"grade"`     // 年级名，仅 grade_subject/class_subject
+	ClassID     *string            `gorm:"type:varchar(50)" json:"class_id"`             // 班级ID，仅 class_subject
+	Publisher   string             `gorm:"type:varchar(100)" json:"publisher"`
+	VersionName string             `gorm:"type:varchar(200)" json:"version_name"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+func (TextbookConfig) TableName() string { return "textbook_config" }
+
+// ResolvedTextbook 教材版本解析结果（含来源层级）
+type ResolvedTextbook struct {
+	Subject     string `json:"subject"`
+	Publisher   string `json:"publisher"`
+	VersionName string `json:"version_name"`
+	SourceLevel string `json:"source_level"` // school / grade_subject / class_subject
+}
+
+// TeacherTextbookPref 教师个人教材偏好（per-user，跨设备同步，规格书 §5.1）。
+// 维度升级为 年级+班级+学科：教师可在个人设置里为「每年级每班每学科」指定版本，
+// 优先级高于学校级 textbook_config，仅影响该教师个人产出。唯一键 (teacher_id, grade, class_id, subject)。
+type TeacherTextbookPref struct {
+	ID          string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	TeacherID   string    `gorm:"type:varchar(50);not null;index" json:"teacher_id"`
+	SchoolID    string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	Grade       string    `gorm:"type:varchar(20);not null;default:''" json:"grade"`    // 年级名；空=不限（仅按学科）
+	ClassID     string    `gorm:"type:varchar(50);not null;default:''" json:"class_id"` // 班级ID；空=不限（按年级或仅学科）
+	Subject     string    `gorm:"type:varchar(20);not null" json:"subject"`
+	Publisher   string    `gorm:"type:varchar(100)" json:"publisher"`
+	VersionName string    `gorm:"type:varchar(200)" json:"version_name"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (TeacherTextbookPref) TableName() string { return "teacher_textbook_pref" }

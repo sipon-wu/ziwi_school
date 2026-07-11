@@ -155,7 +155,7 @@ export default function LessonPlanEditor() {
   const currentKnowledgeIds = content ? savedKnowledgeIds : picker.selectedIds
 
   const handleGenerate = async () => {
-    if (!lessonTitle.trim()) return
+    if (!lessonTitle.trim()) { toast('请先填写教案标题', 'warning'); return }
     // 必填校验：自动预选已满足缺省值，但用户主动清空时需拦截
     if (picker.selectedIds.length === 0) {
       toast('请先在知识图谱中选取本课知识点', 'warning')
@@ -376,11 +376,12 @@ export default function LessonPlanEditor() {
               </div>
             </div>
 
-            {/* AI 助手 */}
+            {/* AI 生成教案（接线 handleGenerate，修复此前空壳按钮导致无法 AI 生成） */}
             <div className="px-5 py-3">
-              <button className="w-full flex items-center gap-3 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors">
+              <button onClick={handleGenerate} disabled={generating || picker.selectedIds.length === 0}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50">
                 <Sparkles size={20} className="text-[#02A7F0] shrink-0" />
-                <span className="text-[12px]">有什么需求，支持会话、附件上传、在线素材...</span>
+                <span className="text-[13px]">{generating ? '小微正在生成教案...' : (picker.selectedIds.length === 0 ? '请先在知识图谱选取知识点' : 'AI 生成教案')}</span>
               </button>
             </div>
           </div>

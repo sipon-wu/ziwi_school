@@ -48,9 +48,18 @@ func main() {
 		&model.TextbookVersion{}, &model.StandardClause{},
 		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
 		&model.SchoolTextbookOverride{},
+		&model.TextbookConfig{},
+		&model.TeacherTextbookPref{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
+
+	// 教材版本个人偏好支持 年级/班级 维度（V2.6）：新增列 + 复合唯一索引 (teacher_id, grade, class_id, subject)。
+	// AutoMigrate 已加列（default ''），此处补齐唯一索引并下线旧索引，幂等。
+	db.Exec(`ALTER TABLE teacher_textbook_pref ADD COLUMN IF NOT EXISTS grade VARCHAR(20) NOT NULL DEFAULT ''`)
+	db.Exec(`ALTER TABLE teacher_textbook_pref ADD COLUMN IF NOT EXISTS class_id VARCHAR(50) NOT NULL DEFAULT ''`)
+	db.Exec(`DROP INDEX IF EXISTS uk_teacher_subject`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_teacher_gcs ON teacher_textbook_pref (teacher_id, grade, class_id, subject)`)
 
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(db)
@@ -161,7 +170,7 @@ func main() {
 			aiProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadGateway)
-				w.Write([]byte(`{"message":"ai_service_unavailable","error":"` + e.Error() + `"}`))
+				w.Write([]byte(`{"code":"AI_SERVICE_UNAVAILABLE","message":"AI 服务暂不可用"}`))
 			}
 			r.Any("/api/ai/*path", func(c *gin.Context) {
 				aiProxy.ServeHTTP(c.Writer, c.Request)
@@ -238,8 +247,14 @@ func main() {
 		teacher.PUT("/schools/:id/restore", scHandler.RestoreSchool)
 		teacher.PUT("/classes/:id/archive", scHandler.ArchiveClass)
 		teacher.PUT("/classes/:id/restore", scHandler.RestoreClass)
+		teacher.GET("/classes", scHandler.ListClasses)
+		teacher.GET("/my-classes", scHandler.MyClasses)
 		teacher.GET("/schools/lookup", scHandler.LookupSchool)
 		teacher.PUT("/user/profile", authHandler.UpdateProfile)
+		// V2.5 个人试用教材偏好（per-user，跨设备同步，规格书 §5.1）
+		teacher.GET("/me/textbook-prefs", itHandler.ListTeacherTextbookPrefs)
+		teacher.POST("/me/textbook-prefs", itHandler.UpsertTeacherTextbookPref)
+		teacher.DELETE("/me/textbook-prefs", itHandler.DeleteTeacherTextbookPref)
 	}
 
 	// 教研组长端
@@ -277,20 +292,39 @@ func main() {
 	{
 		itAdmin.GET("/admin/users", itHandler.ListUsers)
 		itAdmin.GET("/admin/contacts", itHandler.ListContacts)
-		itAdmin.GET("/admin/textbooks", itHandler.ListTextbookVersions)
 		// 角色分配（G2）
 		itAdmin.PUT("/admin/users/:id/role", itHandler.UpdateUserRole)
-		// 教材版本（读公共库 tb_textbook_version，平台统一维护；PUT 为学校级覆盖已下线）
-		itAdmin.PUT("/admin/textbooks", itHandler.UpsertTextbook)
-		// 学期配置（G7，复用教务仓储）
-		itAdmin.GET("/admin/semesters", itHandler.ListSemesters)
-		itAdmin.POST("/admin/semesters", itHandler.CreateSemester)
 		// 数据初始化批量导入
 		itAdmin.POST("/admin/import/:type", importHandler.Import)
 		itAdmin.GET("/admin/import/history", importHandler.History)
 		// 注意：与上方 :type 同前缀，rollback 必须用静态段避免通配符冲突
 		itAdmin.POST("/admin/import/rollback/:batchId", importHandler.Rollback)
+		// ── V2.6 全学科教材版本库维护（数据团队提供数据，IT 管理员导入/维护）──
+		itAdmin.GET("/admin/textbook-versions", itHandler.ListTextbookVersionLibrary)
+		itAdmin.POST("/admin/textbook-versions", itHandler.CreateTextbookVersion)
+		itAdmin.PUT("/admin/textbook-versions/:id", itHandler.UpdateTextbookVersion)
+		itAdmin.DELETE("/admin/textbook-versions/:id", itHandler.DeleteTextbookVersion)
+		itAdmin.POST("/admin/textbook-versions/import", itHandler.ImportTextbookVersions)
 	}
+
+	// 教材版本：教师/班主任/IT 管理员均可读写本校覆盖层（学校级配置，任课教师是直接使用人）
+	textbookGrp := api.Group("")
+	textbookGrp.Use(middleware.RequireRole("teacher", "head_teacher", "it_admin"))
+	textbookGrp.GET("/admin/textbooks", itHandler.ListTextbookVersions)
+	textbookGrp.PUT("/admin/textbooks", itHandler.UpsertTextbook)
+	// V2.5 教材版本三级配置（学校级/年级学科级/班级级 + 优先级解析）
+	textbookGrp.GET("/admin/textbook-configs", itHandler.ListTextbookConfigs)
+	textbookGrp.POST("/admin/textbook-configs", itHandler.UpsertTextbookConfig)
+	textbookGrp.DELETE("/admin/textbook-configs/:id", itHandler.DeleteTextbookConfig)
+	textbookGrp.GET("/admin/textbook-configs/resolve", itHandler.ResolveTextbookConfig)
+	// V2.6 教师有效教材版本解析：个人偏好 > 学校配置 > 平台库默认（按 学科/年级/班级 联动）
+	textbookGrp.GET("/me/textbook-effective", itHandler.ResolveEffectiveTextbook)
+
+	// 学期配置：教师/班主任/IT 管理员均可管理（学校级配置，云上无独立 IT 角色时由任课教师在个人中心维护）
+	semesterGrp := api.Group("")
+	semesterGrp.Use(middleware.RequireRole("teacher", "head_teacher", "it_admin"))
+	semesterGrp.GET("/admin/semesters", itHandler.ListSemesters)
+	semesterGrp.POST("/admin/semesters", itHandler.CreateSemester)
 
 	// 平台运营端
 	platformOps := api.Group("")

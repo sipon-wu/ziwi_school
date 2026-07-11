@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useTeaching, type TeachingState } from '../lib/TeachingContext'
+import { useTeaching, type TeachingCtxValue } from '../lib/TeachingContext'
 import type { KnowledgeNode } from '../components/KnowledgeGraph'
 
 type LayoutMode = 'tree' | 'spiral' | 'mesh'
@@ -42,7 +42,7 @@ export interface UseKnowledgePickerReturn {
   setDiffRange: React.Dispatch<React.SetStateAction<[number, number]>>
 
   // 教材信息（来自 TeachingContext）
-  teaching: TeachingState & {
+  teaching: TeachingCtxValue & {
     setSubject: (s: '语文' | '数学' | '英语') => void
     setGrade: (g: number) => void
     setSemester: (s: '上' | '下') => void
@@ -93,9 +93,9 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   // ── 当前教材单元列表 ──
   const currentUnits = useMemo(() => {
     if (!textbookData) return []
-    const version = textbookData[teaching.textbook_math] || {}
+    const version = textbookData[teaching.currentTextbook()] || {}
     return version[String(teaching.grade)]?.[teaching.semester] || []
-  }, [textbookData, teaching.textbook_math, teaching.grade, teaching.semester])
+  }, [textbookData, teaching.currentTextbook(), teaching.grade, teaching.semester])
 
   // ── 当前选中单元 ──
   const [selectedUnit, setSelectedUnit] = useState('')
@@ -110,9 +110,8 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   const [graphDimension, setGraphDimension] = useState<Dimension>('knowledge')
   const [diffRange, setDiffRange] = useState<[number, number]>([1, 4])
 
-  // ── 自动预选：首次加载 + 教材版本/年级/学期变更时 ——
+  // ── 自动预选：教材映射优先；缺失时回退知识图谱按学科预选（保证出题/教案按钮默认可用）──
   const prevPreSelectedRef = useRef<string[] | undefined>(undefined)
-  const autoSelectInitRef = useRef(false)
   useEffect(() => {
     // preSelectedNodes 优先级最高（联动传入）
     if (preSelectedNodes && preSelectedNodes.length > 0) {
@@ -125,13 +124,26 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
       }
       return
     }
-    if (!autoSelect || !textbookData || currentUnits.length === 0) return
-    // 教材/年级/学期变更时重新自动预选（匹配现有 ExerciseGenerator 行为）
-    autoSelectInitRef.current = true
-    const firstUnit = currentUnits[0]
-    setSelectedUnit(firstUnit.unit)
-    setSelectedIds(firstUnit.kps || [])
-  }, [textbookData, teaching.textbook_math, teaching.grade, teaching.semester, currentUnits, autoSelect, preSelectedNodes])
+    if (!autoSelect) return
+    // 1) 教材版本映射路径（textbook-math.json 存在且含当前 版本/年级/学期 组合）
+    if (textbookData && currentUnits.length > 0) {
+      const firstUnit = currentUnits[0]
+      setSelectedUnit(firstUnit.unit)
+      setSelectedIds(firstUnit.kps || [])
+      return
+    }
+    // 2) 回退：textbook-math.json 缺失/不含当前组合时，按 学科/年级/学期 从知识图谱预选前若干节点，
+    //    避免「AI生成」按钮因无预选知识点而恒灰（灰度指引：知识点为可选，不应阻塞出题/教案）。
+    if (knowledgeData.length === 0) return
+    const subj = teaching.subject
+    const grade = teaching.grade
+    const sem = teaching.semester
+    let cand = knowledgeData.filter((n: any) => n.subject === subj)
+    if (cand.length === 0) cand = knowledgeData
+    const sameGS = cand.filter((n: any) => n.grade === grade && n.semester === sem)
+    const pick = (sameGS.length ? sameGS : cand).slice(0, 6).map((n: any) => n.id)
+    if (pick.length > 0) setSelectedIds(pick)
+  }, [textbookData, knowledgeData, teaching.currentTextbook(), teaching.grade, teaching.semester, currentUnits, autoSelect, preSelectedNodes])
 
   // ── 单元切换 ──
   const handleUnitChange = useCallback((unitName: string) => {

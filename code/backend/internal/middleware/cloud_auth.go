@@ -23,7 +23,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 		if authHeader == "" {
 			log.Printf("[cloud-auth] 拒绝: 缺少 Authorization header (path=%s)", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "MISSING_TOKEN",
+				"code":   "MISSING_TOKEN",
 				"message": "缺少认证信息",
 			})
 			return
@@ -33,7 +33,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			log.Printf("[cloud-auth] 拒绝: 非 Bearer 格式 header=%s", authHeader[:min(len(authHeader), 20)])
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "INVALID_AUTH_FORMAT",
+				"code":   "INVALID_AUTH_FORMAT",
 				"message": "认证格式错误，请使用 Bearer Token",
 			})
 			return
@@ -43,7 +43,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 		if tokenStr == "" {
 			log.Printf("[cloud-auth] 拒绝: 空 token")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "EMPTY_TOKEN",
+				"code":   "EMPTY_TOKEN",
 				"message": "认证凭证为空",
 			})
 			return
@@ -56,7 +56,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 			if strings.Contains(errStr, "token is expired") || strings.Contains(errStr, "expired") {
 				log.Printf("[cloud-auth] 拒绝: token 过期")
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error":   "TOKEN_EXPIRED",
+					"code":   "TOKEN_EXPIRED",
 					"message": "云端令牌已过期，请刷新",
 				})
 				return
@@ -65,14 +65,14 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 			if strings.Contains(errStr, "JWKS") || strings.Contains(errStr, "unreachable") || strings.Contains(errStr, "unavailable") {
 				log.Printf("[cloud-auth] 拒绝: JWKS 不可达 - %v", err)
 				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-					"error":   "JWKS_UNAVAILABLE",
+					"code":   "JWKS_UNAVAILABLE",
 					"message": "认证服务暂不可用，请稍后重试",
 				})
 				return
 			}
 			log.Printf("[cloud-auth] 拒绝: 验签失败 - %v", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "INVALID_TOKEN",
+				"code":   "INVALID_TOKEN",
 				"message": "无效的云认证凭证",
 			})
 			return

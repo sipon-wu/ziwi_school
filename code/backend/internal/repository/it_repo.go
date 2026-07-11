@@ -119,6 +119,91 @@ func (r *ITRepository) ListTextbookVersions(schoolID string) ([]TextbookVersionV
 	return out, nil
 }
 
+// ── V2.6 全学科教材版本库（tb_textbook_version）运行期维护 ──
+
+// ListRawTextbookVersions 原始版本库列表（含 id / version_key，供维护 UI 使用）
+func (r *ITRepository) ListRawTextbookVersions() ([]model.TextbookVersion, error) {
+	var vs []model.TextbookVersion
+	if err := r.db.Order("xue_ke, nian_ji, ban_ben_biao_shi").Find(&vs).Error; err != nil {
+		return nil, err
+	}
+	if vs == nil {
+		vs = []model.TextbookVersion{}
+	}
+	return vs, nil
+}
+
+// UpsertTextbookVersion 按 version_key 写入/更新一条版本库记录
+func (r *ITRepository) UpsertTextbookVersion(v *model.TextbookVersion) error {
+	return r.db.Exec(`
+		INSERT INTO tb_textbook_version (version_key, xue_duan, nian_ji, xue_ke, jiao_cai_ming, chu_ban_she, ban_ben_biao_shi, ce_bie, mu_lu_url, inferred, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), now())
+		ON CONFLICT (version_key) DO UPDATE SET
+			xue_duan=EXCLUDED.xue_duan, nian_ji=EXCLUDED.nian_ji, xue_ke=EXCLUDED.xue_ke,
+			jiao_cai_ming=EXCLUDED.jiao_cai_ming, chu_ban_she=EXCLUDED.chu_ban_she,
+			ban_ben_biao_shi=EXCLUDED.ban_ben_biao_shi, ce_bie=EXCLUDED.ce_bie,
+			mu_lu_url=EXCLUDED.mu_lu_url, inferred=EXCLUDED.inferred, updated_at=now()`,
+		v.VersionKey, v.XueDuan, v.NianJi, v.XueKe, v.JiaoCaiMing, v.ChuBanShe, v.BanBenBiaoShi, v.CeBie, v.MuLuURL, v.Inferred,
+	).Error
+}
+
+// UpdateTextbookVersion 按 id 更新一条版本库记录
+func (r *ITRepository) UpdateTextbookVersion(id int64, v *model.TextbookVersion) error {
+	res := r.db.Model(&model.TextbookVersion{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"xue_duan": v.XueDuan, "nian_ji": v.NianJi, "xue_ke": v.XueKe, "jiao_cai_ming": v.JiaoCaiMing,
+		"chu_ban_she": v.ChuBanShe, "ban_ben_biao_shi": v.BanBenBiaoShi, "ce_bie": v.CeBie,
+		"mu_lu_url": v.MuLuURL, "inferred": v.Inferred,
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("version not found")
+	}
+	return nil
+}
+
+// DeleteTextbookVersion 按 id 删除一条版本库记录
+func (r *ITRepository) DeleteTextbookVersion(id int64) error {
+	res := r.db.Where("id = ?", id).Delete(&model.TextbookVersion{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("version not found")
+	}
+	return nil
+}
+
+// ImportTextbookVersions 批量导入版本库（数据团队交付），按 version_key upsert，事务内执行
+func (r *ITRepository) ImportTextbookVersions(rows []model.TextbookVersion) (int, error) {
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		for i := range rows {
+			v := rows[i]
+			if err := tx.Exec(`
+				INSERT INTO tb_textbook_version (version_key, xue_duan, nian_ji, xue_ke, jiao_cai_ming, chu_ban_she, ban_ben_biao_shi, ce_bie, mu_lu_url, inferred, created_at, updated_at)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), now())
+				ON CONFLICT (version_key) DO UPDATE SET
+					xue_duan=EXCLUDED.xue_duan, nian_ji=EXCLUDED.nian_ji, xue_ke=EXCLUDED.xue_ke,
+					jiao_cai_ming=EXCLUDED.jiao_cai_ming, chu_ban_she=EXCLUDED.chu_ban_she,
+					ban_ben_biao_shi=EXCLUDED.ban_ben_biao_shi, ce_bie=EXCLUDED.ce_bie,
+					mu_lu_url=EXCLUDED.mu_lu_url, inferred=EXCLUDED.inferred, updated_at=now()`,
+				v.VersionKey, v.XueDuan, v.NianJi, v.XueKe, v.JiaoCaiMing, v.ChuBanShe, v.BanBenBiaoShi, v.CeBie, v.MuLuURL, v.Inferred,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return len(rows), nil
+}
+
 // ── 角色分配（G2）──
 
 // validSchoolRoles 学校 IT 后台可分配的校内角色（不含平台角色/学生）
@@ -159,5 +244,177 @@ func (r *ITRepository) UpsertSchoolTextbook(schoolID, subject, grade, publisher,
 		ON CONFLICT (school_id, subject, grade)
 		DO UPDATE SET publisher = EXCLUDED.publisher, version_name = EXCLUDED.version_name, updated_at = now()
 	`, schoolID, subject, grade, publisher, versionName).Error
+}
+
+// ── V2.5 教材版本三级配置 ──
+
+// ListTextbookConfigs 列出本校所有三级教材配置（学校级/年级学科级/班级级）
+func (r *ITRepository) ListTextbookConfigs(schoolID string) ([]model.TextbookConfig, error) {
+	var cfgs []model.TextbookConfig
+	if err := r.db.Where("school_id = ?", schoolID).
+		Order("config_type, subject, grade, class_id").
+		Find(&cfgs).Error; err != nil {
+		return nil, err
+	}
+	if cfgs == nil {
+		cfgs = []model.TextbookConfig{}
+	}
+	return cfgs, nil
+}
+
+// UpsertTextbookConfig 按唯一键 (school_id, config_type, subject, grade, class_id) upsert 一条配置。
+// 学校级 grade=空、class_id=nil；年级学科级 grade=年级、class_id=nil；班级级 class_id=班级、grade=年级。
+// 注：GORM Exec 的 prepared statement 不支持单字符串多语句，故 DELETE 与 INSERT 分两次执行。
+func (r *ITRepository) UpsertTextbookConfig(cfg *model.TextbookConfig) error {
+	if err := r.db.Exec(
+		`DELETE FROM textbook_config WHERE school_id = $1 AND config_type = $2 AND subject = $3 AND grade IS NOT DISTINCT FROM $4 AND class_id IS NOT DISTINCT FROM $5`,
+		cfg.SchoolID, string(cfg.ConfigType), cfg.Subject, cfg.Grade, cfg.ClassID,
+	).Error; err != nil {
+		return err
+	}
+	return r.db.Exec(
+		`INSERT INTO textbook_config (id, school_id, config_type, subject, grade, class_id, publisher, version_name, created_at, updated_at)
+		 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, now(), now())`,
+		cfg.SchoolID, string(cfg.ConfigType), cfg.Subject, cfg.Grade, cfg.ClassID, cfg.Publisher, cfg.VersionName,
+	).Error
+}
+
+// DeleteTextbookConfig 删除一条本校配置
+func (r *ITRepository) DeleteTextbookConfig(schoolID, id string) error {
+	res := r.db.Exec(`DELETE FROM textbook_config WHERE school_id = $1 AND id = $2`, schoolID, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("config not found")
+	}
+	return nil
+}
+
+// ResolveTextbookConfig 按优先级解析某学科在某班级的实际教材版本。
+// 优先级：班级级(class_subject) > 年级学科级(grade_subject) > 学校级(school)
+func (r *ITRepository) ResolveTextbookConfig(schoolID, subject, grade string, classID *string) (*model.ResolvedTextbook, error) {
+	var cfg model.TextbookConfig
+	// 1) 班级级
+	if classID != nil {
+		if err := r.db.Where("school_id = ? AND config_type = ? AND subject = ? AND class_id IS NOT DISTINCT FROM ?",
+			schoolID, string(model.ConfigTypeClassSubject), subject, classID).
+			First(&cfg).Error; err == nil {
+			return &model.ResolvedTextbook{Subject: subject, Publisher: cfg.Publisher, VersionName: cfg.VersionName, SourceLevel: "class_subject"}, nil
+		}
+	}
+	// 2) 年级学科级
+	if grade != "" {
+		if err := r.db.Where("school_id = ? AND config_type = ? AND subject = ? AND grade IS NOT DISTINCT FROM ?",
+			schoolID, string(model.ConfigTypeGradeSubject), subject, grade).
+			First(&cfg).Error; err == nil {
+			return &model.ResolvedTextbook{Subject: subject, Publisher: cfg.Publisher, VersionName: cfg.VersionName, SourceLevel: "grade_subject"}, nil
+		}
+	}
+	// 3) 学校级
+	if err := r.db.Where("school_id = ? AND config_type = ? AND subject = ?",
+		schoolID, string(model.ConfigTypeSchool), subject).
+		First(&cfg).Error; err == nil {
+		return &model.ResolvedTextbook{Subject: subject, Publisher: cfg.Publisher, VersionName: cfg.VersionName, SourceLevel: "school"}, nil
+	}
+	return nil, nil
+}
+
+// ── V2.5/2.6 教师个人教材偏好（per-user，跨设备同步，规格书 §5.1）──
+// 维度：年级 + 班级 + 学科。唯一键 (teacher_id, grade, class_id, subject)。
+// 教师可在个人设置里为「每年级每班每学科」指定版本，优先级高于学校级配置，仅影响个人产出。
+
+// UpsertTeacherTextbookPref 按唯一键 (teacher_id, grade, class_id, subject) upsert 一条个人教材偏好。
+func (r *ITRepository) UpsertTeacherTextbookPref(teacherID, schoolID, grade, classID, subject, publisher, versionName string) error {
+	if err := r.db.Exec(
+		`DELETE FROM teacher_textbook_pref WHERE teacher_id = $1 AND grade IS NOT DISTINCT FROM $2 AND class_id IS NOT DISTINCT FROM $3 AND subject = $4`,
+		teacherID, grade, classID, subject,
+	).Error; err != nil {
+		return err
+	}
+	return r.db.Exec(
+		`INSERT INTO teacher_textbook_pref (id, teacher_id, school_id, grade, class_id, subject, publisher, version_name, created_at, updated_at)
+		 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, now(), now())`,
+		teacherID, schoolID, grade, classID, subject, publisher, versionName,
+	).Error
+}
+
+// ListTeacherTextbookPrefs 列出某教师全部个人教材偏好
+func (r *ITRepository) ListTeacherTextbookPrefs(teacherID string) ([]model.TeacherTextbookPref, error) {
+	var prefs []model.TeacherTextbookPref
+	if err := r.db.Where("teacher_id = ?", teacherID).Order("subject, grade, class_id").Find(&prefs).Error; err != nil {
+		return nil, err
+	}
+	if prefs == nil {
+		prefs = []model.TeacherTextbookPref{}
+	}
+	return prefs, nil
+}
+
+// DeleteTeacherTextbookPref 删除某教师某 (年级, 班级, 学科) 的个人教材偏好
+func (r *ITRepository) DeleteTeacherTextbookPref(teacherID, grade, classID, subject string) error {
+	res := r.db.Exec(`DELETE FROM teacher_textbook_pref WHERE teacher_id = $1 AND grade IS NOT DISTINCT FROM $2 AND class_id IS NOT DISTINCT FROM $3 AND subject = $4`, teacherID, grade, classID, subject)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("pref not found")
+	}
+	return nil
+}
+
+// ResolveEffectiveTextbook 解析某教师在某 (学科, 年级, 班级) 下的有效教材版本。
+// 优先级：个人偏好(班级级>年级级>学科级) > 学校配置(class_subject>grade_subject>school) > 平台库默认。
+// 返回解析结果与来源标记（personal:class / personal:grade / personal:subject / school:* / library / none）。
+func (r *ITRepository) ResolveEffectiveTextbook(teacherID, schoolID, subject, grade string, classID *string) (*model.ResolvedTextbook, string, error) {
+	cid := ""
+	if classID != nil {
+		cid = *classID
+	}
+	// 1) 个人偏好
+	var prefs []model.TeacherTextbookPref
+	if err := r.db.Where("teacher_id = ? AND subject = ?", teacherID, subject).Find(&prefs).Error; err != nil {
+		return nil, "", err
+	}
+	var exact, gradeOnly, subjOnly *model.TeacherTextbookPref
+	for i := range prefs {
+		p := &prefs[i]
+		switch {
+		case p.Grade == grade && p.ClassID == cid:
+			exact = p
+		case p.Grade == grade && p.ClassID == "":
+			gradeOnly = p
+		case p.Grade == "" && p.ClassID == "":
+			subjOnly = p
+		}
+	}
+	if exact != nil {
+		return &model.ResolvedTextbook{Subject: subject, Publisher: exact.Publisher, VersionName: exact.VersionName}, "personal:class", nil
+	}
+	if gradeOnly != nil {
+		return &model.ResolvedTextbook{Subject: subject, Publisher: gradeOnly.Publisher, VersionName: gradeOnly.VersionName}, "personal:grade", nil
+	}
+	if subjOnly != nil {
+		return &model.ResolvedTextbook{Subject: subject, Publisher: subjOnly.Publisher, VersionName: subjOnly.VersionName}, "personal:subject", nil
+	}
+	// 2) 学校配置
+	cfg, err := r.ResolveTextbookConfig(schoolID, subject, grade, classID)
+	if err != nil {
+		return nil, "", err
+	}
+	if cfg != nil {
+		return cfg, "school:" + cfg.SourceLevel, nil
+	}
+	// 3) 平台库默认（优先匹配年级，否则取该学科任意一条）
+	var lib model.TextbookVersion
+	if err := r.db.Where("xue_ke = ? AND (nian_ji = ? OR nian_ji = '' OR nian_ji IS NULL)", subject, grade).
+		Order("CASE WHEN nian_ji = ? THEN 0 ELSE 1 END").Find(&lib).Error; err == nil && lib.ID != 0 {
+		return &model.ResolvedTextbook{Subject: subject, Publisher: lib.ChuBanShe, VersionName: lib.BanBenBiaoShi}, "library", nil
+	}
+	var any model.TextbookVersion
+	if err := r.db.Where("xue_ke = ?", subject).First(&any).Error; err == nil {
+		return &model.ResolvedTextbook{Subject: subject, Publisher: any.ChuBanShe, VersionName: any.BanBenBiaoShi}, "library", nil
+	}
+	return nil, "none", nil
 }
 

@@ -1,12 +1,14 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react'
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import {
   LayoutGrid, BookOpen, FileText, PenTool, Files, Send, Image as ImgIcon,
   ListChecks, BarChart3, Footprints, MessageCircle, PenLine, Heart,
-  Repeat, Settings, GitPullRequest, ChevronDown, ChevronRight, PanelLeft
+  Repeat, Settings, GitPullRequest, ChevronDown, ChevronRight, PanelLeft, Check
 } from 'lucide-react'
 import HeaderRight from './HeaderRight'
 import LogoText from './LogoText'
 import XiaoWeiChat from './XiaoWeiChat'
+import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
+import { classAPI } from '../lib/api'
 
 /* ──────── Sidebar ──────── */
 type SidebarGroup = { id: string; label: string; icon: ReactNode; to?: string; children?: SidebarChild[] }
@@ -50,8 +52,52 @@ interface Props {
 
 export default function AppLayout({ children }: Props) {
   const user = safeGetUser()
+  const teaching = useTeaching()
   const [collapsed, setCollapsed] = useState(false)
+  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  const [openCC, setOpenCC] = useState(false)
+  const ccRef = useRef<HTMLDivElement>(null)
   const path = window.location.pathname
+
+  const gradeToNum = (g?: string) => { const i = GRADE_NAMES.indexOf(g || ''); return i >= 0 ? i + 1 : 4 }
+
+  // 拉取当前教师任教的「班级-学科」
+  useEffect(() => {
+    let alive = true
+    classAPI.myClasses().then(r => {
+      if (!alive) return
+      const items = r.items || []
+      setMyClasses(items)
+      // 首次进入（无选中班级）时，自动选中主班级
+      if (items.length > 0 && !teaching.selectedClassId) {
+        const primary = items.find(i => i.is_primary) || items[0]
+        teaching.setSubject(primary.subject)
+        teaching.setGrade(gradeToNum(primary.grade))
+        teaching.selectClass(toClassInfo(primary))
+      }
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ccRef.current && !ccRef.current.contains(e.target as Node)) setOpenCC(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const currentCC = myClasses.find(i => i.class_id === teaching.selectedClassId)
+  const toClassInfo = (item: { class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }) => ({
+    id: item.class_id, label: item.class_name, courseGroupId: '', subject: item.subject as '语文' | '数学' | '英语', grade: gradeToNum(item.grade), semester: '下' as const, textbook: '',
+  })
+  const switchCC = (item: { class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }) => {
+    teaching.setSubject(item.subject)
+    teaching.setGrade(gradeToNum(item.grade))
+    teaching.selectClass(toClassInfo(item))
+    setOpenCC(false)
+  }
 
   // 根据当前路径自动展开所属分组
   const autoExpanded = useMemo(() => {
@@ -159,10 +205,38 @@ export default function AppLayout({ children }: Props) {
             ) : (
               <>
                 <span className="text-[13px] text-[#353535]">{user?.school_name || '成都市金牛区第一小学'}</span>
-                <div className="flex items-center gap-1 ml-3 text-[13px] bg-white border border-[#E7E7EB] rounded-[3px] px-2.5 py-1 cursor-pointer hover:border-[#02A7F0]">
-                  <span>语文 · 四年级 (1班)</span>
-                  <span className="text-[#9A9A9A] text-xs ml-1">▾</span>
-                </div>
+                {myClasses.length > 0 ? (
+                  <div className="relative ml-3" ref={ccRef}>
+                    <button
+                      onClick={() => setOpenCC(o => !o)}
+                      className="flex items-center gap-1 text-[13px] bg-white border border-[#E7E7EB] rounded-[3px] px-2.5 py-1 cursor-pointer hover:border-[#02A7F0] transition-colors"
+                    >
+                      <span>{teaching.subject} · {GRADE_NAMES[teaching.grade - 1]}{currentCC ? ` (${currentCC.class_name})` : ''}</span>
+                      <span className="text-[#9A9A9A] text-xs ml-1">▾</span>
+                    </button>
+                    {openCC && (
+                      <div className="absolute left-0 top-9 z-50 w-56 bg-white border border-[#E7E7EB] rounded-[4px] shadow-lg py-1 max-h-72 overflow-y-auto">
+                        {myClasses.map(it => {
+                          const active = it.class_id === teaching.selectedClassId
+                          return (
+                            <button
+                              key={it.class_id + it.subject}
+                              onClick={() => switchCC(it)}
+                              className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 transition-colors ${active ? 'bg-[#02A7F0]/10 text-[#02A7F0]' : 'text-[#353535] hover:bg-[#F9FAFB]'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? 'bg-[#52C41A]' : 'bg-[#E7E7EB]'}`} />
+                              <span className="flex-1">{it.subject} · {it.grade} · {it.class_name}</span>
+                              {it.is_primary && <span className="text-[10px] text-[#9A9A9A]">主</span>}
+                              {active && <Check size={12} className="text-[#52C41A]" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="ml-3 text-[13px] text-[#9A9A9A]">{teaching.subject} · {GRADE_NAMES[teaching.grade - 1]}</span>
+                )}
               </>
             )}
           </div>

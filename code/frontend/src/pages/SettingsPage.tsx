@@ -1,12 +1,30 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { Pencil, Plus, Trash2, Copy, Check, X, Upload } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, adminAPI, classAPI, teacherPrefAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
+import { useTeaching } from '../lib/TeachingContext'
 
-type SubTab = 'account' | 'school' | 'train' | 'log'
+type SubTab = 'account' | 'school' | 'textbook' | 'semester' | 'train' | 'log' | 'library'
 
 export default function SettingsPage() {
   const [subTab, setSubTab] = useState<SubTab>('account')
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} } })()
+  const licenseStatus = (user.license_status as string) || 'none'
+  const isITAdmin = user.role === 'it_admin'
+
+  // 系统设置子页签（V2.5 教材版本配置规格书 §4）：
+  //  - 学校版 License 已开通(active) 且非 IT 管理员 → 教师继承学校配置，隐藏教材配置入口
+  //  - 个人试用(none/trial) 或 IT 管理员 → 显示教材配置入口，自行维护
+  // 顶部下拉仅展示/切换配置结果，不在顶栏配置。
+  const SETTING_TABS: { id: SubTab; label: string }[] = [
+    { id: 'account', label: '帐号设置' },
+    { id: 'school', label: '学校 · 班级' },
+    ...(licenseStatus === 'active' && !isITAdmin ? [] : [{ id: 'textbook' as SubTab, label: '教材版本' }]),
+    ...(isITAdmin ? [{ id: 'library' as SubTab, label: '版本库维护' }] : []),
+    { id: 'semester', label: '学期配置' },
+    { id: 'train', label: '训练小微' },
+    { id: 'log', label: '日志 · 反馈' },
+  ]
 
   return (
     <AppLayout>
@@ -15,20 +33,19 @@ export default function SettingsPage() {
           <h1 className="text-[24px] font-bold text-[#353535]">系统设置</h1>
         </div>
         <div className="flex items-center gap-2.5 mt-4 shrink-0">
-          {['帐号设置', '学校 · 班级', '训练小微', '日志 · 反馈'].map((label, i) => {
-            const ids: SubTab[] = ['account', 'school', 'train', 'log']
-            const id = ids[i]
-            return (
-              <button key={id} onClick={() => setSubTab(id)}
-                className={`px-4 h-[38px] text-[13px] rounded-[5px] transition-colors flex items-center justify-center
-                  ${subTab === id ? 'bg-[#D7D7D7] text-[#000000]' : 'bg-[#F6F7F8] text-[#7F7F7F] hover:text-[#353535]'}`}>{label}</button>
-            )
-          })}
+          {SETTING_TABS.map((t) => (
+            <button key={t.id} onClick={() => setSubTab(t.id)}
+              className={`px-4 h-[38px] text-[13px] rounded-[5px] transition-colors flex items-center justify-center
+                ${subTab === t.id ? 'bg-[#D7D7D7] text-[#000000]' : 'bg-[#F6F7F8] text-[#7F7F7F] hover:text-[#353535]'}`}>{t.label}</button>
+          ))}
         </div>
 
         <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden flex-1 mt-4 min-h-0 flex flex-col">
           {subTab === 'account' && <AccountTab />}
           {subTab === 'school' && <SchoolClassTab />}
+          {subTab === 'textbook' && <TextbookTab />}
+          {subTab === 'library' && <TextbookLibraryAdmin />}
+          {subTab === 'semester' && <SemesterTab />}
           {subTab === 'train' && <div className="flex-1 min-h-0 relative overflow-hidden"><TrainXiaoWeiTab /></div>}
           {subTab === 'log' && <LogFeedbackTab />}
         </div>
@@ -184,6 +201,541 @@ function AccountTab() {
   )
 }
 
+function TextbookTab() {
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} } })()
+  const licenseStatus = (user.license_status as string) || 'none'
+  const isITAdmin = user.role === 'it_admin'
+  const teaching = useTeaching()
+
+  // 分派：IT 管理员维护学校级三级配置；个人试用(none/trial)教师维护 per-user 个人偏好。
+  // 学校版 License 已开通(active) 且非 IT 管理员 → 教材配置入口已在 SETTING_TABS 隐藏，不会进入本页。
+  if (isITAdmin) return <SchoolTextbookConfig />
+  return <PersonalTextbookConfig teaching={teaching} />
+}
+
+function PersonalTextbookConfig({ teaching }: { teaching: import('../lib/TeachingContext').TeachingCtxValue }) {
+  const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
+  const [books, setBooks] = useState<any[]>([])
+  const [prefs, setPrefs] = useState<any[]>([])
+  const [myClasses, setMyClasses] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [msg, setMsg] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState({ grade: '', class_id: '', subject: '', version_name: '' })
+
+  const loadAll = () =>
+    Promise.all([
+      adminAPI.listTextbooks().catch(() => ({ items: [] })),
+      teacherPrefAPI.list().catch(() => ({ items: [] })),
+      classAPI.myClasses().catch(() => ({ items: [] })),
+    ]).then(([tb, pf, mc]: any[]) => {
+      setBooks(tb.items || [])
+      setPrefs(pf.items || [])
+      setMyClasses(mc.items || [])
+    })
+
+  useEffect(() => { setLoading(true); loadAll().finally(() => setLoading(false)) }, [])
+
+  const subjects = () => Array.from(new Set(books.map((b: any) => b.subject))) as string[]
+  const versionOptions = (subject: string) => {
+    const m = new Map<string, { publisher: string; version_name: string }>()
+    books.filter((b: any) => b.subject === subject).forEach((b: any) =>
+      m.set(`${b.publisher}|${b.version_name}`, { publisher: b.publisher, version_name: b.version_name }))
+    return Array.from(m.values())
+  }
+  /** 查找某 (学科, 年级, 班级) 的偏好（年级/班级为空表示不限） */
+  const findPref = (subject: string, grade = '', classID = '') =>
+    prefs.find((p: any) => p.subject === subject && (p.grade || '') === grade && (p.class_id || '') === classID)
+
+  // 快速设置：仅按学科（年级/班级不限）
+  const onChange = async (subject: string, versionName: string) => {
+    const opt = versionOptions(subject).find((o) => o.version_name === versionName)
+    if (!opt) return
+    await teacherPrefAPI.upsert({ subject, grade: '', class_id: '', publisher: opt.publisher, version_name: opt.version_name })
+    teaching.setTextbook(subject, opt.version_name) // 即时同步到工作台
+    setMsg(`已保存「${subject}」个人教材版本：${opt.version_name}（仅影响您个人产出）`)
+    await loadAll()
+  }
+
+  // 新增：按 年级/班级/学科 指定
+  const onAdd = async () => {
+    if (!form.subject) { setMsg('请选择学科'); return }
+    const opt = versionOptions(form.subject).find((o) => o.version_name === form.version_name)
+    if (!opt) { setMsg('请选择版本'); return }
+    await teacherPrefAPI.upsert({ subject: form.subject, grade: form.grade, class_id: form.class_id, publisher: opt.publisher, version_name: opt.version_name })
+    setShowAdd(false); setMsg('个人指定已保存（优先级高于学校配置，仅影响您个人产出）')
+    await loadAll()
+  }
+  const onRemove = async (p: any) => {
+    await teacherPrefAPI.remove(p.subject, p.grade || '', p.class_id || '')
+    setPrefs(prefs.filter((x: any) => !(x.subject === p.subject && (x.grade || '') === (p.grade || '') && (x.class_id || '') === (p.class_id || ''))))
+    setMsg('已删除个人指定')
+  }
+
+  const tag = (p: any) => {
+    const g = p.grade ? p.grade : '全部年级'
+    const c = p.class_id ? (myClasses.find((m: any) => m.id === p.class_id)?.name || p.class_id) : '全部班级'
+    return `${g} · ${c}`
+  }
+
+  return (
+    <div className="p-5 overflow-auto">
+      <div className="text-[13px] font-medium mb-1">教材版本配置（个人）</div>
+      <div className="text-[12px] text-[#9A9A9A] mb-4">
+        您可以为「每年级每班每学科」指定教材版本，仅影响您个人的教案生成、出题组卷与知识图谱，并在 PC / 小程序多端自动同步。优先级：个人指定 &gt; 学校配置 &gt; 平台默认。
+      </div>
+      {loading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
+      {!loading && (
+        <div className="space-y-5">
+          <section>
+            <div className="text-[13px] font-medium mb-2">快速设置（按学科，适用全部年级/班级）</div>
+            <div className="flex flex-col gap-2">
+              {subjects().map((s) => {
+                const cur = findPref(s)
+                const opts = versionOptions(s)
+                return (
+                  <div key={s} className="flex items-center gap-2 text-[12px]">
+                    <span className="w-12 text-[#353535]">{s}</span>
+                    <select value={cur?.version_name || ''}
+                      onChange={(e) => onChange(s, e.target.value)}
+                      className="border border-[#E7E7EB] rounded px-2 py-1 text-[12px]">
+                      <option value="">（沿用平台默认）</option>
+                      {opts.map((o) => <option key={o.publisher + '|' + o.version_name} value={o.version_name}>{o.publisher} {o.version_name}</option>)}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[13px] font-medium">按年级 / 班级 / 学科 指定</div>
+              <button onClick={() => { setForm({ grade: '', class_id: '', subject: subjects()[0] || '', version_name: '' }); setShowAdd(true) }}
+                className="px-2 py-1 bg-[#02A7F0] text-white text-[12px] rounded">+ 新增指定</button>
+            </div>
+            <table className="w-full text-[12px]">
+              <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">范围</th><th>学科</th><th>版本</th><th></th></tr></thead>
+              <tbody>
+                {prefs.filter((p: any) => (p.grade || p.class_id)).map((p: any) => (
+                  <tr key={p.id || (p.subject + p.grade + p.class_id)} className="border-t border-[#F0F0F2]">
+                    <td className="py-1">{tag(p)}</td><td>{p.subject}</td><td>{p.publisher} {p.version_name}</td>
+                    <td className="text-right"><button onClick={() => onRemove(p)} className="text-[#E0533D] hover:underline">移除</button></td>
+                  </tr>
+                ))}
+                {prefs.filter((p: any) => (p.grade || p.class_id)).length === 0 && <tr><td colSpan={4} className="py-1 text-[#9A9A9A]">暂无年级/班级级指定（可用上方快速设置按学科配置）</td></tr>}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+      {msg && <div className="mt-3 text-[12px] text-[#02A7F0]">{msg}</div>}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowAdd(false)}>
+          <div className="bg-white rounded p-5 w-[360px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[14px] font-medium mb-3">新增个人教材指定</div>
+            <div className="space-y-2 text-[12px]">
+              <div><div className="text-[#9A9A9A] mb-1">年级（留空=全部）</div>
+                <select value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value, class_id: '' })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  <option value="">全部年级</option>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">班级（留空=全部）</div>
+                <select value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  <option value="">全部班级</option>{myClasses.filter((m: any) => !form.grade || m.grade === form.grade).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">学科</div>
+                <select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  {subjects().map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">教材版本</div>
+                <select value={form.version_name} onChange={(e) => setForm({ ...form, version_name: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  <option value="">请选择</option>{versionOptions(form.subject).map((o) => <option key={o.publisher + '|' + o.version_name} value={o.version_name}>{o.publisher} {o.version_name}</option>)}</select></div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+              <button onClick={onAdd} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SchoolTextbookConfig() {
+  const [books, setBooks] = useState<any[]>([])
+  const [configs, setConfigs] = useState<any[]>([])
+  const [myClasses, setMyClasses] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const loadAll = () =>
+    Promise.all([
+      adminAPI.listTextbooks().catch(() => ({ items: [] })),
+      adminAPI.listTextbookConfigs().catch(() => ({ items: [] })),
+      classAPI.myClasses().catch(() => ({ items: [] })),
+    ]).then(([tb, cf, mc]: any[]) => {
+      setBooks(tb.items || [])
+      setConfigs(cf.items || [])
+      setMyClasses(mc.items || [])
+    })
+
+  useEffect(() => { setLoading(true); loadAll().finally(() => setLoading(false)) }, [])
+
+  const subjects = () => Array.from(new Set(books.map((b: any) => b.subject))) as string[]
+  const versionOptions = (subject: string) => {
+    const m = new Map<string, { publisher: string; version_name: string }>()
+    books.filter((b: any) => b.subject === subject).forEach((b: any) =>
+      m.set(`${b.publisher}|${b.version_name}`, { publisher: b.publisher, version_name: b.version_name }))
+    return Array.from(m.values())
+  }
+  const schoolCfg = (subject: string) => configs.find((c) => c.config_type === 'school' && c.subject === subject)
+  const gradeSubjectCfgs = () => configs.filter((c) => c.config_type === 'grade_subject')
+  const classSubjectCfgs = () => configs.filter((c) => c.config_type === 'class_subject')
+
+  const saveSchoolDefault = async (subject: string, versionName: string) => {
+    const opt = versionOptions(subject).find((o) => o.version_name === versionName) || versionOptions(subject)[0]
+    if (!opt) return
+    await adminAPI.upsertTextbookConfig({ config_type: 'school', subject, grade: '', publisher: opt.publisher, version_name: opt.version_name })
+    setMsg(`已保存「${subject}」学校默认版本：${opt.version_name}`)
+    await loadAll()
+  }
+
+  const [showGS, setShowGS] = useState(false)
+  const [showCS, setShowCS] = useState(false)
+  const [formGS, setFormGS] = useState({ grade: '一年级', subject: '', version_name: '' })
+  const [formCS, setFormCS] = useState({ grade: '一年级', class_id: '', subject: '', version_name: '' })
+
+  const openGS = () => { setFormGS({ grade: '一年级', subject: subjects()[0] || '', version_name: '' }); setShowGS(true) }
+  const openCS = () => { setFormCS({ grade: '一年级', class_id: '', subject: subjects()[0] || '', version_name: '' }); setShowCS(true) }
+  const onGS = async () => {
+    const opt = versionOptions(formGS.subject).find((o) => o.version_name === formGS.version_name)
+    if (!opt) { setMsg('请选择版本'); return }
+    await adminAPI.upsertTextbookConfig({ config_type: 'grade_subject', subject: formGS.subject, grade: formGS.grade, publisher: opt.publisher, version_name: opt.version_name })
+    setShowGS(false); setMsg('年级-学科覆盖已保存'); await loadAll()
+  }
+  const onCS = async () => {
+    const opt = versionOptions(formCS.subject).find((o) => o.version_name === formCS.version_name)
+    if (!opt) { setMsg('请选择版本'); return }
+    await adminAPI.upsertTextbookConfig({ config_type: 'class_subject', subject: formCS.subject, grade: formCS.grade, class_id: formCS.class_id, publisher: opt.publisher, version_name: opt.version_name })
+    setShowCS(false); setMsg('班级级覆盖已保存'); await loadAll()
+  }
+  const onDelete = async (id: string) => { await adminAPI.deleteTextbookConfig(id); setMsg('已删除覆盖配置'); await loadAll() }
+
+  const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
+
+  return (
+    <div className="p-5 overflow-auto">
+      <div className="text-[13px] font-medium mb-1">教材版本配置（三级）</div>
+      <div className="text-[12px] text-[#9A9A9A] mb-4">
+        优先级：班级级 &gt; 年级-学科级 &gt; 学校默认。保存后全校（或对应班级）的教案生成、出题组卷、知识图谱将自动锚定对应版本。此为学校级配置，将作用于本校全部教师。
+      </div>
+      {loading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
+      {!loading && (
+        <div className="space-y-6">
+          <section>
+            <div className="text-[13px] font-medium mb-2">① 学校默认教材版本</div>
+            <div className="flex flex-col gap-2">
+              {subjects().map((s) => {
+                const cur = schoolCfg(s)
+                const opts = versionOptions(s)
+                return (
+                  <div key={s} className="flex items-center gap-2 text-[12px]">
+                    <span className="w-12 text-[#353535]">{s}</span>
+                    <select value={cur?.version_name || ''}
+                      onChange={(e) => saveSchoolDefault(s, e.target.value)}
+                      className="border border-[#E7E7EB] rounded px-2 py-1 text-[12px]">
+                      <option value="">（沿用平台默认）</option>
+                      {opts.map((o) => <option key={o.publisher + '|' + o.version_name} value={o.version_name}>{o.publisher} {o.version_name}</option>)}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[13px] font-medium">② 年级-学科覆盖</div>
+              <button onClick={openGS} className="px-2 py-1 bg-[#02A7F0] text-white text-[12px] rounded">+ 新增覆盖</button>
+            </div>
+            <table className="w-full text-[12px]">
+              <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">年级</th><th>学科</th><th>版本</th><th></th></tr></thead>
+              <tbody>
+                {gradeSubjectCfgs().map((c) => (
+                  <tr key={c.id} className="border-t border-[#F0F0F2]">
+                    <td className="py-1">{c.grade}</td><td>{c.subject}</td><td>{c.publisher} {c.version_name}</td>
+                    <td className="text-right"><button onClick={() => onDelete(c.id)} className="text-[#E0533D] hover:underline">移除</button></td>
+                  </tr>
+                ))}
+                {gradeSubjectCfgs().length === 0 && <tr><td colSpan={4} className="py-1 text-[#9A9A9A]">暂无覆盖</td></tr>}
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[13px] font-medium">③ 班级级覆盖（精细）</div>
+              <button onClick={openCS} className="px-2 py-1 bg-[#02A7F0] text-white text-[12px] rounded">+ 新增覆盖</button>
+            </div>
+            <table className="w-full text-[12px]">
+              <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">年级</th><th>班级</th><th>学科</th><th>版本</th><th></th></tr></thead>
+              <tbody>
+                {classSubjectCfgs().map((c) => {
+                  const cls = myClasses.find((m: any) => m.id === c.class_id)
+                  return (
+                    <tr key={c.id} className="border-t border-[#F0F0F2]">
+                      <td className="py-1">{c.grade}</td><td>{cls ? cls.name : (c.class_id || '—')}</td><td>{c.subject}</td><td>{c.publisher} {c.version_name}</td>
+                      <td className="text-right"><button onClick={() => onDelete(c.id)} className="text-[#E0533D] hover:underline">移除</button></td>
+                    </tr>
+                  )
+                })}
+                {classSubjectCfgs().length === 0 && <tr><td colSpan={5} className="py-1 text-[#9A9A9A]">暂无覆盖</td></tr>}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+      {msg && <div className="mt-3 text-[12px] text-[#02A7F0]">{msg}</div>}
+
+      {showGS && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowGS(false)}>
+          <div className="bg-white rounded p-5 w-[340px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[14px] font-medium mb-3">新增年级-学科覆盖</div>
+            <div className="space-y-2 text-[12px]">
+              <div><div className="text-[#9A9A9A] mb-1">年级</div>
+                <select value={formGS.grade} onChange={(e) => setFormGS({ ...formGS, grade: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">学科</div>
+                <select value={formGS.subject} onChange={(e) => setFormGS({ ...formGS, subject: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  {subjects().map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">教材版本</div>
+                <select value={formGS.version_name} onChange={(e) => setFormGS({ ...formGS, version_name: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  <option value="">请选择</option>{versionOptions(formGS.subject).map((o) => <option key={o.publisher + '|' + o.version_name} value={o.version_name}>{o.publisher} {o.version_name}</option>)}</select></div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowGS(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+              <button onClick={onGS} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCS && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowCS(false)}>
+          <div className="bg-white rounded p-5 w-[360px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[14px] font-medium mb-3">新增班级级覆盖</div>
+            <div className="space-y-2 text-[12px]">
+              <div><div className="text-[#9A9A9A] mb-1">年级</div>
+                <select value={formCS.grade} onChange={(e) => setFormCS({ ...formCS, grade: e.target.value, class_id: '' })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">班级</div>
+                <select value={formCS.class_id} onChange={(e) => setFormCS({ ...formCS, class_id: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  <option value="">请选择</option>{myClasses.filter((m: any) => m.grade === formCS.grade).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">学科</div>
+                <select value={formCS.subject} onChange={(e) => setFormCS({ ...formCS, subject: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  {subjects().map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><div className="text-[#9A9A9A] mb-1">教材版本</div>
+                <select value={formCS.version_name} onChange={(e) => setFormCS({ ...formCS, version_name: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">
+                  <option value="">请选择</option>{versionOptions(formCS.subject).map((o) => <option key={o.publisher + '|' + o.version_name} value={o.version_name}>{o.publisher} {o.version_name}</option>)}</select></div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowCS(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+              <button onClick={onCS} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** V2.6 全学科教材版本库维护（IT 管理员）：数据团队提供数据，在此导入/逐条维护 tb_textbook_version */
+function TextbookLibraryAdmin() {
+  const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
+  const XUEDUAN = ['小学', '初中', '高中']
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [msg, setMsg] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [editId, setEditId] = useState<number | null>(null)
+  const [form, setForm] = useState({ version_key: '', xue_duan: '小学', nian_ji: '一年级', xue_ke: '语文', jiao_cai_ming: '', chu_ban_she: '', ban_ben_biao_shi: '', ce_bie: '上册', mu_lu_url: '' })
+  const [importText, setImportText] = useState('')
+
+  const load = () => adminAPI.listTextbookLibrary().then((r: any) => setItems(r.items || [])).finally(() => setLoading(false))
+  useEffect(() => { setLoading(true); load() }, [])
+
+  const openNew = () => { setEditId(null); setForm({ version_key: '', xue_duan: '小学', nian_ji: '一年级', xue_ke: '语文', jiao_cai_ming: '', chu_ban_she: '', ban_ben_biao_shi: '', ce_bie: '上册', mu_lu_url: '' }); setShowForm(true) }
+  const openEdit = (v: any) => { setEditId(v.id); setForm({ version_key: v.version_key, xue_duan: v.xue_duan || '小学', nian_ji: v.nian_ji || '一年级', xue_ke: v.xue_ke || '语文', jiao_cai_ming: v.jiao_cai_ming || '', chu_ban_she: v.chu_ban_she || '', ban_ben_biao_shi: v.ban_ben_biao_shi || '', ce_bie: v.ce_bie || '上册', mu_lu_url: v.mu_lu_url || '' }); setShowForm(true) }
+
+  const onSave = async () => {
+    if (!form.version_key.trim()) { setMsg('version_key 必填'); return }
+    const body = { ...form, version_key: form.version_key.trim() }
+    if (editId != null) await adminAPI.updateTextbookVersion(editId, body)
+    else await adminAPI.createTextbookVersion(body)
+    setShowForm(false); setMsg(editId != null ? '已更新版本' : '已新增版本'); await load()
+  }
+  const onDelete = async (id: number) => { if (!confirm('确认删除该版本记录？')) return; await adminAPI.deleteTextbookVersion(id); setMsg('已删除'); await load() }
+
+  const onImport = async () => {
+    let rows: any[]
+    try { rows = JSON.parse(importText) } catch { setMsg('JSON 解析失败，请检查格式'); return }
+    if (!Array.isArray(rows)) { setMsg('顶层需为数组'); return }
+    const n = await adminAPI.importTextbookVersions(rows).then((r: any) => r.count).catch((e: any) => { setMsg('导入失败：' + (e?.message || '')); return 0 })
+    if (n) { setShowImport(false); setImportText(''); setMsg(`已导入/更新 ${n} 条版本`); await load() }
+  }
+
+  return (
+    <div className="p-5 overflow-auto">
+      <div className="text-[13px] font-medium mb-1">全学科教材版本库</div>
+      <div className="text-[12px] text-[#9A9A9A] mb-3">
+        平台权威版本来源，由数据团队提供数据。可在此逐条维护，或粘贴数据团队交付的 JSON 数组批量导入（按 version_key 更新）。
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={openNew} className="px-2 py-1 bg-[#02A7F0] text-white text-[12px] rounded">+ 新增版本</button>
+        <button onClick={() => setShowImport(true)} className="px-2 py-1 border border-[#E7E7EB] text-[12px] rounded">批量导入（数据团队 JSON）</button>
+      </div>
+      {loading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
+      {!loading && (
+        <table className="w-full text-[12px]">
+          <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">学段</th><th>年级</th><th>学科</th><th>教材名</th><th>出版社</th><th>版本</th><th>册别</th><th></th></tr></thead>
+          <tbody>
+            {items.map((v) => (
+              <tr key={v.id} className="border-t border-[#F0F0F2]">
+                <td className="py-1">{v.xue_duan}</td><td>{v.nian_ji}</td><td>{v.xue_ke}</td><td>{v.jiao_cai_ming}</td><td>{v.chu_ban_she}</td><td>{v.ban_ben_biao_shi}</td><td>{v.ce_bie}</td>
+                <td className="text-right whitespace-nowrap">
+                  <button onClick={() => openEdit(v)} className="text-[#02A7F0] hover:underline mr-2">编辑</button>
+                  <button onClick={() => onDelete(v.id)} className="text-[#E0533D] hover:underline">删除</button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && <tr><td colSpan={8} className="py-1 text-[#9A9A9A]">版本库为空</td></tr>}
+          </tbody>
+        </table>
+      )}
+      {msg && <div className="mt-3 text-[12px] text-[#02A7F0]">{msg}</div>}
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded p-5 w-[420px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[14px] font-medium mb-3">{editId != null ? '编辑版本' : '新增版本'}</div>
+            <div className="space-y-2 text-[12px]">
+              <Field label="version_key（唯一）"><input value={form.version_key} disabled={editId != null} onChange={(e) => setForm({ ...form, version_key: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              <Field label="学段"><Sel v={form.xue_duan} opts={XUEDUAN} onChange={(v) => setForm({ ...form, xue_duan: v })} /></Field>
+              <Field label="年级"><Sel v={form.nian_ji} opts={GRADES} onChange={(v) => setForm({ ...form, nian_ji: v })} /></Field>
+              <Field label="学科"><input value={form.xue_ke} onChange={(e) => setForm({ ...form, xue_ke: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              <Field label="教材名"><input value={form.jiao_cai_ming} onChange={(e) => setForm({ ...form, jiao_cai_ming: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              <Field label="出版社"><input value={form.chu_ban_she} onChange={(e) => setForm({ ...form, chu_ban_she: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              <Field label="版本标识"><input value={form.ban_ben_biao_shi} onChange={(e) => setForm({ ...form, ban_ben_biao_shi: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              <Field label="册别"><input value={form.ce_bie} onChange={(e) => setForm({ ...form, ce_bie: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              <Field label="目录URL"><input value={form.mu_lu_url} onChange={(e) => setForm({ ...form, mu_lu_url: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+              <button onClick={onSave} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowImport(false)}>
+          <div className="bg-white rounded p-5 w-[480px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[14px] font-medium mb-1">批量导入版本库</div>
+            <div className="text-[11px] text-[#9A9A9A] mb-2">粘贴 JSON 数组，每条含 version_key / xue_duan / nian_ji / xue_ke / jiao_cai_ming / chu_ban_she / ban_ben_biao_shi / ce_bie / mu_lu_url。按 version_key 更新。</div>
+            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={10} placeholder='[{"version_key":"小学_数学_人教版_一年级_上册","xue_duan":"小学","nian_ji":"一年级","xue_ke":"数学","jiao_cai_ming":"义务教育教科书·数学","chu_ban_she":"人民教育出版社","ban_ben_biao_shi":"人教版","ce_bie":"上册","mu_lu_url":""}]' className="border border-[#E7E7EB] rounded px-2 py-1 w-full text-[11px] font-mono" />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowImport(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+              <button onClick={onImport} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">导入</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (<div><div className="text-[#9A9A9A] mb-1">{label}</div>{children}</div>)
+}
+function Sel({ v, opts, onChange }: { v: string; opts: string[]; onChange: (v: string) => void }) {
+  return (<select value={v} onChange={(e) => onChange(e.target.value)} className="border border-[#E7E7EB] rounded px-2 py-1 w-full">{opts.map((o) => <option key={o} value={o}>{o}</option>)}</select>)
+}
+
+/** 学期配置（合并自 IT 管理后台，云上无独立 IT 角色时由任课教师在个人中心维护） */
+function SemesterTab() {
+  const [semesters, setSemesters] = useState<any[]>([])
+  const [semForm, setSemForm] = useState({ name: '', start_date: '', end_date: '' })
+  const [semMsg, setSemMsg] = useState('')
+
+  useEffect(() => {
+    adminAPI.listSemesters().then((r: any) => setSemesters(r.items || [])).catch(() => setSemesters([]))
+  }, [])
+
+  const onCreateSemester = async () => {
+    if (!semForm.name || !semForm.start_date || !semForm.end_date) {
+      setSemMsg('请填写学期名称与起止日期'); return
+    }
+    setSemMsg('')
+    try {
+      await adminAPI.createSemester(semForm)
+      setSemForm({ name: '', start_date: '', end_date: '' })
+      setSemMsg('学期已创建')
+      const r = await adminAPI.listSemesters().catch(() => ({ items: [] }))
+      setSemesters(r.items || [])
+    } catch (e: any) { setSemMsg(e.message || '创建失败') }
+  }
+
+  return (
+    <div className="p-5">
+      <div className="text-[13px] font-medium mb-1">学期配置</div>
+      <div className="text-[12px] text-[#9A9A9A] mb-4">
+        当前学校的学期列表。学期为全校级配置，保存后影响全站上下册判断。
+      </div>
+      <table className="w-full text-[12px] mb-4">
+        <thead>
+          <tr className="text-left text-[#9A9A9A]">
+            <th className="py-1">学期名称</th><th>开始</th><th>结束</th><th>创建时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {semesters.map((s) => (
+            <tr key={s.id} className="border-t border-[#F0F0F2]">
+              <td className="py-1">{s.name}</td>
+              <td>{s.start_date ? s.start_date.slice(0, 10) : ''}</td>
+              <td>{s.end_date ? s.end_date.slice(0, 10) : ''}</td>
+              <td>{s.created_at ? new Date(s.created_at).toLocaleString() : ''}</td>
+            </tr>
+          ))}
+          {semesters.length === 0 && (
+            <tr><td colSpan={4} className="py-2 text-[#9A9A9A]">暂无学期</td></tr>
+          )}
+        </tbody>
+      </table>
+      <div className="flex gap-3 items-end">
+        <div>
+          <div className="text-[12px] text-[#9A9A9A] mb-1">学期名称</div>
+          <input value={semForm.name} onChange={(e) => setSemForm({ ...semForm, name: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 text-[13px]" placeholder="如：2026 春季学期" />
+        </div>
+        <div>
+          <div className="text-[12px] text-[#9A9A9A] mb-1">开始日期</div>
+          <input type="date" value={semForm.start_date} onChange={(e) => setSemForm({ ...semForm, start_date: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 text-[13px]" />
+        </div>
+        <div>
+          <div className="text-[12px] text-[#9A9A9A] mb-1">结束日期</div>
+          <input type="date" value={semForm.end_date} onChange={(e) => setSemForm({ ...semForm, end_date: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 text-[13px]" />
+        </div>
+        <button onClick={onCreateSemester} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">创建学期</button>
+      </div>
+      {semMsg && <div className="mt-3 text-[12px] text-[#02A7F0]">{semMsg}</div>}
+    </div>
+  )
+}
+
+/** 年级序号 → 中文年级名（与 TeachingContext.GRADE_NAMES 对应） */
+function GRADE_NUM_TO_NAME(n: number): string {
+  const NAMES = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级']
+  return NAMES[n - 1] || ''
+}
+
 function SchoolClassTab() {
   interface School { id: string; fullName: string; shortName: string; classes: Class[]; status: string }
   interface Class { id: string; grade: string; name: string; subjects: string[]; status: string }
@@ -212,7 +764,22 @@ function SchoolClassTab() {
   const [editSubjects, setEditSubjects] = useState<string[]>([])
 
   const sc: Record<string, string> = { '语文': 'bg-blue-50 text-blue-600', '数学': 'bg-orange-50 text-orange-600', '英语': 'bg-green-50 text-green-600' }
-  const ALL_SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '音乐', '美术', '体育', '信息技术']
+
+  // 按学段划分学科：小学不出现物理/化学/生物/历史/地理；中学才出现。
+  const SUBJECTS_BY_LEVEL: Record<'elementary' | 'middle' | 'high', string[]> = {
+    elementary: ['语文', '数学', '英语', '政治', '体育', '音乐', '美术', '信息技术'],
+    middle: ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '体育', '音乐', '美术', '信息技术'],
+    high: ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '体育', '音乐', '美术', '信息技术'],
+  }
+
+  function gradeLevel(grade: string): 'elementary' | 'middle' | 'high' {
+    if (['七年级', '八年级', '九年级'].includes(grade)) return 'middle'
+    return 'elementary'
+  }
+
+  function subjectsForGrade(grade: string): string[] {
+    return SUBJECTS_BY_LEVEL[gradeLevel(grade)]
+  }
 
   const handleLookup = useCallback((name: string) => {
     if (!name || name.length < 2) { setLookupResult(null); return }
@@ -416,7 +983,7 @@ function SchoolClassTab() {
                 <div className="flex items-center gap-2 flex-wrap pb-3 border-b border-[#F0F0F0]">
                   <select value={formC.grade} onChange={e => setFormC({ ...formC, grade: e.target.value })}
                     className="px-2 py-1.5 text-[13px] border border-[#E7E7EB] rounded-[3px] outline-none">
-                    {['一年级','二年级','三年级','四年级','五年级','六年级'].map(g => <option key={g} value={g}>{g}</option>)}
+                    {['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <input placeholder="班级名称" value={formC.name} onChange={e => setFormC({ ...formC, name: e.target.value })}
                     className="px-2.5 py-1.5 text-[13px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#02A7F0] w-[120px]" />
@@ -433,7 +1000,7 @@ function SchoolClassTab() {
                       <span className="text-[12px] font-medium text-[#353535]">{cls.grade}（{cls.name}）</span>
                       {editClassTarget?.id === cls.id ? (
                         <div className="flex-1 flex items-center gap-1 flex-wrap">
-                          {ALL_SUBJECTS.map(sub => (
+                          {subjectsForGrade(cls.grade).map(sub => (
                             <button key={sub} onClick={() => toggleEditSubject(sub)}
                               className={`px-2 py-0.5 text-[11px] rounded-[3px] border transition-colors ${editSubjects.includes(sub) ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#353535] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>{sub}</button>
                           ))}

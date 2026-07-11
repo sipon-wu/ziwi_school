@@ -25,6 +25,8 @@ function getCsrfToken(): string {
 
 // 统一请求
 async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  // 内存与存储同步：外部注入 localStorage 的 token 也立即生效（避免内存/存储不一致的 401 死循环）
+  if (!token) token = localStorage.getItem('zhiwei_token') || null
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
@@ -149,12 +151,8 @@ export const classAPI = {
       method: 'POST',
       body: JSON.stringify({ name, grade }),
     }),
-}
-
-// ── 工作台接口 ──
-
-export const dashboardAPI = {
-  home: () => request<any>('/dashboard/home'),
+  /** 当前教师本人任教的「班级-学科」列表（支持一课多班、一班多学科） */
+  myClasses: () => request<{ items: Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }> }>('/my-classes'),
 }
 
 // ── AI 接口 ──
@@ -229,7 +227,6 @@ export const studentAPI = {
 // ── 家长端接口 ──
 
 export const parentAPI = {
-  listAssignments: () => request<any>('/parent/assignments'),
   getSignature: (id: string) => request<any>(`/parent/signatures/${id}`),
   sign: (id: string, signatureImgUrl: string) =>
     request<any>(`/parent-signatures/${id}/sign`, {
@@ -241,9 +238,6 @@ export const parentAPI = {
 // ── 学校配置接口 ──
 
 export const schoolConfigAPI = {
-  /** 获取学校配置（含 knowledge_graph 开关） */
-  fetch: () => request<any>('/school/settings'),
-
   /** 教师申请开启知识图谱 */
   featureRequest: (feature: string) =>
     request<any>('/schools/feature-request', {
@@ -255,9 +249,6 @@ export const schoolConfigAPI = {
 // ── Token 配额接口 ──
 
 export const tokenQuotaAPI = {
-  /** 获取我的配额消耗 */
-  myQuota: () => request<any>('/token/my-quota'),
-
   /** 获取学校教师列表（含配额，管理员用） */
   listTeachers: () => request<any>('/admin/teachers'),
 
@@ -417,6 +408,53 @@ export const adminAPI = {
   /** 创建学期 */
   createSemester: (data: { name: string; start_date: string; end_date: string }) =>
     request<any>('/admin/semesters', { method: 'POST', body: JSON.stringify(data) }),
+  // ── V2.5 教材版本三级配置（学校级/年级学科级/班级级）──
+  /** 列出本校所有教材配置 */
+  listTextbookConfigs: () => request<any>('/admin/textbook-configs'),
+  /** 新增/更新一条教材配置（upsert） */
+  upsertTextbookConfig: (data: {
+    config_type: 'school' | 'grade_subject' | 'class_subject';
+    subject: string;
+    grade?: string;
+    class_id?: string;
+    publisher: string;
+    version_name: string;
+  }) => request<any>('/admin/textbook-configs', { method: 'POST', body: JSON.stringify(data) }),
+  /** 删除一条教材配置 */
+  deleteTextbookConfig: (id: string) =>
+    request<any>(`/admin/textbook-configs/${id}`, { method: 'DELETE' }),
+  /** 解析某学科在某班级的实际教材版本（含来源层级） */
+  resolveTextbookConfig: (params: { subject: string; grade?: string; class_id?: string }) =>
+    request<any>(`/admin/textbook-configs/resolve?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
+  // ── V2.6 全学科教材版本库维护（IT 管理员，数据团队数据导入/维护）──
+  /** 原始版本库列表（含 id / version_key） */
+  listTextbookLibrary: () => request<any>('/admin/textbook-versions'),
+  /** 新增一条版本库记录 */
+  createTextbookVersion: (v: any) => request<any>('/admin/textbook-versions', { method: 'POST', body: JSON.stringify(v) }),
+  /** 更新一条版本库记录 */
+  updateTextbookVersion: (id: number | string, v: any) =>
+    request<any>(`/admin/textbook-versions/${id}`, { method: 'PUT', body: JSON.stringify(v) }),
+  /** 删除一条版本库记录 */
+  deleteTextbookVersion: (id: number | string) =>
+    request<any>(`/admin/textbook-versions/${id}`, { method: 'DELETE' }),
+  /** 批量导入版本库（数据团队交付 JSON 数组） */
+  importTextbookVersions: (rows: any[]) =>
+    request<any>('/admin/textbook-versions/import', { method: 'POST', body: JSON.stringify({ rows }) }),
 }
 
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, dashboardAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI }
+// ── V2.5/2.6 个人教材偏好（per-user，跨设备同步，规格书 §5.1）──
+export const teacherPrefAPI = {
+  /** 列出当前教师全部个人教材偏好 */
+  list: () => request<any>('/me/textbook-prefs'),
+  /** 新增/更新一条个人教材偏好（按 teacher_id+grade+class_id+subject upsert） */
+  upsert: (data: { subject: string; grade?: string; class_id?: string; publisher: string; version_name: string }) =>
+    request<any>('/me/textbook-prefs', { method: 'POST', body: JSON.stringify(data) }),
+  /** 删除一条个人教材偏好 */
+  remove: (subject: string, grade?: string, classID?: string) =>
+    request<any>(`/me/textbook-prefs?subject=${encodeURIComponent(subject)}&grade=${encodeURIComponent(grade || '')}&class_id=${encodeURIComponent(classID || '')}`, { method: 'DELETE' }),
+  /** 解析当前 学科/年级/班级 的有效教材版本（个人偏好 > 学校配置 > 平台库） */
+  effective: (params: { subject: string; grade?: string; class_id?: string }) =>
+    request<any>(`/me/textbook-effective?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
+}
+
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI }

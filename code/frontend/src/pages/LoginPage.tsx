@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, setToken, authAPI } from '../lib/api'
+import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('')
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const nav = useNavigate()
+  const { setSubject, setGrade } = useTeaching()
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -32,6 +34,13 @@ export default function LoginPage() {
 
       setToken(res.token)
       localStorage.setItem('user', JSON.stringify(res.user))
+      // 登录后按账号默认学科/学段初始化教学上下文
+      const u = res.user || {}
+      if (u.subject) {
+        setSubject(u.subject)
+        const gi = GRADE_NAMES.indexOf(u.grade)
+        setGrade(gi >= 0 ? gi + 1 : 4)
+      }
       const role = res.user?.role
       let target = '/teacher'
       if (role === 'principal') target = '/principal'

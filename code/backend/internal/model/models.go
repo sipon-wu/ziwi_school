@@ -26,12 +26,20 @@ type School struct {
 	SystemType       string    `gorm:"type:varchar(10);default:六三制" json:"system_type"`
 	Region           string    `gorm:"type:varchar(100)" json:"region"`
 	Status           string    `gorm:"type:varchar(20);default:active" json:"status"`
+	LicenseStatus    string    `gorm:"type:varchar(20);default:none;index" json:"license_status"` // active/trial/none（V2.5 教材版本配置 P0）
 	LicenseExpiresAt *time.Time `json:"license_expires_at"`
 	TokenQuota       int64     `gorm:"default:0" json:"token_quota"`
 	TokenUsed        int64     `gorm:"default:0" json:"token_used"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
+
+// LicenseStatus constants
+const (
+	LicenseActive = "active" // 学校版已开通
+	LicenseTrial  = "trial"  // 试用期（宽限期）
+	LicenseNone   = "none"   // 未开通（个人试用/SaaS 模式）
+)
 
 // User 用户（8种校内角色 + 2种平台角色 + 学生 + 家长）
 type User struct {
@@ -53,6 +61,8 @@ type User struct {
 	LeftAt         *time.Time `json:"left_at"`
 	SuccessorID    *string    `gorm:"type:varchar(50)" json:"successor_id"`
 	StyleProfile   string     `gorm:"type:jsonb" json:"style_profile"`
+	Subject        string     `gorm:"type:varchar(20)" json:"subject"` // 默认任教学科（登录后前端据此初始化）
+	Grade          string     `gorm:"type:varchar(20)" json:"grade"`   // 默认任教学段（如 四年级）
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }

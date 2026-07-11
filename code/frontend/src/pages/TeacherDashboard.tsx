@@ -12,9 +12,9 @@ interface DashboardData { stats: { lesson_plan_count: number; pending_grading: n
 /* ──────── Quick Create ──────── */
 const QUICK_CREATE = [
   { label: '教案', icon: <FileText size={24} />, to: '/lesson-plans/new', newTab: true },
-  { label: '习题', icon: <PenTool size={24} />, to: '/exercises/new' },
-  { label: '试卷', icon: <Files size={24} />, to: '/exams/new' },
-  { label: '作业', icon: <Send size={24} />, to: '/assignments/new' },
+  { label: '习题', icon: <PenTool size={24} />, to: '/exercises/new', newTab: true },
+  { label: '试卷', icon: <Files size={24} />, to: '/exams/new', newTab: true },
+  { label: '作业', icon: <Send size={24} />, to: '/assignments/new', newTab: true },
   { label: '插图', icon: <ImgIcon size={24} />, to: '/materials' },
   { label: '音频', icon: <Music size={24} />, to: '/materials' },
   { label: '视频', icon: <Video size={24} />, to: '/materials' },
@@ -108,6 +108,8 @@ export default function TeacherDashboard() {
         <div className="grid grid-cols-7">
           {QUICK_CREATE.map((q) => (
             <a key={q.label} href={q.to}
+              target={q.newTab ? '_blank' : undefined}
+              rel={q.newTab ? 'noopener noreferrer' : undefined}
               className="flex flex-col items-center gap-2 py-5 hover:bg-[#F9FAFB] transition-colors group">
               <span className="text-[#02A7F0] group-hover:scale-110 transition-transform">{q.icon}</span>
               <span className="text-[13px] text-[#353535]">{q.label}</span>

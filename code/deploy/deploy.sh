@@ -48,9 +48,11 @@ echo "==> [${ENV}] 1/4 本地构建前端"
 echo "==> [${ENV}] 2/4 同步后端源码到服务器"
 # 修复历史坑：后端容器在服务器本地用 /opt/zhiwei/code/backend 现编译，
 # 若不同步源码，docker compose --build 跑的是旧后端（曾导致 P0 迁移改动不生效）。
-# 排除 .env（含密钥）、bin/、编译产物 server，避免覆盖线上配置与上传二进制。
+# 排除 .env（含密钥）、bin/、编译产物 server（仅根目录二进制，勿排除 cmd/server 源码目录！）。
+# --ignore-times：服务器时钟可能领先本地，否则 rsync 会误判"服务器更新"而跳过已改文件。
+# 注意：exclude 用前导 '/' 锚定传输根，避免误伤 cmd/server 等含 'server' 的源码目录。
 ssh "$SERVER" "mkdir -p $REMOTE_CODE/backend"
-rsync -az --delete --exclude='.env' --exclude='bin/' --exclude='server' \
+rsync -az --delete --ignore-times --exclude='.env' --exclude='bin/' --exclude='/server' \
   "$BE_DIR/" "$SERVER:$REMOTE_CODE/backend/"
 
 echo "==> [${ENV}] 3/4 上传前端到 ${DOCROOT}"
@@ -61,6 +63,11 @@ TS=$(ssh "$SERVER" "date +%Y%m%d_%H%M%S")
 ssh "$SERVER" "mkdir -p $SNAP_DIR && tar czf $SNAP_DIR/${ENV}_${TS}.tar.gz -C $DOCROOT . 2>/dev/null || true"
 ssh "$SERVER" "ls -t $SNAP_DIR/${ENV}_*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f"
 ( cd "$FE_DIR" && tar czf - dist ) | ssh "$SERVER" "rm -rf $DOCROOT && mkdir -p $DOCROOT && tar xzf - -C $DOCROOT --strip-components=1"
+
+echo "==> [${ENV}] 3.5/4 清理可能遗留的非 compose 托管孤儿容器（历史手搓部署遗留），确保可干净重建"
+if [ "$ENV" = "staging" ]; then
+  ssh "$SERVER" "docker rm -f zhiwei-backend-staging zhiwei-ai-staging zhiwei-postgres-staging zhiwei-redis-staging 2>/dev/null || true"
+fi
 
 echo "==> [${ENV}] 4/4 重建后端容器"
 if [ -z "$BUILD_SVC" ]; then
