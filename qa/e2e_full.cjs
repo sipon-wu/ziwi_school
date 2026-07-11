@@ -97,13 +97,14 @@ async function run() {
 
     // —— 出题 AI 生成链路（核心回归点：真实点击生成 + 等待题目渲染）——
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
-    await sleep(3500)
+    await sleep(8000)
     const genBtn = page.locator('button', { hasText: '会话式补充出题要求' })
     let genDisabled = true
     try { genDisabled = await genBtn.isDisabled() } catch {}
     let exStatus = 'FAIL', exDetail = `按钮disabled=${genDisabled}`
     if (!genDisabled) {
-      await genBtn.click()
+      await genBtn.scrollIntoViewIfNeeded().catch(() => {})
+      await genBtn.click({ force: true })
       await page.waitForFunction(() => /学生卷 Word|重新生成|出题失败|小微正在生成/.test(document.body.innerText), { timeout: 35000 }).catch(() => {})
       const hasQ = await page.evaluate(() => /学生卷 Word|重新生成/.test(document.body.innerText))
       const aiErr = await page.evaluate(() => /出题失败/.test(document.body.innerText))
