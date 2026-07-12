@@ -740,6 +740,8 @@ function SchoolClassTab() {
   interface School { id: string; fullName: string; shortName: string; classes: Class[]; status: string }
   interface Class { id: string; grade: string; name: string; subjects: string[]; status: string }
 
+  const SC_STORAGE_KEY = 'zhiwei_school_classes'
+
   const INIT: School[] = [
     { id: 's1', fullName: '成都市金牛区第一小学', shortName: '金牛一小', status: 'active', classes: [
       { id: 'c1', grade: '四年级', name: '1班', subjects: ['语文', '数学'], status: 'active' },
@@ -749,7 +751,20 @@ function SchoolClassTab() {
     { id: 's2', fullName: '成都市金牛区第一小学分校', shortName: '金牛一小分校', status: 'active', classes: [] },
   ]
 
-  const [schools, setSchools] = useState<School[]>(INIT)
+  const loadPersisted = (): School[] => {
+    try {
+      const raw = localStorage.getItem(SC_STORAGE_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch {}
+    return INIT
+  }
+
+  const [schools, setSchools] = useState<School[]>(loadPersisted)
+  const persist = useCallback((data: School[]) => {
+    try { localStorage.setItem(SC_STORAGE_KEY, JSON.stringify(data)) } catch {}
+  }, [])
+  // schools 变化自动落盘到 localStorage，防止硬刷新后数据还原（大问题）
+  useEffect(() => { persist(schools) }, [schools, persist])
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'addSchool' | 'editSchool' | 'addClass'>('addSchool')
   const [modalSchoolId, setModalSchoolId] = useState<string | null>(null)
