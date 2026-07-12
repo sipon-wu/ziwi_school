@@ -24,7 +24,7 @@ type CreateLessonRequest struct {
 	Subject  string `json:"subject" binding:"required"`
 	Grade    string `json:"grade" binding:"required"`
 	Unit     string `json:"unit"`
-	Content  string `json:"content" binding:"required"`
+	Content  string `json:"content"` // 草稿允许空内容
 }
 
 // UpdateLessonRequest 更新教案请求

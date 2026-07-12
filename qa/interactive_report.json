@@ -125,7 +125,7 @@
       "page": "作业列表",
       "check": "点击:布置作业",
       "status": "PASS",
-      "detail": "len=394 crash=false"
+      "detail": "len=427 crash=false"
     },
     {
       "page": "作业列表",

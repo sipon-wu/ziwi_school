@@ -67,7 +67,7 @@ export default function LessonPlanEditor() {
       try {
         const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
         const saved = await lessonPlanAPI.create({
-          subject, grade, lesson_title: lessonTitle || '未命名教案', textbook_unit: textbookUnit, period,
+          subject, grade, title: lessonTitle || '未命名教案', unit: textbookUnit, period,
           content, format_template: template,
           curriculum_alignments: JSON.stringify(curriculum),
           knowledge_node_ids: JSON.stringify(kIds),
@@ -187,25 +187,25 @@ export default function LessonPlanEditor() {
   }
 
   const handleSaveDraft = async () => {
-    if (!content) return
     setSaving(true)
     try {
       const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
       const knowledgeNodeIds = JSON.stringify(kIds)
       if (!planId) {
-        // 首次保存：创建教案
+        // 首次保存：创建教案（允许仅标题无正文——草稿本就可以只填标题）
         const saved = await lessonPlanAPI.create({
-          subject, grade, lesson_title: lessonTitle, textbook_unit: textbookUnit, period,
+          subject, grade, title: lessonTitle || '未命名教案', unit: textbookUnit, period,
           content, format_template: template,
           curriculum_alignments: JSON.stringify(curriculum),
           knowledge_node_ids: knowledgeNodeIds,
-          ai_generated: true, ai_model_version: modelVersion || 'qwen-plus', generation_time_ms: genTime,
+          ai_generated: false,
         })
         setPlanId(saved.id)
         setSavedKnowledgeIds(kIds)
       } else {
         await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds })
       }
+      toast('已保存为草稿', 'success')
     } catch (e: any) { toast('保存失败: ' + (e.message || '网络错误'), 'error') }
     setSaving(false)
   }

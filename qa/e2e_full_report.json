@@ -1,6 +1,6 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-07-11T23:13:12.604Z",
+  "generatedAt": "2026-07-12T02:25:36.171Z",
   "summary": {
     "total": 42,
     "PASS": 41,
@@ -70,7 +70,7 @@
       "role": "教师(语文)",
       "journey": "渲染·作业",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=394",
+      "detail": "visible=true appErr=false redirect=false len=427",
       "shot": ""
     },
     {
