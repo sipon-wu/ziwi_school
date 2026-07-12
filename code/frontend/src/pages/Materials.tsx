@@ -1,12 +1,22 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, TrendingUp, BookOpen } from 'lucide-react'
+import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, TrendingUp, BookOpen, Monitor, Sparkles, X, Loader2 } from 'lucide-react'
 import type { JSX } from 'react'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
-import { api } from '../lib/api'
+import { api, aiAPI, materialAPI } from '../lib/api'
+import { useTeaching } from '../lib/TeachingContext'
+import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
+import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
+import { printLessonPlan } from '../lib/printPdf'
+
+const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
+const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token') || ''; const p = JSON.parse(atob(t.split('.')[1])); return p.school_id || '' } catch { return '' } }
 
 /* ── 类型 ── */
-type MaterialType = 'all' | 'image' | 'doc' | 'audio' | 'video' | 'other'
+type MaterialType = 'all' | 'image' | 'doc' | 'audio' | 'video' | 'other' | 'courseware'
+
+const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 type ViewMode = 'grid' | 'list'
 
 interface Material {
@@ -44,13 +54,15 @@ const TYPE_LIST: { key: MaterialType; label: string; icon: JSX.Element }[] = [
   { key: 'audio', label: '音频', icon: <Music size={13} /> },
   { key: 'video', label: '视频', icon: <Video size={13} /> },
   { key: 'other', label: '其他', icon: <FileText size={13} /> },
+  { key: 'courseware', label: '课件', icon: <Monitor size={13} /> },
 ]
 
 const TYPE_COLORS: Record<string, string> = {
-  image: '#1890FF', doc: '#52C41A', audio: '#FA8C16', video: '#F5222D', other: '#9A9A9A',
+  image: '#1890FF', doc: '#52C41A', audio: '#FA8C16', video: '#F5222D', other: '#9A9A9A', courseware: '#722ED1',
 }
 
 export default function Materials() {
+  const teaching = useTeaching()
   const [search, setSearch] = useState('')
   const [activeType, setActiveType] = useState<MaterialType>('all')
   const [activeGroup, setActiveGroup] = useState('全部')
@@ -61,7 +73,8 @@ export default function Materials() {
   const [showChannel, setShowChannel] = useState(false)
   const [materials, setMaterials] = useState<Material[]>([])
 
-  useEffect(() => {
+  // 刷新素材库列表
+  const refreshMaterials = () => {
     api<{ items: any[] }>('/materials').then(res => {
       setMaterials(res.items.map((m: any) => ({
         id: m.id, name: m.name, type: m.type as MaterialType,
@@ -70,7 +83,74 @@ export default function Materials() {
         updatedAt: m.created_at?.slice(0, 10) || '', shared: false,
       })))
     }).catch(() => {})
-  }, [])
+  }
+
+  // ── AI 生成课件（在素材库直接创作新课件并入库） ──
+  const [showGen, setShowGen] = useState(false)
+  const [genSubject, setGenSubject] = useState('')
+  const [genGrade, setGenGrade] = useState('')
+  const [genTitle, setGenTitle] = useState('')
+  const [genBaseId, setGenBaseId] = useState('')
+  const [genLoading, setGenLoading] = useState(false)
+  const [cwMarkdown, setCwMarkdown] = useState('')
+  const [cwSimilar, setCwSimilar] = useState<any>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [savingCw, setSavingCw] = useState(false)
+
+  useEffect(() => {
+    if (showGen) {
+      if (!genSubject) setGenSubject(teaching?.subject || '语文')
+      if (!genGrade) setGenGrade(GRADES[(teaching?.grade || 4) - 1] || '四年级')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGen])
+
+  const handleGenCourseware = async () => {
+    if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
+    setGenLoading(true)
+    try {
+      const base = genBaseId ? await materialAPI.get(genBaseId).catch(() => null) : null
+      const res = await aiAPI.generateCourseware({
+        subject: genSubject, grade: genGrade, lesson_title: genTitle.trim(),
+        content: base?.content || '', school_id: getSchoolId(),
+      })
+      setCwMarkdown(res.courseware_markdown || '')
+      setCwSimilar(res.similar_material || null)
+      setShowPreview(true)
+    } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
+    finally { setGenLoading(false) }
+  }
+
+  const handleSaveCw = async () => {
+    if (!cwMarkdown) return
+    setSavingCw(true)
+    try {
+      await materialAPI.createJSON({
+        name: `${genTitle.trim()}_课件`,
+        type: 'courseware',
+        tag: `${genSubject}${genGrade}`,
+        content: cwMarkdown,
+      })
+      toast('课件已保存到素材库', 'success')
+      setShowPreview(false); setShowGen(false)
+      refreshMaterials()
+    } catch (e: any) { toast('保存失败: ' + (e.message || ''), 'error') }
+    finally { setSavingCw(false) }
+  }
+
+  const exportCwH5 = () => {
+    const blob = exportH5Courseware(cwMarkdown, { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
+    h5Download(blob, `${genTitle.trim()}_${genSubject}${genGrade}.html`)
+  }
+  const exportCwDocx = async () => {
+    const blob = await exportLessonPlanToDocx(cwMarkdown, { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacher: safeGetUser().name || '教师', model: 'qwen-plus' })
+    downloadBlob(blob, `${genTitle.trim()}_${genSubject}${genGrade}.docx`)
+  }
+  const exportCwPdf = () => {
+    printLessonPlan(cwMarkdown, { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
+  }
+
+  useEffect(() => { refreshMaterials() }, [])
 
   const filtered = useMemo(() => {
     return materials.filter(m => {
@@ -120,14 +200,7 @@ export default function Materials() {
           toast(`${f.name} 上传成功`, 'success')
         } catch { toast(`${f.name} 上传失败`, 'error') }
       }
-      api<{ items: any[] }>('/materials').then(res => {
-        setMaterials(res.items.map((m: any) => ({
-          id: m.id, name: m.name, type: m.type as MaterialType,
-          group: m.tag || '未分组', tags: m.tag ? [m.tag] : [],
-          stars: 3, usage: 0, version: 'v1.0', size: m.size,
-          updatedAt: m.created_at?.slice(0, 10) || '', shared: false,
-        })))
-      }).catch(() => {})
+      refreshMaterials()
       setUploading(false)
     }
     input.click()
@@ -149,6 +222,13 @@ export default function Materials() {
               className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#02A7F0]/5 transition-colors"
             >
               <BookOpen size={14} /> 教辅频道
+            </button>
+            {/* AI 生成课件 */}
+            <button
+              onClick={() => setShowGen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] transition-colors"
+            >
+              <Sparkles size={14} /> AI 生成课件
             </button>
             {/* 上传 */}
             <button onClick={handleUpload} disabled={uploading}
@@ -253,6 +333,7 @@ export default function Materials() {
                     {m.type === 'image' ? <Image size={40} /> :
                      m.type === 'video' ? <Video size={40} /> :
                      m.type === 'audio' ? <Music size={40} /> :
+                     m.type === 'courseware' ? <Monitor size={40} /> :
                      <FileText size={40} />}
                   </span>
                   {/* 类型标签 */}
@@ -303,6 +384,7 @@ export default function Materials() {
                   {m.type === 'image' ? <Image size={18} /> :
                    m.type === 'video' ? <Video size={18} /> :
                    m.type === 'audio' ? <Music size={18} /> :
+                   m.type === 'courseware' ? <Monitor size={18} /> :
                    <FileText size={18} />}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -327,6 +409,94 @@ export default function Materials() {
           </div>
         )}
       </div>
+
+      {/* AI 生成课件 · 表单对话框 */}
+      {showGen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowGen(false)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-[6px] shadow-xl w-[460px] max-w-[92vw] z-10" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-[#F0F0F0] flex items-center gap-2">
+              <Sparkles size={18} className="text-[#722ED1]" />
+              <span className="text-[14px] font-semibold text-[#353535]">AI 生成课件</span>
+              <button onClick={() => setShowGen(false)} className="ml-auto p-1 hover:bg-[#F6F7F8] rounded"><X size={16} className="text-[#9A9A9A]" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-[11px] text-[#9A9A9A] leading-relaxed">
+                AI 会根据课题从素材库找相近课件作为参照生成新版本，支持导出 HTML / Word / PDF，并可一键保存到素材库。
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-[12px] text-[#353535]">学科</span>
+                  <select value={genSubject} onChange={e => setGenSubject(e.target.value)}
+                    className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
+                    {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-[12px] text-[#353535]">年级</span>
+                  <select value={genGrade} onChange={e => setGenGrade(e.target.value)}
+                    className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
+                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </label>
+              </div>
+              <label className="block">
+                <span className="text-[12px] text-[#353535]">课题名称</span>
+                <input value={genTitle} onChange={e => setGenTitle(e.target.value)} placeholder="如：光的折射定律"
+                  className="mt-1 w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#722ED1]" />
+              </label>
+              <label className="block">
+                <span className="text-[12px] text-[#353535]">参照课件（可选）</span>
+                <select value={genBaseId} onChange={e => setGenBaseId(e.target.value)}
+                  className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
+                  <option value="">不参照（由 AI 自动匹配相近课件）</option>
+                  {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="px-5 py-3 border-t border-[#F0F0F0] flex justify-end gap-2">
+              <button onClick={() => setShowGen(false)} className="px-4 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">取消</button>
+              <button onClick={handleGenCourseware} disabled={genLoading}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50">
+                {genLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {genLoading ? 'AI 生成中...' : '生成课件'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI 课件预览 · 导出 / 保存 */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowPreview(false)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-[6px] shadow-xl w-[640px] max-w-[94vw] h-[82vh] flex flex-col z-10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#E7E7EB] shrink-0">
+              <div>
+                <h3 className="text-[14px] font-semibold text-[#353535]">AI 课件预览</h3>
+                {cwSimilar && (
+                  <p className="text-[11px] text-[#9A9A9A] mt-0.5">参照相近课件《{cwSimilar.name}》生成的新版本</p>
+                )}
+              </div>
+              <button onClick={() => setShowPreview(false)} className="p-1 hover:bg-[#F6F7F8] rounded"><X size={16} className="text-[#9A9A9A]" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-relaxed whitespace-pre-wrap bg-[#FAFAFA]">
+              {cwMarkdown}
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[#E7E7EB] bg-[#F6F7F8] shrink-0">
+              <div className="flex gap-2">
+                <button onClick={exportCwH5} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 HTML</button>
+                <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
+                <button onClick={exportCwPdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
+              </div>
+              <button onClick={handleSaveCw} disabled={savingCw}
+                className="px-4 py-1.5 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50">
+                {savingCw ? '保存中...' : '保存到素材库'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 教辅频道弹层 */}
       {showChannel && (

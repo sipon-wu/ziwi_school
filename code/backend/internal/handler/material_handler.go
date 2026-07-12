@@ -29,6 +29,17 @@ func (h *MaterialHandler) ListMaterials(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
 }
 
+// GetMaterial 按 ID 获取单个素材（含 content，供 AI 课件生成读取参照课件正文）
+func (h *MaterialHandler) GetMaterial(c *gin.Context) {
+	id := c.Param("id")
+	m, err := h.repo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "素材不存在"})
+		return
+	}
+	c.JSON(http.StatusOK, m)
+}
+
 func (h *MaterialHandler) UploadMaterial(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	schoolID, _ := c.Get("school_id")

@@ -242,9 +242,10 @@ func main() {
 		// 家校
 		teacher.GET("/parent/signatures", placeholder("list signatures"))
 		// 素材
-		teacher.GET("/materials", materialHandler.ListMaterials)
-		teacher.POST("/materials", materialHandler.UploadMaterial)
-		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
+	teacher.GET("/materials", materialHandler.ListMaterials)
+	teacher.GET("/materials/:id", materialHandler.GetMaterial)
+	teacher.POST("/materials", materialHandler.UploadMaterial)
+	teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		// 学校/班级归档
 		teacher.PUT("/schools/:id/archive", scHandler.ArchiveSchool)
 		teacher.PUT("/schools/:id/restore", scHandler.RestoreSchool)
