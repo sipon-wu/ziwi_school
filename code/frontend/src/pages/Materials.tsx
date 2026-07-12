@@ -3,6 +3,7 @@ import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, 
 import type { JSX } from 'react'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
+import PresentationMode from '../components/PresentationMode'
 import { api, aiAPI, materialAPI } from '../lib/api'
 import { useTeaching } from '../lib/TeachingContext'
 import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
@@ -137,6 +138,21 @@ export default function Materials() {
       refreshMaterials()
     } catch (e: any) { toast('保存失败: ' + (e.message || ''), 'error') }
     finally { setSavingCw(false) }
+  }
+
+  // 在线播放 / 阅读 / 预览（复用 PresentationMode 幻灯片播放器）
+  const [player, setPlayer] = useState<{ content: string; title: string } | null>(null)
+  const openPlay = async (m: Material) => {
+    let content = (m as any).content || ''
+    if (!content) {
+      try { const r: any = await materialAPI.get(m.id); content = r.content || '' } catch { content = '' }
+    }
+    if (!content) { toast('该课件暂无正文内容，无法播放', 'warning'); return }
+    setPlayer({ content, title: m.name })
+  }
+  const playFromPreview = () => {
+    if (!cwMarkdown) { toast('课件内容为空', 'warning'); return }
+    setPlayer({ content: cwMarkdown, title: `${genTitle.trim()}_课件` })
   }
 
   const exportCwH5 = () => {
@@ -407,6 +423,10 @@ export default function Materials() {
                 <div className="flex items-center gap-2 shrink-0">
                   {renderStars(m.stars)}{renderHeat(m.stars)}
                   <span className="text-[11px] text-[#9A9A9A] flex items-center gap-0.5"><TrendingUp size={10} />{m.usage}</span>
+                  {m.type === 'courseware' && (
+                    <button onClick={(e) => { e.stopPropagation(); openPlay(m) }}
+                      className="flex items-center gap-1 text-[11px] text-[#722ED1] hover:text-[#5B23A8]"><Monitor size={12} />播放</button>
+                  )}
                 </div>
               </div>
             ))}
@@ -489,6 +509,7 @@ export default function Materials() {
             </div>
             <div className="flex items-center justify-between px-5 py-3 border-t border-[#E7E7EB] bg-[#F6F7F8] shrink-0">
               <div className="flex gap-2">
+                <button onClick={playFromPreview} className="px-3 py-1.5 text-[12px] text-white bg-[#1A3A6B] border border-[#1A3A6B] rounded-[4px] hover:bg-[#142C52]">播放 / 阅读</button>
                 <button onClick={exportCwPptx} className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#5B23A8]">导出 PPT</button>
                 <button onClick={exportCwH5} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 HTML</button>
                 <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
@@ -525,6 +546,18 @@ export default function Materials() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 课件在线播放 / 阅读 / 预览 */}
+      {player && (
+        <PresentationMode
+          content={player.content}
+          title={player.title}
+          subject="课件"
+          grade=""
+          teacherName={safeGetUser().name || '教师'}
+          onClose={() => setPlayer(null)}
+        />
       )}
     </AppLayout>
   )
