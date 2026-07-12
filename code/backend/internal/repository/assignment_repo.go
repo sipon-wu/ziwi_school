@@ -58,6 +58,17 @@ func (r *AssignmentRepository) FindByID(id string, teacherID string) (*Assignmen
 	return &a, nil
 }
 
+// Update 更新作业
+func (r *AssignmentRepository) Update(id string, teacherID string, updates map[string]interface{}) error {
+	updates["updated_at"] = time.Now()
+	return r.db.Model(&Assignment{}).Where("id = ? AND teacher_id = ?", id, teacherID).Updates(updates).Error
+}
+
+// Delete 删除作业
+func (r *AssignmentRepository) Delete(id string, teacherID string) error {
+	return r.db.Where("id = ? AND teacher_id = ?", id, teacherID).Delete(&Assignment{}).Error
+}
+
 // ListByTeacher 按教师查询作业列表（分页）
 func (r *AssignmentRepository) ListByTeacher(teacherID string, page, pageSize int) ([]Assignment, int64, error) {
 	var assignments []Assignment

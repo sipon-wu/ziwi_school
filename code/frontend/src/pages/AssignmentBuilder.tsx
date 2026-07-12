@@ -280,8 +280,25 @@ export default function AssignmentBuilder() {
           className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           预览
         </button>
-        <button onClick={() => toast(enableSchedule ? '定时发布功能开发中' : '发布功能开发中，请先保存草稿后在作业列表手动发布', 'warning')}
-          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
+        <button onClick={async () => {
+          if (!selectedClass || !assignmentTitle.trim()) { toast('请先填写标题并选择班级', 'warning'); return }
+          try {
+            const tok = localStorage.getItem('zhiwei_token')
+            const res = await fetch('/api/assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+              body: JSON.stringify({
+                class_id: selectedClass, subject: teaching.subject, title: assignmentTitle, type: 'homework',
+                content: assignmentDesc || undefined,
+                question_ids: selectedQuestions.map(q => q.id),
+                knowledge_node_ids: JSON.stringify(picker.selectedIds),
+              }),
+            })
+            if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || 'HTTP ' + res.status) }
+            toast('已发布', 'success')
+          } catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
+        }}
+          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#15A85F] rounded-[4px] hover:bg-[#1B8C4F] transition-colors">
           {enableSchedule ? '定时发布' : '立即发布'}
         </button>
       </div>

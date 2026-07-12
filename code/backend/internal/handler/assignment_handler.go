@@ -108,3 +108,37 @@ func (h *AssignmentHandler) CreateAssignment(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, a)
 }
+
+// DeleteAssignment 删除作业
+// DELETE /api/assignments/:id
+func (h *AssignmentHandler) DeleteAssignment(c *gin.Context) {
+	teacherID, _ := c.Get("user_id")
+	teacherIDStr, _ := teacherID.(string)
+	id := c.Param("id")
+
+	if err := h.repo.Delete(id, teacherIDStr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DELETE_FAILED", "message": "删除失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "已删除"})
+}
+
+// UpdateAssignment 更新作业
+// PUT /api/assignments/:id
+func (h *AssignmentHandler) UpdateAssignment(c *gin.Context) {
+	teacherID, _ := c.Get("user_id")
+	teacherIDStr, _ := teacherID.(string)
+	id := c.Param("id")
+
+	var updates map[string]interface{}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "无效的请求参数"})
+		return
+	}
+
+	if err := h.repo.Update(id, teacherIDStr, updates); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPDATE_FAILED", "message": "更新失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "已更新"})
+}

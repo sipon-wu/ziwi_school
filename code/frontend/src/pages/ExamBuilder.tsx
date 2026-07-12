@@ -226,15 +226,27 @@ export default function ExamBuilder() {
 
       {/* Fixed Bottom Buttons */}
       <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
-        <button onClick={() => toast('组卷保存功能开发中，已选题目可在出题页导出为 Word/PDF', 'warning')}
+        <button onClick={() => {
+          if (!examTitle.trim()) { toast('请填写试卷标题', 'warning'); return }
+          const tok = localStorage.getItem('zhiwei_token')
+          fetch('/api/exams', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+            body: JSON.stringify({
+              title: examTitle, subject: teaching.subject, grade: gradeName,
+              question_ids: selectedQuestions.map(q => q.id),
+              total_score: totalScore, duration: examDuration, status: 'draft',
+            }),
+          }).then(r => { if (r.ok) toast('已保存为草稿', 'success'); else toast('保存失败', 'error') }).catch(() => toast('网络错误', 'error'))
+        }}
           className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
           保存为草稿
         </button>
-        <button onClick={() => toast('组卷预览功能开发中，请先在出题页导出查看', 'warning')}
+        <button onClick={() => toast('预览功能开发中', 'warning')}
           className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           预览
         </button>
-        <button onClick={() => toast('组卷发布功能开发中', 'warning')}
+        <button onClick={() => toast('发布功能开发中，请先在出题页导出发布', 'warning')}
           className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
           发布
         </button>

@@ -232,7 +232,7 @@ export default function AssignmentList() {
           </div>
         )}
 
-        <ConfirmDialog open={Boolean(deleteTarget)} title="确认删除" message="删除后将无法恢复，确认删除吗？" danger onConfirm={() => setDeleteTarget(null)} onCancel={() => setDeleteTarget(null)} />
+        <ConfirmDialog open={Boolean(deleteTarget)} title="确认删除" message="删除后将无法恢复，确认删除吗？" danger onConfirm={() => { if (deleteTarget) { const tok = localStorage.getItem('zhiwei_token'); fetch('/api/assignments/' + deleteTarget, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + tok } }).catch(() => {}); setDeleteTarget(null) }}} onCancel={() => setDeleteTarget(null)} />
       </div>
     </AppLayout>
   )

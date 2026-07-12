@@ -70,7 +70,20 @@ export default function AssignmentEditor() {
               </>
             )}
             {isDraft && (
-              <button onClick={() => { setSaving(true); setTimeout(() => { setSaving(false); toast('保存成功', 'success') }, 400) }}
+              <button onClick={async () => {
+                setSaving(true)
+                try {
+                  const tok = localStorage.getItem('zhiwei_token')
+                  const res = await fetch('/api/assignments/' + assignment.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+                    body: JSON.stringify({ title: editTitle, subject: assignment.subject }),
+                  })
+                  if (!res.ok) throw new Error('HTTP ' + res.status)
+                  toast('保存成功', 'success')
+                } catch (e: any) { toast('保存失败: ' + (e.message || '网络错误'), 'error') }
+                setSaving(false)
+              }}
                 className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
                 {saving ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />} 保存
               </button>

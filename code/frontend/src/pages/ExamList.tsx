@@ -65,7 +65,13 @@ export default function ExamList() {
   const { page, totalPages, paginated, goTo } = usePagination(filtered, 8)
 
   const handleDelete = () => {
-    if (deleteTarget) setDeleteTarget(null)
+    if (deleteTarget) {
+      const tok = localStorage.getItem('zhiwei_token')
+      fetch('/api/exams/' + deleteTarget, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + tok },
+      }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status) }).catch(e => console.error('delete failed', e))
+      setDeleteTarget(null)
+    }
   }
 
   const handleRowClick = (e: ExamItem) => {

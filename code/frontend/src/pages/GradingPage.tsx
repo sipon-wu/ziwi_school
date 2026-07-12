@@ -43,6 +43,14 @@ export default function GradingPage() {
     const newGraded = new Set(graded)
     newGraded.add(current.id)
     setGraded(newGraded)
+    // 持久化评分到 localStorage（缺少后端提交 API，先落本地防刷新丢）
+    const key = 'zhiwei_grades_' + current.id
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        student_id: current.id, scores,
+        graded_at: new Date().toISOString(),
+      }))
+    } catch {}
     if (currentIdx < totalCount - 1) {
       setCurrentIdx(currentIdx + 1)
     }

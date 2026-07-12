@@ -5,7 +5,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '@/lib/TeachingContext'
-import { api } from '../lib/api'
+import { api, lessonPlanAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 interface LessonPlan {
@@ -224,7 +224,7 @@ export default function PublishedLessons() {
             open={!!deleteTarget}
             title="确认删除"
             message="删除后教案将移至回收站，30天内可恢复。"
-            onConfirm={() => setDeleteTarget(null)}
+            onConfirm={() => { if (deleteTarget) { lessonPlanAPI.delete(deleteTarget).catch(() => {}); setDeleteTarget(null) } }}
             onCancel={() => setDeleteTarget(null)}
           />
         )}

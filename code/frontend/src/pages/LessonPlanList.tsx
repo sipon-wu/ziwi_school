@@ -4,7 +4,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
-import { api } from '../lib/api'
+import { api, lessonPlanAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 interface LessonPlan {
@@ -74,6 +74,7 @@ export default function LessonPlanList() {
 
   const handleDelete = () => {
     if (deleteTarget) {
+      lessonPlanAPI.delete(deleteTarget).catch(e => console.error('delete failed', e))
       setPlans(prev => prev.filter(p => p.id !== deleteTarget))
       setDeleteTarget(null)
     }

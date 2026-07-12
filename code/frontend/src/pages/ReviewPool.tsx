@@ -51,6 +51,19 @@ export default function ReviewPool() {
     }
   }
 
+  // ── 审阅操作：toast 反馈（后端审阅 endpoint 待实现）──
+  const handleReviewAction = (action: string, item: ReviewItem) => {
+    // localStorage 记录审阅操作，防止刷新丢失
+    const key = 'zhiwei_review_actions'
+    try {
+      const existing = JSON.parse(localStorage.getItem(key) || '{}')
+      existing[item.id] = { action, at: new Date().toISOString(), title: item.lesson_title }
+      localStorage.setItem(key, JSON.stringify(existing))
+    } catch {}
+    toast(`已${action === 'approve' ? '通过' : action === 'reject' ? '退回' : '留言'}: ${item.lesson_title}`, 'success')
+    setArticles(prev => prev.filter(a => a.id !== item.id))
+  }
+
   const pending = filtered.length
   const reviewedToday = 2
 
@@ -135,10 +148,10 @@ export default function ReviewPool() {
                       <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{r.submitted_at}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="审阅"><Eye size={14} /></button>
-                          <button className="p-1.5 text-[#9A9A9A] hover:text-green-600 hover:bg-green-50 rounded-[3px]" title="通过"><CheckCircle2 size={14} /></button>
-                          <button className="p-1.5 text-[#9A9A9A] hover:text-orange-500 hover:bg-orange-50 rounded-[3px]" title="退回"><XCircle size={14} /></button>
-                          <button className="p-1.5 text-[#9A9A9A] hover:text-[#722ED1] hover:bg-purple-50 rounded-[3px]" title="留言"><MessageSquare size={14} /></button>
+                          <button onClick={() => handleReviewAction('review', r)} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="审阅"><Eye size={14} /></button>
+                          <button onClick={() => handleReviewAction('approve', r)} className="p-1.5 text-[#9A9A9A] hover:text-green-600 hover:bg-green-50 rounded-[3px]" title="通过"><CheckCircle2 size={14} /></button>
+                          <button onClick={() => handleReviewAction('reject', r)} className="p-1.5 text-[#9A9A9A] hover:text-orange-500 hover:bg-orange-50 rounded-[3px]" title="退回"><XCircle size={14} /></button>
+                          <button onClick={() => handleReviewAction('comment', r)} className="p-1.5 text-[#9A9A9A] hover:text-[#722ED1] hover:bg-purple-50 rounded-[3px]" title="留言"><MessageSquare size={14} /></button>
                           <button onClick={() => setDeleteTarget(r.id)} className="p-1.5 text-[#9A9A9A] hover:text-red-500 hover:bg-red-50 rounded-[3px]" title="删除"><Trash2 size={14} /></button>
                         </div>
                       </td>

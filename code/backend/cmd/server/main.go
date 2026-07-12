@@ -231,6 +231,8 @@ func main() {
 		// 作业
 		teacher.GET("/assignments", assignmentHandler.ListAssignments)
 		teacher.POST("/assignments", assignmentHandler.CreateAssignment)
+		teacher.PUT("/assignments/:id", assignmentHandler.UpdateAssignment)
+		teacher.DELETE("/assignments/:id", assignmentHandler.DeleteAssignment)
 		// 批阅
 		teacher.GET("/grading", placeholder("list grading"))
 		teacher.POST("/grading/:id", placeholder("submit grade"))

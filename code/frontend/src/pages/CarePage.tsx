@@ -58,20 +58,38 @@ export default function CarePage() {
   const [editText, setEditText] = useState('')
   const [form, setForm] = useState({ name: '', studentNo: '', gender: '男' })
 
+  // ── localStorage 持久化 ──
+  const CARE_KEY = 'care_edits'
+  const persistCare = (students: CareStudent[]) => {
+    try {
+      const edits: Record<string, { focusArea: string }> = {}
+      students.forEach(s => { if (s.focusArea) edits[s.id] = { focusArea: s.focusArea } })
+      localStorage.setItem(CARE_KEY, JSON.stringify(edits))
+    } catch {}
+  }
+
   const startEditFocus = (id: string, text: string) => { setEditFocus(id); setEditText(text) }
   const saveFocus = () => {
-    setStudents(prev => prev.map(s => s.id === editFocus ? { ...s, focusArea: editText } : s))
+    setStudents(prev => {
+      const next = prev.map(s => s.id === editFocus ? { ...s, focusArea: editText } : s)
+      persistCare(next)
+      return next
+    })
     setEditFocus(null)
   }
 
   const handleAdd = () => {
     if (!form.name.trim() || !form.studentNo.trim()) return
-    setStudents(prev => [{
-      id: `s${Date.now()}`, name: form.name, studentNo: form.studentNo, gender: form.gender,
-      grade: 4, enrolledDate: new Date().toISOString().slice(0, 10), status: 'pending' as const,
-      planProgress: 0, accuracy: 50, accuracyTrend: 'flat', accuracyChange: 0,
-      focusArea: '待评估',
-    }, ...prev])
+    setStudents(prev => {
+      const next = [{
+        id: `s${Date.now()}`, name: form.name, studentNo: form.studentNo, gender: form.gender,
+        grade: 4, enrolledDate: new Date().toISOString().slice(0, 10), status: 'pending' as const,
+        planProgress: 0, accuracy: 50, accuracyTrend: 'flat' as const, accuracyChange: 0,
+        focusArea: '待评估',
+      }, ...prev]
+      persistCare(next)
+      return next
+    })
     setShowAdd(false)
     setForm({ name: '', studentNo: '', gender: '男' })
   }
