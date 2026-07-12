@@ -1095,13 +1095,23 @@ function SchoolClassTab() {
 
             {/* Footer */}
             <div className="px-6 py-3 border-t border-[#F0F0F0] flex justify-end gap-2 shrink-0">
-              <button onClick={() => setShowModal(false)} className="px-4 py-1.5 text-[12px] border rounded-[4px]">关闭</button>
               {step === 0 && (
-                <button onClick={handleSaveSchool} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px]">
-                  {modalMode === 'addSchool' ? '保存并配置班级' : '保存修改'}
-                </button>
+                <>
+                  <button onClick={() => setShowModal(false)} className="px-4 py-1.5 text-[12px] border rounded-[4px]">取消</button>
+                  <button onClick={handleSaveSchool} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px]">
+                    {modalMode === 'addSchool' ? '保存并配置班级' : '保存修改'}
+                  </button>
+                </>
               )}
-              {step === 1 && <span className="text-[11px] text-[#9A9A9A] self-center mr-auto">班级修改即时生效</span>}
+              {step === 1 && editClassTarget && (
+                <>
+                  <button onClick={() => setEditClassTarget(null)} className="px-4 py-1.5 text-[12px] border rounded-[4px]">取消</button>
+                  <button onClick={doSaveEditClass} className="px-4 py-1.5 text-[12px] text-white bg-[#15A85F] rounded-[4px]">保存</button>
+                </>
+              )}
+              {step === 1 && !editClassTarget && (
+                <button onClick={() => setShowModal(false)} className="px-4 py-1.5 text-[12px] border rounded-[4px]">关闭</button>
+              )}
             </div>
           </div>
         </div>
