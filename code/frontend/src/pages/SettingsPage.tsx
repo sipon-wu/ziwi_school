@@ -768,9 +768,14 @@ function SchoolClassTab() {
   const [tvBooks, setTvBooks] = useState<any[]>([])
   const [tvLoading, setTvLoading] = useState(true)
   const [myPrefs, setMyPrefs] = useState<any[]>([])  // 个人已保存的教材版本偏好（用于编辑时回显）
-  const versionOpts = useCallback((subject: string) => {
+  const versionOpts = useCallback((subject: string, grade?: string) => {
     const m = new Map<string, { publisher: string; version_name: string }>()
-    tvBooks.filter((b: any) => b.subject === subject).forEach((b: any) =>
+    tvBooks.filter((b: any) => {
+      if (b.subject !== subject) return false
+      // 版本库按年级过滤：有指定年级则精确匹配，无年级的视为通用（适配所有年级）
+      if (grade && b.grade && b.grade !== grade) return false
+      return true
+    }).forEach((b: any) =>
       m.set(`${b.publisher}|${b.version_name}`, { publisher: b.publisher, version_name: b.version_name }))
     return Array.from(m.values())
   }, [tvBooks])
@@ -921,7 +926,7 @@ function SchoolClassTab() {
     for (const sub of editSubjects) {
       const ver = editVersions[sub]
       if (ver) {
-        const opt = versionOpts(sub).find(o => o.version_name === ver)
+        const opt = versionOpts(sub, cls.grade).find(o => o.version_name === ver)
         if (opt) saves.push(teacherPrefAPI.upsert({ subject: sub, grade: cls.grade, class_id: cls.id, publisher: opt.publisher, version_name: opt.version_name }).then(() => {}))
       }
     }
@@ -1055,7 +1060,7 @@ function SchoolClassTab() {
                               <span className="text-[#9A9A9A]">版本：</span>
                               {tvLoading ? <span className="text-[#9A9A9A]">加载中...</span> : (
                                 editSubjects.map(sub => {
-                                  const opts = versionOpts(sub)
+                                  const opts = versionOpts(sub, cls.grade)
                                   if (opts.length === 0) return <span key={sub} className="text-[#9A9A9A]">{sub} 无版本库</span>
                                   return <label key={sub} className="flex items-center gap-1">
                                     <span className="text-[#353535] w-10">{sub}</span>
