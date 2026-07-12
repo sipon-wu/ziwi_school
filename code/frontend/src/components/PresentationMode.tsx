@@ -26,7 +26,18 @@ export default function PresentationMode({ content, title, subject, grade, teach
   }, [sections.length, onClose])
 
   const slide = sections[slideIdx]
-  if (!slide) return null
+  if (!slide) {
+    return (
+      <div className="fixed inset-0 z-[70] bg-gray-900 flex items-center justify-center" onClick={onClose}>
+        <div className="text-center text-white/70 max-w-md px-6">
+          <Monitor size={40} className="mx-auto mb-4 text-white/30" />
+          <p className="text-lg">该教案暂无正文内容，无法投屏播放</p>
+          <p className="text-sm mt-2 text-white/40">请先在编辑器中 AI 生成教案或填写正文后再预览</p>
+          <button onClick={onClose} className="mt-6 px-5 py-2 text-sm text-white border border-white/30 rounded hover:bg-white/10">关闭</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-[70] bg-gray-900 flex flex-col" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>

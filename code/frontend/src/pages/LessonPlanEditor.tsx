@@ -125,7 +125,7 @@ export default function LessonPlanEditor() {
     lessonPlanAPI.get(id).then(data => {
       setSubject(data.subject || '语文')
       setGrade(data.grade || '四年级')
-      setLessonTitle(data.lesson_title || '')
+      setLessonTitle(data.title || data.lesson_title || '')
       setTextbookUnit(data.textbook_unit || '')
       setPeriod(data.period || 1)
       setTemplate(data.format_template || 'core_literacy')
