@@ -83,6 +83,46 @@ func (h *MaterialHandler) UploadMaterial(c *gin.Context) {
 	c.JSON(http.StatusCreated, m)
 }
 
+// CreateMaterialJSON 以 JSON 方式创建素材（用于程序化写入 AI 生成的课件）
+// POST /api/materials/json
+func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	schoolID, _ := c.Get("school_id")
+	var body struct {
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Tag     string `json:"tag"`
+		URL     string `json:"url"`
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
+		return
+	}
+	if body.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写素材名称"})
+		return
+	}
+	m := &model.Material{
+		Name:      body.Name,
+		SchoolID:  schoolID.(string),
+		UserID:    userID.(string),
+		Type:      body.Type,
+		Tag:       body.Tag,
+		URL:       body.URL,
+		Content:   body.Content,
+		CreatedAt: time.Now(),
+	}
+	if m.Type == "" {
+		m.Type = "courseware"
+	}
+	if err := h.repo.Create(m); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, m)
+}
+
 func formatFileSize(sz int64) string {
 	switch {
 	case sz >= 1024*1024*1024:

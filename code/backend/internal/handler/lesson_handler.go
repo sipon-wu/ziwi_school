@@ -20,20 +20,22 @@ func NewLessonHandler(repo *repository.LessonRepository) *LessonHandler {
 
 // CreateLessonRequest 创建教案请求
 type CreateLessonRequest struct {
-	Title    string `json:"title" binding:"required"`
-	Subject  string `json:"subject" binding:"required"`
-	Grade    string `json:"grade" binding:"required"`
-	Unit     string `json:"unit"`
-	Content  string `json:"content"` // 草稿允许空内容
+	Title        string `json:"title" binding:"required"`
+	Subject      string `json:"subject" binding:"required"`
+	Grade        string `json:"grade" binding:"required"`
+	Unit         string `json:"unit"`
+	Content      string `json:"content"` // 草稿允许空内容
+	MaterialRefs string `json:"material_refs"`
 }
 
 // UpdateLessonRequest 更新教案请求
 type UpdateLessonRequest struct {
-	Title   string `json:"title" binding:"max=12"`
-	Subject string `json:"subject"`
-	Grade   string `json:"grade"`
-	Unit    string `json:"unit"`
-	Content string `json:"content"`
+	Title        string `json:"title" binding:"max=12"`
+	Subject      string `json:"subject"`
+	Grade        string `json:"grade"`
+	Unit         string `json:"unit"`
+	Content      string `json:"content"`
+	MaterialRefs string `json:"material_refs"`
 }
 
 // ListLessonPlans 教案草稿箱列表
@@ -85,6 +87,7 @@ func (h *LessonHandler) CreateLessonPlan(c *gin.Context) {
 		Grade:        req.Grade,
 		Unit:         req.Unit,
 		Content:      req.Content,
+		MaterialRefs: req.MaterialRefs,
 		Status:       "draft",
 		TemplateType: "core_literacy",
 		CreatedAt:    time.Now(),
@@ -148,6 +151,9 @@ func (h *LessonHandler) UpdateLessonPlan(c *gin.Context) {
 	}
 	if req.Content != "" {
 		plan.Content = req.Content
+	}
+	if req.MaterialRefs != "" {
+		plan.MaterialRefs = req.MaterialRefs
 	}
 	plan.EditCount++
 	plan.UpdatedAt = time.Now()

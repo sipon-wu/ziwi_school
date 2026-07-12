@@ -55,6 +55,13 @@ ssh "$SERVER" "mkdir -p $REMOTE_CODE/backend"
 rsync -az --delete --ignore-times --exclude='.env' --exclude='bin/' --exclude='/server' \
   "$BE_DIR/" "$SERVER:$REMOTE_CODE/backend/"
 
+echo "==> [${ENV}] 2.5/4 同步 ai-service 源码到服务器"
+# ai-service 同样在服务器本地构建（compose context: ../ai-service），
+# 不同步则 docker compose --build 跑的是旧 ai-service（课件生成/AI 挂载改动不生效）。
+ssh "$SERVER" "mkdir -p $REMOTE_CODE/ai-service"
+rsync -az --delete --ignore-times --exclude='.env' --exclude='__pycache__/' --exclude='*.pyc' \
+  "$HERE/ai-service/" "$SERVER:$REMOTE_CODE/ai-service/"
+
 echo "==> [${ENV}] 3/4 上传前端到 ${DOCROOT}"
 ssh "$SERVER" "mkdir -p $DOCROOT"
 # 发布前快照（保留最近 3 份，供 rollback 使用）

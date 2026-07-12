@@ -11,6 +11,7 @@ type Material struct {
 	Size      string    `json:"size"`
 	Tag       string    `json:"tag"`
 	URL       string    `json:"url"`
+	Content   string    `gorm:"type:text" json:"content,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

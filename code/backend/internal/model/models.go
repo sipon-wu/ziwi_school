@@ -148,7 +148,7 @@ type LessonPlan struct {
 	TextbookVersionID *string    `gorm:"-" json:"textbook_version_id,omitempty"`
 	CustomTags        string     `gorm:"-" json:"custom_tags,omitempty"`
 	SupplementText    string     `gorm:"-" json:"supplement_text,omitempty"`
-	MaterialRefs      string     `gorm:"-" json:"material_refs,omitempty"`
+	MaterialRefs      string     `gorm:"column:material_links;type:text" json:"material_refs,omitempty"`
 	AIGenerationBasis string     `gorm:"-" json:"ai_generation_basis,omitempty"`
 	LastEditedAt      *time.Time `gorm:"-" json:"last_edited_at,omitempty"`
 	ReviewerID        *string    `gorm:"-" json:"reviewer_id,omitempty"`

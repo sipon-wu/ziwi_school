@@ -244,6 +244,7 @@ func main() {
 		// 素材
 		teacher.GET("/materials", materialHandler.ListMaterials)
 		teacher.POST("/materials", materialHandler.UploadMaterial)
+		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		// 学校/班级归档
 		teacher.PUT("/schools/:id/archive", scHandler.ArchiveSchool)
 		teacher.PUT("/schools/:id/restore", scHandler.RestoreSchool)

@@ -6,8 +6,9 @@
  *
  * 输出：onSelect(items) 返回选中项列表
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Search, Image, FileText, Music, Video } from 'lucide-react'
+import { api } from '../lib/api'
 
 /* ── 类型 ── */
 type PickerMode = 'questions' | 'materials'
@@ -69,6 +70,29 @@ const MATERIAL_COLORS: Record<string, string> = { image: '#1890FF', doc: '#52C41
 export default function ResourcePicker({ open, mode, onClose, onSelect, questionSource = 'all', selectedIds = [] }: Props) {
   const [search, setSearch] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set(selectedIds))
+  const [materialList, setMaterialList] = useState<MaterialItem[]>([])
+  const [loadingMaterials, setLoadingMaterials] = useState(false)
+
+  // 素材模式：拉取真实素材库
+  useEffect(() => {
+    if (open && mode === 'materials' && materialList.length === 0) {
+      setLoadingMaterials(true)
+      api<{ items: any[] }>('/materials')
+        .then(res => {
+          setMaterialList(
+            (res.items || []).map((m: any) => ({
+              id: m.id,
+              name: m.name || m.title || '未命名素材',
+              type: (m.type || m.material_type || 'doc') as MaterialItem['type'],
+              group: m.tag || '',
+              size: m.size || '',
+            }))
+          )
+        })
+        .catch(() => setMaterialList([]))
+        .finally(() => setLoadingMaterials(false))
+    }
+  }, [open, mode, materialList.length])
 
   if (!open) return null
 
@@ -76,7 +100,7 @@ export default function ResourcePicker({ open, mode, onClose, onSelect, question
     ? MOCK_QUESTIONS.filter(q => q.source === 'personal')
     : MOCK_QUESTIONS
 
-  const materials = MOCK_MATERIALS
+  const materials = materialList
 
   const toggle = (id: string) => {
     setPicked(prev => {
@@ -137,9 +161,11 @@ export default function ResourcePicker({ open, mode, onClose, onSelect, question
 
         {/* List */}
         <div className="flex-1 overflow-y-auto px-5 py-2 space-y-1">
-          {filtered.length === 0 ? (
-            <p className="text-center text-[13px] text-[#9A9A9A] py-8">暂无匹配结果</p>
-          ) : (
+        {filtered.length === 0 ? (
+          <p className="text-center text-[13px] text-[#9A9A9A] py-8">
+            {loadingMaterials ? '素材库加载中…' : (mode === 'materials' ? '暂无素材，请先到「素材库」上传' : '暂无匹配结果')}
+          </p>
+        ) : (
             filtered.map(item => {
               const isChecked = picked.has(item.id)
               if (mode === 'questions') {

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Download, Printer } from 'lucide-react'
-import { lessonPlanAPI } from '../lib/api'
+import { lessonPlanAPI, materialAPI } from '../lib/api'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
+import PresentationMode from '../components/PresentationMode'
 
 export default function LessonPlanView() {
   const { id } = useParams()
@@ -14,6 +15,9 @@ export default function LessonPlanView() {
   const [plan, setPlan] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
+  const [materialRefs, setMaterialRefs] = useState<string[]>([])
+  const [materialMap, setMaterialMap] = useState<Record<string, any>>({})
+  const [playCourseware, setPlayCourseware] = useState<{ content: string; title: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -25,6 +29,26 @@ export default function LessonPlanView() {
       setLoading(false)
     })
   }, [id])
+
+  // 解析已挂载课件并拉取素材库名称
+  useEffect(() => {
+    if (!plan) return
+    let refs: string[] = []
+    if (plan.material_refs) {
+      try {
+        refs = typeof plan.material_refs === 'string' ? JSON.parse(plan.material_refs) : plan.material_refs
+        if (!Array.isArray(refs)) refs = []
+      } catch { refs = [] }
+    }
+    setMaterialRefs(refs)
+    if (refs.length) {
+      materialAPI.list().then(res => {
+        const map: Record<string, any> = {}
+        ;(res.items || []).forEach((m: any) => { map[m.id] = m })
+        setMaterialMap(map)
+      }).catch(() => {})
+    }
+  }, [plan])
 
   if (loading) {
     return (
@@ -120,7 +144,42 @@ export default function LessonPlanView() {
           <div><span className="text-[#9A9A9A]">单元</span><p className="text-[#353535] font-medium">{plan.unit || '-'}</p></div>
           <div><span className="text-[#9A9A9A]">课时</span><p className="text-[#353535] font-medium">{plan.period || 1} 课时</p></div>
         </div>
+
+        {/* 关联课件 */}
+        {materialRefs.length > 0 && (
+          <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-4">
+            <h3 className="text-[13px] font-semibold text-[#353535] mb-3 flex items-center gap-2">
+              <BookOpen size={14} className="text-[#02A7F0]" />关联课件（{materialRefs.length}）
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {materialRefs.map(mid => {
+                const m = materialMap[mid]
+                if (!m) return <span key={mid} className="px-2.5 py-1 text-[11px] bg-[#F0F0F0] text-[#353535] rounded-full">课件</span>
+                const isCourseware = m.type === 'courseware' && m.content
+                return (
+                  <div key={mid} className="inline-flex items-center gap-2 px-2.5 py-1 text-[11px] bg-[#E6F7FF] text-[#0958D9] rounded-full">
+                    <span>{m.name || '课件'}</span>
+                    {isCourseware && (
+                      <button onClick={() => setPlayCourseware({ content: m.content, title: m.name || '课件' })}
+                        className="text-[#0958D9] hover:text-[#0288D1] underline">播放</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* 播放关联课件 */}
+      {playCourseware && (
+        <PresentationMode
+          content={playCourseware.content} title={playCourseware.title}
+          subject={plan.subject} grade={plan.grade}
+          teacherName={safeName}
+          onClose={() => setPlayCourseware(null)}
+        />
+      )}
     </AppLayout>
   )
 }

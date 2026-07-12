@@ -167,8 +167,22 @@ export const aiAPI = {
     period?: number
     format_template?: string
     selected_knowledge_ids?: string[]
+    school_id?: string
   }) =>
     request<any>('/ai/lesson-plan/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  /** 课件生成（AI 润色 + 找相近生成新版本） */
+  generateCourseware: (params: {
+    subject: string
+    grade: string
+    lesson_title: string
+    content: string
+    school_id?: string
+  }) =>
+    request<any>('/ai/courseware/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -214,6 +228,16 @@ export const lessonPlanAPI = {
     request<any>(`/lesson-plans/${id}/finalize`, { method: 'POST' }),
   delete: (id: string) =>
     request<any>(`/lesson-plans/${id}`, { method: 'DELETE' }),
+}
+
+// ── 素材/课件接口 ──
+
+export const materialAPI = {
+  list: () => request<any>('/materials'),
+  /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
+  createJSON: (data: { name: string; type: string; tag?: string; url?: string; content?: string }) =>
+    request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request<any>(`/materials/${id}`),
 }
 
 // ── 学生端接口 ──
@@ -457,4 +481,4 @@ export const teacherPrefAPI = {
     request<any>(`/me/textbook-effective?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
 }
 
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI }
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI }

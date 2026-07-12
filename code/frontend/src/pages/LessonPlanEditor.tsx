@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut } from 'lucide-react'
-import { aiAPI, lessonPlanAPI } from '../lib/api'
+import { aiAPI, lessonPlanAPI, materialAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
@@ -13,9 +13,19 @@ import { parseSections, combineSections } from '../lib/parseSections'
 import { printLessonPlan } from '../lib/printPdf'
 import PresentationMode from '../components/PresentationMode'
 import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
+import ResourcePicker from '../components/ResourcePicker'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
+
+// 从 JWT 解码 school_id（与后端写入素材库的 school_id 一致，避免 user 对象里的 school_id 与素材库不匹配）
+const getSchoolId = () => {
+  try {
+    const t = localStorage.getItem('zhiwei_token') || ''
+    const payload = JSON.parse(atob(t.split('.')[1]))
+    return payload.school_id || ''
+  } catch { return '' }
+}
 
 export default function LessonPlanEditor() {
   const navigate = useNavigate()
@@ -59,6 +69,29 @@ export default function LessonPlanEditor() {
   const [_autoSaveTip, setAutoSaveTip] = useState('')
   const [customTags, setCustomTags] = useState<string[]>(['自定义标签1'])
   const [newTagInput, setNewTagInput] = useState('')
+
+  // 关联课件（material_refs）：作者指定 + AI 决定挂载
+  const [materialRefs, setMaterialRefs] = useState<string[]>([])
+  const [recommendedMaterials, setRecommendedMaterials] = useState<string[]>([])
+  const [showMaterialPicker, setShowMaterialPicker] = useState(false)
+  const [materialMap, setMaterialMap] = useState<Record<string, any>>({})
+  // 课件生成（AI 润色 + 找相近生成新版本）
+  const [coursewareMarkdown, setCoursewareMarkdown] = useState('')
+  const [showCourseware, setShowCourseware] = useState(false)
+  const [generatingCourseware, setGeneratingCourseware] = useState(false)
+  const [coursewareSimilar, setCoursewareSimilar] = useState<any>(null)
+  const [savingCourseware, setSavingCourseware] = useState(false)
+
+  // 拉取素材库，建立 id -> 素材 映射（用于展示已挂载课件名称）
+  const loadMaterialsMap = async () => {
+    try {
+      const res = await materialAPI.list()
+      const map: Record<string, any> = {}
+      ;(res.items || []).forEach((m: any) => { map[m.id] = m })
+      setMaterialMap(map)
+    } catch { /* 忽略 */ }
+  }
+  useEffect(() => { loadMaterialsMap() }, [])
 
   // 自动保存（30秒，仅新建模式未保存时触发）
   useEffect(() => {
@@ -136,6 +169,13 @@ export default function LessonPlanEditor() {
         try { setCurriculum(JSON.parse(data.curriculum_alignments)) } catch { setCurriculum([]) }
       }
       setModelVersion(data.ai_model_version || '')
+      // 回显已挂载课件
+      if (data.material_refs) {
+        try {
+          const refs = typeof data.material_refs === 'string' ? JSON.parse(data.material_refs) : data.material_refs
+          if (Array.isArray(refs)) setMaterialRefs(refs)
+        } catch { /* ignore */ }
+      }
       // 回显已保存的知识点
       if (data.knowledge_node_ids) {
         try {
@@ -166,12 +206,19 @@ export default function LessonPlanEditor() {
       const res = await aiAPI.generateLessonPlan({
         subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period, format_template:template,
         selected_knowledge_ids: picker.selectedIds,
+        school_id: getSchoolId(),
       })
       // 仅设置预览内容，不自动保存（等用户确认后手动保存）
       setContent(res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
       setPlanId(null) // 确保走新建流程，不误覆盖已有教案
       setAiPreview(true)
       setAiConfirmed(false)
+      // AI 决定挂载：生成时一并推荐适宜课件
+      if (Array.isArray(res.material_refs) && res.material_refs.length) {
+        setMaterialRefs(prev => Array.from(new Set([...prev, ...res.material_refs])))
+        setRecommendedMaterials(Array.isArray(res.recommended_materials) ? res.recommended_materials : [])
+        toast(`AI 已推荐 ${res.material_refs.length} 个课件，可在左侧「关联课件」中增删`, 'success')
+      }
     } catch(e:any) { toast('AI 生成失败: '+(e.message||'未知错误'), 'error') }
     setGenerating(false)
   }
@@ -179,7 +226,7 @@ export default function LessonPlanEditor() {
   const handleFinalize = async () => {
     if(!planId)return; setSaving(true)
     try {
-      await lessonPlanAPI.update(planId, { content, knowledge_node_ids: JSON.stringify(currentKnowledgeIds) })
+      await lessonPlanAPI.update(planId, { content, knowledge_node_ids: JSON.stringify(currentKnowledgeIds), material_refs: JSON.stringify(materialRefs) })
       await lessonPlanAPI.finalize(planId)
       navigate('/lesson-plans')
     } catch(e:any){ toast('定稿失败', 'error') }
@@ -198,12 +245,13 @@ export default function LessonPlanEditor() {
           content, format_template: template,
           curriculum_alignments: JSON.stringify(curriculum),
           knowledge_node_ids: knowledgeNodeIds,
+          material_refs: JSON.stringify(materialRefs),
           ai_generated: false,
         })
         setPlanId(saved.id)
         setSavedKnowledgeIds(kIds)
       } else {
-        await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds })
+        await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds, material_refs: JSON.stringify(materialRefs) })
       }
       toast('已保存为草稿', 'success')
     } catch (e: any) { toast('保存失败: ' + (e.message || '网络错误'), 'error') }
@@ -240,6 +288,63 @@ export default function LessonPlanEditor() {
       textbookUnit: textbookUnit || undefined,
       teacherName: user?.name || '教师',
     })
+  }
+
+  // 课件生成：AI 润色 + 从素材库找相近生成新版本
+  const handleGenerateCourseware = async () => {
+    if (!content) { toast('请先生成或填写教案正文', 'warning'); return }
+    setGeneratingCourseware(true)
+    try {
+      const res = await aiAPI.generateCourseware({
+        subject, grade, lesson_title: lessonTitle || '未命名教案',
+        content, school_id: getSchoolId(),
+      })
+      setCoursewareMarkdown(res.courseware_markdown || '')
+      setCoursewareSimilar(res.similar_material || null)
+      if (Array.isArray(res.recommended_refs) && res.recommended_refs.length) {
+        setMaterialRefs(prev => Array.from(new Set([...prev, ...res.recommended_refs])))
+      }
+      setShowCourseware(true)
+    } catch (e: any) { toast('课件生成失败: ' + (e.message || '未知错误'), 'error') }
+    setGeneratingCourseware(false)
+  }
+
+  // 保存生成的课件到素材库并挂载到本教案
+  const handleSaveCourseware = async () => {
+    if (!coursewareMarkdown) return
+    if (!planId) { toast('请先保存教案再挂载课件', 'warning'); return }
+    setSavingCourseware(true)
+    try {
+      const mat = await materialAPI.createJSON({
+        name: `${lessonTitle || '教案'}_课件`,
+        type: 'courseware',
+        tag: `${subject}${grade}`,
+        content: coursewareMarkdown,
+      })
+      const newRefs = Array.from(new Set([...materialRefs, mat.id]))
+      setMaterialRefs(newRefs)
+      await lessonPlanAPI.update(planId, { material_refs: JSON.stringify(newRefs) })
+      await loadMaterialsMap()
+      toast('课件已保存到素材库并挂载', 'success')
+      setShowCourseware(false)
+    } catch (e: any) { toast('保存失败: ' + (e.message || '未知错误'), 'error') }
+    setSavingCourseware(false)
+  }
+
+  // 课件导出（复用现有底座）：HTML / Word / PDF
+  const handleExportCoursewareH5 = () => {
+    if (!coursewareMarkdown) return
+    const blob = exportH5Courseware(coursewareMarkdown, { subject, grade, title: `${lessonTitle || '教案'}_课件`, teacherName: safeGetUser().name || '教师' })
+    h5Download(blob, `${lessonTitle || '课件'}_${subject}${grade}.html`)
+  }
+  const handleExportCoursewareDocx = async () => {
+    if (!coursewareMarkdown) return
+    const blob = await exportLessonPlanToDocx(coursewareMarkdown, { subject, grade, title: `${lessonTitle || '教案'}_课件`, teacher: safeGetUser().name || '教师', model: 'qwen-plus' })
+    downloadBlob(blob, `${lessonTitle || '课件'}_${subject}${grade}.docx`)
+  }
+  const handleExportCoursewarePdf = () => {
+    if (!coursewareMarkdown) return
+    printLessonPlan(coursewareMarkdown, { subject, grade, title: `${lessonTitle || '教案'}_课件`, teacherName: safeGetUser().name || '教师' })
   }
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学' } } })()
@@ -376,6 +481,41 @@ export default function LessonPlanEditor() {
               </div>
             </div>
 
+            {/* 关联课件：作者从素材库指定 + AI 决定挂载 */}
+            <div className="px-5 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[13px] font-medium text-[#353535]">关联课件</span>
+                <button onClick={() => setShowMaterialPicker(true)} className="text-[11px] text-[#02A7F0] hover:underline">+ 从素材库指定</button>
+              </div>
+              {materialRefs.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {materialRefs.map(mid => {
+                    const m = materialMap[mid]
+                    return (
+                      <span key={mid} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#E6F7FF] text-[#0958D9] rounded-full">
+                        {m?.name || '课件'}
+                        <button onClick={() => setMaterialRefs(prev => prev.filter(x => x !== mid))} className="text-[#0958D9] hover:text-[#FF4D4F]"><X size={10} /></button>
+                      </span>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#9A9A9A]">未关联课件。AI 生成教案时会自动推荐，也可手动指定。</p>
+              )}
+              {recommendedMaterials.length > 0 && (
+                <p className="text-[11px] text-[#02A7F0] mt-1.5">AI 推荐：{recommendedMaterials.join('、')}</p>
+              )}
+            </div>
+
+            {/* AI 生成课件（AI 润色 + 找相近生成新版本，支持 HTML/Word/PDF 导出） */}
+            <div className="px-5 py-3">
+              <button onClick={handleGenerateCourseware} disabled={generatingCourseware || !content}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#02A7F0] text-white rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
+                <Monitor size={20} className="shrink-0" />
+                <span className="text-[13px]">{generatingCourseware ? 'AI 正在生成课件...' : 'AI 生成课件（HTML / Word / PDF）'}</span>
+              </button>
+            </div>
+
             {/* AI 生成教案（接线 handleGenerate，修复此前空壳按钮导致无法 AI 生成） */}
             <div className="px-5 py-3">
               <button onClick={handleGenerate} disabled={generating || picker.selectedIds.length === 0}
@@ -432,6 +572,45 @@ export default function LessonPlanEditor() {
           onClose={() => setShowPresentation(false)}
         />
       )}
+
+      {/* AI 课件预览 / 导出 / 挂载 */}
+      {showCourseware && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-6" onClick={() => setShowCourseware(false)}>
+          <div className="bg-white rounded-[6px] w-[900px] max-w-full max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#E7E7EB] shrink-0">
+              <div>
+                <h3 className="text-[14px] font-semibold text-[#353535]">AI 课件预览</h3>
+                {coursewareSimilar && (
+                  <p className="text-[11px] text-[#9A9A9A] mt-0.5">参照相近课件《{coursewareSimilar.name}》生成的新版本</p>
+                )}
+              </div>
+              <button onClick={() => setShowCourseware(false)} className="p-1 hover:bg-[#F6F7F8] rounded"><X size={16} className="text-[#9A9A9A]" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-relaxed whitespace-pre-wrap bg-[#FAFAFA]">
+              {coursewareMarkdown}
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[#E7E7EB] bg-[#F6F7F8] shrink-0">
+              <div className="flex gap-2">
+                <button onClick={handleExportCoursewareH5} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 HTML</button>
+                <button onClick={handleExportCoursewareDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
+                <button onClick={handleExportCoursewarePdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
+              </div>
+              <button onClick={handleSaveCourseware} disabled={savingCourseware} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-50">
+                {savingCourseware ? '保存中...' : '保存到素材库并挂载'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 从素材库指定课件 */}
+      <ResourcePicker
+        open={showMaterialPicker}
+        mode="materials"
+        selectedIds={materialRefs}
+        onClose={() => setShowMaterialPicker(false)}
+        onSelect={(items) => { setMaterialRefs(items.map(i => (i as any).id)); setShowMaterialPicker(false) }}
+      />
 
       {/* 离开确认弹窗（拦截未保存内容） */}
       <ConfirmDialog
