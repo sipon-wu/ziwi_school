@@ -60,6 +60,15 @@ const record = (step, status, detail) => {
       const cwText = await page.locator('div.whitespace-pre-wrap').first().innerText().catch(() => '')
       record('courseware-generate', cwText.length > 20 ? 'PASS' : 'WARN',
         'previewLen=' + cwText.length)
+      // 导出 PPT（首要格式）：点击后浏览器端生成 pptx，校验无 JS 错误
+      try {
+        const pptBtn = page.getByRole('button', { name: '导出 PPT', exact: true })
+        await pptBtn.click()
+        await sleep(3000)
+        record('courseware-export-ppt', pageErrors.length === 0 ? 'PASS' : 'FAIL', 'pageErrors=' + pageErrors.length)
+      } catch (e) {
+        record('courseware-export-ppt', 'WARN', 'PPT 按钮未命中: ' + e.message)
+      }
       // 保存到素材库
       const saveBtn = page.locator('button:has-text("保存到素材库")')
       await saveBtn.click()

@@ -8,6 +8,7 @@ import { useTeaching } from '../lib/TeachingContext'
 import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
+import { exportCoursewareToPptx } from '../lib/exportPptx'
 
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token') || ''; const p = JSON.parse(atob(t.split('.')[1])); return p.school_id || '' } catch { return '' } }
@@ -148,6 +149,9 @@ export default function Materials() {
   }
   const exportCwPdf = () => {
     printLessonPlan(cwMarkdown, { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
+  }
+  const exportCwPptx = async () => {
+    await exportCoursewareToPptx(cwMarkdown, { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
   }
 
   useEffect(() => { refreshMaterials() }, [])
@@ -422,7 +426,7 @@ export default function Materials() {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-[11px] text-[#9A9A9A] leading-relaxed">
-                AI 会根据课题从素材库找相近课件作为参照生成新版本，支持导出 HTML / Word / PDF，并可一键保存到素材库。
+                AI 会根据课题从素材库找相近课件作为参照生成新版本，支持导出 PPT / HTML / Word / PDF，并可一键保存到素材库。
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
@@ -485,6 +489,7 @@ export default function Materials() {
             </div>
             <div className="flex items-center justify-between px-5 py-3 border-t border-[#E7E7EB] bg-[#F6F7F8] shrink-0">
               <div className="flex gap-2">
+                <button onClick={exportCwPptx} className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#5B23A8]">导出 PPT</button>
                 <button onClick={exportCwH5} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 HTML</button>
                 <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
                 <button onClick={exportCwPdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
