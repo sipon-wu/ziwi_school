@@ -5,6 +5,7 @@ import TeacherDashboard from './pages/TeacherDashboard'
 
 const LessonPlanList = lazy(() => import('./pages/LessonPlanList'))
 const LessonPlanEditor = lazy(() => import('./pages/LessonPlanEditor'))
+const LessonPlanView = lazy(() => import('./pages/LessonPlanView'))
 const Materials = lazy(() => import('./pages/Materials'))
 const Exercises = lazy(() => import('./pages/Exercises'))
 const ExerciseGenerator = lazy(() => import('./pages/ExerciseGenerator'))
@@ -38,7 +39,9 @@ export default function App() {
         <Route path="/teacher" element={<TeacherDashboard />} />
         <Route path="/lesson-plans" element={<Suspense fallback={<Loading />}><LessonPlanList /></Suspense>} />
         <Route path="/lesson-plans/new" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
-        <Route path="/lesson-plans/:id" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
+        <Route path="/lesson-plans/:id/view" element={<Suspense fallback={<Loading />}><LessonPlanView /></Suspense>} />
+        <Route path="/lesson-plans/:id/edit" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
+        <Route path="/lesson-plans/:id" element={<Suspense fallback={<Loading />}><LessonPlanView /></Suspense>} />
         <Route path="/materials" element={<Suspense fallback={<Loading />}><Materials /></Suspense>} />
         <Route path="/exercises" element={<Suspense fallback={<Loading />}><Exercises /></Suspense>} />
         <Route path="/exercises/new" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />

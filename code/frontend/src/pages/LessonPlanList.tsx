@@ -150,7 +150,7 @@ export default function LessonPlanList() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F0F0]">
                   {paginated.map(plan => (
-                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
+                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}/view`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <BookOpen size={14} className="text-[#9A9A9A] shrink-0" />
@@ -180,10 +180,10 @@ export default function LessonPlanList() {
                       <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{plan.updated_at}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
+                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}/edit`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
                             <Edit size={14} />
                           </button>
-                          <button onClick={(e) => e.stopPropagation()} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
+                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}/view`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="查看">
                             <Eye size={14} />
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(plan.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">

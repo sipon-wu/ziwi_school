@@ -1,0 +1,126 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, BookOpen, Download, Printer } from 'lucide-react'
+import { lessonPlanAPI } from '../lib/api'
+import { useToast } from '../components/Toast'
+import AppLayout from '../components/AppLayout'
+import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
+import { printLessonPlan } from '../lib/printPdf'
+
+export default function LessonPlanView() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const [plan, setPlan] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    lessonPlanAPI.get(id).then(data => {
+      setPlan(data)
+      setLoading(false)
+    }).catch(() => {
+      toast('教案不存在或无权访问', 'error')
+      setLoading(false)
+    })
+  }, [id])
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" /></div>
+      </AppLayout>
+    )
+  }
+
+  if (!plan) {
+    return (
+      <AppLayout>
+        <div className="text-center py-16 text-[13px] text-[#9A9A9A]">教案不存在或已被删除</div>
+      </AppLayout>
+    )
+  }
+
+  const title = plan.lesson_title || plan.title || '未命名教案'
+  const content = plan.content || ''
+  const statusLabel = plan.status === 'finalized' ? '已定稿' : plan.status === 'draft' ? '草稿' : '已发布'
+  const statusColor = plan.status === 'finalized' ? 'text-green-600 bg-green-50' : plan.status === 'draft' ? 'text-yellow-600 bg-yellow-50' : 'text-blue-600 bg-blue-50'
+  const safeName = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}').name || '教师' } catch { return '教师' } })()
+
+  const handleExportDocx = async () => {
+    if (!content) { toast('教案内容为空，无法导出', 'warning'); return }
+    setExporting(true)
+    try {
+      const blob = await exportLessonPlanToDocx(content, {
+        subject: plan.subject, grade: plan.grade, title,
+        textbookUnit: plan.unit || undefined,
+        period: plan.period || 1, teacher: safeName,
+        model: plan.ai_model_version || 'qwen-plus',
+      })
+      downloadBlob(blob, `${safeName}_${title}_${plan.subject || ''}${plan.grade || ''}.docx`)
+      toast('导出成功', 'success')
+    } catch { toast('导出失败', 'error') }
+    setExporting(false)
+  }
+
+  const handlePrint = () => {
+    if (!content) { toast('教案内容为空', 'warning'); return }
+    printLessonPlan(content, {
+      subject: plan.subject, grade: plan.grade, title,
+      textbookUnit: plan.unit || undefined, teacherName: safeName,
+    })
+  }
+
+  return (
+    <AppLayout>
+      <div className="max-w-4xl mx-auto space-y-4">
+        {/* 顶部导航 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/lesson-plans')} className="p-1.5 hover:bg-[#F6F7F8] rounded-[4px]">
+              <ArrowLeft size={16} className="text-[#9A9A9A]" />
+            </button>
+            <div>
+              <h1 className="text-lg font-bold text-[#353535]">{title}</h1>
+              <p className="text-[11px] text-[#9A9A9A] mt-0.5">{plan.subject || ''} · {plan.grade || ''} · {plan.unit || ''}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex px-2 py-0.5 rounded-[3px] text-[11px] font-medium ${statusColor}`}>{statusLabel}</span>
+            <button onClick={() => navigate(`/lesson-plans/${id}/edit`)} className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">编辑</button>
+            <button onClick={handleExportDocx} disabled={exporting} className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8] disabled:opacity-50">
+              <Download size={13} />{exporting ? '导出中...' : '导出'}
+            </button>
+            <button onClick={handlePrint} className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">
+              <Printer size={13} />打印
+            </button>
+          </div>
+        </div>
+
+        {/* 教案正文 */}
+        <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
+          <div className="px-6 py-4 bg-[#F6F7F8] border-b border-[#E7E7EB] flex items-center gap-2">
+            <BookOpen size={15} className="text-[#02A7F0]" />
+            <span className="text-[13px] font-semibold text-[#353535]">{title}</span>
+          </div>
+          <div className="px-6 py-5 text-[14px] text-[#353535] leading-relaxed whitespace-pre-wrap">
+            {content || <span className="text-[#9A9A9A]">暂无内容</span>}
+          </div>
+          <div className="px-6 py-3 border-t border-[#F0F0F0] text-[10px] text-[#9A9A9A] flex justify-between">
+            <span>AI 生成 · {plan.ai_model_version || 'qwen-plus'}</span>
+            <span>{plan.created_at ? new Date(plan.created_at).toLocaleString('zh-CN') : ''}</span>
+          </div>
+        </div>
+
+        {/* 信息卡片 */}
+        <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-4 grid grid-cols-4 gap-4 text-[12px]">
+          <div><span className="text-[#9A9A9A]">学科</span><p className="text-[#353535] font-medium">{plan.subject || '-'}</p></div>
+          <div><span className="text-[#9A9A9A]">年级</span><p className="text-[#353535] font-medium">{plan.grade || '-'}</p></div>
+          <div><span className="text-[#9A9A9A]">单元</span><p className="text-[#353535] font-medium">{plan.unit || '-'}</p></div>
+          <div><span className="text-[#9A9A9A]">课时</span><p className="text-[#353535] font-medium">{plan.period || 1} 课时</p></div>
+        </div>
+      </div>
+    </AppLayout>
+  )
+}

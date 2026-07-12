@@ -181,7 +181,7 @@ export default function LessonPlanEditor() {
     try {
       await lessonPlanAPI.update(planId, { content, knowledge_node_ids: JSON.stringify(currentKnowledgeIds) })
       await lessonPlanAPI.finalize(planId)
-      navigate('/dashboard/lesson-plans')
+      navigate('/lesson-plans')
     } catch(e:any){ toast('定稿失败', 'error') }
     setSaving(false)
   }
