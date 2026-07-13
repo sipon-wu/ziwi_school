@@ -7,6 +7,7 @@ import AppLayout from '../components/AppLayout'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
 import PresentationMode from '../components/PresentationMode'
+import LessonPlanContent from '../components/LessonPlanContent'
 
 export default function LessonPlanView() {
   const { id } = useParams()
@@ -128,8 +129,8 @@ export default function LessonPlanView() {
             <BookOpen size={15} className="text-[#02A7F0]" />
             <span className="text-[13px] font-semibold text-[#353535]">{title}</span>
           </div>
-          <div className="px-6 py-5 text-[14px] text-[#353535] leading-relaxed whitespace-pre-wrap">
-            {content || <span className="text-[#9A9A9A]">暂无内容</span>}
+          <div className="px-6 py-5">
+            <LessonPlanContent content={content} />
           </div>
           <div className="px-6 py-3 border-t border-[#F0F0F0] text-[10px] text-[#9A9A9A] flex justify-between">
             <span>AI 生成 · {plan.ai_model_version || 'qwen-plus'}</span>

@@ -1,0 +1,75 @@
+[
+  {
+    "step": "login",
+    "status": "PASS",
+    "detail": "tokenInjected=true"
+  },
+  {
+    "step": "A-courseware-quality",
+    "status": "PASS",
+    "detail": "genMs=14228 slides=14 目标=true 练习=true 板书=true 发散=3 mdLen=2069",
+    "genMs": 14228,
+    "slides": 14,
+    "hasGoal": true,
+    "hasPractice": true,
+    "hasBoard": true,
+    "divCount": 3,
+    "mdLen": 2069
+  },
+  {
+    "step": "A-courseware-play",
+    "status": "PASS",
+    "detail": "projVisible=true"
+  },
+  {
+    "step": "B-xiaowei-quality",
+    "status": "PASS",
+    "detail": "respMs=3106 replyLen=334 relevant=true suggestions=true",
+    "respMs": 3106,
+    "replyLen": 334,
+    "relevant": true,
+    "hasSuggest": true,
+    "replyHead": "老师，关于《观潮》一课中“由远及近”的写作顺序，可以通过生动的课堂活动帮助学生理解。以下是三个可操作的建议：\n\n1. **情境角色扮演**：让学生分组扮演“站在"
+  },
+  {
+    "step": "C-knowledge-graph",
+    "status": "PASS",
+    "detail": "kgVisible=true autoSelected=true needSelect=false",
+    "kgVisible": true,
+    "autoSelected": true,
+    "needSelect": false
+  },
+  {
+    "step": "D-coverage-progress",
+    "status": "INFO",
+    "detail": "combos_done=28 all3=28 partial=0 zero=0",
+    "combos": 28,
+    "all3": 28,
+    "partial": 0,
+    "zero": 0,
+    "bySubject": {
+      "英语": 9,
+      "语文": 12,
+      "数学": 9,
+      "物理": 9,
+      "化学": 9,
+      "生物": 9,
+      "政治": 9,
+      "历史": 9,
+      "地理": 9
+    }
+  },
+  {
+    "step": "D-live-counts",
+    "status": "INFO",
+    "detail": "materials=184 exams=130 lessonPlans=20",
+    "materials": 184,
+    "exams": 130,
+    "lessonPlans": 20
+  },
+  {
+    "step": "page-errors",
+    "status": "PASS",
+    "detail": "count=0"
+  }
+]

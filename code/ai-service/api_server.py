@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import re
 import dashscope
 from dashscope import Generation
 from fastapi import FastAPI, Request
@@ -21,6 +22,10 @@ from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
 from vector_store import ensure_schema, search as vs_search  # noqa: E402
 # 素材库检索（AI 决定挂载 / 找相近生成新版本）
 from materials_store import list_materials, rank_materials  # noqa: E402
+# 知识图谱 / 课标 / 题库检索（知识面约束、课标备注、组卷抽题）
+from kg_store import resolve_knowledge_scope, map_curriculum, list_bank_questions  # noqa: E402
+# 课件红线策略（发布校验 / 课前问诊 / 发散预算）
+from policy import policy_gate_publish, policy_consult, divergence_budget, ETHIC_PRINCIPLE, subject_orbit_hint  # noqa: E402
 
 app = FastAPI(
     title="知微 AI 服务",
@@ -162,9 +167,29 @@ async def xiaowei_chat(req: Request):
     }
 
 
+def _resolve_scope(body: dict):
+    """解析知识面：优先用前端直传的知识点名称，否则按 ID 从知识图谱取名称+前置。"""
+    kp_names = body.get("knowledge_points") or []
+    prereq_names = body.get("prerequisite_points") or []
+    kp_ids = body.get("selected_knowledge_ids") or []
+    if not kp_names and kp_ids:
+        try:
+            sc = resolve_knowledge_scope(kp_ids)
+            kp_names = sc.get("selected") or []
+            prereq_names = sc.get("prerequisites") or []
+        except Exception:
+            pass
+    return kp_names, prereq_names
+
+
 @app.post("/api/ai/lesson-plan/generate")
 async def gen_lesson_plan(req: Request):
-    """教案生成：返回 {content, curriculum_alignments, material_refs, recommended_materials, model, generation_time_ms}。"""
+    """教案生成：返回 {content, curriculum_alignments, material_refs, recommended_materials, knowledge_scope, model, generation_time_ms}。
+
+    - 知识面约束：严格落在所选知识点 + 其前置知识点范围内。
+    - 课标备注：map_curriculum 返回建议关联课标条目（仅作备注，不写入正文）。
+    - 结构产出：含教学目标/重难点/准备/过程(含每环节时长)/板书/分层作业。
+    """
     try:
         body = await req.json()
     except Exception:
@@ -173,24 +198,56 @@ async def gen_lesson_plan(req: Request):
     grade = body.get("grade", "四年级")
     title = body.get("lesson_title", "")
     unit = body.get("textbook_unit", "")
-    period = body.get("period", 1)
+    period = body.get("period", 1) or 1
     template = body.get("format_template", "")
-    kp_ids = body.get("selected_knowledge_ids", [])
     school_id = body.get("school_id")
+    textbook_version = body.get("textbook_version", "")
+    extra = (body.get("extra_requirements") or "").strip()
+    chat_ctx = (body.get("chat_context") or "").strip()
+
+    kp_names, prereq_names = _resolve_scope(body)
+    try:
+        curriculum = map_curriculum(body.get("curriculum_codes") or [], subject, grade)
+    except Exception:
+        curriculum = []
+
+    scope_hint = ""
+    if kp_names:
+        scope_hint += f"\n本课必须覆盖的知识点（严格在此范围内设计，不超纲）：{', '.join(kp_names)}。"
+    if prereq_names:
+        scope_hint += f"\n需要用到但未单独列出的前置知识点：{', '.join(prereq_names)}。"
+    if not kp_names and not prereq_names:
+        scope_hint += "\n未指定知识点，请按教材常规进度设计。"
+    if textbook_version:
+        scope_hint += f"\n教材版本：{textbook_version}（例题、术语、章节顺序须贴合该版本）。"
+    if unit:
+        scope_hint += f"\n所属单元：{unit}。"
+    scope_hint += f"\n课时：{period} 课时。"
+    if template:
+        scope_hint += f"\n参考模板要求：{template}。"
+    if extra:
+        scope_hint += f"\n用户的附加要求/关键词（必须落实）：{extra}。"
+    if chat_ctx:
+        scope_hint += f"\n用户此前与小微助教沟通中提出的诉求（应融入本课设计）：{chat_ctx}。"
+
     prompt = (
-        f"请为{grade}{subject}《{title}》设计一份完整教案。"
-        + (f"所属单元：{unit}。" if unit else "")
-        + (f"课时：{period}。" if period else "")
-        + (f"参考模板：{template}。" if template else "")
-        + (f"需覆盖的知识点：{', '.join(kp_ids)}。" if kp_ids else "")
-        + "教案请包含：教学目标、教学重难点、教学准备、教学过程（含导入/新授/活动/小结）、"
-        "作业布置、板书设计。使用 Markdown 格式输出。"
+        f"你是资深中小学教研员，请为{grade}{subject}《{title}》设计一份可直接用于课堂的正式教案。"
+        f"{scope_hint}\n"
+        "输出要求（使用 Markdown）：\n"
+        "1. 先以「## 一、教学目标」开头，按三维目标写：知识与技能（3~4 条，可观测可检测）、过程与方法、情感态度与价值观。\n"
+        "2. 「## 二、教学重难点」：重点 2~3 条、难点 1~2 条，并简述突破方法。\n"
+        "3. 「## 三、教学准备」：教具、学具、多媒体资源。\n"
+        "4. 「## 四、教学过程」：按课时拆分为若干环节（如 情境导入→新知探究→巩固练习→小结作业），"
+        "每个环节用「### 环节名（约 X 分钟）」标注，并写明 教师活动 / 学生活动 / 设计意图。每环节时长之和约为 40~45 分钟×课时数。\n"
+        "5. 「## 五、板书设计」：呈现本课知识框架（可用层级或图示文字）。\n"
+        "6. 「## 六、作业布置」：分层（基础题 + 提升题），注明时长。\n"
+        "7. 内容须严格围绕指定知识点，专业、具体、可操作；避免空话。理科须含典型例题与步骤，文科须含朗读/文本分析/背诵要求。\n"
     )
     start = time.time()
     try:
-        content = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 4000)
+        content = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 5000)
     except Exception as e:
-        return {"content": f"AI 生成失败：{e}", "curriculum_alignments": [], "material_refs": [], "recommended_materials": [], "model": "qwen-turbo", "generation_time_ms": 0}
+        return {"content": f"AI 生成失败：{e}", "curriculum_alignments": [], "material_refs": [], "recommended_materials": [], "knowledge_scope": kp_names, "model": "qwen-turbo", "generation_time_ms": 0}
     # AI 决定挂载：检索素材库并挑选适宜课件
     material_refs, recommended = [], []
     try:
@@ -201,9 +258,10 @@ async def gen_lesson_plan(req: Request):
         pass
     return {
         "content": content,
-        "curriculum_alignments": [],
+        "curriculum_alignments": curriculum,
         "material_refs": material_refs,
         "recommended_materials": recommended,
+        "knowledge_scope": kp_names,
         "model": "qwen-turbo",
         "generation_time_ms": int((time.time() - start) * 1000),
     }
@@ -211,9 +269,12 @@ async def gen_lesson_plan(req: Request):
 
 @app.post("/api/ai/courseware/generate")
 async def gen_courseware(req: Request):
-    """课件生成（先渲染教案为骨架，再由 AI 润色；AI 从素材库找相近的来生成适宜新版本）。
+    """课件生成（锚点—轨道—边缘 三层模型，允许受控发散）。
 
-    返回 {courseware_markdown, similar_material, recommended_refs, model, generation_time_ms}。
+    返回 {courseware_markdown, divergence_map, similar_material, recommended_refs, model, generation_time_ms}。
+    - 锚点：所选知识点 + 前置（必覆盖，硬约束）。
+    - 轨道：可跨界、可适度超纲（±1 年级档、课标对齐±1，受发散预算约束）。
+    - 边缘（可选）：价值观/行为/情感，靠互动承载，不污染正文。
     """
     try:
         body = await req.json()
@@ -224,6 +285,16 @@ async def gen_courseware(req: Request):
     title = body.get("lesson_title", "")
     content = body.get("content", "")  # 教案正文 markdown
     school_id = body.get("school_id")
+    textbook_version = body.get("textbook_version", "")
+    extra = (body.get("extra_requirements") or "").strip()
+    chat_ctx = (body.get("chat_context") or "").strip()
+    divergence_level = body.get("divergence_level", "standard")
+    consult_answers = (body.get("consult_answers") or "").strip()
+    edge_enabled = bool(body.get("edge_enabled", False))
+    edge_categories = body.get("edge_categories") or []
+
+    kp_names, prereq_names = _resolve_scope(body)
+    budget = divergence_budget(divergence_level)
 
     # 1) 找相近素材（AI 生成新版本的参照）
     similar = None
@@ -244,23 +315,83 @@ async def gen_courseware(req: Request):
             f"\n可参考素材库中已有的相近课件《{similar['name']}》，"
             f"在其结构基础上生成适配本课的“新版”，保持风格一致、内容针对本课。"
         )
+    content_block = ""
+    if content and content.strip():
+        content_block = (
+            f"\n可参考的素材（仅供结构与风格借鉴，内容须针对本课重新组织，不要照抄）：\n{content}\n"
+        )
+
+    # ── 锚点（硬约束，必覆盖）──
+    scope_hint = ""
+    if kp_names:
+        scope_hint += f"\n【锚点·必须覆盖】以下核心知识点本课课件必须覆盖：{', '.join(kp_names)}。"
+    if prereq_names:
+        scope_hint += f"\n涉及的前置知识点（可自然带出）：{', '.join(prereq_names)}。"
+    # ── 轨道（受控发散：±1 档、可跨界、受预算约束）──
+    beyond_txt = "允许在相邻一个年级档内做适度超纲延伸" if budget["beyond_band"] else "不超出本课年级"
+    scope_hint += (
+        f"\n【轨道·受控发散】在紧扣锚点的前提下，可设计最多 {budget['orbit']} 处「跨界桥接或适度超纲」环节"
+        f"以启发思维（如关联相邻学科、真实世界延伸、同级奥数/科学拓展/课外阅读等），"
+        f"{beyond_txt}，且跨界桥接的概念其课标对齐也须落在±1档内。"
+        f"每一处发散都要能回溯到某个锚点知识点并说明教学理由，禁止无关联的孤儿事实。"
+    )
+    # 学科原生拓展（B 组）：按学科注入，让轨道区发散更贴学科本真
+    orbit_hint = subject_orbit_hint(subject)
+    if orbit_hint:
+        scope_hint += f"\n学科原生拓展方向：{orbit_hint}"
+    if textbook_version:
+        scope_hint += f"\n教材版本：{textbook_version}（例题、术语、章节顺序须贴合该版本，边界可适度模糊）。"
+    if consult_answers:
+        scope_hint += f"\n课前问诊中教师确认的方向（应落实）：{consult_answers}。"
+    if extra:
+        scope_hint += f"\n用户的附加要求/关键词（必须落实）：{extra}。"
+    if chat_ctx:
+        scope_hint += f"\n用户此前与小微助教沟通中提出的诉求（应融入课件）：{chat_ctx}。"
+    # ── 边缘（可选：价值观/行为/情感，靠互动承载）──
+    if edge_enabled:
+        cats = "、".join(edge_categories) if edge_categories else "价值观/行为准则/文化认同"
+        scope_hint += (
+            f"\n【边缘·轻推】可融入最多 {budget['edge']} 处「{cats}」内容，"
+            f"必须以互动/情境体验方式承载（如决策选择、反思提问、角色扮演动画），"
+            f"不得说教式灌入正文。{ETHIC_PRINCIPLE}"
+        )
+
     prompt = (
-        f"你是课件设计专家。请基于以下{grade}{subject}《{title}》的教案，生成一份可直接用于课堂投屏的课件。"
-        f"{similar_hint}\n"
-        "要求：\n"
-        "1. 用 Markdown 输出，以 `##` 分节；\n"
-        "2. 章节建议：封面与学习目标、教学重难点、教学过程（导入/新授/活动探究/小结）、课堂互动题、板书设计、分层作业；\n"
-        "3. 在“课堂互动题”中给出 2~3 道可当堂作答的题目；\n"
-        "4. 语言精炼、适合投屏，避免大段文字；可在适当位置加“【互动】”提示。\n\n"
-        f"教案正文：\n{content}"
+        f"你是资深中小学课件设计专家，善于把一节课设计得“充实但不冗长、恰到好处”，"
+        f"并能在守住院点的前提下适度发散以启发学生思维。"
+        f"请为{grade}{subject}《{title}》设计一份可直接用于课堂投屏的课件。"
+        f"{similar_hint}{content_block}{scope_hint}\n"
+        "输出要求：\n"
+        "1. 用 Markdown 输出，以 `##` 分节，每节 = 一页幻灯片；建议 12~15 页，不要超过 16 页，能覆盖完整一节课（约 40~45 分钟），每页内容精简。\n"
+        "2. 章节顺序（按真实课堂节奏组织）：\n"
+        "   - 学习目标（3~4 条可观测、可检测的目标）\n"
+        "   - 教学重难点\n"
+        "   - 情境导入（用生活现象 / 实验 / 问题情境引出本课，1~2 段，标注【导入】）\n"
+        "   - 新知探究（2~3 节，每节聚焦一个核心概念：讲清定义、原理、关键特征，并给出“易错提醒”）\n"
+        "   - 典例精讲（1~2 道典型例题，含“读题→思路→解答”的完整过程）\n"
+        "   - 活动探究（标注【互动】，设计一个可当堂操作的探究 / 讨论 / 小实验；若启用边缘知识，可在此融入价值观/行为情境）\n"
+        "   - 课堂练习（2~3 道，附答案要点）\n"
+        "   - 课堂小结（知识框架 + 方法提炼）\n"
+        "   - 板书设计\n"
+        "   - 分层作业（基础题 + 提升题）\n"
+        "3. “合适”原则：每页都要有足以支撑讲解的具体知识点、例题或活动，能真正撑满这节课；"
+        "但不要堆砌冗余大段文字——投屏以要点、关键词、必要例题为主，便于学生速记。\n"
+        f"4. 语言精炼、专业，符合{grade}学生的认知水平；在互动环节用“【互动】”提示。\n"
+        "5. 发散内容（跨界/超纲/边缘）须自然融入，不喧宾夺主；严禁出现商业或外来亚文化符号、"
+        "严禁对国内各民族做差异化对比呈现。\n"
     )
     start = time.time()
     try:
-        courseware = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 4000)
+        courseware = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 6000)
     except Exception as e:
         courseware = f"# {title}\n\n（AI 课件生成失败：{e}）\n\n{content}"
+
+    # 3) 提取发散地图（divergence_map）：供教师审阅每条发散的锚点与理由
+    divergence_map = await _extract_divergence(courseware)
+
     return {
         "courseware_markdown": courseware,
+        "divergence_map": divergence_map,
         "similar_material": similar,
         "recommended_refs": recommended_refs,
         "model": "qwen-turbo",
@@ -268,26 +399,342 @@ async def gen_courseware(req: Request):
     }
 
 
+async def _extract_divergence(courseware: str) -> list:
+    """从课件 Markdown 提取发散地图（轨道/边缘），供教师审阅。失败返回空。"""
+    if not courseware:
+        return []
+    try:
+        dm_prompt = (
+            "以下是刚生成的课件 Markdown。请提取其中所有「发散内容」"
+            "（即超出核心知识点、属于跨界桥接/适度超纲/价值观行为情感拓展的部分），"
+            "返回 JSON 数组，每项 {\"zone\":\"orbit\"|\"edge\", \"content\":简短摘述, "
+            "\"anchor\":对应的核心知识点, \"rationale\":设计理由, \"warn\":是否疑似超出±1年级档或课标对齐范围(bool)}；"
+            "若没有发散内容返回 []。只输出 JSON 数组。"
+            f"\n课件：\n{courseware}\n"
+        )
+        dm_raw = await call_llm([{"role": "user", "content": dm_prompt}], "qwen-turbo", 1500)
+        m = re.search(r"\[.*\]", dm_raw, re.DOTALL)
+        if m:
+            divergence_map = json.loads(m.group(0))
+            if isinstance(divergence_map, list):
+                return divergence_map
+    except Exception:
+        pass
+    return []
+
+
+def _fallback_ppt(markdown: str, title: str) -> list:
+    """render-ppt 的兜底：按 ## 章节拆为幻灯片（无 AI 时仍可用）。"""
+    import re as _re
+    slides = [{"kind": "cover", "title": title, "bullets": [], "notes": ""}]
+    cur_title = ""
+    buf: list[str] = []
+    for line in markdown.split("\n"):
+        if line.startswith("## "):
+            if cur_title or buf:
+                slides.append({"kind": "content", "title": cur_title or "课件",
+                               "bullets": [b.strip("-* ").strip() for b in buf if b.strip()],
+                               "notes": ""})
+            cur_title = line[3:].strip()
+            buf = []
+        elif line.strip():
+            buf.append(line.strip())
+    if cur_title or buf:
+        slides.append({"kind": "content", "title": cur_title or "课件",
+                       "bullets": [b.strip("-* ").strip() for b in buf if b.strip()],
+                       "notes": ""})
+    return slides
+
+
+@app.post("/api/ai/courseware/consult")
+async def courseware_consult(req: Request):
+    """课前问诊：返回 2~3 个针对性问题，教师逐项作答后作为约束传入生成。"""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    questions = policy_consult({
+        "subject": body.get("subject", "语文"),
+        "grade": body.get("grade", "四年级"),
+        "lesson_title": body.get("lesson_title", ""),
+        "knowledge_points": body.get("knowledge_points") or [],
+    }, _call_llm)
+    return {"questions": questions}
+
+
+@app.post("/api/ai/courseware/validate")
+async def courseware_validate(req: Request):
+    """发布校验（平台红线锁）：对课件 Markdown 做负面清单 + 轻量复核，指出问题并提醒修改。
+
+    草稿永远可编辑；只有「发布进素材库」才调用本端点。不过则列出问题，教师修改后重发。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    text = body.get("markdown", "")
+    result = policy_gate_publish(
+        text,
+        {"subject": body.get("subject", ""), "grade": body.get("grade", "")},
+        _call_llm,
+    )
+    return result
+
+
+@app.post("/api/ai/courseware/trim")
+async def courseware_trim(req: Request):
+    """剔除指定的发散内容并刷新发散地图（D 组：教师逐项勾选删除）。
+
+    仅删除待剔除列表对应的页面/段落，保留其余所有内容（核心知识点、例题、练习等），
+    保持 Markdown 结构与分页不变。返回 {trimmed_markdown, divergence_map}。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    markdown = body.get("markdown", "")
+    remove_items = body.get("remove_items") or []
+    if not markdown or not remove_items:
+        return {"trimmed_markdown": markdown, "divergence_map": []}
+    items_txt = "\n".join(
+        f"- {it.get('content', '')}（锚点：{it.get('anchor', '')}，类型：{it.get('zone', '')}）"
+        for it in remove_items
+    )
+    prompt = (
+        "以下是课件 Markdown。请移除「待剔除列表」中列举的发散内容"
+        "（跨界桥接/适度超纲/价值观行为情感拓展），只删除与这些条目直接对应的页面或段落，"
+        "保留其余所有内容（含核心知识点、例题、练习、板书、作业等），"
+        "保持 Markdown 结构与分页（## 分节）不变，不要改写未提及的内容，不要新增内容。\n"
+        f"待剔除列表：\n{items_txt}\n\n课件原文：\n{markdown}\n"
+    )
+    try:
+        trimmed = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 6000)
+    except Exception:
+        trimmed = markdown
+    dm = await _extract_divergence(trimmed)
+    return {"trimmed_markdown": trimmed, "divergence_map": dm}
+
+
+@app.post("/api/ai/courseware/render-ppt")
+async def courseware_render_ppt(req: Request):
+    """PPT 课件渲染（AI 渲染 + 预置模板）：把课件 Markdown 渲染为结构化幻灯片。
+
+    返回 {ppt_slides: [{title, bullets:[...], notes?, kind?}]}。
+    每页 = 精炼要点（bullet）+ 教师备注/讲稿（notes）；封面自动生成。
+    与「发布校验后」的最终课件同步：教师剔除发散 / 修改后，重新渲染即可得到一致 PPT。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    markdown = body.get("markdown", "")
+    title = body.get("title", "课件")
+    subject = body.get("subject", "")
+    grade = body.get("grade", "")
+    if not markdown:
+        return {"ppt_slides": [{"kind": "cover", "title": title,
+                                 "bullets": [], "notes": ""}]}
+    prompt = (
+        "你是一名资深教研员兼课件设计师。下面是一份已定稿的中小学课件（Markdown），"
+        "请将其「渲染」为适合课堂投屏的 PPT 幻灯片结构，做到：每页要点精炼、不堆砌原文、逻辑清晰、便于讲解。\n"
+        "要求：\n"
+        "1. 输出 JSON 数组，每项为一张幻灯片，结构：\n"
+        "   {\"kind\":\"cover\"|\"content\", \"title\":字符串, \"bullets\":[字符串...], \"notes\":字符串}\n"
+        "2. 第一张必须是 kind=\"cover\"，title 用课件总标题，bullets 留空或放副标题信息（学科/年级/教师）。\n"
+        "3. 其余为 kind=\"content\"：title 是本节标题（简洁），bullets 是 3~6 条精炼要点（去掉 Markdown 符号，口语化但专业），"
+        "notes 是该页的「教师讲稿/备注」（给老师的口头讲解提示，1~3 句，不面向学生）。\n"
+        "4. 保持原课件各节顺序与知识覆盖，不要丢知识点；总页数 12~16 页。\n"
+        "5. 只输出 JSON 数组，不要任何解释。\n"
+        f"课件总标题：{title}（{subject}{grade}）\n\n课件原文：\n{markdown}\n"
+    )
+    try:
+        raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 4000)
+        m = re.search(r"\[.*\]", raw, re.DOTALL)
+        if m:
+            slides = json.loads(m.group(0))
+            if isinstance(slides, list) and slides:
+                return {"ppt_slides": slides}
+    except Exception:
+        pass
+    # 兜底：直接按章节拆分（保证至少有可用 PPT）
+    return {"ppt_slides": _fallback_ppt(markdown, title)}
+
+
+# 各题型默认分值（当未指定总分时用于习题；组卷按总分归一化覆盖）
+_DEFAULT_SCORE = {
+    "choice": 3, "fill": 3, "judge": 2, "truefalse": 2, "short_answer": 5,
+    "match": 2, "cloze": 3, "reading": 6, "writing": 10, "calculation": 6,
+    "application": 6, "operation": 5, "listening": 2, "vocab": 2,
+}
+# 组卷分值权重（用于在总分内按比例分配）
+_WEIGHT = {
+    "choice": 2, "fill": 2, "judge": 2, "truefalse": 2, "short_answer": 4,
+    "match": 2, "cloze": 3, "reading": 4, "writing": 8, "calculation": 5,
+    "application": 5, "operation": 4, "listening": 2, "vocab": 2,
+}
+
+
+def _parse_questions_json(text):
+    """从模型输出中稳健解析 JSON 题目数组。"""
+    import re
+    t = (text or "").strip()
+    t = re.sub(r"^```(?:json)?\s*", "", t)
+    t = re.sub(r"\s*```$", "", t)
+    s = t.find("[");
+    e = t.rfind("]")
+    if s >= 0 and e > s:
+        t = t[s:e + 1]
+    return json.loads(t)
+
+
+def _assign_scores(questions, total_score=None):
+    """为题目分配分值。有 total_score 则归一化到该总分；否则用题型默认分。"""
+    if not questions:
+        return questions
+    if total_score and total_score > 0:
+        raw = [_WEIGHT.get(q.get("type"), 3) for q in questions]
+        s = sum(raw) or 1
+        scaled = [total_score * w / s for w in raw]
+        # 四舍五入到 0.5，末题补差使总和精确等于 total_score
+        rounded = [round(x * 2) / 2 for x in scaled]
+        diff = round((total_score - sum(rounded)) * 2)
+        if questions:
+            rounded[-1] = round((rounded[-1] + diff / 2) * 2) / 2
+        for q, sc in zip(questions, rounded):
+            q["score"] = max(0.5, sc)
+    else:
+        for q in questions:
+            q["score"] = _DEFAULT_SCORE.get(q.get("type"), 3)
+    return questions
+
+
+def _build_question_prompt(subject, grade, kp_names, prereq_names, textbook_version,
+                           difficulty, ai_spec, purpose, extra, chat_ctx):
+    spec_txt = "；".join(f"{t} {c} 道" for t, c in ai_spec.items() if c > 0)
+    scope = "、".join(kp_names) if kp_names else "（按教材常规进度）"
+    pre = f"；可能用到的前置知识点：{', '.join(prereq_names)}。" if prereq_names else ""
+    tv = f"\n教材版本：{textbook_version}（例题、术语、表述须贴合该版本）。" if textbook_version else ""
+    pur = f"\n命题用途：{purpose}（题量、难度、情境须符合该用途）。" if purpose else ""
+    ex = f"\n用户的附加要求/关键词（必须落实）：{extra}。" if extra else ""
+    ch = f"\n用户此前与小微助教沟通中提出的诉求（应融入题目）：{chat_ctx}。" if chat_ctx else ""
+    return (
+        f"你是资深命题专家。请为{grade}{subject}按以下要求生成题目，并严格只考查指定知识点范围，"
+        f"返回 JSON 数组。\n"
+        f"知识面（必须在此范围内命题，不得超纲）：{scope}。{pre}{tv}{pur}{ex}{ch}\n"
+        f"整体难度约 {difficulty}（L1 基础 / L2 中等 / L3 进阶 / L4 挑战，可含少量上下浮动）。\n"
+        f"题型与数量：{spec_txt}。\n"
+        "每道题 JSON 结构：\n"
+        '{"type": 题型id(须为上述之一), "stem": 题干, "options": [选项](选择题/完形填空/匹配题填 A-D 等选项，其它题型填 []), '
+        '"answer": 答案, "analysis": 解析, "difficulty": "L1"~"L4", "knowledge_points": [1~2个知识点名称]}\n'
+        "规则：选择题须有 A-D 四项 options 且 answer 为选项字母；答案与解析须正确；"
+        "每题 knowledge_points 必须从给定知识点中选取；不要输出任何解释性文字，只输出 JSON 数组。"
+    )
+
+
 @app.post("/api/ai/exam/generate")
 async def gen_exam(req: Request):
-    """出题：返回 {content, model, generation_time_ms}。"""
+    """出题 / 智能组卷（共用）：返回 {questions, total_questions, curriculum_alignments, knowledge_scope, model, generation_time_ms}。
+
+    知识点约束：所选 + 前置（backend 解析），不超纲。
+    结构化输出：严格 JSON，含题干/选项/答案/解析/难度/知识点/分值。
+    组卷（source='bank'）：优先从题库抽题并按班级排重，缺口由 AI 补足，再按 total_score 自动分配分值。
+    """
     try:
         body = await req.json()
     except Exception:
         body = {}
     subject = body.get("subject", "语文")
     grade = body.get("grade", "四年级")
-    count = body.get("count", 5)
-    prompt = (
-        f"请为{grade}{subject}出 {count} 道练习题，涵盖不同题型（选择/填空/简答），"
-        "并附答案与解析。用 Markdown 列表格式输出。"
-    )
-    start = time.time()
+    difficulty = body.get("difficulty", "L2")
+    purpose = body.get("purpose", "")
+    textbook_version = body.get("textbook_version", "")
+    extra = (body.get("extra_requirements") or "").strip()
+    chat_ctx = (body.get("chat_context") or "").strip()
+    source = body.get("source", "ai")  # 组卷传 'bank' 优先抽题库
+    total_score = body.get("total_score") or None
+    exclude_ids = body.get("exclude_question_ids") or []
+    kp_ids = body.get("selected_knowledge_ids") or []
+
+    kp_names, prereq_names = _resolve_scope(body)
     try:
-        content = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 3000)
-    except Exception as e:
-        content = f"AI 生成失败：{e}"
-    return {"content": content, "model": "qwen-turbo", "generation_time_ms": int((time.time() - start) * 1000)}
+        curriculum = map_curriculum(body.get("curriculum_codes") or [], subject, grade) if (kp_ids or body.get("curriculum_codes")) else []
+    except Exception:
+        curriculum = []
+
+    # 题型配比：组卷用 type_ratio；习题把 count 均摊到所选题型
+    type_ratio = {k: int(v) for k, v in (body.get("type_ratio") or {}).items() if int(v) > 0}
+    if not type_ratio:
+        qtypes = body.get("question_types") or []
+        count = max(1, int(body.get("count", 5) or 5))
+        if qtypes:
+            per = max(1, count // len(qtypes))
+            type_ratio = {t: per for t in qtypes}
+            rem = count - per * len(qtypes)
+            if rem > 0:
+                type_ratio[qtypes[0]] = type_ratio.get(qtypes[0], 0) + rem
+        else:
+            type_ratio = {"choice": count}
+
+    start = time.time()
+    questions = []
+
+    # ── 组卷：优先从题库抽题 + 班级排重 ──
+    if source == "bank" and kp_names:
+        try:
+            bank = list_bank_questions(
+                subject, grade, kp_names,
+                types=list(type_ratio.keys()), limit=200, exclude_ids=exclude_ids,
+            )
+            # 按题型从题库取满足配比的题
+            for t, need in type_ratio.items():
+                got = [q for q in bank if q["type"] == t][:need]
+                questions.extend(got)
+        except Exception:
+            pass
+
+    # ── 计算 AI 需补足的缺口（按题型分批生成，避免单次超长导致 JSON 截断）──
+    have = {}
+    for q in questions:
+        have[q["type"]] = have.get(q["type"], 0) + 1
+    ai_spec = {t: max(0, c - have.get(t, 0)) for t, c in type_ratio.items()}
+    ai_spec = {t: c for t, c in ai_spec.items() if c > 0}
+    for t, c in ai_spec.items():
+        prompt = _build_question_prompt(
+            subject, grade, kp_names, prereq_names, textbook_version,
+            difficulty, {t: c}, purpose, extra, chat_ctx,
+        )
+        max_tokens = min(6000, max(1500, c * 220))
+        for attempt in range(2):  # 解析失败重试一次
+            try:
+                raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", max_tokens)
+                ai_qs = _parse_questions_json(raw)
+                if isinstance(ai_qs, list) and ai_qs:
+                    for q in ai_qs:
+                        if isinstance(q, dict) and q.get("stem"):
+                            q["type"] = t  # 强制题型一致
+                            q.setdefault("options", [])
+                            q.setdefault("analysis", "")
+                            q.setdefault("difficulty", difficulty)
+                            q.setdefault("knowledge_points", kp_names[:1])
+                            q.setdefault("score", 0)
+                            q.setdefault("source", "ai")
+                            questions.append(q)
+                    break
+            except Exception:
+                if attempt == 1:
+                    questions.append({"type": t, "stem": "AI 生成失败，请重试该题型的生成", "options": [],
+                                      "answer": "", "analysis": "", "difficulty": difficulty,
+                                      "knowledge_points": kp_names[:1], "score": 0, "source": "ai"})
+
+    _assign_scores(questions, total_score)
+    return {
+        "questions": questions,
+        "total_questions": len(questions),
+        "curriculum_alignments": curriculum,
+        "knowledge_scope": kp_names,
+        "model": "qwen-turbo",
+        "generation_time_ms": int((time.time() - start) * 1000),
+    }
 
 
 @app.post("/api/ai/grading/auto")

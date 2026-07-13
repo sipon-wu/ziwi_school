@@ -21,7 +21,7 @@ func NewExerciseHandler(repo *repository.ExerciseRepository) *ExerciseHandler {
 // CreateQuestionRequest 创建题目请求
 type CreateQuestionRequest struct {
 	Stem         string  `json:"stem" binding:"required"`
-	Answer       string  `json:"answer" binding:"required"`
+	Answer       string  `json:"answer"`
 	Analysis     string  `json:"analysis"`
 	QuestionType string  `json:"question_type" binding:"required"`
 	Subject      string  `json:"subject" binding:"required"`

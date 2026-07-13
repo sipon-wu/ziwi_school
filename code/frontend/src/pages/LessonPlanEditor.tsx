@@ -6,6 +6,8 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useToast } from '../components/Toast'
+import { getXiaoweiContext } from '../lib/xiaoweiContext'
+import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
@@ -54,6 +56,7 @@ export default function LessonPlanEditor() {
   const [period, setPeriod] = useState(1)
   const [template, setTemplate] = useState('core_literacy')
   const [generating, setGenerating] = useState(false)
+  const [extraRequirements, setExtraRequirements] = useState('')
   const [content, setContent] = useState('')
   const [planId, setPlanId] = useState<string|null>(id || null)
   const [saving, setSaving] = useState(false)
@@ -206,7 +209,11 @@ export default function LessonPlanEditor() {
       const res = await aiAPI.generateLessonPlan({
         subject, grade, lesson_title:lessonTitle, textbook_unit:textbookUnit, period, format_template:template,
         selected_knowledge_ids: picker.selectedIds,
+        ...buildKnowledgeScope(picker),
         school_id: getSchoolId(),
+        textbook_version: teaching.currentTextbook(),
+        extra_requirements: extraRequirements || undefined,
+        chat_context: getXiaoweiContext() || undefined,
       })
       // 仅设置预览内容，不自动保存（等用户确认后手动保存）
       setContent(res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
@@ -452,6 +459,26 @@ export default function LessonPlanEditor() {
                 <p className="text-[11px] text-[#9A9A9A]">请在右侧知识图谱中选取知识点</p>
               )}
             </div>
+
+            {/* 附加要求 / 关键词 */}
+            <div className="px-5 py-3 border-t border-[#F0F0F0]">
+              <label className="block text-[12px] font-medium text-[#353535] mb-1.5">附加要求 / 关键词</label>
+              <textarea value={extraRequirements} onChange={e => setExtraRequirements(e.target.value)}
+                rows={2} placeholder="如：侧重实验探究、融入思政元素、增加小组合作…（也可先在左下角小微对话提需求，自动带入）"
+                className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
+            </div>
+
+            {/* 课标关联（备注，不污染正文） */}
+            {curriculum.length > 0 && (
+              <div className="px-5 py-3 border-t border-[#F0F0F0]">
+                <span className="text-[12px] font-medium text-[#353535]">课标关联（备注）</span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {curriculum.map((c: any, i: number) => (
+                    <span key={i} className="px-2 py-0.5 text-[10px] bg-[#F0ECF7] text-[#722ED1] rounded-full">{c.code}{c.text ? ` · ${c.text.slice(0, 12)}` : ''}</span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 自定义标签 */}
             <div className="px-5 py-3">

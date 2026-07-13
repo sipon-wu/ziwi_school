@@ -48,6 +48,9 @@ logs/
 # CodeBuddy
 .codebuddy/plans/
 
+# Playwright 调试产物（运行时自动生成，非源码）
+.playwright-cli/
+
 # Local backups (large tarballs, never commit)
 code_backup_*.tar
 *.tar.gz.bak

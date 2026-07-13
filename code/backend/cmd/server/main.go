@@ -50,6 +50,7 @@ func main() {
 		&model.SchoolTextbookOverride{},
 		&model.TextbookConfig{},
 		&model.TeacherTextbookPref{},
+		&model.UserSubmittedTextbookVersion{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
@@ -259,6 +260,8 @@ func main() {
 		teacher.GET("/me/textbook-prefs", itHandler.ListTeacherTextbookPrefs)
 		teacher.POST("/me/textbook-prefs", itHandler.UpsertTeacherTextbookPref)
 		teacher.DELETE("/me/textbook-prefs", itHandler.DeleteTeacherTextbookPref)
+		// V2.6 用户提交教材版本贡献
+		teacher.POST("/me/submit-textbook-version", itHandler.SubmitTextbookVersion)
 	}
 
 	// 教研组长端
@@ -309,6 +312,10 @@ func main() {
 		itAdmin.PUT("/admin/textbook-versions/:id", itHandler.UpdateTextbookVersion)
 		itAdmin.DELETE("/admin/textbook-versions/:id", itHandler.DeleteTextbookVersion)
 		itAdmin.POST("/admin/textbook-versions/import", itHandler.ImportTextbookVersions)
+		// V2.6 用户贡献版本审核
+		itAdmin.GET("/admin/textbook-versions/pending", itHandler.ListPendingSubmittedVersions)
+		itAdmin.PUT("/admin/textbook-versions/pending/:id/approve", itHandler.ApproveSubmittedVersion)
+		itAdmin.PUT("/admin/textbook-versions/pending/:id/reject", itHandler.RejectSubmittedVersion)
 	}
 
 	// 教材版本：教师/班主任/IT 管理员均可读写本校覆盖层（学校级配置，任课教师是直接使用人）

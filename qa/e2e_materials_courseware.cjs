@@ -57,15 +57,16 @@ const record = (step, status, detail) => {
     } catch (e) { previewOpen = false }
 
     if (previewOpen) {
-      const cwText = await page.locator('div.whitespace-pre-wrap').first().innerText().catch(() => '')
-      record('courseware-generate', cwText.length > 20 ? 'PASS' : 'WARN',
-        'previewLen=' + cwText.length)
-      // 在线播放 / 阅读 / 预览：打开 PresentationMode 幻灯片播放器
+      const outlineVisible = await page.getByText('PPT 课件提纲', { exact: false }).first().isVisible().catch(() => false)
+      const slideCount = await page.locator('input[value]:not([type="checkbox"])').count().catch(() => 0)
+      record('courseware-generate', outlineVisible && slideCount > 0 ? 'PASS' : 'WARN',
+        'outlineVisible=' + outlineVisible + ' slideInputs=' + slideCount)
+      // 播放 / 阅读：打开 PptxPreview 幻灯片预览
       try {
         const playBtn = page.getByRole('button', { name: '播放 / 阅读', exact: true })
         await playBtn.click()
         await sleep(1200)
-        const projVisible = await page.getByText('投屏模式', { exact: false }).first().isVisible().catch(() => false)
+        const projVisible = await page.getByText('PPT 在线预览', { exact: false }).first().isVisible().catch(() => false)
         record('courseware-play', projVisible && pageErrors.length === 0 ? 'PASS' : 'WARN',
           'projVisible=' + projVisible + ' pageErrors=' + pageErrors.length)
         await page.keyboard.press('Escape')

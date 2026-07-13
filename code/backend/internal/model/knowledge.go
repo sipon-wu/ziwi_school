@@ -151,3 +151,39 @@ type TeacherTextbookPref struct {
 }
 
 func (TeacherTextbookPref) TableName() string { return "teacher_textbook_pref" }
+
+// ── V2.6 用户贡献教材版本（教师提交补充，管理员审核后进入 tb_textbook_version）──
+
+type SubmitStatus string
+
+const (
+	SubmitStatusPending  SubmitStatus = "pending"  // 待审核
+	SubmitStatusApproved SubmitStatus = "approved" // 已通过（已入库）
+	SubmitStatusRejected SubmitStatus = "rejected" // 已驳回
+)
+
+// UserSubmittedTextbookVersion 用户贡献的教材版本
+// 字段与 tb_textbook_version 对齐，外加提交/审核信息
+type UserSubmittedTextbookVersion struct {
+	ID              int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	VersionKey      string     `gorm:"type:varchar(200);not null" json:"version_key"`
+	XueDuan        string     `gorm:"type:varchar(20)" json:"xue_duan"`
+	NianJi         string     `gorm:"type:varchar(20)" json:"nian_ji"`
+	XueKe          string     `gorm:"type:varchar(20)" json:"xue_ke"`
+	JiaoCaiMing    string     `gorm:"type:varchar(300)" json:"jiao_cai_ming"`
+	ChuBanShe      string     `gorm:"type:varchar(100)" json:"chu_ban_she"`
+	BanBenBiaoShi  string     `gorm:"type:varchar(50)" json:"ban_ben_biao_shi"`
+	CeBie          string     `gorm:"type:varchar(20)" json:"ce_bie"`
+	Status         SubmitStatus `gorm:"type:varchar(20);not null;default:pending;index" json:"status"`
+	SubmittedBy    string     `gorm:"type:varchar(50);not null;index" json:"submitted_by"` // 提交者 teacher_id
+	SchoolID       string     `gorm:"type:varchar(50);not null;index" json:"school_id"`    // 所属学校
+	SubmittedAt    time.Time  `json:"submitted_at"`
+	ReviewedBy     *string    `gorm:"type:varchar(50)" json:"reviewed_by"`          // 审核者 admin_id
+	ReviewedAt     *time.Time `json:"reviewed_at"`
+	ReviewNote     *string    `gorm:"type:varchar(500)" json:"review_note"`          // 驳回原因
+	AttachmentURLs *string    `gorm:"type:jsonb" json:"attachment_urls"`            // 封面/目录照片 URL 数组
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+func (UserSubmittedTextbookVersion) TableName() string { return "user_submitted_textbook_version" }

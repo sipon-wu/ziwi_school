@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } fro
 import { Pencil, Plus, Trash2, Copy, Check, X, Upload } from 'lucide-react'
 import { api, adminAPI, classAPI, teacherPrefAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
+import SubmitTextbookModal from '../components/SubmitTextbookModal'
 import { useTeaching } from '../lib/TeachingContext'
 
 type SubTab = 'account' | 'school' | 'textbook' | 'semester' | 'train' | 'log' | 'library'
@@ -222,6 +223,7 @@ function PersonalTextbookConfig({ teaching }: { teaching: import('../lib/Teachin
   const [msg, setMsg] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ grade: '', class_id: '', subject: '', version_name: '' })
+  const [showSubmitModal, setShowSubmitModal] = useState(false)
 
   const loadAll = () =>
     Promise.all([
@@ -306,6 +308,11 @@ function PersonalTextbookConfig({ teaching }: { teaching: import('../lib/Teachin
                 )
               })}
             </div>
+            <div className="mt-2">
+              <button onClick={() => setShowSubmitModal(true)} className="text-[12px] text-[#02A7F0] hover:underline">
+                找不到所需版本？提交新版本 →
+              </button>
+            </div>
           </section>
 
           <section>
@@ -356,6 +363,7 @@ function PersonalTextbookConfig({ teaching }: { teaching: import('../lib/Teachin
           </div>
         </div>
       )}
+      <SubmitTextbookModal open={showSubmitModal} onClose={() => setShowSubmitModal(false)} preferredSubject={subjects()[0] || ''} />
     </div>
   )
 }
@@ -403,6 +411,7 @@ function SchoolTextbookConfig() {
   const [showCS, setShowCS] = useState(false)
   const [formGS, setFormGS] = useState({ grade: '一年级', subject: '', version_name: '' })
   const [formCS, setFormCS] = useState({ grade: '一年级', class_id: '', subject: '', version_name: '' })
+  const [showSubmitModal, setShowSubmitModal] = useState(false)
 
   const openGS = () => { setFormGS({ grade: '一年级', subject: subjects()[0] || '', version_name: '' }); setShowGS(true) }
   const openCS = () => { setFormCS({ grade: '一年级', class_id: '', subject: subjects()[0] || '', version_name: '' }); setShowCS(true) }
@@ -492,6 +501,11 @@ function SchoolTextbookConfig() {
               </tbody>
             </table>
           </section>
+          <div className="text-center">
+            <button onClick={() => setShowSubmitModal(true)} className="text-[12px] text-[#02A7F0] hover:underline">
+              找不到所需版本？提交新版本 →
+            </button>
+          </div>
         </div>
       )}
       {msg && <div className="mt-3 text-[12px] text-[#02A7F0]">{msg}</div>}
@@ -544,6 +558,7 @@ function SchoolTextbookConfig() {
           </div>
         </div>
       )}
+      <SubmitTextbookModal open={showSubmitModal} onClose={() => setShowSubmitModal(false)} preferredSubject={subjects()[0] || ''} />
     </div>
   )
 }
@@ -552,7 +567,9 @@ function SchoolTextbookConfig() {
 function TextbookLibraryAdmin() {
   const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
   const XUEDUAN = ['小学', '初中', '高中']
+  const [subTab, setSubTab] = useState<'versions' | 'pending'>('versions')
   const [items, setItems] = useState<any[]>([])
+  const [pendingItems, setPendingItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -562,7 +579,8 @@ function TextbookLibraryAdmin() {
   const [importText, setImportText] = useState('')
 
   const load = () => adminAPI.listTextbookLibrary().then((r: any) => setItems(r.items || [])).finally(() => setLoading(false))
-  useEffect(() => { setLoading(true); load() }, [])
+  const loadPending = () => adminAPI.listPendingSubmittedVersions().then((r: any) => setPendingItems(r.items || [])).catch(() => {})
+  useEffect(() => { setLoading(true); Promise.all([load(), loadPending()]).finally(() => setLoading(false)) }, [])
 
   const openNew = () => { setEditId(null); setForm({ version_key: '', xue_duan: '小学', nian_ji: '一年级', xue_ke: '语文', jiao_cai_ming: '', chu_ban_she: '', ban_ben_biao_shi: '', ce_bie: '上册', mu_lu_url: '' }); setShowForm(true) }
   const openEdit = (v: any) => { setEditId(v.id); setForm({ version_key: v.version_key, xue_duan: v.xue_duan || '小学', nian_ji: v.nian_ji || '一年级', xue_ke: v.xue_ke || '语文', jiao_cai_ming: v.jiao_cai_ming || '', chu_ban_she: v.chu_ban_she || '', ban_ben_biao_shi: v.ban_ben_biao_shi || '', ce_bie: v.ce_bie || '上册', mu_lu_url: v.mu_lu_url || '' }); setShowForm(true) }
@@ -587,68 +605,175 @@ function TextbookLibraryAdmin() {
   return (
     <div className="p-5 overflow-auto">
       <div className="text-[13px] font-medium mb-1">全学科教材版本库</div>
-      <div className="text-[12px] text-[#9A9A9A] mb-3">
-        平台权威版本来源，由数据团队提供数据。可在此逐条维护，或粘贴数据团队交付的 JSON 数组批量导入（按 version_key 更新）。
+      {msg && <div className="mb-2 text-[12px] text-[#02A7F0]">{msg}</div>}
+      {/* 子页签 */}
+      <div className="flex gap-1 mb-3 border-b border-[#E7E7EB]">
+        {([{id:'versions',label:'版本库'},{id:'pending',label:'待审核',badge: pendingItems.filter((p:any)=>p.status==='pending').length}] as const).map((tab) => (
+          <button key={tab.id} onClick={() => setSubTab(tab.id)}
+            className={`px-3 py-1.5 text-[12px] border-b-2 transition-colors ${subTab === tab.id ? 'border-[#02A7F0] text-[#353535] font-medium' : 'border-transparent text-[#9A9A9A] hover:text-[#353535]'}`}>
+            {tab.label}
+            {'badge' in tab && tab.badge ? <span className="ml-1 px-1.5 py-0.5 bg-[#E0533D] text-white text-[10px] rounded-full">{tab.badge}</span> : null}
+          </button>
+        ))}
       </div>
-      <div className="flex gap-2 mb-3">
-        <button onClick={openNew} className="px-2 py-1 bg-[#02A7F0] text-white text-[12px] rounded">+ 新增版本</button>
-        <button onClick={() => setShowImport(true)} className="px-2 py-1 border border-[#E7E7EB] text-[12px] rounded">批量导入（数据团队 JSON）</button>
-      </div>
-      {loading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
-      {!loading && (
-        <table className="w-full text-[12px]">
-          <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">学段</th><th>年级</th><th>学科</th><th>教材名</th><th>出版社</th><th>版本</th><th>册别</th><th></th></tr></thead>
-          <tbody>
-            {items.map((v) => (
-              <tr key={v.id} className="border-t border-[#F0F0F2]">
-                <td className="py-1">{v.xue_duan}</td><td>{v.nian_ji}</td><td>{v.xue_ke}</td><td>{v.jiao_cai_ming}</td><td>{v.chu_ban_she}</td><td>{v.ban_ben_biao_shi}</td><td>{v.ce_bie}</td>
-                <td className="text-right whitespace-nowrap">
-                  <button onClick={() => openEdit(v)} className="text-[#02A7F0] hover:underline mr-2">编辑</button>
-                  <button onClick={() => onDelete(v.id)} className="text-[#E0533D] hover:underline">删除</button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && <tr><td colSpan={8} className="py-1 text-[#9A9A9A]">版本库为空</td></tr>}
-          </tbody>
-        </table>
-      )}
-      {msg && <div className="mt-3 text-[12px] text-[#02A7F0]">{msg}</div>}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded p-5 w-[420px]" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[14px] font-medium mb-3">{editId != null ? '编辑版本' : '新增版本'}</div>
-            <div className="space-y-2 text-[12px]">
-              <Field label="version_key（唯一）"><input value={form.version_key} disabled={editId != null} onChange={(e) => setForm({ ...form, version_key: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
-              <Field label="学段"><Sel v={form.xue_duan} opts={XUEDUAN} onChange={(v) => setForm({ ...form, xue_duan: v })} /></Field>
-              <Field label="年级"><Sel v={form.nian_ji} opts={GRADES} onChange={(v) => setForm({ ...form, nian_ji: v })} /></Field>
-              <Field label="学科"><input value={form.xue_ke} onChange={(e) => setForm({ ...form, xue_ke: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
-              <Field label="教材名"><input value={form.jiao_cai_ming} onChange={(e) => setForm({ ...form, jiao_cai_ming: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
-              <Field label="出版社"><input value={form.chu_ban_she} onChange={(e) => setForm({ ...form, chu_ban_she: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
-              <Field label="版本标识"><input value={form.ban_ben_biao_shi} onChange={(e) => setForm({ ...form, ban_ben_biao_shi: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
-              <Field label="册别"><input value={form.ce_bie} onChange={(e) => setForm({ ...form, ce_bie: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
-              <Field label="目录URL"><input value={form.mu_lu_url} onChange={(e) => setForm({ ...form, mu_lu_url: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+      {subTab === 'versions' && (<>
+        <div className="flex gap-2 mb-3">
+          <button onClick={openNew} className="px-2 py-1 bg-[#02A7F0] text-white text-[12px] rounded">+ 新增版本</button>
+          <button onClick={() => setShowImport(true)} className="px-2 py-1 border border-[#E7E7EB] text-[12px] rounded">批量导入（数据团队 JSON）</button>
+        </div>
+        {loading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
+        {!loading && (
+          <table className="w-full text-[12px]">
+            <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">学段</th><th>年级</th><th>学科</th><th>教材名</th><th>出版社</th><th>版本</th><th>册别</th><th></th></tr></thead>
+            <tbody>
+              {items.map((v) => (
+                <tr key={v.id} className="border-t border-[#F0F0F2]">
+                  <td className="py-1">{v.xue_duan}</td><td>{v.nian_ji}</td><td>{v.xue_ke}</td><td>{v.jiao_cai_ming || ''}</td><td>{v.chu_ban_she || ''}</td><td>{v.ban_ben_biao_shi || ''}</td><td>{v.ce_bie}</td>
+                  <td className="text-right whitespace-nowrap">
+                    <button onClick={() => openEdit(v)} className="text-[#02A7F0] hover:underline mr-2">编辑</button>
+                    <button onClick={() => onDelete(v.id)} className="text-[#E0533D] hover:underline">删除</button>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && <tr><td colSpan={8} className="py-1 text-[#9A9A9A]">版本库为空</td></tr>}
+            </tbody>
+          </table>
+        )}
+
+        {showForm && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
+            <div className="bg-white rounded p-5 w-[420px]" onClick={(e) => e.stopPropagation()}>
+              <div className="text-[14px] font-medium mb-3">{editId != null ? '编辑版本' : '新增版本'}</div>
+              <div className="space-y-2 text-[12px]">
+                <Field label="version_key（唯一）"><input value={form.version_key} disabled={editId != null} onChange={(e) => setForm({ ...form, version_key: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+                <Field label="学段"><Sel v={form.xue_duan} opts={XUEDUAN} onChange={(v) => setForm({ ...form, xue_duan: v })} /></Field>
+                <Field label="年级"><Sel v={form.nian_ji} opts={GRADES} onChange={(v) => setForm({ ...form, nian_ji: v })} /></Field>
+                <Field label="学科"><input value={form.xue_ke} onChange={(e) => setForm({ ...form, xue_ke: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+                <Field label="教材名"><input value={form.jiao_cai_ming} onChange={(e) => setForm({ ...form, jiao_cai_ming: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+                <Field label="出版社"><input value={form.chu_ban_she} onChange={(e) => setForm({ ...form, chu_ban_she: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+                <Field label="版本标识"><input value={form.ban_ben_biao_shi} onChange={(e) => setForm({ ...form, ban_ben_biao_shi: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+                <Field label="册别"><input value={form.ce_bie} onChange={(e) => setForm({ ...form, ce_bie: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+                <Field label="目录URL"><input value={form.mu_lu_url} onChange={(e) => setForm({ ...form, mu_lu_url: e.target.value })} className="border border-[#E7E7EB] rounded px-2 py-1 w-full" /></Field>
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+                <button onClick={onSave} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">保存</button>
+              </div>
             </div>
+          </div>
+        )}
+
+        {showImport && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowImport(false)}>
+            <div className="bg-white rounded p-5 w-[480px]" onClick={(e) => e.stopPropagation()}>
+              <div className="text-[14px] font-medium mb-1">批量导入版本库</div>
+              <div className="text-[11px] text-[#9A9A9A] mb-2">粘贴 JSON 数组，每条含 version_key / xue_duan / nian_ji / xue_ke / jiao_cai_ming / chu_ban_she / ban_ben_biao_shi / ce_bie / mu_lu_url。按 version_key 更新。</div>
+              <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={10} placeholder='[{"version_key":"小学_数学_人教版_一年级_上册","xue_duan":"小学","nian_ji":"一年级","xue_ke":"数学","jiao_cai_ming":"义务教育教科书·数学","chu_ban_she":"人民教育出版社","ban_ben_biao_shi":"人教版","ce_bie":"上册","mu_lu_url":""}]' className="border border-[#E7E7EB] rounded px-2 py-1 w-full text-[11px] font-mono" />
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setShowImport(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+                <button onClick={onImport} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">导入</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>)}
+
+      {subTab === 'pending' && (
+        <PendingApprovalList items={pendingItems} onRefresh={() => { loadPending(); load(); }} />
+      )}
+    </div>
+  )
+}
+
+/** V2.6 待审核用户贡献版本列表 */
+function PendingApprovalList({ items, onRefresh }: { items: any[]; onRefresh: () => void }) {
+  const [msg, setMsg] = useState('')
+  const [actionMsg, setActionMsg] = useState('')
+  const [actionId, setActionId] = useState<number | null>(null)
+  const [reason, setReason] = useState('')
+
+  const pending = items.filter((p: any) => p.status === 'pending')
+  const approved = items.filter((p: any) => p.status === 'approved')
+  const rejected = items.filter((p: any) => p.status === 'rejected')
+
+  const approve = async (id: number) => {
+    setMsg('')
+    try {
+      await adminAPI.approveSubmittedVersion(id)
+      setMsg('审核通过，已入库')
+      onRefresh()
+    } catch (e: any) {
+      setMsg('操作失败：' + (e.message || ''))
+    }
+  }
+
+  const reject = async (id: number, reason: string) => {
+    setMsg('')
+    try {
+      await adminAPI.rejectSubmittedVersion(id, reason || '管理员驳回')
+      setMsg('已驳回')
+      setActionId(null)
+      setReason('')
+      onRefresh()
+    } catch (e: any) {
+      setMsg('操作失败：' + (e.message || ''))
+    }
+  }
+
+  const renderTable = (rows: any[], showActions: boolean) => (
+    <table className="w-full text-[12px]">
+      <thead><tr className="text-left text-[#9A9A9A]"><th className="py-1">学科</th><th>教材名</th><th>版本</th><th>出版社</th><th>提交者</th><th>提交时间</th>{showActions && <th></th>}</tr></thead>
+      <tbody>
+        {rows.map((p) => (
+          <tr key={p.id} className="border-t border-[#F0F0F2]">
+            <td className="py-1">{p.xue_ke}</td><td>{p.jiao_cai_ming}</td><td>{p.ban_ben_biao_shi}</td><td>{p.chu_ban_she}</td>
+            <td className="text-[11px] text-[#9A9A9A]">{p.submitted_by ? p.submitted_by.substring(0, 12) : '—'}</td>
+            <td className="text-[11px] text-[#9A9A9A]">{p.submitted_at ? new Date(p.submitted_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+            {showActions && (
+              <td className="text-right">
+                <button onClick={() => approve(p.id)} className="text-[#15A85F] hover:underline mr-2">通过</button>
+                <button onClick={() => { setActionId(p.id); setReason(''); setActionMsg('') }} className="text-[#E0533D] hover:underline">驳回</button>
+              </td>
+            )}
+          </tr>
+        ))}
+        {rows.length === 0 && <tr><td colSpan={showActions ? 7 : 6} className="py-1 text-[#9A9A9A]">暂无</td></tr>}
+      </tbody>
+    </table>
+  )
+
+  return (
+    <div>
+      {msg && <div className="mb-2 text-[12px] text-[#15A85F]">{msg}</div>}
+      <div className="text-[12px] font-medium mb-2">待审核（{pending.length}）</div>
+      {renderTable(pending, true)}
+
+      {actionId != null && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setActionId(null)}>
+          <div className="bg-white rounded p-5 w-[360px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[14px] font-medium mb-2">驳回原因</div>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="选填，告知提交者驳回原因" rows={3} className="border border-[#E7E7EB] rounded px-2 py-1 w-full text-[12px]" />
+            {actionMsg && <div className="mt-1 text-[12px] text-[#E0533D]">{actionMsg}</div>}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
-              <button onClick={onSave} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">保存</button>
+              <button onClick={() => setActionId(null)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
+              <button onClick={() => reject(actionId, reason)} className="px-3 py-1.5 bg-[#E0533D] text-white text-[13px] rounded">驳回</button>
             </div>
           </div>
         </div>
       )}
 
-      {showImport && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowImport(false)}>
-          <div className="bg-white rounded p-5 w-[480px]" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[14px] font-medium mb-1">批量导入版本库</div>
-            <div className="text-[11px] text-[#9A9A9A] mb-2">粘贴 JSON 数组，每条含 version_key / xue_duan / nian_ji / xue_ke / jiao_cai_ming / chu_ban_she / ban_ben_biao_shi / ce_bie / mu_lu_url。按 version_key 更新。</div>
-            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={10} placeholder='[{"version_key":"小学_数学_人教版_一年级_上册","xue_duan":"小学","nian_ji":"一年级","xue_ke":"数学","jiao_cai_ming":"义务教育教科书·数学","chu_ban_she":"人民教育出版社","ban_ben_biao_shi":"人教版","ce_bie":"上册","mu_lu_url":""}]' className="border border-[#E7E7EB] rounded px-2 py-1 w-full text-[11px] font-mono" />
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowImport(false)} className="px-3 py-1.5 text-[13px] border border-[#E7E7EB] rounded">取消</button>
-              <button onClick={onImport} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">导入</button>
-            </div>
-          </div>
-        </div>
+      {approved.length > 0 && (
+        <details className="mt-4">
+          <summary className="text-[12px] text-[#9A9A9A] cursor-pointer">已通过（{approved.length}）</summary>
+          <div className="mt-2">{renderTable(approved, false)}</div>
+        </details>
+      )}
+      {rejected.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[12px] text-[#9A9A9A] cursor-pointer">已驳回（{rejected.length}）</summary>
+          <div className="mt-2">{renderTable(rejected, false)}</div>
+        </details>
       )}
     </div>
   )

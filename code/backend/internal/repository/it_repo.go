@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/zhiwei/backend/internal/model"
 )
@@ -406,15 +407,116 @@ func (r *ITRepository) ResolveEffectiveTextbook(teacherID, schoolID, subject, gr
 		return cfg, "school:" + cfg.SourceLevel, nil
 	}
 	// 3) 平台库默认（优先匹配年级，否则取该学科任意一条）
+	//    组内二级排序：优先版本标识非空（ban_ben_biao_shi 有值）的行，避免把空版本当默认
 	var lib model.TextbookVersion
 	if err := r.db.Where("xue_ke = ? AND (nian_ji = ? OR nian_ji = '' OR nian_ji IS NULL)", subject, grade).
-		Order("CASE WHEN nian_ji = ? THEN 0 ELSE 1 END").Find(&lib).Error; err == nil && lib.ID != 0 {
+		Order(clause.Expr{SQL: "CASE WHEN nian_ji = ? THEN 0 ELSE 1 END", Vars: []interface{}{grade}}).
+		Order("CASE WHEN ban_ben_biao_shi = '' OR ban_ben_biao_shi IS NULL THEN 1 ELSE 0 END").
+		Order("id").
+		First(&lib).Error; err == nil && lib.ID != 0 {
 		return &model.ResolvedTextbook{Subject: subject, Publisher: lib.ChuBanShe, VersionName: lib.BanBenBiaoShi}, "library", nil
 	}
 	var any model.TextbookVersion
-	if err := r.db.Where("xue_ke = ?", subject).First(&any).Error; err == nil {
+	if err := r.db.Where("xue_ke = ?", subject).
+		Order("CASE WHEN ban_ben_biao_shi = '' OR ban_ben_biao_shi IS NULL THEN 1 ELSE 0 END, id").
+		First(&any).Error; err == nil {
 		return &model.ResolvedTextbook{Subject: subject, Publisher: any.ChuBanShe, VersionName: any.BanBenBiaoShi}, "library", nil
 	}
 	return nil, "none", nil
+}
+
+// ── V2.6 用户贡献教材版本 ──
+
+// FindTextbookVersionBySubjectAndName 按学科+教材名+版本名查重
+func (r *ITRepository) FindTextbookVersionBySubjectAndName(xueKe, jiaoCaiMing, banBen string) (*model.TextbookVersion, error) {
+	var v model.TextbookVersion
+	err := r.db.Where("xue_ke = ? AND (jiao_cai_ming = ? OR jiao_cai_ming ILIKE ?)", xueKe, jiaoCaiMing, "%"+jiaoCaiMing+"%").
+		Order("id").
+		First(&v).Error
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// SubmitTextbookVersion 用户提交新教材版本（待审核）
+func (r *ITRepository) SubmitTextbookVersion(v *model.UserSubmittedTextbookVersion) error {
+	return r.db.Create(v).Error
+}
+
+// ListPendingSubmittedVersions IT 管理员查看待审核列表
+func (r *ITRepository) ListPendingSubmittedVersions() ([]model.UserSubmittedTextbookVersion, error) {
+	var vs []model.UserSubmittedTextbookVersion
+	if err := r.db.Where("status = ?", model.SubmitStatusPending).
+		Order("submitted_at DESC").
+		Find(&vs).Error; err != nil {
+		return nil, err
+	}
+	if vs == nil {
+		vs = []model.UserSubmittedTextbookVersion{}
+	}
+	return vs, nil
+}
+
+// ApproveSubmittedVersion 审核通过：将用户贡献版本写入 tb_textbook_version 正式库
+// 同时将状态更新为 approved。返回新创建的 tb_textbook_version id。
+func (r *ITRepository) ApproveSubmittedVersion(id int64, adminID string) (int64, error) {
+	var sub model.UserSubmittedTextbookVersion
+	if err := r.db.First(&sub, id).Error; err != nil {
+		return 0, err
+	}
+	if sub.Status != model.SubmitStatusPending {
+		return 0, fmt.Errorf("版本状态不是待审核（当前: %s）", sub.Status)
+	}
+
+	// 构造正式教材版本（version_key 复用用户提交的，若冲突则 ON CONFLICT UPDATE）
+	tv := model.TextbookVersion{
+		VersionKey:    sub.VersionKey,
+		XueDuan:       sub.XueDuan,
+		NianJi:        sub.NianJi,
+		XueKe:         sub.XueKe,
+		JiaoCaiMing:   sub.JiaoCaiMing,
+		ChuBanShe:     sub.ChuBanShe,
+		BanBenBiaoShi: sub.BanBenBiaoShi,
+		CeBie:         sub.CeBie,
+		Inferred:      false,
+	}
+
+	// 通过 upsert 写入正式库
+	if err := r.UpsertTextbookVersion(&tv); err != nil {
+		return 0, fmt.Errorf("入库失败: %w", err)
+	}
+
+	// 查询回填正式 id（UpsertTextbookVersion 用 Exec 不自动回填 ID）
+	var inserted model.TextbookVersion
+	r.db.Where("version_key = ?", sub.VersionKey).First(&inserted)
+
+	// 更新提交记录状态
+	now := time.Now()
+	r.db.Model(&sub).Updates(map[string]interface{}{
+		"status":      model.SubmitStatusApproved,
+		"reviewed_by": adminID,
+		"reviewed_at": now,
+	})
+
+	return inserted.ID, nil
+}
+
+// RejectSubmittedVersion 驳回用户提交
+func (r *ITRepository) RejectSubmittedVersion(id int64, adminID string, note string) error {
+	var sub model.UserSubmittedTextbookVersion
+	if err := r.db.First(&sub, id).Error; err != nil {
+		return err
+	}
+	if sub.Status != model.SubmitStatusPending {
+		return fmt.Errorf("版本状态不是待审核（当前: %s）", sub.Status)
+	}
+	now := time.Now()
+	return r.db.Model(&sub).Updates(map[string]interface{}{
+		"status":      model.SubmitStatusRejected,
+		"reviewed_by": adminID,
+		"reviewed_at": now,
+		"review_note": note,
+	}).Error
 }
 

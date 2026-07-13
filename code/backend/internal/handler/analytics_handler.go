@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,7 +21,7 @@ func NewAnalyticsHandler(dashboardRepo *repository.DashboardRepository) *Analyti
 }
 
 // GetTeacherDashboard 获取教师仪表盘数据
-// GET /api/analytics/teacher-dashboard
+// GET /api/analytics/teacher-dashboard?days=7|30&class_id=&subject=&grade=
 func (h *AnalyticsHandler) GetTeacherDashboard(c *gin.Context) {
 	teacherID, _ := c.Get("user_id")
 	teacherIDStr, ok := teacherID.(string)
@@ -29,16 +30,24 @@ func (h *AnalyticsHandler) GetTeacherDashboard(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.dashboardRepo.GetTeacherStats(teacherIDStr)
+	days := 7
+	if d, err := strconv.Atoi(c.DefaultQuery("days", "7")); err == nil && (d == 7 || d == 30) {
+		days = d
+	}
+	classID := c.Query("class_id")
+	subject := c.Query("subject")
+	grade := c.Query("grade")
+
+	stats, err := h.dashboardRepo.GetTeacherStats(teacherIDStr, days, classID, subject, grade)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取统计数据失败"})
 		return
 	}
 
-	recent, err := h.dashboardRepo.GetRecentLessonPlans(teacherIDStr, 5)
+	recent, err := h.dashboardRepo.GetRecentLessonPlans(teacherIDStr, subject, grade, 5)
 	if err != nil {
 		log.Printf("[analytics] GetRecentLessonPlans failed for %s: %v", teacherIDStr, err)
-		recent = []repository.RecentLessonPlan{} // 空数组而非 null
+		recent = []repository.RecentLessonPlan{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

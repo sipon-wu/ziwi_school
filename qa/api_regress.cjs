@@ -141,7 +141,7 @@ function rec(id, group, method, path, expected, actual, note) {
   rec('V26-A0', 'v26', 'GET', '/api/admin/textbook-versions', 403, (await req('GET', '/api/admin/textbook-versions', { token: T })).status, 'teacher 访问版本库→403');
   const lib = await req('GET', '/api/admin/textbook-versions', { token: A });
   rec('V26-A1', 'v26', 'GET', '/api/admin/textbook-versions', 200, lib.status, 'it_admin 读版本库');
-  rec('V26-A2', 'v26', 'GET', '/api/admin/textbook-versions', 303, Array.isArray(lib.body?.items) ? lib.body.items.length : 0, '版本库 303 条');
+  rec('V26-A2', 'v26', 'GET', '/api/admin/textbook-versions', 1421, Array.isArray(lib.body?.items) ? lib.body.items.length : 0, '版本库 1421 条(已清理空壳科目后)');
   const imp = await req('POST', '/api/admin/textbook-versions/import', { token: A, body: { rows: [{ version_key: 'ut_math_g4_rj', xue_duan: '小学', nian_ji: '四年级', xue_ke: '数学', jiao_cai_ming: '单测', chu_ban_she: '人教版', ban_ben_biao_shi: '人教版', ce_bie: '上册', mu_lu_url: '' }] } });
   rec('V26-A3', 'v26', 'POST', '/api/admin/textbook-versions/import', 200, imp.status, 'it_admin 批量导入版本');
   // 清理时删除刚导入的测试版本，避免破坏真实数据

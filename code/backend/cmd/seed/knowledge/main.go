@@ -150,32 +150,24 @@ func main() {
 		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
 	), "automigrate knowledge tables")
 
-	// ── 清旧（一次性初始化，非运行期用户数据）──
-	log.Println("[init] 清空 tb_* 知识库表 ...")
+	// ── 清旧（tb_textbook_version 已由 textbook_versions seed 独立导入，此处跳过）──
+	log.Println("[init] 清空 tb_* 知识库表（tb_textbook_version 跳过）...")
 	for _, t := range []string{
-		"tb_kg_edge", "tb_kg_node", "tb_version_standard_map",
-		"tb_standard_clause", "tb_textbook_version",
+		"tb_kg_edge", "tb_kg_node", "tb_version_standard_map", "tb_standard_clause",
 	} {
 		if err := db.Exec("TRUNCATE TABLE " + t + " RESTART IDENTITY CASCADE").Error; err != nil {
 			log.Fatalf("truncate %s: %v", t, err)
 		}
 	}
 
-	// ── 1. 教材版本（批量）──
-	log.Printf("[init] 插入教材版本 %d ...", len(s.TextbookVersions))
-	tvRecs := make([]model.TextbookVersion, 0, len(s.TextbookVersions))
-	for _, t := range s.TextbookVersions {
-		tvRecs = append(tvRecs, model.TextbookVersion{
-			VersionKey: t.VersionKey, XueDuan: t.XueDuan, NianJi: t.NianJi, XueKe: t.XueKe,
-			JiaoCaiMing: t.JiaoCaiMing, ChuBanShe: t.ChuBanShe, BanBenBiaoShi: t.BanBenBiaoShi,
-			CeBie: t.CeBie, MuLuURL: t.MuLuURL, Inferred: t.Inferred,
-		})
-	}
-	must(db.CreateInBatches(&tvRecs, 200).Error, "batch textbook_version")
-	verKey2ID := make(map[string]int64, len(tvRecs))
-	for _, r := range tvRecs {
+	// ── 1. 从 DB 读取已有教材版本映射（由 textbook_versions seed 预热）──
+	var existingTVs []model.TextbookVersion
+	db.Model(&model.TextbookVersion{}).Find(&existingTVs)
+	verKey2ID := make(map[string]int64, len(existingTVs))
+	for _, r := range existingTVs {
 		verKey2ID[r.VersionKey] = r.ID
 	}
+	log.Printf("[init] 从 DB 读取教材版本 %d 条（已由 textbook_versions seed 预热）", len(verKey2ID))
 
 	// ── 2. 课标条款（批量）──
 	log.Printf("[init] 插入课标条款 %d ...", len(s.StandardClauses))

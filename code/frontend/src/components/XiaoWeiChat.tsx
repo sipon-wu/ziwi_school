@@ -9,6 +9,7 @@ import { aiAPI } from '@/lib/api'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useTeaching } from '@/lib/TeachingContext'
 import { useToast } from '../components/Toast'
+import { pushXiaoweiPrompt } from '@/lib/xiaoweiContext'
 
 interface Message {
   role: 'user' | 'xiaowei'
@@ -125,6 +126,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
     if ((!text.trim() && !imageUrl) || loading) return
     const now = getTimeString()
     const userMsg: Message = { role: 'user', content: text, imageUrl, time: now }
+    pushXiaoweiPrompt(text)
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setPreviewImage(null)

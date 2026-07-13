@@ -1,0 +1,45 @@
+[
+  {
+    "step": "login",
+    "status": "PASS",
+    "detail": "tokenInjected=true"
+  },
+  {
+    "step": "E1-exercise-save",
+    "status": "PASS",
+    "detail": "genMs=6052 uiSaved=true before=48 after=53 delta=5",
+    "genMs": 6052,
+    "uiSaved": true,
+    "before": 48,
+    "after": 53,
+    "delta": 5
+  },
+  {
+    "step": "E2-exam-save",
+    "status": "PASS",
+    "detail": "genMs=10059 uiSaved=true examFound=true questionsLen=5",
+    "genMs": 10059,
+    "uiSaved": true,
+    "examFound": true,
+    "questionsLen": 5
+  },
+  {
+    "step": "E3-courseware",
+    "status": "PASS",
+    "detail": "genMs=16734 previewOpen=true",
+    "genMs": 16734,
+    "previewOpen": true
+  },
+  {
+    "step": "E4-xiaowei",
+    "status": "PASS",
+    "detail": "respMs=232 replied=true",
+    "respMs": 232,
+    "replied": true
+  },
+  {
+    "step": "page-errors",
+    "status": "PASS",
+    "detail": "count=0"
+  }
+]

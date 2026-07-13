@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/zhiwei/backend/internal/model"
 	"github.com/zhiwei/backend/internal/repository"
 
@@ -42,13 +43,14 @@ func (h *ExamHandler) GetExam(c *gin.Context) {
 
 func (h *ExamHandler) CreateExam(c *gin.Context) {
 	var req struct {
-		Title           string `json:"title" binding:"required"`
-		Subject         string `json:"subject" binding:"required"`
-		Grade           string `json:"grade" binding:"required"`
-		Questions       string `json:"questions"`
-		TotalScore      float64 `json:"total_score"`
-		DurationMinutes int    `json:"duration_minutes"`
-		Difficulty      string `json:"difficulty"`
+		Title               string `json:"title" binding:"required"`
+		Subject             string `json:"subject" binding:"required"`
+		Grade               string `json:"grade" binding:"required"`
+		Questions           string `json:"questions"`
+		CurriculumAlign     string `json:"curriculum_alignments"`
+		TotalScore          float64 `json:"total_score"`
+		DurationMinutes     int    `json:"duration_minutes"`
+		Difficulty          string `json:"difficulty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -59,13 +61,14 @@ func (h *ExamHandler) CreateExam(c *gin.Context) {
 	schoolID, _ := c.Get("school_id")
 
 	exam := &model.Exam{
-		ID:              "e" + time.Now().Format("20060102150405") + "0",
+		ID:              uuid.New().String(),
 		SchoolID:        schoolID.(string),
 		TeacherID:       teacherID.(string),
 		Title:           req.Title,
 		Subject:         req.Subject,
 		Grade:           req.Grade,
 		Questions:       req.Questions,
+		CurriculumAlign: req.CurriculumAlign,
 		TotalScore:      req.TotalScore,
 		DurationMinutes: req.DurationMinutes,
 		Difficulty:      req.Difficulty,
@@ -73,6 +76,9 @@ func (h *ExamHandler) CreateExam(c *gin.Context) {
 	}
 	if exam.Questions == "" {
 		exam.Questions = "[]"
+	}
+	if exam.CurriculumAlign == "" {
+		exam.CurriculumAlign = "[]"
 	}
 	if exam.TotalScore == 0 {
 		exam.TotalScore = 100
@@ -103,6 +109,7 @@ func (h *ExamHandler) UpdateExam(c *gin.Context) {
 
 	if v, ok := req["title"]; ok { existing.Title = v.(string) }
 	if v, ok := req["questions"]; ok { existing.Questions = v.(string) }
+	if v, ok := req["curriculum_alignments"]; ok { existing.CurriculumAlign = v.(string) }
 	if v, ok := req["total_score"]; ok { existing.TotalScore = v.(float64) }
 	if v, ok := req["duration_minutes"]; ok { existing.DurationMinutes = int(v.(float64)) }
 	if v, ok := req["difficulty"]; ok { existing.Difficulty = v.(string) }

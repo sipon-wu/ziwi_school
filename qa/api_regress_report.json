@@ -1,6 +1,6 @@
 {
-  "base": "http://school1.ziwi.cn",
-  "generated": "2026-07-11T14:37:46.131Z",
+  "base": "https://school1.ziwi.cn",
+  "generated": "2026-07-13T13:30:17.707Z",
   "total": 66,
   "pass": 66,
   "fail": 0,
@@ -470,7 +470,7 @@
       "id": "W-EX-D",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/exercises/0a290d5c-28de-48ba-a15b-5aef1fb87abb",
+      "path": "/api/exercises/837e4c9b-ca8c-4dee-8cd2-714e77402523",
       "expected": [
         404
       ],
@@ -505,7 +505,7 @@
       "id": "S3",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/lesson-plans/lp_8f44f492f9f8",
+      "path": "/api/lesson-plans/lp_53c18e818e2a",
       "expected": [
         200,
         204
@@ -595,10 +595,10 @@
       "group": "v26",
       "method": "GET",
       "path": "/api/admin/textbook-versions",
-      "expected": 303,
-      "actual": 303,
+      "expected": 1421,
+      "actual": 1421,
       "pass": true,
-      "note": "版本库 303 条"
+      "note": "版本库 1421 条(已清理空壳科目后)"
     },
     {
       "id": "V26-A3",

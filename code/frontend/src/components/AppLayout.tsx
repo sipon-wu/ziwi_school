@@ -211,7 +211,7 @@ export default function AppLayout({ children }: Props) {
                       onClick={() => setOpenCC(o => !o)}
                       className="flex items-center gap-1 text-[13px] bg-white border border-[#E7E7EB] rounded-[3px] px-2.5 py-1 cursor-pointer hover:border-[#02A7F0] transition-colors"
                     >
-                      <span>{teaching.subject} · {GRADE_NAMES[teaching.grade - 1]}{currentCC ? ` (${currentCC.class_name})` : ''}</span>
+                      <span className="max-w-[220px] truncate">{teaching.subject} · {GRADE_NAMES[teaching.grade - 1]}{currentCC ? ` (${currentCC.class_name})` : ''}</span>
                       <span className="text-[#9A9A9A] text-xs ml-1">▾</span>
                     </button>
                     {openCC && (

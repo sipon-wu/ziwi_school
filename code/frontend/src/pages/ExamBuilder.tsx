@@ -5,6 +5,8 @@ import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useToast } from '../components/Toast'
+import { getXiaoweiContext } from '../lib/xiaoweiContext'
+import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
@@ -25,6 +27,7 @@ export default function ExamBuilder() {
   // 表单状态
   const [examTitle, setExamTitle] = useState('')
   const [totalScore, setTotalScore] = useState(100)
+  const [extraRequirements, setExtraRequirements] = useState('')
   const [examDuration, setExamDuration] = useState(40)
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>(
     () => Object.fromEntries(getQuestionTypes(teaching.subject).map(t => [t.id, 0]))
@@ -37,6 +40,8 @@ export default function ExamBuilder() {
   // 选题状态
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  // 课标对齐（来自 AI 组卷返回的 curriculum_alignments，保存试卷时一并落库）
+  const [curriculumAlign, setCurriculumAlign] = useState<any[]>([])
 
   // 退出提醒
   const hasChanges = examTitle.length > 0 || picker.selectedIds.length > 0 || selectedQuestions.length > 0
@@ -48,15 +53,23 @@ export default function ExamBuilder() {
     if (picker.selectedIds.length === 0) return
     setGenerating(true)
     try {
+      const ratio = Object.fromEntries(Object.entries(typeCounts).filter(([, c]) => c > 0))
+      const total = Object.values(typeCounts).reduce((a, b) => a + b, 0) || 10
       const res = await fetch('/api/ai/exam/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('zhiwei_token') || '') },
         body: JSON.stringify({
           subject: teaching.subject, grade: gradeName, semester: teaching.semester,
-          difficulty: 'L2', count: Object.values(typeCounts).reduce((a, b) => a + b, 0) || 10,
-          purpose: 'midterm', question_types: Object.entries(typeCounts).filter(([, c]) => c > 0).map(([t]) => t),
+          difficulty: 'L2', purpose: 'midterm',
+          type_ratio: ratio,
+          total_score: totalScore,
+          source: 'bank',
           selected_knowledge_ids: picker.selectedIds,
+          ...buildKnowledgeScope(picker),
           textbook_version: teaching.currentTextbook(),
+          exclude_question_ids: selectedQuestions.map(q => q.id),
+          extra_requirements: extraRequirements || undefined,
+          chat_context: getXiaoweiContext() || undefined,
         }),
       })
       const data = await res.json()
@@ -65,6 +78,7 @@ export default function ExamBuilder() {
         questions = parseAiExamContent(data.content)
       }
       setSelectedQuestions(questions.map((q: any, i: number) => ({ id: `ai_${Date.now()}_${i}`, ...q })))
+      setCurriculumAlign(data.curriculum_alignments || [])
       toast(`AI 已生成 ${questions.length} 道题目`, 'success')
     } catch (e: any) { toast('生成失败: ' + (e.message || '网络错误'), 'error') }
     setGenerating(false)
@@ -188,6 +202,14 @@ export default function ExamBuilder() {
           <p className="text-[10px] text-[#9A9A9A] mt-2">共计 {Object.values(typeCounts).reduce((a, b) => a + b, 0)} 题</p>
         </div>
 
+        {/* 附加要求 / 关键词 */}
+        <div className="px-5 py-3 border-t border-[#F0F0F0]">
+          <label className="block text-[12px] font-medium text-[#353535] mb-1.5">附加要求 / 关键词</label>
+          <textarea value={extraRequirements} onChange={e => setExtraRequirements(e.target.value)}
+            rows={2} placeholder="如：压轴题偏难、增加实验探究、结合本地生活情境…（也可先在左下角小微对话提需求，自动带入）"
+            className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
+        </div>
+
         {/* 已选题目 */}
         <div className="px-5 py-3 border-t border-[#F0F0F0]">
           <div className="flex items-center justify-between mb-2">
@@ -203,7 +225,8 @@ export default function ExamBuilder() {
             <div className="space-y-1 max-h-[160px] overflow-y-auto">
               {selectedQuestions.map((q, i) => (
                 <div key={q.id} className="flex items-center justify-between text-[12px] py-1 px-2 bg-[#F6F7F8] rounded-[4px]">
-                  <span className="text-[#353535] truncate mr-2">{i + 1}. {q.content}</span>
+                  <span className="text-[#353535] truncate mr-2">{i + 1}. {q.stem || q.content}</span>
+                  <span className="text-[10px] text-[#9A9A9A] shrink-0 ml-2">{q.score ? `${q.score}分` : ''}</span>
                   <button onClick={() => setSelectedQuestions(prev => prev.filter(x => x.id !== q.id))}
                     className="text-[#9A9A9A] hover:text-[#FF4D4F] shrink-0">
                     <X size={12} />
@@ -229,13 +252,28 @@ export default function ExamBuilder() {
         <button onClick={() => {
           if (!examTitle.trim()) { toast('请填写试卷标题', 'warning'); return }
           const tok = localStorage.getItem('zhiwei_token')
+          // 将所选题目完整内容写入 questions 字段（后端只认 questions，原 question_ids 被忽略导致题目未落库）
+          const total = selectedQuestions.length
+          const perScore = total > 0 ? Math.round(totalScore / total) : 0
+          const questionsPayload = selectedQuestions.map((q, i) => ({
+            id: q.id,
+            stem: q.stem || q.content || '',
+            type: q.type || '',
+            options: q.options || '',
+            answer: q.answer || '',
+            analysis: q.analysis || '',
+            difficulty: q.difficulty || 'L2',
+            score: Number(q.score) || perScore,
+            sort: i + 1,
+          }))
           fetch('/api/exams', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
             body: JSON.stringify({
               title: examTitle, subject: teaching.subject, grade: gradeName,
-              question_ids: selectedQuestions.map(q => q.id),
-              total_score: totalScore, duration: examDuration, status: 'draft',
+              questions: JSON.stringify(questionsPayload),
+              total_score: totalScore, duration_minutes: examDuration, status: 'draft',
+              curriculum_alignments: JSON.stringify(curriculumAlign),
             }),
           }).then(r => { if (r.ok) toast('已保存为草稿', 'success'); else toast('保存失败', 'error') }).catch(() => toast('网络错误', 'error'))
         }}

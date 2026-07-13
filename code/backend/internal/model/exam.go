@@ -10,6 +10,7 @@ type Exam struct {
 	Subject         string    `gorm:"column:subject;type:varchar(20);not null" json:"subject"`
 	Grade           string    `gorm:"column:grade;type:varchar(20);not null" json:"grade"`
 	Questions       string    `gorm:"column:questions;type:jsonb;default:'[]'" json:"questions"`
+	CurriculumAlign string    `gorm:"column:curriculum_alignments;type:jsonb;default:'[]'" json:"curriculum_alignments"`
 	TotalScore      float64   `gorm:"column:total_score;type:numeric(6,1);default:100" json:"total_score"`
 	DurationMinutes int       `gorm:"column:duration_minutes;default:45" json:"duration_minutes"`
 	Difficulty      string    `gorm:"column:difficulty;type:varchar(10);default:L2" json:"difficulty"`

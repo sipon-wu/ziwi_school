@@ -7,6 +7,8 @@ import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { questionBankAPI, assignmentAPI } from '../lib/api'
+import { getXiaoweiContext } from '../lib/xiaoweiContext'
+import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import AiPreviewBadge from '../components/AiPreviewBadge'
 import { exportExamPaper, exportExamAnswer } from '../lib/exportExamDocx'
 import { downloadBlob } from '../lib/exportDocx'
@@ -64,6 +66,8 @@ export default function ExerciseGenerator() {
     () => getQuestionTypes(teaching.subject).slice(0, 3).map((t) => t.id)
   )
   const [selectedSchool, setSelectedSchool] = useState('')
+  const [extraRequirements, setExtraRequirements] = useState('')
+  const [curriculumNotes, setCurriculumNotes] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<any[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -164,7 +168,10 @@ export default function ExerciseGenerator() {
           purpose, question_types: selectedTypes,
           school_style: selectedSchool || undefined,
           selected_knowledge_ids: picker.selectedIds,
+          ...buildKnowledgeScope(picker),
           textbook_version: teaching.currentTextbook(),
+          extra_requirements: extraRequirements || undefined,
+          chat_context: getXiaoweiContext() || undefined,
         }),
       })
       const data = await res.json()
@@ -175,10 +182,14 @@ export default function ExerciseGenerator() {
       if (raw.length === 0 && data.content) {
         raw = parseAiExamMarkdown(data.content)
       }
-      const norm = raw.map((q: any) =>
-        isTypeAllowed(teaching.subject, q.type) ? q : { ...q, type: allowed[0] }
-      )
+      const norm = raw.map((q: any) => {
+        const qt = isTypeAllowed(teaching.subject, q.type) ? q.type : allowed[0]
+        // 题干字段归一化：AI 返回可能用 content/stem/question/body，统一为 content
+        const stem = q.content || q.stem || q.question || q.body || ''
+        return { ...q, type: qt, content: stem, stem }
+      })
       setQuestions(norm)
+      setCurriculumNotes(data.curriculum_alignments || [])
       setTotalCount(data.total_questions || norm.length)
       setAiPreview(true)
       setConfirmedSet(new Set())
@@ -234,6 +245,8 @@ export default function ExerciseGenerator() {
         questions: questions.map((q: any) => ({
           type: q.type || 'choice',
           content: q.content,
+          answer: q.answer || '',
+          answer_detail: q.answer_detail || q.analysis || '',
           difficulty: difficulty,
           knowledge_points: kps,
         })),
@@ -492,13 +505,21 @@ export default function ExerciseGenerator() {
           {selectedSchool && <p className="text-[10px] text-[#9A9A9A] mt-1.5">"{SCHOOLS.find(s => s.id === selectedSchool)?.desc}"</p>}
         </div>
 
+        {/* 附加要求 / 关键词（融入生成，结合小微会话输入） */}
+        <div className="px-5 py-3 border-b border-[#E7E7EB]">
+          <label className="block text-[12px] font-medium text-[#353535] mb-1.5">附加要求 / 关键词</label>
+          <textarea value={extraRequirements} onChange={e => setExtraRequirements(e.target.value)}
+            rows={2} placeholder="如：多考易错点、结合生活情境、加入一道开放题…（也可先在左下角小微对话提需求，会自动带入）"
+            className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
+        </div>
+
         {/* 生成按钮（初始态） */}
         {questions.length === 0 && (
           <div className="px-5 py-4">
             <button onClick={handleGenerate} disabled={generating || picker.selectedIds.length === 0}
               className="w-full flex items-center gap-3 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50">
               <Sparkles size={20} className="text-[#02A7F0] shrink-0" />
-              <span className="text-[12px]">有什么需求，支持会话式补充出题要求...</span>
+              <span className="text-[12px]">AI 生成（已带入附加要求与小微对话要点）</span>
             </button>
           </div>
         )}
@@ -510,6 +531,14 @@ export default function ExerciseGenerator() {
               <span className="text-[13px] font-medium text-[#353535]">
                 {knowledgeLabel || '知识图谱选题'} · {difficulty} · {totalCount}题
               </span>
+              {curriculumNotes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  <span className="text-[10px] text-[#9A9A9A]">课标备注:</span>
+                  {curriculumNotes.map((c: any, i: number) => (
+                    <span key={i} className="px-1.5 py-0.5 text-[10px] bg-[#F0ECF7] text-[#722ED1] rounded-full">{c.code}</span>
+                  ))}
+                </div>
+              )}
               <button onClick={handleGenerate} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] text-[#9A9A9A] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">
                 <RefreshCw size={12} />重新生成
               </button>

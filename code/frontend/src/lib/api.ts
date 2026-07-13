@@ -168,33 +168,86 @@ export const aiAPI = {
     format_template?: string
     selected_knowledge_ids?: string[]
     school_id?: string
+    textbook_version?: string
+    extra_requirements?: string
+    chat_context?: string
   }) =>
     request<any>('/ai/lesson-plan/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
 
-  /** 课件生成（AI 润色 + 找相近生成新版本） */
+  /** 课件生成（锚点—轨道—边缘 三层，允许受控发散） */
   generateCourseware: (params: {
     subject: string
     grade: string
     lesson_title: string
-    content: string
+    content?: string
     school_id?: string
+    textbook_version?: string
+    extra_requirements?: string
+    chat_context?: string
+    selected_knowledge_ids?: string[]
+    knowledge_points?: string[]
+    prerequisite_points?: string[]
+    curriculum_codes?: string[]
+    divergence_level?: 'conservative' | 'standard' | 'expansive'
+    consult_answers?: string
+    edge_enabled?: boolean
+    edge_categories?: string[]
   }) =>
     request<any>('/ai/courseware/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
 
-  /** 出题 */
-  generateExam: (params: {
+  /** 课前问诊：返回针对性问题，教师逐项作答后回传 */
+  consultCourseware: (params: {
     subject: string
-    knowledge_point: string
     grade: string
-    difficulty?: string
-    count?: number
+    lesson_title: string
+    knowledge_points?: string[]
   }) =>
+    request<any>('/ai/courseware/consult', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  /** 发布校验（平台红线锁）：对课件 Markdown 校验，指出问题并提醒修改 */
+  validateCourseware: (params: {
+    markdown: string
+    subject: string
+    grade: string
+  }) =>
+    request<any>('/ai/courseware/validate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  /** 剔除指定的发散内容并刷新发散地图（D 组：教师逐项勾选删除） */
+  trimCourseware: (params: {
+    markdown: string
+    remove_items: Array<{ content: string; anchor?: string; zone?: string }>
+  }) =>
+    request<any>('/ai/courseware/trim', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  /** PPT 课件渲染（AI 渲染 + 预置模板）：把课件 Markdown 渲染为结构化幻灯片 */
+  renderPptCourseware: (params: {
+    markdown: string
+    title: string
+    subject: string
+    grade: string
+  }) =>
+    request<any>('/ai/courseware/render-ppt', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  /** 出题 / 智能组卷（共用端点，返回结构化 JSON） */
+  generateExam: (params: Record<string, any>) =>
     request<any>('/ai/exam/generate', {
       method: 'POST',
       body: JSON.stringify(params),
@@ -287,13 +340,40 @@ export const tokenQuotaAPI = {
 // ── 题库接口 ──
 
 export const questionBankAPI = {
-  /** 保存题目到个人题库 */
-  save: (data: {
-    questions: { type: string; content: string; difficulty: string; options?: string; answer?: string; answer_detail?: string; knowledge_points?: string[] }[]
-    subject: string; grade: string; semester: string; textbook_version: string; chapter_unit: string
-    source: string; source_prompt: string
-  }) =>
-    request<any>('/questions', { method: 'POST', body: JSON.stringify(data) }),
+  /**
+   * 保存题目到个人题库。
+   * 后端真实端点为 /exercises（POST=CreateQuestion），接收单题 flat 结构：
+   * { stem, question_type, answer, analysis, subject, grade, difficulty, source }。
+   * 前端传的是 {questions:[...]} 数组，故此处逐题 POST 并聚合返回 {question_ids, count}。
+   */
+  save: async (data: {
+    questions: { type: string; content: string; difficulty?: string; options?: string; answer?: string; answer_detail?: string; knowledge_points?: string[] }[]
+    subject: string; grade: string; semester?: string; textbook_version?: string; chapter_unit?: string
+    source?: string; source_prompt?: string
+  }) => {
+    const ids: string[] = []
+    for (const q of (data.questions || [])) {
+      try {
+        const r = await request<any>('/exercises', {
+          method: 'POST',
+          body: JSON.stringify({
+            stem: q.content || q.stem || q.question || '',
+            question_type: q.type,
+            answer: q.answer || '',
+            analysis: q.answer_detail || '',
+            subject: data.subject,
+            grade: data.grade,
+            difficulty: q.difficulty || 'L2',
+            source: data.source || 'ai_generated',
+          }),
+        })
+        if (r && r.id) ids.push(r.id)
+      } catch {
+        // 单题失败不阻断其余题目保存
+      }
+    }
+    return { question_ids: ids, count: ids.length }
+  },
 
   /** 个人题库列表 */
   listPersonal: (params: { subject?: string; grade?: string; type?: string; difficulty?: string; limit?: number; offset?: number }) => {
@@ -464,6 +544,12 @@ export const adminAPI = {
   /** 批量导入版本库（数据团队交付 JSON 数组） */
   importTextbookVersions: (rows: any[]) =>
     request<any>('/admin/textbook-versions/import', { method: 'POST', body: JSON.stringify({ rows }) }),
+  /** V2.6 用户贡献版本审核 */
+  listPendingSubmittedVersions: () => request<any>('/admin/textbook-versions/pending'),
+  approveSubmittedVersion: (id: number) =>
+    request<any>(`/admin/textbook-versions/pending/${id}/approve`, { method: 'PUT' }),
+  rejectSubmittedVersion: (id: number, reason: string) =>
+    request<any>(`/admin/textbook-versions/pending/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
 }
 
 // ── V2.5/2.6 个人教材偏好（per-user，跨设备同步，规格书 §5.1）──
@@ -479,6 +565,11 @@ export const teacherPrefAPI = {
   /** 解析当前 学科/年级/班级 的有效教材版本（个人偏好 > 学校配置 > 平台库） */
   effective: (params: { subject: string; grade?: string; class_id?: string }) =>
     request<any>(`/me/textbook-effective?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
+  /** V2.6 用户提交教材版本贡献 */
+  submitTextbookVersion: (data: {
+    xue_ke: string; jiao_cai_ming: string; chu_ban_she: string;
+    ban_ben_biao_shi: string; nian_ji?: string; xue_duan?: string; ce_bie?: string;
+  }) => request<any>('/me/submit-textbook-version', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI }

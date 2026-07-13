@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { Trash2, Copy, Eye, FileText, PenTool, Files, Send, Image as ImgIcon, Music, Video, X, Bell } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { api } from '../lib/api'
+import { useTeaching } from '../lib/TeachingContext'
 
 function safeGetUser() {
   try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} }
 }
 
-interface DashboardData { stats: { lesson_plan_count: number; pending_grading: number; question_count: number; weekly_lessons: number }; recent: { id: string; title: string; subject: string; grade: string; status: string; updated_at: string }[] }
+interface DashboardData { stats: { pending_grading: number; pending_review: number; parent_sign_total: number; parent_sign_signed: number; period_new_plans: number; period_new_questions: number; period_new_exams: number }; recent: { id: string; title: string; subject: string; grade: string; status: string; updated_at: string }[] }
 
 /* ──────── Quick Create ──────── */
 const QUICK_CREATE = [
@@ -22,14 +23,26 @@ const QUICK_CREATE = [
 
 export default function TeacherDashboard() {
   const user = safeGetUser()
+  const teaching = useTeaching()
   const [timeTab, setTimeTab] = useState<'7' | '30'>('7')
   const [data, setData] = useState<DashboardData | null>(null)
   const [showUrge, setShowUrge] = useState(false)
   const [urgeSent, setUrgeSent] = useState(false)
 
   useEffect(() => {
-    api<DashboardData>('/analytics/teacher-dashboard').then(setData).catch(() => {})
-  }, [])
+    const gradeName = (() => {
+      const g = teaching.grade
+      if (g <= 0 || g > 9) return ''
+      return `${['一','二','三','四','五','六','七','八','九'][g-1]}年级`
+    })()
+    const params = new URLSearchParams({
+      days: timeTab,
+      class_id: teaching.selectedClassId || '',
+      subject: teaching.subject || '',
+      grade: gradeName,
+    })
+    api<DashboardData>(`/analytics/teacher-dashboard?${params.toString()}`).then(setData).catch(() => {})
+  }, [timeTab, teaching.selectedClassId, teaching.subject, teaching.grade])
 
   const s = data?.stats
   const recent = data?.recent || []
@@ -53,20 +66,25 @@ export default function TeacherDashboard() {
           </div>
           <div className="space-y-2 text-[13px]">
             <div className="flex justify-between items-center">
-              <span>教案总数</span>
-              <span className="font-bold">{s?.lesson_plan_count ?? '-'}</span>
+              <span>作业待批改</span>
+              <span className="text-[#F6920E] font-bold">{s?.pending_grading ?? 0}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span>题目数量</span>
-              <span className="font-bold">{s?.question_count ?? '-'}</span>
+              <span>教案待互审</span>
+              <span className="text-[#02A7F0] font-bold">{s?.pending_review ?? 0}</span>
             </div>
+            {((s?.parent_sign_total ?? 0) > 0) && (
             <div className="flex justify-between items-center">
-              <span>待批改作业</span>
-              <span className="text-[#F6920E] font-bold">{s?.pending_grading ?? '-'}</span>
+              <span>家长签字 {s?.parent_sign_signed}/{s?.parent_sign_total}</span>
+              {(s?.parent_sign_total ?? 0) > (s?.parent_sign_signed ?? 0) ? (
+                <button onClick={() => setShowUrge(true)} className="text-[12px] text-[#02A7F0] hover:underline flex items-center gap-1">
+                  <Bell size={11} />催办
+                </button>
+              ) : (
+                <span className="text-[11px] text-[#9A9A9A]">已全部签完</span>
+              )}
             </div>
-          </div>
-          <div className="flex justify-end mt-4">
-            <button onClick={() => setShowUrge(true)} className="text-[13px] text-[#02A7F0] hover:underline flex items-center gap-1"><Bell size={12} />立即催办</button>
+            )}
           </div>
         </div>
 
@@ -85,20 +103,18 @@ export default function TeacherDashboard() {
 
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-5 text-center">
-              <div className="text-[11px] text-[#9A9A9A] mb-2">教案数量 (篇)</div>
-              <div className="text-[32px] font-bold text-[#353535]">{s?.lesson_plan_count ?? '-'}</div>
+              <div className="text-[11px] text-[#9A9A9A] mb-2">新增教案 (篇)</div>
+              <div className="text-[32px] font-bold text-[#353535]">{s?.period_new_plans ?? 0}</div>
             </div>
             <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-5 text-center">
-              <div className="text-[11px] text-[#9A9A9A] mb-2">题目数量 (道)</div>
-              <div className="text-[32px] font-bold text-[#353535]">{s?.question_count ?? '-'}</div>
+              <div className="text-[11px] text-[#9A9A9A] mb-2">新增题型 (道)</div>
+              <div className="text-[32px] font-bold text-[#353535]">{s?.period_new_questions ?? 0}</div>
             </div>
             <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-5 text-center">
-              <div className="text-[11px] text-[#9A9A9A] mb-2">周课时 (节)</div>
-              <div className="text-[32px] font-bold text-[#353535]">{s?.weekly_lessons ?? '-'}</div>
+              <div className="text-[11px] text-[#9A9A9A] mb-2">新增试卷 (张)</div>
+              <div className="text-[32px] font-bold text-[#353535]">{s?.period_new_exams ?? 0}</div>
             </div>
           </div>
-
-          <div className="text-[11px] text-[#9A9A9A] text-center">数据统计实时更新</div>
         </div>
       </div>
 

@@ -452,3 +452,131 @@ func (h *ITHandler) ResolveEffectiveTextbook(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"resolved": res, "configured": true, "source": src})
 }
+
+// ── V2.6 用户贡献教材版本 ──
+
+// SubmitTextbookVersion POST /api/me/submit-textbook-version
+// 教师提交自己发现但库中没有的教材版本，立即可使用，标记为待审核。
+func (h *ITHandler) SubmitTextbookVersion(c *gin.Context) {
+	teacherID, _ := c.Get("user_id")
+	teacherIDStr, _ := teacherID.(string)
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+
+	var req struct {
+		XueDuan       string `json:"xue_duan"`
+		NianJi        string `json:"nian_ji"`
+		XueKe         string `json:"xue_ke"`
+		JiaoCaiMing   string `json:"jiao_cai_ming"`
+		ChuBanShe     string `json:"chu_ban_she"`
+		BanBenBiaoShi string `json:"ban_ben_biao_shi"`
+		CeBie         string `json:"ce_bie"`
+		AttachmentURLs *string `json:"attachment_urls"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "请求格式错误"})
+		return
+	}
+	if req.XueKe == "" || req.JiaoCaiMing == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "学科(xue_ke)和教材名(jiao_cai_ming)必填"})
+		return
+	}
+
+	// 自动构造 version_key
+	sku := []string{req.XueDuan, req.XueKe, req.BanBenBiaoShi, req.NianJi, req.CeBie}
+	for i, s := range sku {
+		if s == "" {
+			sku[i] = "?"
+		}
+	}
+	versionKey := sku[0] + "|" + sku[1] + "|" + sku[2] + "|" + sku[3] + "|" + sku[4]
+
+	// 去重检查：近似匹配已存在的版本
+	existing, err := h.repo.FindTextbookVersionBySubjectAndName(req.XueKe, req.JiaoCaiMing, req.BanBenBiaoShi)
+	if err == nil && existing != nil {
+		c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_EXISTS", "message": "该教材版本已在库中，可直接选择", "matched": existing})
+		return
+	}
+
+	sub := model.UserSubmittedTextbookVersion{
+		VersionKey:     versionKey,
+		XueDuan:        req.XueDuan,
+		NianJi:         req.NianJi,
+		XueKe:          req.XueKe,
+		JiaoCaiMing:    req.JiaoCaiMing,
+		ChuBanShe:      req.ChuBanShe,
+		BanBenBiaoShi:  req.BanBenBiaoShi,
+		CeBie:          req.CeBie,
+		Status:         model.SubmitStatusPending,
+		SubmittedBy:    teacherIDStr,
+		SchoolID:       schoolIDStr,
+		SubmittedAt:    time.Now(),
+		AttachmentURLs: req.AttachmentURLs,
+	}
+	if err := h.repo.SubmitTextbookVersion(&sub); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "SUBMIT_FAILED", "message": "提交失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "教材版本已提交，等待管理员审核", "id": sub.ID, "version_key": versionKey})
+}
+
+// ListPendingSubmittedVersions GET /api/admin/textbook-versions/pending
+// IT 管理员查看待审核的版本贡献列表
+func (h *ITHandler) ListPendingSubmittedVersions(c *gin.Context) {
+	vs, err := h.repo.ListPendingSubmittedVersions()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取待审核列表失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": vs})
+}
+
+// ApproveSubmittedVersion PUT /api/admin/textbook-versions/pending/:id/approve
+func (h *ITHandler) ApproveSubmittedVersion(c *gin.Context) {
+	adminID, _ := c.Get("user_id")
+	adminIDStr, _ := adminID.(string)
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "id 非法"})
+		return
+	}
+	tvID, err := h.repo.ApproveSubmittedVersion(id, adminIDStr)
+	if err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "提交记录不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "APPROVE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已通过并入库", "textbook_version_id": tvID})
+}
+
+// RejectSubmittedVersion PUT /api/admin/textbook-versions/pending/:id/reject
+func (h *ITHandler) RejectSubmittedVersion(c *gin.Context) {
+	adminID, _ := c.Get("user_id")
+	adminIDStr, _ := adminID.(string)
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "id 非法"})
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	c.ShouldBindJSON(&req)
+	if req.Reason == "" {
+		req.Reason = "管理员驳回"
+	}
+	if err := h.repo.RejectSubmittedVersion(id, adminIDStr, req.Reason); err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "提交记录不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "REJECT_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已驳回", "reason": req.Reason})
+}
