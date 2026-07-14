@@ -619,14 +619,14 @@ export default function LessonPlanEditor() {
           </div>
         </div>
       }
-      right={editMode === 'ai' ? (
+      right={
         <KnowledgeGraphTool
           data={picker.knowledgeData}
           filter={{ subject, grade: gradeNum, semester: teaching.semester }}
           selectedIds={picker.selectedIds}
           onSelect={ids => picker.setSelectedIds(ids)}
         />
-      ) : undefined}
+      }
     />
 
     {/* Dialogs */}

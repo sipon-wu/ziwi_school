@@ -147,7 +147,7 @@ export default function LessonPlanList() {
 
         {/* 教案表格 */}
         {filtered.length === 0 ? (
-          <EmptyState title="暂无匹配的教案" description="尝试调整搜索条件或新建一份教案" action={{ label: '新建教案', onClick: () => navigate('/lesson-plans/new') }} />
+          <EmptyState title="暂无匹配的教案" description="尝试调整搜索条件或新建一份教案" action={{ label: '新建教案', onClick: () => window.open('/lesson-plans/new', '_blank') }} />
         ) : (
           <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
             <div className="overflow-x-auto">
