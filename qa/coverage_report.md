@@ -203,3 +203,51 @@
 ### 状态说明
 - 改动已落预发布（`deploy.sh staging`，后端重新编译 + 前端重新构建）。生产未部署。
 - 注：该账号当前有效（未归档）教案仅 1 条，故首页与草稿箱均显示 1 条，数量一致即"一致性"达成；若需首页更丰富，属账号真实数据量问题，非缺陷。
+
+## 十一、2026-07-14 全屏预览页（投屏模式 / PPT 在线预览）三类常规交互缺陷修复
+
+账号：13800000002（u-teacher）。真人点击时发现的"常规交互"问题，覆盖两个全屏预览组件（`PresentationMode` 投屏模式 / `PptxPreview` PPT 在线预览）。
+
+### 缺陷 1：预览页无法下拉（垂直滚动失效）
+现象：投屏模式（PresentationMode）长正文内容撑出视口、无法滚到。PPT 在线预览（PptxPreview）若长幻灯片也滚不到顶部/底部。
+根因：
+- `PresentationMode` 内容区 `flex-1 flex items-center justify-center p-8` **无 `overflow-auto`**，长内容撑开 flex 子项后整个内容卡溢出视口、无法滚动；
+- `PptxPreview` 舞台 `flex-1 flex items-center justify-center p-6 overflow-auto` 触发 flex 居中溢出 bug——子元素高过容器时，顶部内容被顶出可视区上方、滚不到。
+修复：
+- `PresentationMode` 内容区改 `flex-1 overflow-auto`，内层用 `min-h-full flex items-center justify-center` 包裹白卡，白卡加 `max-h-[calc(100vh-8rem)]` + `my-auto` + 正文 `flex-1 overflow-auto`；
+- `PptxPreview` 舞台改 `flex-1 overflow-auto`，内层用 `min-h-full flex items-center justify-center` 居中包裹 slide。
+两者均消除 flex 居中溢出 bug——内容短时居中、内容长时父 overflow-auto 滚动可达。
+
+### 缺陷 2：底部溢出浏览器底边缘，导致点不到
+现象：投屏模式底部"下一页"按钮在长内容下被挤出视口外。
+根因：投屏模式根容器 `fixed inset-0 flex flex-col`，顶部栏/底部栏 shrink-0，中部内容区 `flex-1` 无 overflow-auto → 内容子项 `min-h-[60vh]` + 长正文撑开 → flex-1 子项高度超过分配空间 → 底部栏被推到视口外。
+修复：内容区加 `overflow-auto` + 白卡 `max-h-[calc(100vh-8rem)]` + 正文 `overflow-auto` → 任何内容长度下底部导航都 shrink-0 固定在视口内。`PptxPreview` 同理（无内容溢出问题但加兜底）。
+
+### 缺陷 3：缺少左右滑动翻页
+现象：投屏模式/PPT 在线预览只支持按钮和键盘翻页，没有鼠标拖拽/触摸滑动翻页——不符合触屏/笔式屏"翻页靠滑动"的常规操作习惯。
+修复：两个组件舞台/内容区加 Pointer Events：
+- `onPointerDown` 记录起始 x、y
+- `onPointerUp` 计算 dx、dy；`Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)` 判为横向滑动 → `dx<0` 下一页、`dx>0` 上一页
+- `style={{ touchAction: 'pan-y' }}` 让浏览器仍处理纵向滚动（避免吞掉正文滚动）
+- 桌面鼠标 + 触屏触摸均通过 Pointer Events 覆盖。
+
+### 真实浏览器验收结果（预发布，PASS，0 页面错误）
+脚本：`qa/verify_preview_scroll.cjs`（Playwright 真机 + 真实 token 13800000002）
+- 真实 UI 流程：API 创建带 5 段长文 content 的教案（`lp_681dff3a6a7b`）→ 浏览器进入 `/lesson-plans/{id}/edit` → 真点击底部"预览"按钮 → PresentationMode 打开 → 真点击/真拖拽验证三项交互。
+
+| 验证项 | 结果 | 证据 |
+| --- | --- | --- |
+| 内容区垂直滚动可达（长内容） | PASS | `scrollTop 0→23`，`maxScroll=23`（修复前长内容撑爆无滚动） |
+| 底部「下一页」在视口内可达 | PASS | `bottom=788 vh=800`，未溢出（修复前长内容会挤出视口） |
+| 鼠标左滑翻页 | PASS | `1/5 → 2/5`（pointer 事件触发翻页） |
+| 页面错误 | PASS | `pageErrors=[]`（无 pageerror / console error） |
+
+### 验证脚本（留在 qa/）
+- `qa/verify_preview_scroll.cjs`：投屏模式/PPT 在线预览 滚动 + 底导 + 左右滑动 真机验收
+
+### 修复覆盖说明
+- **PresentationMode**（投屏模式）：上述三类缺陷全部真机验证 PASS。
+- **PptxPreview**（PPT 在线预览）：与 PresentationMode 共享同一修复模式（min-h-full 居中层 + overflow-auto + 指针事件）。代码改动与 lint 双重确认，自动化覆盖因入口需先在 Materials AI 课件面板"AI 生成课件"才有 cwOutline（AI 服务慢/限流），暂未走完整真机流；`e2e_realistic_courseware` 跑测流程中点"播放 / 阅读"时即会真实触发同一组件，建议下次跑测时附带验证。
+
+### 状态说明
+- 改动已落预发布（`deploy.sh staging`，前端重新构建 + 后端无需变更）。生产未部署。

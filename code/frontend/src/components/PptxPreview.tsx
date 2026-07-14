@@ -35,6 +35,19 @@ export default function PptxPreview({ slides, title, onClose }: Props) {
   const [idx, setIdx] = useState(0)
   const [zoom, setZoom] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
+  const dragStart = useRef<{ x: number; y: number } | null>(null)
+  const onStagePointerDown = (e: React.PointerEvent) => { dragStart.current = { x: e.clientX, y: e.clientY } }
+  const onStagePointerUp = (e: React.PointerEvent) => {
+    const s = dragStart.current
+    dragStart.current = null
+    if (!s) return
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) setIdx(i => Math.min(i + 1, slides.length - 1))
+      else setIdx(i => Math.max(i - 1, 0))
+    }
+  }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -67,7 +80,13 @@ export default function PptxPreview({ slides, title, onClose }: Props) {
       </div>
 
       {/* 幻灯片舞台（16:9） */}
-      <div className="flex-1 flex items-center justify-center p-6 overflow-auto">
+      <div
+        className="flex-1 overflow-auto p-6"
+        onPointerDown={onStagePointerDown}
+        onPointerUp={onStagePointerUp}
+        style={{ touchAction: 'pan-y' }}
+      >
+        <div className="min-h-full flex items-center justify-center">
         <div
           ref={stageRef}
           className={`relative bg-white shadow-2xl rounded-sm overflow-hidden ${zoom ? 'w-[95vw] max-w-none' : 'w-full max-w-[1000px] aspect-video'}`}
@@ -106,6 +125,7 @@ export default function PptxPreview({ slides, title, onClose }: Props) {
               <p className="text-[11px] text-[#614700] leading-snug whitespace-pre-wrap">{slide.notes}</p>
             </div>
           )}
+        </div>
         </div>
       </div>
 

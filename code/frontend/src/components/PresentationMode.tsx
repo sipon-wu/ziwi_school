@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, ChevronLeft, ChevronRight, Monitor } from 'lucide-react'
 import { parseSections } from '../lib/parseSections'
 
@@ -14,6 +14,19 @@ interface Props {
 export default function PresentationMode({ content, title, subject, grade, teacherName, onClose }: Props) {
   const sections = parseSections(content).filter(s => !s.collapsed && s.body.trim())
   const [slideIdx, setSlideIdx] = useState(0)
+  const dragStart = useRef<{ x: number; y: number } | null>(null)
+  const onStagePointerDown = (e: React.PointerEvent) => { dragStart.current = { x: e.clientX, y: e.clientY } }
+  const onStagePointerUp = (e: React.PointerEvent) => {
+    const s = dragStart.current
+    dragStart.current = null
+    if (!s) return
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) setSlideIdx(i => Math.min(i + 1, sections.length - 1))
+      else setSlideIdx(i => Math.max(i - 1, 0))
+    }
+  }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -55,16 +68,23 @@ export default function PresentationMode({ content, title, subject, grade, teach
       </div>
 
       {/* 幻灯片内容 */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-12 min-h-[60vh] flex flex-col">
-          <div className="mb-8 border-l-4 border-brand pl-4">
+      <div
+        className="flex-1 overflow-auto p-8"
+        onPointerDown={onStagePointerDown}
+        onPointerUp={onStagePointerUp}
+        style={{ touchAction: 'pan-y' }}
+      >
+        <div className="min-h-full flex items-center justify-center">
+        <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-12 my-auto flex flex-col max-h-[calc(100vh-8rem)]">
+          <div className="mb-8 border-l-4 border-brand pl-4 shrink-0">
             <h1 className="text-3xl font-bold text-gray-900">{slide.title}</h1>
             {slideIdx === 0 && <p className="text-base text-gray-500 mt-2">{title}</p>}
             {teacherName && <p className="text-sm text-gray-400 mt-1">{teacherName} · {subject}{grade}</p>}
           </div>
-          <div className="flex-1 text-xl leading-relaxed text-gray-800 whitespace-pre-wrap">
+          <div className="flex-1 text-xl leading-relaxed text-gray-800 whitespace-pre-wrap overflow-auto">
             {slide.body}
           </div>
+        </div>
         </div>
       </div>
 
