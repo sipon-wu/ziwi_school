@@ -57,12 +57,21 @@ const FormulaNode = Node.create({
   },
   addCommands() {
     return {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'inline' }) => ({ commands }) => {
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'inline' }) => ({ commands }: any) => {
         return commands.insertContent({ type: this.name, attrs })
       },
-    }
+    } as any
   },
 })
+
+// 扩展 TipTap 命令类型，使 editor.commands.insertFormula 合法
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    formulaContainer: {
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'inline' }) => ReturnType
+    }
+  }
+}
 
 /* ──────── 工具栏按钮 ──────── */
 function Tb({ active, onClick, children, title }: { active?: boolean; onClick: () => void; children: JSX.Element | string; title: string }) {

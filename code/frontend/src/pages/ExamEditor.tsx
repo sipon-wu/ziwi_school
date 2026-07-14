@@ -27,6 +27,8 @@ export default function ExamEditor() {
   const [editTitle, setEditTitle] = useState(exam?.title || '')
   const [saving, setSaving] = useState(false)
   const [showTemplate, setShowTemplate] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewData, setPreviewData] = useState<{ questions: any[]; meta: any } | null>(null)
 
   if (!exam) {
     return (

@@ -9,9 +9,11 @@ interface Props {
   right?: ReactNode
   /** 顶部中央的 Tab/工具 */
   topCenter?: ReactNode
+  /** 副标题（保留兼容，部分调用方还在用） */
+  subtitle?: string
 }
 
-export default function EditorLayout({ left, right, topCenter }: Props) {
+export default function EditorLayout({ left, right, topCenter, subtitle }: Props) {
   return (
     <div className="flex flex-col h-screen bg-[#F6F7F8]">
       {/* Header — logo 左边距与 AppLayout 侧边栏一致: pl-3 (12px) */}
