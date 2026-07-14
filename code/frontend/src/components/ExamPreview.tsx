@@ -8,6 +8,8 @@
 import { useState, useMemo } from 'react'
 import { X, ChevronLeft, ChevronRight, Eye, EyeOff, Printer, Download } from 'lucide-react'
 import { QUESTION_TYPE_LABELS } from '../lib/TeachingContext'
+import FormulaRender, { renderFormulaText } from './FormulaRender'
+import 'katex/dist/katex.min.css'
 
 /* ──────── 类型 ──────── */
 export interface ExamQuestion {
@@ -115,14 +117,14 @@ function QuestionItem({ q, index, showAnswer }: {
       </div>
 
       {/* 题干 */}
-      <div className="text-[13px] leading-relaxed text-[#353535]">{q.stem}</div>
+      <div className="text-[13px] leading-relaxed text-[#353535]">{renderFormulaText(q.stem)}</div>
 
       {/* 选项 */}
       {options.length > 0 && (
         <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5">
           {options.map((opt, i) => (
             <span key={i} className="text-[12px] text-[#353535]">
-              {String.fromCharCode(65 + i)}. {opt}
+              {String.fromCharCode(65 + i)}. {renderFormulaText(opt)}
             </span>
           ))}
         </div>
@@ -137,7 +139,7 @@ function QuestionItem({ q, index, showAnswer }: {
       {showAnswer && q.answer && (
         <div className="mt-1.5">
           <span className="text-[11px] text-[#52C41A] bg-[#F6FFED] border border-[#B7EB8F] rounded px-1.5 py-0.5 inline-block">
-            答案: {q.answer}
+            答案: {renderFormulaText(q.answer)}
           </span>
         </div>
       )}

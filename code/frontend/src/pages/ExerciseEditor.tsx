@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Edit, Eye, Copy, Save, Check } from 'lucide-react'
+import { ArrowLeft, Edit, Eye, Copy, Save, Check, Code2 } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { api } from '../lib/api'
+import FormulaRender, { renderFormulaText } from '../components/FormulaRender'
+import 'katex/dist/katex.min.css'
 
 const TYPE_LABELS: Record<string, string> = {
   choice: '选择', fill: '填空', calculation: '计算', judge: '判断',
@@ -52,6 +54,9 @@ export default function ExerciseEditor() {
   const [editDifferentiation, setEditDifferentiation] = useState('0.3')
   const [saving, setSaving] = useState(false)
   const [showTemplate, setShowTemplate] = useState(false)
+  // 编辑模式：源码/预览切换
+  const [showRawContent, setShowRawContent] = useState(false)
+  const [showRawAnswer, setShowRawAnswer] = useState(false)
 
   // 题目加载完成后同步进编辑态
   useEffect(() => {
@@ -181,34 +186,54 @@ export default function ExerciseEditor() {
           <div className="p-5 space-y-4">
             {/* 题目内容 */}
             <div>
-              <label className="block text-[12px] font-medium text-[#353535] mb-2">题目内容</label>
-              {isEditMode ? (
-                <textarea
-                  value={editContent}
-                  onChange={e => setEditContent(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-y"
-                />
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[12px] font-medium text-[#353535]">题目内容</label>
+                {isEditMode && (
+                  <button onClick={() => setShowRawContent(!showRawContent)}
+                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border ${showRawContent ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'} hover:border-[#02A7F0]`}
+                  >
+                    <Code2 size={10} /> {showRawContent ? '预览' : '源码'}
+                  </button>
+                )}
+              </div>
+              {isEditMode && showRawContent ? (
+                <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
+                  rows={4} className="w-full px-3 py-2 text-[13px] font-mono border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-y"
+                  placeholder="题干 · 支持 $$LaTeX公式$$ 语法" />
               ) : (
-                <div className="p-3 bg-[#F6F7F8] rounded-[4px]">
-                  <p className="text-[13px] text-[#353535] leading-relaxed">{question.content}</p>
+                <div className={`p-3 rounded-[4px] text-[13px] leading-relaxed text-[#353535] min-h-[60px] ${isEditMode ? 'border border-[#E7E7EB] bg-[#FAFBFC]' : 'bg-[#F6F7F8]'}`}>
+                  {isEditMode ? (
+                    <FormulaRender text={editContent} editable onChange={setEditContent} />
+                  ) : (
+                    renderFormulaText(question.content || '')
+                  )}
                 </div>
               )}
             </div>
 
             {/* 答案 */}
             <div>
-              <label className="block text-[12px] font-medium text-[#353535] mb-2">参考答案</label>
-              {isEditMode ? (
-                <input
-                  type="text"
-                  value={editAnswer}
-                  onChange={e => setEditAnswer(e.target.value)}
-                  className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]"
-                />
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[12px] font-medium text-[#353535]">参考答案</label>
+                {isEditMode && (
+                  <button onClick={() => setShowRawAnswer(!showRawAnswer)}
+                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border ${showRawAnswer ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'} hover:border-[#02A7F0]`}
+                  >
+                    <Code2 size={10} /> {showRawAnswer ? '预览' : '源码'}
+                  </button>
+                )}
+              </div>
+              {isEditMode && showRawAnswer ? (
+                <textarea value={editAnswer} onChange={e => setEditAnswer(e.target.value)}
+                  rows={2} className="w-full px-3 py-2 text-[13px] font-mono border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-y"
+                  placeholder="答案 · 支持 $$LaTeX公式$$ 语法" />
               ) : (
-                <div className="p-3 bg-[#F6F7F8] rounded-[4px]">
-                  <p className="text-[13px] text-[#353535]">{question.answer}</p>
+                <div className={`p-3 rounded-[4px] text-[13px] leading-relaxed text-[#353535] min-h-[36px] ${isEditMode ? 'border border-[#E7E7EB] bg-[#FAFBFC]' : 'bg-[#F6F7F8]'}`}>
+                  {isEditMode ? (
+                    <FormulaRender text={editAnswer} editable onChange={setEditAnswer} />
+                  ) : (
+                    renderFormulaText(question.answer || '')
+                  )}
                 </div>
               )}
             </div>
