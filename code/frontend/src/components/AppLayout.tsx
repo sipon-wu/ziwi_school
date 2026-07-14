@@ -244,7 +244,7 @@ export default function AppLayout({ children }: Props) {
         </header>
 
         {/* Content */}
-        <main className="p-4 flex-1 min-h-0 overflow-hidden">
+        <main className="p-4 flex-1 min-h-0 overflow-y-auto">
           {children}
         </main>
 

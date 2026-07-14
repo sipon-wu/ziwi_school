@@ -44,7 +44,8 @@ func (h *AnalyticsHandler) GetTeacherDashboard(c *gin.Context) {
 		return
 	}
 
-	recent, err := h.dashboardRepo.GetRecentLessonPlans(teacherIDStr, subject, grade, 5)
+	// 近期草稿展示教师全部最近教案（不按学科/年级过滤），与「教案草稿箱」保持一致
+	recent, err := h.dashboardRepo.GetRecentLessonPlans(teacherIDStr, "", "", 5)
 	if err != nil {
 		log.Printf("[analytics] GetRecentLessonPlans failed for %s: %v", teacherIDStr, err)
 		recent = []repository.RecentLessonPlan{}

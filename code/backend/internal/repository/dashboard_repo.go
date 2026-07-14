@@ -122,12 +122,13 @@ func (r *DashboardRepository) GetTeacherStats(teacherID string, days int, classI
 	return stats, nil
 }
 
-// GetRecentLessonPlans 获取最近教案列表（按学科+年级过滤）
+// GetRecentLessonPlans 获取最近教案列表（排除已归档，与「教案草稿箱」一致；不按学科/年级过滤）
 func (r *DashboardRepository) GetRecentLessonPlans(teacherID, subject, grade string, limit int) ([]RecentLessonPlan, error) {
 	var plans []RecentLessonPlan
 	q := r.db.Table("lesson_plans").
 		Select("id, COALESCE(title, '') as title, subject, grade, status, updated_at").
-		Where("teacher_id = ?", teacherID)
+		Where("teacher_id = ?", teacherID).
+		Where("status != ?", "archived")
 	if subject != "" {
 		q = q.Where("subject = ?", subject)
 	}

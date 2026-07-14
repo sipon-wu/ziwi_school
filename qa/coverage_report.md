@@ -170,3 +170,36 @@
 ### 状态说明
 - 仅落预发布，生产未部署。六份拟真课件为真实产出、保留在预发布素材库，可供后续人工验收。
 - 如需更多学科/课题覆盖，重复运行 `node qa/e2e_realistic_courseware.cjs` 即按当前账号分配学科生成新一批拟真课件（数据持续累积保留）；账号教务侧增配学科后重跑自动覆盖新学科。
+
+## 十、2026-07-14 首页「近期草稿」与草稿箱不一致 + 首页 main 无法下拉（真实浏览器修复）
+
+账号：13800000002（u-teacher，分配学科 语文+数学）。真实浏览器复现并定位两处 UI 缺陷：
+
+### 缺陷 1：首页「近期草稿」≠ 教案草稿箱
+现象：首页右侧"近期草稿"表显示 5 条（含物理等多学科），而「教案草稿箱」(`/lesson-plans`) 仅 1 条（语文）——同一账号两边数量/学科对不上。
+根因（真机 + 源码双证）：后端 `GetRecentLessonPlans`（`internal/repository/dashboard_repo.go`）仅按 `teacher_id` 过滤、**未排除 `archived`**；此前覆盖率测试把 302 条污染教案全量 `archived`，它们仍被 `recent` 读出并显示成"草稿"，而草稿箱 `ListByTeacher` 正确过滤 `status != 'archived'`。即首页读了归档垃圾、草稿箱没读 → 不一致。
+修复：
+- `dashboard_repo.go` `GetRecentLessonPlans` 加 `Where("status != ?", "archived")`——排除已归档，与草稿箱语义一致；
+- `analytics_handler.go` `GetTeacherDashboard` 调 `GetRecentLessonPlans` 时 subject/grade 传空——近期草稿展示教师**全部**最近教案，不再按当前学科裁剪（呼应"工作台最近教案不再区分区块"拍板）。
+
+### 缺陷 2：首页右侧 main 无法下拉
+现象：首页内容超长时整页无法滚动，底部"近期草稿"表被裁切看不到。
+根因：`AppLayout.tsx` 的 `<main>` 为 `overflow-hidden`（内容超出视口即裁切、不可滚动）。
+修复：`<main>` 改 `overflow-y-auto`，内容超长时主区域纵向滚动。
+
+### 真实浏览器验收结果（预发布，PASS，0 页面错误）
+脚本：`qa/verify_dashboard_fix.cjs`（Playwright 真机 + 真实 token 13800000002）
+
+| 验证项 | 结果 | 证据 |
+| --- | --- | --- |
+| main 可滚动 | PASS | `scrollHeight 656 > clientHeight 552`，`scrolled=true` |
+| 近期草稿 = 草稿箱 | PASS | `recent_ids == draft_ids == ['lp_307df7f32207']`，`recent_n=1 / draft_n=1`，`ALL_IN_DRAFTBOX=true` |
+| 近期草稿不再含 archived | PASS | 带/不带 `subject=语文` 的 `recent` 完全一致，且均为未归档教案 |
+| 页面错误 | PASS | `pageErrors=[]`（无 pageerror / console error） |
+
+### 验证脚本（留在 qa/）
+- `qa/verify_dashboard_fix.cjs`：main 滚动 + 近期草稿/草稿箱一致性 真机验收
+
+### 状态说明
+- 改动已落预发布（`deploy.sh staging`，后端重新编译 + 前端重新构建）。生产未部署。
+- 注：该账号当前有效（未归档）教案仅 1 条，故首页与草稿箱均显示 1 条，数量一致即"一致性"达成；若需首页更丰富，属账号真实数据量问题，非缺陷。
