@@ -93,3 +93,42 @@
 ### 状态说明
 - 全部改动仅落预发布（`deploy.sh staging`），生产环境未触碰。
 - 待用户次日验收预发布后，再决定是否执行 `deploy.sh prod`。
+
+## 八、2026-07-14 教案编辑器双模式 + 草稿箱修复（真实浏览器端到端验收）
+
+需求：①编辑器分「AI 模式」（元数据+知识图谱+AI）与「文档模式」（腾讯文档式自由排版，@uiw/react-md-editor 直接存 markdown，复用现有 content 字段）；②预览=腾讯文档只读+「编辑」浮层（选回 AI / 文档模式）；③预览用浏览器原生打印（消除「word 翻页怪」）；④验收不通过的根因之一——首页草稿可见但草稿箱空（个人资产混乱）。
+
+### 本轮修复清单
+
+1. ~~草稿箱空（首页有草稿、草稿箱空）~~ **已修复（真实浏览器 PASS）**：`LessonPlanList` 原按全局 TeachingContext 的 学科/年级 硬过滤 `plans`，用户自己的异学科/年级草稿被隐藏 → 表现为「首页有草稿、草稿箱空」。改：去掉硬过滤，改为可选 学科/年级 下拉筛选（默认不过滤、展示全部）。后端 `ListByTeacher` 软删除（`status != 'archived'`）本就正确。同时清理了此前覆盖率测试遗留的 302 条污染教案（全量 archived），账号资产已干净。
+
+2. ~~文档模式不渲染（SPA 导航坑）~~ **已修复（真实浏览器 PASS）**：初版用 `window.location.search` 初始化 `editMode`，SPA 导航（预览→浮层→文档模式）时首帧 `window.location.search` 滞后 → 误判为 AI 模式，文档分支不渲染；改用 `useSearchParams` 并加 `useEffect` 跟随 `searchParams` 变化再同步一次。更深一层根因：预览页「编辑」浮层的「文档模式」按钮原写为 `setShowEditChooser(false); navigate(...)`，React 将两次状态更新批量处理，导致 `navigate` 路由切换被吞掉——URL 变成 `/edit?mode=doc` 但页面仍停留在预览页（LessonPlanView）。改为浮层按钮只调用 `navigate(...)`（路由切换即卸载预览页、自然关闭浮层），路由正确切换。
+
+3. ~~预览翻页怪~~ **已修复**：`LessonPlanView` 预览改为浏览器原生打印（`window.open` + 内联 CSS + `w.print()`），替代旧的分页预览组件；「编辑」按钮唤起编辑模式选择浮层（AI / 文档模式）。
+
+4. ~~AI 润色覆盖确认~~ **已实现**：编辑已有且正文非空时点「AI 润色教案」弹确认（可「本次不再提示」写入 sessionStorage），避免无感覆盖。
+
+### 真实浏览器验收结果（预发布，2026-07-14）
+
+脚本：`qa/browser_e2e_dualmode.cjs`（Playwright 真机 + 真实 token，全链路）
+
+| 流程 | 结果 | 关键指标 |
+| --- | --- | --- |
+| 草稿箱修复-异学科草稿可见 | PASS | 物理/七年级 草稿在草稿箱可见（count=1） |
+| 编辑器-模式切换可见 | PASS | 「文档模式」切换按钮渲染 |
+| 文档模式-MDEditor 渲染 | PASS | `.w-md-editor` 出现（editors=1） |
+| 文档模式-保存落库 | PASS | 文档模式正文存库（count=1） |
+| 预览-编辑选择浮层出现 | PASS | 「选择编辑模式」浮层 |
+| 浮层-选文档模式进入编辑器 | PASS | `url=.../edit?mode=doc` 且 MDEditor 渲染（md=1） |
+| 页面错误数 | PASS | **0**（无 pageerror / console error） |
+
+补充验证：`qa/_diag_poll.cjs` 确认预览浮层进入文档模式后输入可保存落库（读回 content 含「文档模式验收」）；`qa/_diag_docmode.cjs` 确认新建/已有计划直接 `?mode=doc` 打开文档模式均正常。
+
+### 验证脚本（回归用例，留在 qa/）
+- `qa/browser_e2e_dualmode.cjs`：双模式 + 草稿箱 全链路真机验收（7 步全绿）
+- `qa/_diag_chooser.cjs` / `_diag_chooser2.cjs` / `_diag_chooserdom.cjs`：编辑浮层路径专项诊断
+- `qa/_diag_docmode.cjs` / `_diag_poll.cjs` / `_diag_dom.cjs` / `_diag_nav.cjs`：文档模式渲染/保存专项诊断
+
+### 状态说明
+- 全部改动仅落预发布（`deploy.sh staging`），生产环境未触碰。
+- 验收仍不通过（用户原话），本次已修复草稿箱空 + 预览怪 + 文档模式不渲染三处根因，待用户在预发布验收通过后，再决定是否执行 `deploy.sh prod`。

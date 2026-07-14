@@ -13,6 +13,7 @@
   "dependencies": {
     "@antv/g6": "^5.1.1",
     "@tailwindcss/vite": "^4.3.2",
+    "@uiw/react-md-editor": "^4.1.1",
     "docx": "^9.7.1",
     "lucide-react": "^1.23.0",
     "pptxgenjs": "^4.0.1",

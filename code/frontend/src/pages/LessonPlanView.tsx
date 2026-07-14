@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Download, Printer } from 'lucide-react'
 import { lessonPlanAPI, materialAPI } from '../lib/api'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
-import { printLessonPlan } from '../lib/printPdf'
 import PresentationMode from '../components/PresentationMode'
 import LessonPlanContent from '../components/LessonPlanContent'
 
@@ -19,6 +18,8 @@ export default function LessonPlanView() {
   const [materialRefs, setMaterialRefs] = useState<string[]>([])
   const [materialMap, setMaterialMap] = useState<Record<string, any>>({})
   const [playCourseware, setPlayCourseware] = useState<{ content: string; title: string } | null>(null)
+  const printRef = useRef<HTMLDivElement>(null)
+  const [showEditChooser, setShowEditChooser] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -91,10 +92,13 @@ export default function LessonPlanView() {
 
   const handlePrint = () => {
     if (!content) { toast('教案内容为空', 'warning'); return }
-    printLessonPlan(content, {
-      subject: plan.subject, grade: plan.grade, title,
-      textbookUnit: plan.unit || undefined, teacherName: safeName,
-    })
+    const html = printRef.current?.innerHTML || ''
+    const w = window.open('', '_blank')
+    if (!w) { toast('请允许弹出窗口以使用打印', 'warning'); return }
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;max-width:820px;margin:24px auto;padding:0 24px;color:#353535;line-height:1.85;font-size:15px;}h1,h2,h3{color:#1f1f1f;}ul,ol{padding-left:1.4em;}pre{background:#f6f7f8;padding:10px;border-radius:4px;overflow:auto;}blockquote{border-left:3px solid #02A7F0;margin:0;padding-left:12px;color:#666;}table{border-collapse:collapse;}td,th{border:1px solid #e7e7eb;padding:6px 10px;}</style></head><body><h1>' + title + '</h1><p style="color:#9a9a9a;font-size:13px;">' + (plan.subject || '') + ' · ' + (plan.grade || '') + ' · ' + (plan.unit || '') + '</p>' + html + '</body></html>')
+    w.document.close()
+    w.focus()
+    setTimeout(() => { w.print() }, 350)
   }
 
   return (
@@ -113,7 +117,7 @@ export default function LessonPlanView() {
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex px-2 py-0.5 rounded-[3px] text-[11px] font-medium ${statusColor}`}>{statusLabel}</span>
-            <button onClick={() => navigate(`/lesson-plans/${id}/edit`)} className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">编辑</button>
+            <button onClick={() => setShowEditChooser(true)} className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">编辑</button>
             <button onClick={handleExportDocx} disabled={exporting} className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8] disabled:opacity-50">
               <Download size={13} />{exporting ? '导出中...' : '导出'}
             </button>
@@ -129,7 +133,7 @@ export default function LessonPlanView() {
             <BookOpen size={15} className="text-[#02A7F0]" />
             <span className="text-[13px] font-semibold text-[#353535]">{title}</span>
           </div>
-          <div className="px-6 py-5">
+          <div className="px-6 py-5" ref={printRef}>
             <LessonPlanContent content={content} />
           </div>
           <div className="px-6 py-3 border-t border-[#F0F0F0] text-[10px] text-[#9A9A9A] flex justify-between">
@@ -180,6 +184,29 @@ export default function LessonPlanView() {
           teacherName={safeName}
           onClose={() => setPlayCourseware(null)}
         />
+      )}
+
+      {/* 编辑模式选择浮层 */}
+      {showEditChooser && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-6" onClick={() => setShowEditChooser(false)}>
+          <div className="bg-white rounded-[6px] w-[420px] max-w-full p-5" onClick={e => e.stopPropagation()}>
+            <h3 className="text-[15px] font-semibold text-[#353535] mb-1">选择编辑模式</h3>
+            <p className="text-[12px] text-[#9A9A9A] mb-4">当前教案将以哪种方式继续编辑？</p>
+            <div className="space-y-2">
+              <button onClick={() => navigate(`/lesson-plans/${id}/edit`)}
+                className="w-full px-4 py-3 text-left text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0]">
+                <div className="font-medium">AI 模式</div>
+                <div className="text-[11px] text-[#9A9A9A] mt-0.5">元数据 + 知识图谱 + AI 生成 / 润色</div>
+              </button>
+              <button onClick={() => navigate(`/lesson-plans/${id}/edit?mode=doc`)}
+                className="w-full px-4 py-3 text-left text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0]">
+                <div className="font-medium">文档模式</div>
+                <div className="text-[11px] text-[#9A9A9A] mt-0.5">腾讯文档式自由排版（打字 / 换行 / 格式）</div>
+              </button>
+            </div>
+            <button onClick={() => setShowEditChooser(false)} className="mt-4 w-full px-4 py-2 text-[12px] text-[#9A9A9A] hover:text-[#353535]">取消</button>
+          </div>
+        </div>
       )}
     </AppLayout>
   )

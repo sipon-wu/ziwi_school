@@ -1,10 +1,9 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { useTeaching } from '../lib/TeachingContext'
 import { api, lessonPlanAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
@@ -39,7 +38,6 @@ const subjectColors: Record<string, string> = {
 const GRADE_MAP: Record<number, string> = { 1:'一年级',2:'二年级',3:'三年级',4:'四年级',5:'五年级',6:'六年级',7:'七年级',8:'八年级',9:'九年级' }
 
 export default function LessonPlanList() {
-  const teaching = useTeaching()
   const navigate = useNavigate()
   const [plans, setPlans] = useState<LessonPlan[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -57,18 +55,20 @@ export default function LessonPlanList() {
   }, [])
   const [filterStatus, setFilterStatus] = useState('')
   const [filterYear, setFilterYear] = useState('')
+  const [filterSubject, setFilterSubject] = useState('')
+  const [filterGrade, setFilterGrade] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  // 按当前教学上下文过滤
-  const classFiltered = useMemo(() => {
-    const gradeStr = GRADE_MAP[teaching.grade] || ''
-    return plans.filter(p => p.subject === teaching.subject && p.grade === gradeStr)
-  }, [plans, teaching.subject, teaching.grade])
+  // 草稿箱展示教师本人的全部教案；学科/年级仅作可选筛选（默认全部），不再按全局教学上下文硬藏
+  const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+  const GRADES = Object.values(GRADE_MAP)
 
-  const filtered = classFiltered.filter(p => {
+  const filtered = plans.filter(p => {
     if (searchTerm && !p.lesson_title.includes(searchTerm)) return false
     if (filterStatus && p.status !== filterStatus) return false
     if (filterYear && p.school_year !== filterYear) return false
+    if (filterSubject && p.subject !== filterSubject) return false
+    if (filterGrade && p.grade !== filterGrade) return false
     return true
   })
 
@@ -120,6 +120,16 @@ export default function LessonPlanList() {
             <option value="">全部学年</option>
             <option value="2025-2026">2025-2026</option>
             <option value="2026-2027">2026-2027</option>
+          </select>
+          <select value={filterSubject} onChange={e => { setFilterSubject(e.target.value); goTo(1) }}
+            className="px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0] text-[#353535]">
+            <option value="">全部学科</option>
+            {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filterGrade} onChange={e => { setFilterGrade(e.target.value); goTo(1) }}
+            className="px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0] text-[#353535]">
+            <option value="">全部年级</option>
+            {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
         </div>
 

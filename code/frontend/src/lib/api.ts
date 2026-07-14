@@ -347,7 +347,7 @@ export const questionBankAPI = {
    * 前端传的是 {questions:[...]} 数组，故此处逐题 POST 并聚合返回 {question_ids, count}。
    */
   save: async (data: {
-    questions: { type: string; content: string; difficulty?: string; options?: string; answer?: string; answer_detail?: string; knowledge_points?: string[] }[]
+    questions: { type: string; content: string; difficulty?: string; options?: string; answer?: string; answer_detail?: string; knowledge_points?: string[]; stem?: string; question?: string }[]
     subject: string; grade: string; semester?: string; textbook_version?: string; chapter_unit?: string
     source?: string; source_prompt?: string
   }) => {

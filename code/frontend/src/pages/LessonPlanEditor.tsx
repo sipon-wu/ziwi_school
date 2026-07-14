@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut } from 'lucide-react'
 import { aiAPI, lessonPlanAPI, materialAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -18,6 +18,7 @@ import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
 import ResourcePicker from '../components/ResourcePicker'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
+import MDEditor from '@uiw/react-md-editor'
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 
 // 从 JWT 解码 school_id（与后端写入素材库的 school_id 一致，避免 user 对象里的 school_id 与素材库不匹配）
@@ -33,6 +34,7 @@ export default function LessonPlanEditor() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const isEditing = Boolean(id)
   const teaching = useTeaching()
 
@@ -84,6 +86,23 @@ export default function LessonPlanEditor() {
   const [generatingCourseware, setGeneratingCourseware] = useState(false)
   const [coursewareSimilar, setCoursewareSimilar] = useState<any>(null)
   const [savingCourseware, setSavingCourseware] = useState(false)
+
+  // 编辑模式切换：AI 模式（元数据+知识图谱+AI） / 文档模式（腾讯文档式自由排版）
+  // 编辑模式：优先以 URL ?mode=doc 进入文档模式；SPA 导航时首帧 searchParams 可能滞后，
+  // 故用 effect 跟随 searchParams 变化再同步一次，避免首帧误判为 AI 模式。
+  const [editMode, setEditMode] = useState<'ai' | 'doc'>(
+    () => (searchParams.get('mode') === 'doc' ? 'doc' : 'ai')
+  )
+  useEffect(() => {
+    setEditMode(searchParams.get('mode') === 'doc' ? 'doc' : 'ai')
+  }, [searchParams])
+  // AI 润色覆盖确认（仅编辑已有且正文非空时提示，会话内可“不再提示”）
+  const [showAiConfirm, setShowAiConfirm] = useState(false)
+  const handleAiClick = () => {
+    if (!isEditing || !content) { handleGenerate(); return }
+    if (sessionStorage.getItem('lp_skip_ai_confirm') === '1') { handleGenerate(); return }
+    setShowAiConfirm(true)
+  }
 
   // 拉取素材库，建立 id -> 素材 映射（用于展示已挂载课件名称）
   const loadMaterialsMap = async () => {
@@ -370,6 +389,17 @@ export default function LessonPlanEditor() {
     <EditorLayout
       left={
         <div className="flex flex-col h-full">
+          {/* 编辑模式切换 */}
+          <div className="px-5 py-3 border-b border-[#F0F0F0] flex items-center gap-3">
+            <span className="text-[12px] text-[#9A9A9A]">编辑模式</span>
+            <div className="inline-flex rounded-[4px] border border-[#E7E7EB] overflow-hidden">
+              <button onClick={() => setEditMode('ai')}
+                className={`px-3 py-1.5 text-[12px] ${editMode === 'ai' ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#353535] hover:bg-[#F6F7F8]'}`}>AI 模式</button>
+              <button onClick={() => setEditMode('doc')}
+                className={`px-3 py-1.5 text-[12px] border-l border-[#E7E7EB] ${editMode === 'doc' ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#353535] hover:bg-[#F6F7F8]'}`}>文档模式</button>
+            </div>
+            <span className="text-[11px] text-[#9A9A9A]">AI 模式=智能生成 · 文档模式=自由排版</span>
+          </div>
           {/* Scrollable form area */}
           <div className="flex-1 overflow-y-auto">
             {/* 基本信息 */}
@@ -428,6 +458,7 @@ export default function LessonPlanEditor() {
               </div>
             </div>
 
+            {editMode === 'ai' && (<>
             {/* 教案模板 */}
             <div className="px-5 py-3">
               <label className="block text-[12px] text-[#9A9A9A] mb-1.5">教案模板</label>
@@ -543,14 +574,35 @@ export default function LessonPlanEditor() {
               </button>
             </div>
 
+            {showAiConfirm && (
+              <div className="px-5 py-3 bg-[#FFFBE6] border border-[#FFE58F] rounded-[4px] mx-3">
+                <p className="text-[12px] text-[#8A6D00] mb-2">当前正文含文档模式或此前的手动编辑，AI 润色将基于现有内容重写并覆盖。确定继续？</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { if ((document.getElementById('lp-skip') as HTMLInputElement)?.checked) sessionStorage.setItem('lp_skip_ai_confirm', '1'); setShowAiConfirm(false); handleGenerate() }}
+                    className="px-3 py-1.5 text-[12px] text-white bg-[#FAAD14] rounded-[4px] hover:bg-[#D48806]">覆盖并重写</button>
+                  <button onClick={() => setShowAiConfirm(false)} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0]">取消</button>
+                  <label className="flex items-center gap-1 text-[11px] text-[#9A9A9A] ml-1">
+                    <input id="lp-skip" type="checkbox" /> 本次不再提示
+                  </label>
+                </div>
+              </div>
+            )}
             {/* AI 生成教案（接线 handleGenerate，修复此前空壳按钮导致无法 AI 生成） */}
             <div className="px-5 py-3">
-              <button onClick={handleGenerate} disabled={generating || picker.selectedIds.length === 0}
+              <button onClick={handleAiClick} disabled={generating || picker.selectedIds.length === 0}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50">
                 <Sparkles size={20} className="text-[#02A7F0] shrink-0" />
-                <span className="text-[13px]">{generating ? '小微正在生成教案...' : (picker.selectedIds.length === 0 ? '请先在知识图谱选取知识点' : 'AI 生成教案')}</span>
+                <span className="text-[13px]">{generating ? '小微正在生成教案...' : (picker.selectedIds.length === 0 ? '请先在知识图谱选取知识点' : (isEditing ? 'AI 润色教案' : 'AI 生成教案'))}</span>
               </button>
             </div>
+            </>)}
+            {editMode === 'doc' && (
+              <div className="px-5 py-3">
+                <label className="block text-[13px] font-medium text-[#353535] mb-2">教案正文（文档模式 · 自由排版）</label>
+                <MDEditor value={content} onChange={(v) => setContent(v || '')} height={560} preview="live" />
+                <p className="text-[11px] text-[#9A9A9A] mt-1.5">文档模式直接编辑正文，支持加粗、标题、列表、表格；保存后预览即腾讯文档式只读呈现。</p>
+              </div>
+            )}
           </div>
 
           {/* Fixed Bottom Buttons */}
@@ -567,14 +619,14 @@ export default function LessonPlanEditor() {
           </div>
         </div>
       }
-      right={
+      right={editMode === 'ai' ? (
         <KnowledgeGraphTool
           data={picker.knowledgeData}
           filter={{ subject, grade: gradeNum, semester: teaching.semester }}
           selectedIds={picker.selectedIds}
           onSelect={ids => picker.setSelectedIds(ids)}
         />
-      }
+      ) : undefined}
     />
 
     {/* Dialogs */}
