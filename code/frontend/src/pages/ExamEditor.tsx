@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useToast } from '../components/Toast'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Edit, Copy, Save } from 'lucide-react'
+import { ArrowLeft, Edit, Copy, Save, Eye } from 'lucide-react'
 import { api } from '../lib/api'
 import AppLayout from '../components/AppLayout'
+import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const TYPE_LABELS: Record<string, string> = {
   choice: '选择', fill: '填空', judge: '判断',
@@ -36,6 +37,23 @@ export default function ExamEditor() {
   }
 
   const isEditMode = exam.status === 'draft'
+
+  // 打开试卷预览（走真实 API 获取题目数据）
+  const openPreview = async () => {
+    try {
+      const res = await api<{ questions: string; title: string; subject: string; grade: string; total_score: number; duration_minutes: number }>(`/exams/${id}`)
+      const parsed = typeof res.questions === 'string' ? JSON.parse(res.questions || '[]') : (res.questions || [])
+      setPreviewData({
+        questions: parsed.filter((q: any) => q.stem || q.content).map((q: any) => ({
+          id: q.id || '', stem: q.stem || q.content || '', type: q.type || 'choice',
+          options: q.options || '', answer: q.answer || '', analysis: q.analysis || '',
+          difficulty: q.difficulty, score: q.score, sort: q.sort,
+        })),
+        meta: { title: editTitle || exam.title, subject: exam.subject, grade: exam.grade, totalScore: exam.total_score, durationMinutes: exam.duration },
+      })
+      setPreviewOpen(true)
+    } catch { /* ignore */ }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -79,6 +97,10 @@ export default function ExamEditor() {
             )}
             {isEditMode && (
               <>
+                <button onClick={openPreview}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] border border-[#E7E7EB] text-[#353535] rounded-[4px] hover:bg-[#F6F7F8] transition-colors">
+                  <Eye size={14} /> 预览
+                </button>
                 {/* 试卷质量评估 */}
                 <div className="mt-4 bg-[#F6FDFF] border border-[#02A7F0]/20 rounded-[4px] p-3">
                   <div className="text-[12px] font-medium text-[#353535] mb-2">试卷质量评估</div>
@@ -188,6 +210,10 @@ export default function ExamEditor() {
             </div>
           </div>
         </div>
+      )}
+
+      {previewOpen && previewData && (
+        <ExamPreview questions={previewData.questions} meta={previewData.meta} onClose={() => setPreviewOpen(false)} />
       )}
     </AppLayout>
   )

@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
 import { api } from '../lib/api'
 import AppLayout from '../components/AppLayout'
+import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 interface ExamItem {
   id: string
@@ -36,6 +37,7 @@ export default function ExamList() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [previewData, setPreviewData] = useState<{ questions: ExamQuestion[]; meta: ExamMeta } | null>(null)
 
   useEffect(() => {
     api<{ items: any[] }>('/exams').then(res => {
@@ -74,11 +76,26 @@ export default function ExamList() {
     }
   }
 
+  const handlePreview = async (e: ExamItem) => {
+    try {
+      const res = await api<{ questions: string; title: string; subject: string; grade: string; total_score: number; duration_minutes: number }>(`/exams/${e.id}`)
+      const parsed = typeof res.questions === 'string' ? JSON.parse(res.questions || '[]') : (res.questions || [])
+      setPreviewData({
+        questions: parsed.filter((q: any) => q.stem || q.content).map((q: any) => ({
+          id: q.id || '', stem: q.stem || q.content || '', type: q.type || 'choice',
+          options: q.options || '', answer: q.answer || '', analysis: q.analysis || '',
+          difficulty: q.difficulty, score: q.score, sort: q.sort,
+        })),
+        meta: { title: res.title || e.title, subject: res.subject || e.subject, grade: res.grade || e.grade, totalScore: res.total_score || e.total_score, durationMinutes: res.duration_minutes },
+      })
+    } catch { /* fallback: open editor */ window.open(`/exams/${e.id}`, '_blank') }
+  }
+
   const handleRowClick = (e: ExamItem) => {
     if (e.status === 'draft') {
       window.open(`/exams/${e.id}`, '_blank')
     } else {
-      window.open(`/exams/${e.id}?preview=1`, '_blank')
+      handlePreview(e)
     }
   }
 
@@ -174,7 +191,7 @@ export default function ExamList() {
                           <button onClick={(ev) => { ev.stopPropagation(); window.open(`/exams/${e.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
                             <Edit size={14} />
                           </button>
-                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/exams/${e.id}?preview=1`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
+                          <button onClick={(ev) => { ev.stopPropagation(); handlePreview(e) }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
                             <Eye size={14} />
                           </button>
                           <button onClick={(ev) => { ev.stopPropagation(); setDeleteTarget(e.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">
@@ -204,6 +221,10 @@ export default function ExamList() {
         )}
 
         <ConfirmDialog open={Boolean(deleteTarget)} title="确认删除" message="删除后将无法恢复，确认删除此试卷吗？" danger onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+
+        {previewData && (
+          <ExamPreview questions={previewData.questions} meta={previewData.meta} onClose={() => setPreviewData(null)} />
+        )}
       </div>
     </AppLayout>
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, X, Sparkles } from 'lucide-react'
+import { Plus, X, Sparkles, Eye } from 'lucide-react'
 import { useTeaching, getQuestionTypes } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
@@ -10,6 +10,7 @@ import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
+import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
@@ -40,6 +41,7 @@ export default function ExamBuilder() {
   // 选题状态
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   // 课标对齐（来自 AI 组卷返回的 curriculum_alignments，保存试卷时一并落库）
   const [curriculumAlign, setCurriculumAlign] = useState<any[]>([])
 
@@ -280,9 +282,9 @@ export default function ExamBuilder() {
           className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
           保存为草稿
         </button>
-        <button onClick={() => toast('预览功能开发中', 'warning')}
+        <button onClick={() => selectedQuestions.length === 0 ? toast('请先添加题目', 'warning') : setShowPreview(true)}
           className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
-          预览
+          <Eye size={14} className="inline mr-1" />预览
         </button>
         <button onClick={() => toast('发布功能开发中，请先在出题页导出发布', 'warning')}
           className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
@@ -311,6 +313,30 @@ export default function ExamBuilder() {
         onSelect={items => setSelectedQuestions(items)}
         selectedIds={selectedQuestions.map(q => q.id)}
       />
+      {showPreview && (
+        <ExamPreview
+          questions={selectedQuestions.map((q: any, i: number) => ({
+            id: q.id || `q_${i}`,
+            stem: q.stem || q.content || '',
+            type: q.type || 'choice',
+            options: typeof q.options === 'string' ? q.options : (Array.isArray(q.options) ? q.options.join('\n') : (q.options || '')),
+            answer: q.answer || '',
+            analysis: q.analysis || '',
+            difficulty: q.difficulty || 'L2',
+            score: q.score,
+            sort: q.sort || i + 1,
+          }))}
+          meta={{
+            title: examTitle || '未命名试卷',
+            subject: teaching.subject,
+            grade: gradeName,
+            totalScore: totalScore,
+            durationMinutes: examDuration,
+            teacherName: user.name || '教师',
+          }}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </>
   )
 }
