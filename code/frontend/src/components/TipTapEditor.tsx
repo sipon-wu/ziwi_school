@@ -20,9 +20,12 @@ import { TextAlign } from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { FontFamily } from '@tiptap/extension-font-family'
 import { Node, mergeAttributes } from '@tiptap/core'
-import { Maximize2, Minimize2, Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus, MessageSquare, Trash2, X } from 'lucide-react'
+import { Maximize2, Minimize2, Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus, MessageSquare, Trash2, X, FileText } from 'lucide-react'
 import { FormulaPreview } from './FormulaRender'
 import ResourcePicker from './ResourcePicker'
+import { useToast } from './Toast'
+// @ts-ignore - mammoth 浏览器版无类型
+import * as mammoth from 'mammoth/mammoth.browser'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 
@@ -93,6 +96,7 @@ interface Props {
 }
 
 export default function TipTapEditor({ value, onChange, placeholder }: Props) {
+  const { toast } = useToast()
   const [outlineVisible, setOutlineVisible] = useState(true)
   const [historyVisible, setHistoryVisible] = useState(true)
 
@@ -121,6 +125,26 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const [fontSize, setFontSize] = useState('16')
   const FONT_SIZES = ['12', '14', '16', '18', '20', '24', '28', '36']
 
+  // Word 导入
+  const wordInputRef = useRef<HTMLInputElement | null>(null)
+  const handleWordImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !editor) return
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const result = await mammoth.convertToHtml({ arrayBuffer })
+      // 把 mammoth 转换的 HTML 设置到编辑器（覆盖当前内容）
+      editor.commands.setContent(result.value || '<p></p>')
+      onChange(result.value || '')
+      toast(`已导入 ${file.name}（${file.size} 字节）`, 'success')
+    } catch (err: any) {
+      toast('Word 导入失败：' + (err.message || '未知错误'), 'error')
+    } finally {
+      e.target.value = '' // 允许重复导入同一文件
+    }
+  }
+
+  const editorRef = useRef<Editor | null>(null)
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
@@ -142,8 +166,36 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
         class: 'focus:outline-none px-6 py-4 min-h-[400px]',
         style: 'line-height: 2; font-size: 16px;',
       },
+      handlePaste: (view, event) => {
+        const clipboard = event.clipboardData
+        if (!clipboard) return false
+        // 已有 HTML 格式交给 TipTap 默认处理
+        if (clipboard.getData('text/html')) return false
+        const text = clipboard.getData('text/plain')
+        if (!text) return false
+        // 纯文本：按段落切分（双换行 = 段落分隔；单换行 = 段内换行）
+        const blocks = text.split(/\n{2,}/).map(s => s.trim()).filter(Boolean)
+        if (blocks.length === 0) return false
+        event.preventDefault()
+        const html = blocks.map(b =>
+          `<p>${b.replace(/\n/g, '<br/>').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`
+        ).join('')
+        // 通过 editor.commands.setContent 注入（更可靠的 HTML 注入）
+        const { state } = view
+        const tr = state.tr
+        view.dispatch(tr)
+        if (editorRef.current) {
+          editorRef.current.commands.setContent(html)
+        }
+        return true
+      },
     },
   }, [])
+
+  // 同步 editorRef
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
 
   // ── ProseMirror 段落 WYSIWYG 样式注入 ──
   useEffect(() => {
@@ -364,7 +416,12 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
         <div className="flex-1" />
 
-        {/* 版本快照 & 全屏 */}
+        {/* 导入 Word & 版本快照 & 全屏 */}
+        <input ref={wordInputRef} type="file" accept=".docx" className="hidden" onChange={handleWordImport} />
+        <button onClick={() => wordInputRef.current?.click()} title="导入本地 Word 文档（.docx）"
+          className="flex items-center gap-1 px-2 h-7 text-[10px] rounded hover:bg-[#F0F2F5] text-[#9A9A9A] mr-1">
+          <FileText size={11} /> 导入 Word
+        </button>
         <button onClick={() => takeSnapshot('手动快照')} title="保存版本快照"
           className="flex items-center gap-1 px-2 h-7 text-[10px] rounded hover:bg-[#F0F2F5] text-[#9A9A9A] mr-1">
           <Save size={11} /> 保存版本
