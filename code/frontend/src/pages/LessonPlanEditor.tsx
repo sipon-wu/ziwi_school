@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { aiAPI, lessonPlanAPI, materialAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
@@ -86,6 +86,8 @@ export default function LessonPlanEditor() {
   const [generatingCourseware, setGeneratingCourseware] = useState(false)
   const [coursewareSimilar, setCoursewareSimilar] = useState<any>(null)
   const [savingCourseware, setSavingCourseware] = useState(false)
+  // 富媒体编辑器全屏
+  const [showFullscreenEditor, setShowFullscreenEditor] = useState(false)
 
   // 编辑模式切换：AI 模式（元数据+知识图谱+AI） / 文档模式（腾讯文档式自由排版）
   // 编辑模式：优先以 URL ?mode=doc 进入文档模式；SPA 导航时首帧 searchParams 可能滞后，
@@ -389,17 +391,6 @@ export default function LessonPlanEditor() {
     <EditorLayout
       left={
         <div className="flex flex-col h-full">
-          {/* 编辑模式切换 */}
-          <div className="px-5 py-3 border-b border-[#F0F0F0] flex items-center gap-3">
-            <span className="text-[12px] text-[#9A9A9A]">编辑模式</span>
-            <div className="inline-flex rounded-[4px] border border-[#E7E7EB] overflow-hidden">
-              <button onClick={() => setEditMode('ai')}
-                className={`px-3 py-1.5 text-[12px] ${editMode === 'ai' ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#353535] hover:bg-[#F6F7F8]'}`}>AI 模式</button>
-              <button onClick={() => setEditMode('doc')}
-                className={`px-3 py-1.5 text-[12px] border-l border-[#E7E7EB] ${editMode === 'doc' ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#353535] hover:bg-[#F6F7F8]'}`}>文档模式</button>
-            </div>
-            <span className="text-[11px] text-[#9A9A9A]">AI 模式=智能生成 · 文档模式=自由排版</span>
-          </div>
           {/* Scrollable form area */}
           <div className="flex-1 overflow-y-auto">
             {/* 基本信息 */}
@@ -596,13 +587,6 @@ export default function LessonPlanEditor() {
               </button>
             </div>
             </>)}
-            {editMode === 'doc' && (
-              <div className="px-5 py-3">
-                <label className="block text-[13px] font-medium text-[#353535] mb-2">教案正文（文档模式 · 自由排版）</label>
-                <MDEditor value={content} onChange={(v) => setContent(v || '')} height={560} preview="live" />
-                <p className="text-[11px] text-[#9A9A9A] mt-1.5">文档模式直接编辑正文，支持加粗、标题、列表、表格；保存后预览即腾讯文档式只读呈现。</p>
-              </div>
-            )}
           </div>
 
           {/* Fixed Bottom Buttons */}
@@ -620,14 +604,64 @@ export default function LessonPlanEditor() {
         </div>
       }
       right={
-        <KnowledgeGraphTool
-          data={picker.knowledgeData}
-          filter={{ subject, grade: gradeNum, semester: teaching.semester }}
-          selectedIds={picker.selectedIds}
-          onSelect={ids => picker.setSelectedIds(ids)}
-        />
+        editMode === 'doc' ? (
+          <div className="h-full flex flex-col">
+            <div className="px-4 py-2 border-b border-[#F0F0F0] flex items-center justify-between shrink-0 bg-[#FAFBFC]">
+              <span className="text-[12px] text-[#9A9A9A]">教案正文 · 自由排版（支持 Markdown / 表格 / 列表 / 公式）</span>
+              <button onClick={() => setShowFullscreenEditor(true)}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] transition-colors"
+                title="全屏编辑（A4 纸面，文档模式）"
+              >
+                <Maximize2 size={12} /> 全屏
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <MDEditor value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live" />
+            </div>
+          </div>
+        ) : (
+          <KnowledgeGraphTool
+            data={picker.knowledgeData}
+            filter={{ subject, grade: gradeNum, semester: teaching.semester }}
+            selectedIds={picker.selectedIds}
+            onSelect={ids => picker.setSelectedIds(ids)}
+          />
+        )
+      }
+      topCenter={
+        <div className="inline-flex rounded-[4px] border border-white/20 overflow-hidden bg-white/10">
+          <button onClick={() => setEditMode('ai')}
+            className={`px-4 py-1.5 text-[12px] ${editMode === 'ai' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>AI 模式</button>
+          <button onClick={() => setEditMode('doc')}
+            className={`px-4 py-1.5 text-[12px] border-l border-white/20 ${editMode === 'doc' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>文档模式</button>
+        </div>
       }
     />
+
+    {/* 富媒体编辑器全屏（A4 纸面，文档模式专属） */}
+    {showFullscreenEditor && (
+      <div className="fixed inset-0 z-[80] bg-white flex flex-col" onClick={(e) => { if (e.target === e.currentTarget) setShowFullscreenEditor(false) }}>
+        <div className="h-12 bg-[#212529] flex items-center px-5 shrink-0 text-white">
+          <span className="text-[13px] font-medium">教案正文 · 全屏编辑（文档模式 · A4 纸面）</span>
+          <span className="ml-4 text-[11px] text-white/50">{lessonTitle || '未命名教案'}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setShowFullscreenEditor(false)}
+              className="flex items-center gap-1 px-3 py-1 text-[12px] bg-white/10 hover:bg-white/20 rounded transition-colors"
+            >
+              <Minimize2 size={12} /> 退出全屏
+            </button>
+            <button onClick={() => setShowFullscreenEditor(false)}
+              className="px-3 py-1 text-[12px] bg-[#02A7F0] hover:bg-[#0288D1] rounded"
+            >
+              完成
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <MDEditor value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live" />
+        </div>
+      </div>
+    )}
 
     {/* Dialogs */}
       {/* 定稿确认弹窗 */}
