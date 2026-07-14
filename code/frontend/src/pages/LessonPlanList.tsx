@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { usePagination } from '../lib/useApi'
@@ -6,6 +6,7 @@ import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { api, lessonPlanAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
+import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 
 interface LessonPlan {
   id: string
@@ -39,6 +40,7 @@ const GRADE_MAP: Record<number, string> = { 1:'一年级',2:'二年级',3:'三�
 
 export default function LessonPlanList() {
   const navigate = useNavigate()
+  const teaching = useTeaching()
   const [plans, setPlans] = useState<LessonPlan[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [_loading, setLoading] = useState(true)
@@ -55,8 +57,9 @@ export default function LessonPlanList() {
   }, [])
   const [filterStatus, setFilterStatus] = useState('')
   const [filterYear, setFilterYear] = useState('')
-  const [filterSubject, setFilterSubject] = useState('')
-  const [filterGrade, setFilterGrade] = useState('')
+  // 默认按 TeachingContext 当前学科/年级过滤（知识边界），用户可手动切换查看其他学科
+  const [filterSubject, setFilterSubject] = useState(teaching.subject)
+  const [filterGrade, setFilterGrade] = useState(GRADE_NAMES[teaching.grade - 1] || '')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   // 草稿箱展示教师本人的全部教案；学科/年级仅作可选筛选（默认全部），不再按全局教学上下文硬藏
