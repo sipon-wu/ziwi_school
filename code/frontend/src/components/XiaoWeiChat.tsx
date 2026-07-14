@@ -93,7 +93,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 获取上下文
+  // 获取上下文（知识边界跟随 TeachingContext，切换学科/年级后重新对齐课标锚点）
   const getContext = () => {
     try {
       const raw = localStorage.getItem('zhiwei_user') || localStorage.getItem('user')
@@ -101,15 +101,32 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       const role = localStorage.getItem('demo_role') || 'teacher'
       const teacherName = user.name || '老师'
       const roleLabel = role === 'principal' ? '校长' : role === 'director' ? '教务主任' : role === 'it_admin' ? 'IT管理员' : '教师'
+      // 知识边界跟随 TeachingContext 实时取值（切换学科/年级后上下文同步更新）
+      const subject = teaching.subject
+      const gradeName = (['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'])[teaching.grade - 1] || '四年级'
+      const textbook = teaching.currentTextbook()
+      // 知识边界动态构建（按学科描述核心知识范围，其他学科走通用描述）
+      const KB_HINTS: Record<string, string> = {
+        '语文': '字词积累、阅读理解、写作表达、古诗文背诵',
+        '数学': '数与代数、图形与几何、统计与概率、数学思考',
+        '英语': '词汇语法、听说交际、阅读理解、写作表达',
+        '物理': '力学、热学、声学、光学、电磁学',
+        '化学': '物质结构、化学反应、元素周期、实验探究',
+        '生物': '生命现象、生态环保、健康常识、实验探究',
+        '历史': '时序观念、史料实证、历史理解、家国情怀',
+        '地理': '空间定位、人地关系、区域认知、地理实践',
+        '政治': '道德认知、法治意识、国情教育、社会责任',
+      }
+      const kbHint = KB_HINTS[subject] || '学科核心素养'
       return {
-        teacher_name: teacherName, subject: user.subject || '语文', grade: user.grade || '四年级',
+        teacher_name: teacherName, subject, grade: gradeName,
         school_name: user.school_name || '成都市金牛区第一小学',
-        textbook_version: user.textbook_version || '部编版',
-        knowledge_boundary: '当前聚焦四年级语文，知识边界：字词积累、阅读理解、写作表达、古诗文背诵',
+        textbook_version: textbook,
+        knowledge_boundary: `当前聚焦${gradeName}${subject}，知识边界：${kbHint}`,
         teacher_style: user.ai_style || '目标清晰可测，四环节结构，评语先鼓励后建议',
         role,
-        // BUG-004：按登录用户真实姓名称呼，去掉写死的"张老师/李老师"，避免小微错认对象
-        system_prompt: `你是${roleLabel}助教，正在与${teacherName}（任教学科：${user.subject || '语文'}）沟通。请始终用"${teacherName}"或直接用"您"来称呼用户，不要臆测或错称用户的姓名。
+        system_prompt: `你是${roleLabel}助教，正在与${teacherName}（任教学科：${subject}，年级：${gradeName}）沟通。请始终用"${teacherName}"或直接用"您"来称呼用户，不要臆测或错称用户的姓名。
+当前知识边界为${gradeName}${subject}，请确保所有回答和资源推荐严格限制在该学科范围内。
 当前平台示例数据（供学情问答参考，不涉及具体老师的隐私归属）：
 - 全校8个班级298名学生，全校均分82分
 - 四年级1班85分、2班82分；三年级1班78分、2班80分；五年级1班88分、2班83分；六年级1班76分、2班81分
