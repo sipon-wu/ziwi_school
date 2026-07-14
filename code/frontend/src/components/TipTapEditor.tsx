@@ -6,7 +6,7 @@
  * - 公式/化学式：自定义节点，支持拖拽位移 + 上下/四周环绕
  */
 import { useState, useCallback, useRef, useEffect, type JSX } from 'react'
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
@@ -30,12 +30,43 @@ import 'katex/dist/katex.min.css'
 import katex from 'katex'
 
 /* ──────── 自定义公式节点 ──────── */
+/* ──────── 自定义公式节点 ──────── */
+function FormulaView({ node }: { node: any }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const latex = (node.attrs.latex as string) || ''
+  const wrap = (node.attrs.wrap as 'block' | 'inline') || 'block'
+  useEffect(() => {
+    if (!ref.current) return
+    try {
+      ref.current.innerHTML = katex.renderToString(latex, {
+        throwOnError: false,
+        displayMode: wrap === 'block',
+        trust: true,
+        strict: false,
+      })
+    } catch {
+      ref.current.textContent = latex
+    }
+  }, [latex, wrap])
+  return (
+    <NodeViewWrapper
+      data-wrap={wrap}
+      data-latex={latex}
+      className={`formula-box-container border-2 border-dashed border-[#02A7F0]/30 rounded bg-[#F0F9FF]/50 p-2 cursor-grab select-none ${wrap === 'block' ? 'block my-3 text-center' : 'inline-block float-right ml-3 mb-2 max-w-[50%]'}`}
+      style={{ userSelect: 'none' }}
+    >
+      <div ref={ref} />
+    </NodeViewWrapper>
+  )
+}
+
 const FormulaNode = Node.create({
   name: 'formulaContainer',
   group: 'block',
   atom: true,
   selectable: true,
   draggable: true,
+  content: '',
   addAttributes() {
     return {
       latex: { default: '' },
@@ -46,18 +77,14 @@ const FormulaNode = Node.create({
     return [{ tag: 'div[data-formula]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    const { latex, wrap } = HTMLAttributes
-    const isBlock = wrap === 'block'
-    let html = latex
-    try {
-      html = katex.renderToString(latex ?? '', { throwOnError: false, displayMode: isBlock, trust: true, strict: false })
-    } catch { /* fallback */ }
+    // HTML 序列化时只输出占位外壳，KaTeX 内容由 NodeView 渲染
     return ['div', mergeAttributes(HTMLAttributes, {
       'data-formula': 'true',
       contenteditable: 'false',
-      class: `formula-box-container border-2 border-dashed border-[#02A7F0]/30 rounded bg-[#F0F9FF]/50 p-2 cursor-grab ${isBlock ? 'block my-3 text-center' : 'inline-block float-right ml-3 mb-2 max-w-[50%]'}`,
-      style: `user-select:none;`,
-    }), html]
+    })]
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(FormulaView)
   },
   addCommands() {
     return {
