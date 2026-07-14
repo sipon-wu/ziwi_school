@@ -198,7 +198,7 @@ export default function LessonPlanView() {
                 <div className="font-medium">AI 模式</div>
                 <div className="text-[11px] text-[#9A9A9A] mt-0.5">元数据 + 知识图谱 + AI 生成 / 润色</div>
               </button>
-              <button onClick={() => navigate(`/lesson-plans/${id}/edit?mode=doc`)}
+              <button onClick={() => window.open(`/lesson-plans/${id}/edit?mode=doc`, '_blank')}
                 className="w-full px-4 py-3 text-left text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0]">
                 <div className="font-medium">文档模式</div>
                 <div className="text-[11px] text-[#9A9A9A] mt-0.5">腾讯文档式自由排版（打字 / 换行 / 格式）</div>

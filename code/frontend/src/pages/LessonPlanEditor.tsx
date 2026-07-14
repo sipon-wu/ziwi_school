@@ -19,7 +19,25 @@ import ResourcePicker from '../components/ResourcePicker'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
+import { marked } from 'marked'
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
+
+/** 将存储的教案内容转换为 TipTap 可用的 HTML
+ *  - 若已经是 HTML（以 < 开头），直接返回
+ *  - 若是 Markdown（带 ## / # / 列表 / 引用等），用 marked 转换
+ *  - 空字符串返回空段落
+ */
+function contentToHtml(content: string): string {
+  const c = (content || '').trim()
+  if (!c) return '<p></p>'
+  if (c.startsWith('<')) return c
+  try {
+    const html = marked.parse(c, { async: false, breaks: true }) as string
+    return html || '<p></p>'
+  } catch {
+    return `<p>${c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`
+  }
+}
 
 // 从 JWT 解码 school_id（与后端写入素材库的 school_id 一致，避免 user 对象里的 school_id 与素材库不匹配）
 const getSchoolId = () => {
@@ -621,7 +639,7 @@ export default function LessonPlanEditor() {
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-              <TipTapEditor value={content} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
+              <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
             </div>
           </div>
         ) : (
