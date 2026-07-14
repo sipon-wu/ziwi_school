@@ -20,7 +20,7 @@ import { TextAlign } from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { FontFamily } from '@tiptap/extension-font-family'
 import { Node, mergeAttributes } from '@tiptap/core'
-import { Maximize2, Minimize2, Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Heading3, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus } from 'lucide-react'
+import { Maximize2, Minimize2, Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus, MessageSquare, Trash2, X } from 'lucide-react'
 import { FormulaPreview } from './FormulaRender'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
@@ -88,6 +88,10 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
   // 版本快照
   const [snapshots, setSnapshots] = useState<Array<{ time: string; content: string; label?: string }>>([])
+  // 批注
+  const [annotations, setAnnotations] = useState<Array<{ id: string; text: string; comment: string; time: string }>>([])
+  const [newAnnotation, setNewAnnotation] = useState('')
+  const [rightTab, setRightTab] = useState<'annotations' | 'history'>('annotations')
 
   // 公式编辑弹窗
   const [formulaOpen, setFormulaOpen] = useState(false)
@@ -162,6 +166,17 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     onChange(html)
   }, [editor, onChange])
 
+  // 批注
+  const addAnnotation = () => {
+    const sel = window.getSelection()
+    const selText = sel?.toString()?.trim()
+    if (!selText || !newAnnotation.trim()) return
+    const ann = { id: Date.now().toString(36), text: selText, comment: newAnnotation.trim(), time: new Date().toLocaleTimeString() }
+    setAnnotations(prev => [ann, ...prev])
+    setNewAnnotation('')
+  }
+  const deleteAnnotation = (id: string) => setAnnotations(prev => prev.filter(a => a.id !== id))
+
   // 公式插入
   const openFormulaEditor = (type: 'math' | 'chemistry') => {
     setFormulaType(type)
@@ -217,11 +232,6 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
             className={`h-7 w-7 flex items-center justify-center rounded ${editor.isActive('heading', { level: 2 }) ? 'bg-[#E3ECFA] text-[#1A3A6B]' : 'hover:bg-[#F0F2F5]'}`}
             title="标题 2">
             <Heading2 size={14} />
-          </button>
-          <button onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            className={`h-7 w-7 flex items-center justify-center rounded ${editor.isActive('heading', { level: 3 }) ? 'bg-[#E3ECFA] text-[#1A3A6B]' : 'hover:bg-[#F0F2F5]'}`}
-            title="标题 3">
-            <Heading3 size={14} />
           </button>
         </div>
         <div className="w-px h-5 bg-[#D9D9D9] mx-1" />
@@ -314,45 +324,99 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
           <EditorContent editor={editor} />
         </div>
 
-        {/* 右侧：版本历史 */}
+        {/* 右侧：批注 / 版本历史（双 Tab） */}
         {historyVisible && (
-          <div className="w-[200px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden">
-            <div className="px-3 py-2 text-[11px] font-semibold text-[#9A9A9A] flex items-center justify-between border-b border-[#F0F0F0] shrink-0">
-              <span className="flex items-center gap-1"><History size={12} />版本历史</span>
-              <button onClick={() => setHistoryVisible(false)} className="text-[#C0C0C0] hover:text-[#9A9A9A]"><ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto py-1">
-              <button onClick={() => takeSnapshot('点击保存')}
-                className="w-full text-left px-3 py-1.5 text-[11px] text-[#02A7F0] hover:bg-[#F0F2F5] flex items-center gap-1">
-                <Plus size={10} /> 保存当前版本
+          <div className="w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden">
+            {/* Tab 切换 */}
+            <div className="flex border-b border-[#F0F0F0] shrink-0">
+              <button onClick={() => setRightTab('annotations')}
+                className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${rightTab === 'annotations' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
+                <MessageSquare size={11} className="inline mr-1" />批注
               </button>
-              <div className="border-t border-[#F0F0F0] my-1" />
-              {snapshots.length === 0 ? (
-                <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
-              ) : (
-                snapshots.map((s, i) => (
-                  <div key={i} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-[#353535]">{s.time}</span>
-                      <span className="text-[9px] text-[#C0C0C0]">{s.label}</span>
-                    </div>
-                    <div className="flex gap-2 mt-0.5">
-                      <button onClick={() => restoreSnapshot(s.content)}
-                        className="text-[10px] text-[#02A7F0] hover:underline flex items-center gap-0.5">
-                        <RotateCcw size={9} />恢复
-                      </button>
-                      <button onClick={() => {
-                        // 预览版本（临时切换到只读）
-                        editor?.commands.setContent(s.content)
-                      }}
-                        className="text-[10px] text-[#9A9A9A] hover:underline flex items-center gap-0.5">
-                        <Eye size={9} />预览
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+              <button onClick={() => setRightTab('history')}
+                className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${rightTab === 'history' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
+                <History size={11} className="inline mr-1" />版本
+              </button>
+              <button onClick={() => setHistoryVisible(false)} className="px-2 text-[#C0C0C0] hover:text-[#9A9A9A]">
+                <ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} />
+              </button>
             </div>
+
+            {/* 批注面板 */}
+            {rightTab === 'annotations' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* 新增批注 */}
+                <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
+                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">选中正文文字后，在此输入批注内容</p>
+                  <textarea
+                    value={newAnnotation}
+                    onChange={e => setNewAnnotation(e.target.value)}
+                    rows={2}
+                    placeholder="输入批注..."
+                    className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#02A7F0] outline-none resize-none"
+                  />
+                  <button onClick={addAnnotation}
+                    disabled={!newAnnotation.trim()}
+                    className="w-full mt-1.5 py-1 text-[11px] text-white bg-[#02A7F0] rounded hover:bg-[#0288D1] disabled:opacity-40 flex items-center justify-center gap-1">
+                    <Plus size={10} /> 添加批注
+                  </button>
+                </div>
+                {/* 批注列表 */}
+                <div className="flex-1 overflow-y-auto">
+                  {annotations.length === 0 ? (
+                    <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
+                  ) : (
+                    annotations.map((a) => (
+                      <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded truncate max-w-[120px]" title={a.text}>
+                            "{a.text.substring(0, 20)}{a.text.length > 20 ? '…' : ''}"
+                          </span>
+                          <button onClick={() => deleteAnnotation(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0">
+                            <X size={10} />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
+                        <span className="text-[9px] text-[#C0C0C0]">{a.time}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 版本历史面板 */}
+            {rightTab === 'history' && (
+              <div className="flex-1 overflow-y-auto py-1">
+                <button onClick={() => takeSnapshot('点击保存')}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-[#02A7F0] hover:bg-[#F0F2F5] flex items-center gap-1">
+                  <Plus size={10} /> 保存当前版本
+                </button>
+                <div className="border-t border-[#F0F0F0] my-1" />
+                {snapshots.length === 0 ? (
+                  <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
+                ) : (
+                  snapshots.map((s, i) => (
+                    <div key={i} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#353535]">{s.time}</span>
+                        <span className="text-[9px] text-[#C0C0C0]">{s.label}</span>
+                      </div>
+                      <div className="flex gap-2 mt-0.5">
+                        <button onClick={() => restoreSnapshot(s.content)}
+                          className="text-[10px] text-[#02A7F0] hover:underline flex items-center gap-0.5">
+                          <RotateCcw size={9} />恢复
+                        </button>
+                        <button onClick={() => editor?.commands.setContent(s.content)}
+                          className="text-[10px] text-[#9A9A9A] hover:underline flex items-center gap-0.5">
+                          <Eye size={9} />预览
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
 
