@@ -22,6 +22,7 @@ import { FontFamily } from '@tiptap/extension-font-family'
 import { Node, mergeAttributes } from '@tiptap/core'
 import { Maximize2, Minimize2, Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus, MessageSquare, Trash2, X } from 'lucide-react'
 import { FormulaPreview } from './FormulaRender'
+import ResourcePicker from './ResourcePicker'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 
@@ -115,6 +116,10 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   // 图片弹窗
   const [showImgInput, setShowImgInput] = useState(false)
   const [imgUrl, setImgUrl] = useState('')
+  const [showMaterialPicker, setShowMaterialPicker] = useState(false)
+  // 字号
+  const [fontSize, setFontSize] = useState('16')
+  const FONT_SIZES = ['12', '14', '16', '18', '20', '24', '28', '36']
 
   const editor = useEditor({
     extensions: [
@@ -134,10 +139,32 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none px-6 py-4 min-h-[400px] leading-relaxed',
+        class: 'focus:outline-none px-6 py-4 min-h-[400px]',
+        style: 'line-height: 2; font-size: 16px;',
       },
     },
   }, [])
+
+  // ── ProseMirror 段落 WYSIWYG 样式注入 ──
+  useEffect(() => {
+    const css = `
+      .ProseMirror p { margin: 0 0 0.75em 0; line-height: 2; font-size: 16px; text-indent: 2em; min-height: 1em; }
+      .ProseMirror h1 { font-size: 22px; font-weight: 700; margin: 1em 0 0.5em; line-height: 1.5; color: #1A1A2E; }
+      .ProseMirror h2 { font-size: 18px; font-weight: 600; margin: 0.8em 0 0.4em; line-height: 1.5; color: #1A1A2E; }
+      .ProseMirror ul, .ProseMirror ol { padding-left: 2em; margin: 0.5em 0; }
+      .ProseMirror li { line-height: 2; font-size: 16px; }
+      .ProseMirror blockquote { border-left: 3px solid #1A3A6B; padding: 0.5em 1em; margin: 0.75em 0; color: #595959; background: #F6F7F8; }
+      .ProseMirror table { border-collapse: collapse; width: 100%; margin: 0.75em 0; }
+      .ProseMirror th, .ProseMirror td { border: 1px solid #E7E7EB; padding: 6px 10px; font-size: 14px; }
+      .ProseMirror th { background: #F6F7F8; font-weight: 600; }
+      .ProseMirror img { max-width: 100%; margin: 0.5em 0; }
+      .ProseMirror .is-empty::before { content: attr(data-placeholder); color: #C0C0C0; float: left; pointer-events: none; height: 0; }
+    `
+    const style = document.createElement('style')
+    style.textContent = css
+    document.head.appendChild(style)
+    return () => { document.head.removeChild(style) }
+  }, [editor])
 
   // 同步外部 value 变化（仅在 value 与 editor 内容不一致时）
   useEffect(() => {
@@ -218,6 +245,16 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     setImgUrl('')
   }
 
+  // 图片从素材库选择
+  const handleMaterialImageSelect = (items: any[]) => {
+    if (!editor || !items.length) return
+    for (const item of items) {
+      const url = item.url || item.file_url || ''
+      if (url) editor.chain().focus().setImage({ src: url }).run()
+    }
+    setShowImgInput(false)
+  }
+
   if (!editor) return null
 
   const headingNodes = toc
@@ -243,6 +280,38 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
             <Heading2 size={14} />
           </button>
         </div>
+        <div className="w-px h-5 bg-[#D9D9D9] mx-1" />
+
+        {/* 字体 / 字号 */}
+        <select
+          onChange={e => editor.chain().focus().setFontFamily(e.target.value || '').run()}
+          className="h-7 text-[11px] border border-[#E7E7EB] rounded px-1 bg-white hover:border-[#02A7F0] outline-none"
+          title="字体"
+        >
+          <option value="">字体</option>
+          <option value="SimSun">宋体</option>
+          <option value="SimHei">黑体</option>
+          <option value="KaiTi">楷体</option>
+          <option value="Arial">Arial</option>
+          <option value="Times New Roman">Times New Roman</option>
+        </select>
+        <select
+          value={fontSize}
+          onChange={e => {
+            setFontSize(e.target.value)
+            editor.chain().focus().selectAll().setMark('textStyle', { fontSize: e.target.value + 'px' }).run()
+            // 只对选中区域生效，不是 selectAll
+            const sel = window.getSelection()
+            if (sel && !sel.isCollapsed) {
+              editor.chain().focus().setMark('textStyle', { fontSize: e.target.value + 'px' }).run()
+            }
+          }}
+          className="h-7 text-[11px] border border-[#E7E7EB] rounded px-1 bg-white hover:border-[#02A7F0] outline-none w-[52px]"
+          title="字号"
+        >
+          {FONT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
         <div className="w-px h-5 bg-[#D9D9D9] mx-1" />
 
         {/* 加粗/斜体/下划线/删除线 */}
@@ -280,7 +349,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
         {/* 表格 / 图片 / 链接 */}
         <Tb onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="插入表格"><Table2 size={13} /></Tb>
-        <Tb onClick={() => { setShowImgInput(true); setImgUrl('') }} title="插入图片"><ImageIcon size={13} /></Tb>
+        <Tb onClick={() => { setShowImgInput(true); setImgUrl('') }} title="插入图片（URL / 素材库）"><ImageIcon size={13} /></Tb>
         <Tb active={editor.isActive('link')} onClick={() => {
           const prev = editor.getAttributes('link').href || ''
           setLinkUrl(prev)
@@ -533,20 +602,57 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
         </div>
       )}
 
-      {/* ── 图片弹窗 ── */}
+      {/* ── 图片弹窗（URL / 素材库）── */}
       {showImgInput && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowImgInput(false)}>
           <div className="absolute inset-0 bg-black/40" />
-          <div className="relative bg-white rounded-xl shadow-2xl w-[400px] z-10 p-5" onClick={e => e.stopPropagation()}>
-            <label className="block text-[12px] font-medium text-[#353535] mb-2">图片 URL</label>
-            <input value={imgUrl} onChange={e => setImgUrl(e.target.value)}
-              placeholder="https://..." className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:border-[#02A7F0] mb-3" autoFocus />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowImgInput(false)} className="px-3 py-1.5 text-[12px] text-[#595959] border rounded">取消</button>
-              <button onClick={addImage} className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded">插入</button>
+          <div className="relative bg-white rounded-xl shadow-2xl w-[420px] z-10 p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex gap-3 mb-4">
+              <button
+                onClick={() => setShowMaterialPicker(false)}
+                className={`flex-1 py-2 text-[12px] rounded border ${!showMaterialPicker ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0] font-medium' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}
+              >
+                🔗 粘贴 URL
+              </button>
+              <button
+                onClick={() => setShowMaterialPicker(true)}
+                className={`flex-1 py-2 text-[12px] rounded border ${showMaterialPicker ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0] font-medium' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}
+              >
+                🖼️ 从素材库选择
+              </button>
             </div>
+            {showMaterialPicker ? (
+              <div className="text-center py-6">
+                <button onClick={() => { setShowMaterialPicker(false); setShowImgInput(false) }}
+                  className="px-4 py-2 text-[12px] text-white bg-[#02A7F0] rounded hover:bg-[#0288D1]">
+                  打开素材库
+                </button>
+                <p className="text-[11px] text-[#9A9A9A] mt-2">从个人素材库或校本题库中选择图片</p>
+              </div>
+            ) : (
+              <>
+                <label className="block text-[12px] font-medium text-[#353535] mb-2">图片 URL</label>
+                <input value={imgUrl} onChange={e => setImgUrl(e.target.value)}
+                  placeholder="https://..." className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:border-[#02A7F0] mb-3" autoFocus />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowImgInput(false)} className="px-3 py-1.5 text-[12px] text-[#595959] border rounded">取消</button>
+                  <button onClick={addImage} className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded">插入</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
+      )}
+
+      {/* ── 素材库图片选择器 ── */}
+      {showImgInput && showMaterialPicker && (
+        <ResourcePicker
+          open={true}
+          mode="materials"
+          onClose={() => setShowMaterialPicker(false)}
+          onSelect={handleMaterialImageSelect}
+          selectedIds={[]}
+        />
       )}
     </div>
   )
