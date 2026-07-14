@@ -270,14 +270,10 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
         {/* 公式 / 化学式 — 核心自定义按钮 */}
         <Tb onClick={() => openFormulaEditor('math')} title="插入数学公式（图片式容器）">
-          <svg width="14" height="14" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 8C20 5 17 4 14 4C9 4 5 7 5 14C5 21 9 25 13 25C15 25 16 24 17 22" stroke="#1A3A6B" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <img src="/icon-math.svg" alt="数学式" width="14" height="14" style={{ filter: 'none' }} />
         </Tb>
         <Tb onClick={() => openFormulaEditor('chemistry')} title="插入化学式（图片式容器）">
-          <svg width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M11 2V6M21 2V6M6 10H26M7 10L11 20L7 26M25 10L21 20L25 26M11 20H21M16 20V14M9 14H23" stroke="#52C41A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <img src="/icon-chemistry.svg" alt="化学式" width="16" height="16" style={{ filter: 'none' }} />
         </Tb>
 
         <div className="w-px h-5 bg-[#D9D9D9] mx-1" />
@@ -455,15 +451,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
           <div className="relative bg-white rounded-xl shadow-2xl w-[540px] max-w-[92vw] z-10" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-[#F0F0F0]">
               <span className="text-sm font-semibold text-[#353535] flex items-center gap-1.5">
-                {formulaType === 'math' ? (
-                  <svg width="14" height="14" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20 8C20 5 17 4 14 4C9 4 5 7 5 14C5 21 9 25 13 25C15 25 16 24 17 22" stroke="#1A3A6B" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M11 2V6M21 2V6M6 10H26M7 10L11 20L7 26M25 10L21 20L25 26M11 20H21M16 20V14M9 14H23" stroke="#52C41A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
+                <img src={formulaType === 'math' ? '/icon-math.svg' : '/icon-chemistry.svg'} alt="" width="16" height="16" />
                 {formulaType === 'math' ? '插入数学公式' : '插入化学式'}
               </span>
               <span className="text-[10px] text-[#9A9A9A]">图片式容器 · 支持拖拽位移和文字环绕</span>
