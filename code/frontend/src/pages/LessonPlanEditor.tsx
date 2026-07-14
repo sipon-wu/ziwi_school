@@ -286,6 +286,32 @@ export default function LessonPlanEditor() {
     setSaving(false)
   }
 
+  // 翻译 MDEditor 工具栏 title 为中文（@uiw/react-md-editor 默认英文）
+  useEffect(() => {
+    const i18n: Record<string, string> = {
+      'Edit code (ctrl + 7)': '编辑模式（Ctrl+7）· 只看源码',
+      'Live code (ctrl + 8)': '实时模式（Ctrl+8）· 左右对照',
+      'Preview code (ctrl + 9)': '预览模式（Ctrl+9）· 只看效果',
+      'Toggle fullscreen (ctrl + 0)': '全屏（Ctrl+0）',
+      'Insert comment (ctrl + /)': '插入注释（Ctrl+/）',
+    }
+    const apply = () => {
+      const buttons = document.querySelectorAll('.w-md-editor [aria-label]')
+      buttons.forEach(btn => {
+        const al = btn.getAttribute('aria-label')
+        if (al && i18n[al]) {
+          btn.setAttribute('title', i18n[al])
+        }
+      })
+    }
+    apply()
+    // MDEditor 工具栏可能延迟渲染，挂 observer 兜底
+    const timer = setTimeout(apply, 500)
+    const observer = new MutationObserver(apply)
+    document.querySelectorAll('.w-md-editor').forEach(el => observer.observe(el, { childList: true, subtree: true }))
+    return () => { clearTimeout(timer); observer.disconnect() }
+  }, [editMode])
+
   const handleExportDocx = async () => {
     if (!content) return
     try {
@@ -616,7 +642,10 @@ export default function LessonPlanEditor() {
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-              <MDEditor value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live" />
+              <MDEditor
+                value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live"
+                commandsFilter={(cmd) => cmd.name === 'fullscreen' ? false : cmd}
+              />
             </div>
           </div>
         ) : (
@@ -658,7 +687,10 @@ export default function LessonPlanEditor() {
           </div>
         </div>
         <div className="flex-1 overflow-hidden">
-          <MDEditor value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live" />
+          <MDEditor
+            value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live"
+            commandsFilter={(cmd) => cmd.name === 'fullscreen' ? false : cmd}
+          />
         </div>
       </div>
     )}
