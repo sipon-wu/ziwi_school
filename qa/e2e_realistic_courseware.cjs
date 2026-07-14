@@ -11,13 +11,16 @@ async function safeJson(res) {
 const post = async (u, b, t) => safeJson(await fetch(B + u, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify(b) }))
 const getJ = async (u, t) => safeJson(await fetch(B + u, { headers: { Authorization: 'Bearer ' + t } }))
 
-// 拟真真人课题库（文理不同学科，每次随机抽取，保证"新用例 + 真实产出"）
-const CASES = [
-  { subject: '物理', grade: '八年级', title: '凸透镜成像规律', extra: '多放实验图示与光路图，结合生活案例（照相机/投影仪）' },
-  { subject: '语文', grade: '九年级', title: '岳阳楼记', extra: '突出景物描写层次与"先忧后乐"主旨，适合诵读' },
-  { subject: '化学', grade: '九年级', title: '质量守恒定律', extra: '用实验（白磷燃烧/硫酸铜+铁钉）佐证，强调微观解释' },
-  { subject: '生物', grade: '七年级', title: '光合作用与呼吸作用', extra: '对比表格呈现，联系农业生产（合理密植/昼夜温差）' },
-]
+// 按学科分配的真实课题库：key=学科，跑测时按"账号实际分配的学科"取对应课题（年级以账号偏好为准）。
+// 每个学科给出符合课标、贴近真实课堂的代表性课题，保证拟真真实性与课件丰富度。
+const CURRICULUM = {
+  语文: { title: '海上日出', extra: '按"日出前→日出时→日出后"的时间顺序梳理景物变化，适合诵读与仿写练笔' },
+  数学: { title: '三角形内角和', extra: '用撕拼/量角实验佐证 180°，强调合情推理与验证，配生活图形实例' },
+  英语: { title: 'My School', extra: '围绕校园场所词汇与 There be 句型，配情境对话与听说活动' },
+  物理: { title: '凸透镜成像规律', extra: '多放实验图示与光路图，结合生活案例（照相机/投影仪）' },
+  化学: { title: '质量守恒定律', extra: '用实验（白磷燃烧/硫酸铜+铁钉）佐证，强调微观解释' },
+  生物: { title: '光合作用与呼吸作用', extra: '对比表格呈现，联系农业生产（合理密植/昼夜温差）' },
+}
 
 ;(async () => {
   fs.mkdirSync(path.join(__dirname, 'downloads'), { recursive: true })
@@ -32,14 +35,25 @@ const CASES = [
   const token = L.token
   await page.addInitScript((tok) => { localStorage.setItem('zhiwei_token', tok); try { localStorage.setItem('user', JSON.stringify({ name: '王老师', school_name: '测试校' })) } catch {} }, token)
 
-  // 本次随机抽取 2 个不同课题（若不足则全取）
-  const pool = [...CASES]
-  const picked = []
-  while (picked.length < Math.min(2, pool.length)) {
-    const i = Math.floor(Math.random() * pool.length)
-    picked.push(pool.splice(i, 1)[0])
+  // 按"账号实际分配的学科"跑：从 /api/me/textbook-prefs 取该账号分配的全部学科（去重），
+  // 每个学科取对应真实课题，年级以账号偏好为准。无偏好时回退到登录默认学科（User.Subject）。
+  const prefs = await getJ('/api/me/textbook-prefs', token)
+  const pItems = prefs.items || prefs.data || []
+  const bySubj = {}
+  for (const it of pItems) { if (!bySubj[it.subject]) bySubj[it.subject] = it }
+  const picked = Object.keys(bySubj).map((sub) => {
+    const def = CURRICULUM[sub] || { title: sub + '单元复习', extra: '' }
+    const grade = bySubj[sub].grade || def.grade || '四年级'
+    return { subject: sub, grade, title: def.title, extra: def.extra }
+  })
+  // 账号未配置任何学科偏好时，回退到登录默认学科
+  if (picked.length === 0) {
+    const u = (L.user || {})
+    const def = CURRICULUM[u.subject] || { title: (u.subject || '语文') + '单元复习', extra: '' }
+    picked.push({ subject: u.subject || '语文', grade: u.grade || '四年级', title: def.title, extra: def.extra })
   }
-  console.log('本轮拟真课题：', picked.map(c => `${c.subject}${c.grade}《${c.title}》`).join('  |  '))
+  console.log('账号分配学科：', Object.keys(bySubj).join('、') || (L.user || {}).subject || '语文',
+    ' | 本轮拟真课题：', picked.map(c => `${c.subject}${c.grade}《${c.title}》`).join('  |  '))
 
   const report = { cases: [], pass: true }
   const fail = (name, ok, info) => { if (!ok) report.pass = false; console.log((ok ? 'PASS ' : 'FAIL ') + name + (info ? ' :: ' + info : '')) }
