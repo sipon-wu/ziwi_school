@@ -18,9 +18,7 @@ import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
 import ResourcePicker from '../components/ResourcePicker'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
-import { FormulaPreview } from '../components/FormulaRender'
-import MDEditor from '@uiw/react-md-editor'
-import 'katex/dist/katex.min.css'
+import TipTapEditor from '../components/TipTapEditor'
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 
 // 从 JWT 解码 school_id（与后端写入素材库的 school_id 一致，避免 user 对象里的 school_id 与素材库不匹配）
@@ -90,76 +88,6 @@ export default function LessonPlanEditor() {
   const [savingCourseware, setSavingCourseware] = useState(false)
   // 富媒体编辑器全屏
   const [showFullscreenEditor, setShowFullscreenEditor] = useState(false)
-  // 公式/化学式编辑器（弹层模式）
-  const [formulaEditorOpen, setFormulaEditorOpen] = useState(false)
-  const [formulaDraft, setFormulaDraft] = useState('')
-  const [formulaType, setFormulaType] = useState<'math' | 'chemistry'>('math')
-  const [formulaWrap, setFormulaWrap] = useState<'block' | 'inline'>('block')
-  const formulaTextareaRef = useRef<HTMLTextAreaElement | null>(null)
-
-  /** 打开公式编辑器 */
-  const openFormulaEditor = (type: 'math' | 'chemistry') => {
-    setFormulaType(type)
-    setFormulaDraft(type === 'chemistry' ? '2H_{2} + O_{2} \\rightarrow 2H_{2}O' : '')
-    setFormulaWrap('block')
-    setFormulaEditorOpen(true)
-  }
-
-  /** 插入公式容器到光标位置（FBLOCK: / FINLINE: 标记语法） */
-  const insertFormulaContainer = (latex: string) => {
-    const tag = formulaWrap === 'block' ? 'FBLOCK' : 'FINLINE'
-    const markup = `\`${tag}:${latex}\``
-    // 尝试在 MDEditor textarea 光标处插入
-    const ta = document.querySelector('.w-md-editor-text-input') as HTMLTextAreaElement | null
-    if (ta) {
-      const start = ta.selectionStart ?? ta.value.length
-      const end = ta.selectionEnd ?? start
-      const newVal = ta.value.slice(0, start) + markup + ta.value.slice(end)
-      setContent(newVal)
-      // 恢复焦点和光标位置
-      setTimeout(() => {
-        ta.focus()
-        const pos = start + markup.length
-        ta.setSelectionRange(pos, pos)
-        // 触发 input 事件让 MDEditor 同步
-        ta.dispatchEvent(new Event('input', { bubbles: true }))
-      }, 50)
-    } else {
-      // 兜底：追加到末尾
-      setContent((prev) => prev + '\n' + markup)
-    }
-    setFormulaEditorOpen(false)
-  }
-
-  // 公式容器预览组件（拦截 `FBLOCK:` / `FINLINE:` 语法）
-  const formulaPreviewComponents = {
-    code: ({ children, className }: { children?: React.ReactNode; className?: string; inline?: boolean }) => {
-      const text = typeof children === 'string' ? children : ''
-      const fbMatch = text.match(/^FBLOCK:(.+)$/)
-      const fiMatch = text.match(/^FINLINE:(.+)$/)
-      const match = fbMatch || fiMatch
-      if (match) {
-        const latex = match[1]
-        const isBlock = !!fbMatch
-        try {
-          const html = (window as any).katex?.renderToString(latex, {
-            throwOnError: false, displayMode: isBlock, trust: true, strict: false,
-          }) || latex
-          return (
-            <span
-              contentEditable={false}
-              className={`formula-box-container relative ${isBlock ? 'block my-3 p-2' : 'inline-block float-right ml-3 mb-2 max-w-[50%]'} border-2 border-dashed border-[#02A7F0]/30 rounded bg-[#F0F9FF]/50 cursor-grab active:cursor-grabbing select-none`}
-              data-latex={latex}
-              data-wrap={isBlock ? 'block' : 'inline'}
-              title="公式容器 · 可拖拽移位"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          )
-        } catch { return <code>{latex}</code> }
-      }
-      return <code>{text}</code>
-    },
-  }
 
   // 编辑模式切换：AI 模式（元数据+知识图谱+AI） / 文档模式（腾讯文档式自由排版）
   // 编辑模式：优先以 URL ?mode=doc 进入文档模式；SPA 导航时首帧 searchParams 可能滞后，
@@ -358,31 +286,10 @@ export default function LessonPlanEditor() {
     setSaving(false)
   }
 
-  // 翻译 MDEditor 工具栏 title 为中文（@uiw/react-md-editor 默认英文）
+  // 翻译 MDEditor 工具栏 title 为中文（@uiw/react-md-editor 默认英文）—— 已切换 TipTap，移除
   useEffect(() => {
-    const i18n: Record<string, string> = {
-      'Edit code (ctrl + 7)': '编辑模式（Ctrl+7）· 只看源码',
-      'Live code (ctrl + 8)': '实时模式（Ctrl+8）· 左右对照',
-      'Preview code (ctrl + 9)': '预览模式（Ctrl+9）· 只看效果',
-      'Toggle fullscreen (ctrl + 0)': '全屏（Ctrl+0）',
-      'Insert comment (ctrl + /)': '插入注释（Ctrl+/）',
-    }
-    const apply = () => {
-      const buttons = document.querySelectorAll('.w-md-editor [aria-label]')
-      buttons.forEach(btn => {
-        const al = btn.getAttribute('aria-label')
-        if (al && i18n[al]) {
-          btn.setAttribute('title', i18n[al])
-        }
-      })
-    }
-    apply()
-    // MDEditor 工具栏可能延迟渲染，挂 observer 兜底
-    const timer = setTimeout(apply, 500)
-    const observer = new MutationObserver(apply)
-    document.querySelectorAll('.w-md-editor').forEach(el => observer.observe(el, { childList: true, subtree: true }))
-    return () => { clearTimeout(timer); observer.disconnect() }
-  }, [editMode])
+    // TipTap 已内置 WYSIWYG 工具栏，无需额外翻译
+  }, [])
 
   const handleExportDocx = async () => {
     if (!content) return
@@ -714,21 +621,7 @@ export default function LessonPlanEditor() {
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-              <MDEditor
-                value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live"
-                commandsFilter={(cmd) => cmd.name === 'fullscreen' ? false : cmd}
-                extraCommands={[
-                  { name: 'formula-math', keyCommand: 'formula-math', buttonProps: { 'aria-label': '插入数学公式', title: '插入数学公式（图片式容器）' },
-                    icon: (<span style={{ fontSize: 14, fontWeight: 700, color: '#1A3A6B' }}>∫</span>),
-                    execute: () => openFormulaEditor('math'),
-                  },
-                  { name: 'formula-chem', keyCommand: 'formula-chem', buttonProps: { 'aria-label': '插入化学式', title: '插入化学式（图片式容器）' },
-                    icon: (<span style={{ fontSize: 14, fontWeight: 700, color: '#52C41A' }}>⚗</span>),
-                    execute: () => openFormulaEditor('chemistry'),
-                  },
-                ]}
-                previewOptions={{ components: formulaPreviewComponents as any }}
-              />
+              <TipTapEditor value={content} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
             </div>
           </div>
         ) : (
@@ -770,115 +663,7 @@ export default function LessonPlanEditor() {
           </div>
         </div>
         <div className="flex-1 overflow-hidden">
-          <MDEditor
-            value={content} onChange={(v) => setContent(v || '')} height="100%" preview="live"
-            commandsFilter={(cmd) => cmd.name === 'fullscreen' ? false : cmd}
-            extraCommands={[
-              { name: 'formula-math', keyCommand: 'formula-math', buttonProps: { 'aria-label': '插入数学公式', title: '插入数学公式（图片式容器）' },
-                icon: (<span style={{ fontSize: 14, fontWeight: 700, color: '#1A3A6B' }}>∫</span>),
-                execute: () => openFormulaEditor('math'),
-              },
-              { name: 'formula-chem', keyCommand: 'formula-chem', buttonProps: { 'aria-label': '插入化学式', title: '插入化学式（图片式容器）' },
-                icon: (<span style={{ fontSize: 14, fontWeight: 700, color: '#52C41A' }}>⚗</span>),
-                execute: () => openFormulaEditor('chemistry'),
-              },
-            ]}
-            previewOptions={{ components: formulaPreviewComponents as any }}
-          />
-        </div>
-      </div>
-    )}
-
-    {/* 公式/化学式 编辑器（弹层） */}
-    {formulaEditorOpen && (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setFormulaEditorOpen(false)}>
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="relative bg-white rounded-xl shadow-2xl w-[560px] max-w-[92vw] z-10" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#F0F0F0]">
-            <span className="text-sm font-semibold text-[#353535]">
-              {formulaType === 'math' ? '∫ 插入数学公式' : '⚗ 插入化学式'}
-            </span>
-            <span className="text-[10px] text-[#9A9A9A]">将作为图片式容器插入文档，支持拖拽位移和文字环绕</span>
-          </div>
-          <div className="p-5 space-y-4">
-            {/* 快捷输入 */}
-            <div className="flex flex-wrap gap-1.5">
-              {(formulaType === 'math' ? [
-                { label: '二次公式', tex: '\\frac{-b \\pm \\sqrt{b^{2}-4ac}}{2a}' },
-                { label: '勾股定理', tex: 'a^{2} + b^{2} = c^{2}' },
-                { label: '平方根', tex: '\\sqrt{x}' },
-                { label: '分数', tex: '\\frac{a}{b}' },
-                { label: '幂', tex: 'x^{n}' },
-                { label: '下标', tex: 'x_{1}' },
-                { label: '积分', tex: '\\int_{0}^{\\infty}' },
-                { label: '求和', tex: '\\sum_{i=1}^{n}' },
-                { label: '希腊字母', tex: '\\alpha \\beta \\gamma \\pi \\theta' },
-                { label: '矩阵', tex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
-              ] : [
-                { label: '方程式', tex: '2H_{2} + O_{2} \\rightarrow 2H_{2}O' },
-                { label: '离子方程', tex: 'Na^{+} + Cl^{-} \\rightarrow NaCl' },
-                { label: '可逆反应', tex: 'A + B \\rightleftharpoons C + D' },
-                { label: '沉淀', tex: 'Ag^{+} + Cl^{-} \\rightarrow AgCl \\downarrow' },
-                { label: '气体', tex: 'Zn + 2HCl \\rightarrow ZnCl_{2} + H_{2} \\uparrow' },
-                { label: '氧化还原', tex: '2Fe^{3+} + 2I^{-} \\rightarrow 2Fe^{2+} + I_{2}' },
-                { label: '酸碱中和', tex: 'H^{+} + OH^{-} \\rightarrow H_{2}O' },
-                { label: '分子式', tex: 'H_{2}SO_{4}' },
-                { label: '有机结构', tex: 'CH_{3}COOH' },
-                { label: '配位键', tex: '[Cu(NH_{3})_{4}]^{2+}' },
-              ]).map((item, i) => (
-                <button key={i}
-                  onClick={() => setFormulaDraft(prev => prev + ' ' + item.tex)}
-                  className="px-2 py-0.5 text-[10px] bg-[#F6F7F8] border border-[#E7E7EB] rounded hover:bg-[#E8F7FF] hover:border-[#02A7F0]"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            {/* 输入区 */}
-            <div>
-              <label className="block text-[11px] text-[#9A9A9A] mb-1">LaTeX 表达式</label>
-              <textarea
-                ref={formulaTextareaRef}
-                value={formulaDraft}
-                onChange={e => setFormulaDraft(e.target.value)}
-                rows={4}
-                className="w-full px-3 py-2 text-[13px] font-mono border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0] resize-y"
-                autoFocus
-              />
-            </div>
-
-            {/* 预览 + 环绕方式 */}
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-[11px] text-[#9A9A9A] mb-1">实时预览</label>
-                <div className="min-h-[48px] p-3 bg-[#F9FAFB] border border-[#E7E7EB] rounded-[4px] flex items-center justify-center">
-                  <FormulaPreview latex={formulaDraft} isBlock={formulaWrap === 'block'} />
-                </div>
-              </div>
-              <div className="shrink-0">
-                <label className="block text-[11px] text-[#9A9A9A] mb-1">图文环绕方式</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setFormulaWrap('block')}
-                    className={`px-3 py-2 text-[11px] rounded border ${formulaWrap === 'block' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A] hover:border-[#02A7F0]'}`}
-                    title="上下型：公式独占一行，文字在上下"
-                  >
-                    ▬ 上下环绕
-                  </button>
-                  <button onClick={() => setFormulaWrap('inline')}
-                    className={`px-3 py-2 text-[11px] rounded border ${formulaWrap === 'inline' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A] hover:border-[#02A7F0]'}`}
-                    title="四周型：文字环绕公式四周流动"
-                  >
-                    ◧ 四周环绕
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 px-5 py-3 border-t border-[#F0F0F0]">
-            <button onClick={() => setFormulaEditorOpen(false)} className="px-4 py-1.5 text-[12px] text-[#595959] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">取消</button>
-            <button onClick={() => insertFormulaContainer(formulaDraft)} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">插入到文档</button>
-          </div>
+          <TipTapEditor value={content} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
         </div>
       </div>
     )}
