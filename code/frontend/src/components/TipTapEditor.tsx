@@ -623,15 +623,21 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
       setFormulaOpen(false)
       return
     }
-    // 关键修复：先把光标移到文档末尾,避免 insertContent 在光标处"覆盖"已存在的公式节点
-    // (之前 bug:连续插入公式时,后插入的会替换前一个,光标停留在前一个公式节点内)
-    const docSize = editor?.state.doc.content.size || 0
-    editor?.commands.setTextSelection(docSize)
-
-    if (formulaWrap === 'inline') {
-      editor?.commands.insertFormulaInline({ latex: formulaDraft, kind: formulaType })
-    } else {
-      editor?.commands.insertFormula({ latex: formulaDraft, wrap: formulaWrap, kind: formulaType })
+    // 关键修复：用 insertContentAt 在文档末尾显式插入,而不是 insertContent(在光标处)
+    // insertContent 会在光标位置(可能是一个已选中的公式节点内)插入,导致"覆盖"已有公式
+    if (editor) {
+      const endPos = editor.state.doc.content.size
+      if (formulaWrap === 'inline') {
+        editor.commands.insertContentAt(endPos, {
+          type: 'formulaInline',
+          attrs: { kind: formulaType, latex: formulaDraft, wrap: 'inline' }
+        })
+      } else {
+        editor.commands.insertContentAt(endPos, {
+          type: 'formulaContainer',
+          attrs: { kind: formulaType, latex: formulaDraft, wrap: formulaWrap }
+        })
+      }
     }
     setFormulaOpen(false)
   }
