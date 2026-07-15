@@ -297,15 +297,17 @@ const FormulaNode = Node.create({
         parseHTML: (el: HTMLElement) => el.getAttribute('data-latex') || '',
         renderHTML: (attrs: any) => ({ 'data-latex': attrs.latex || '' }),
       },
-      // 注：wrap / kind 不序列化到 HTML，解析时回退默认值（块级 / math）。
-      // 原因：多 data-* 属性经 mergeAttributes 在部分 TipTap 版本下会丢属性并导致重解析崩溃。
+      // wrap / kind 一并序列化进 data-*，确保保存后重开环绕/行内布局与公式类型不丢失。
+      // mergeAttributes 能正确合并多个 data-* 属性（早前"多属性丢属性"的判断已证伪）。
       wrap: {
         default: 'block' as 'block' | 'float-left' | 'float-right' | 'inline',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-wrap') as any) || 'block',
+        renderHTML: (attrs: any) => ({ 'data-wrap': attrs.wrap || 'block' }),
       },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
+        renderHTML: (attrs: any) => ({ 'data-kind': attrs.kind || 'math' }),
       },
       fontSize: {
         default: 0,
@@ -375,7 +377,6 @@ const FormulaInlineNode = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes, {
       'data-formula-inline': 'true',
-      'data-latex': (HTMLAttributes as any).latex || '',
       contenteditable: 'false',
     })]
   },
@@ -488,6 +489,8 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     ],
     content: value,
     onUpdate: ({ editor }) => {
+      // 守卫：编辑器初始化完成前 schema 为 null，此时 getHTML 会崩溃
+      if (!editor.isInitialized) return
       onChange(editor.getHTML())
     },
     editorProps: {
@@ -555,11 +558,13 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   }, [editor])
 
   // 同步外部 value 变化（仅在 value 与 editor 内容不一致时）
+  // 守卫 isInitialized：编辑器初始化完成前 schema 为 null，调用 getHTML 会崩溃
   useEffect(() => {
-    if (editor && value && editor.getHTML() !== value && !editor.isFocused) {
+    if (!editor || !editor.isInitialized) return
+    if (value && editor.getHTML() !== value && !editor.isFocused) {
       editor.commands.setContent(value)
     }
-  }, [value, editor])
+  }, [value, editor, editor?.isInitialized])
 
   // TOC 提取
   const [toc, setToc] = useState<Array<{ level: number; text: string; pos: number }>>([])
@@ -954,7 +959,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
       {/* ── 公式/化学式 编辑弹窗 ── */}
       {formulaOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => { setFormulaOpen(false); setEditingNodeName(null) }}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => { setFormulaOpen(false); setEditingNodeName(null) }}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-2xl w-[540px] max-w-[92vw] z-10" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-[#F0F0F0]">
@@ -1030,7 +1035,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
       {/* ── 链接弹窗 ── */}
       {showLinkInput && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowLinkInput(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setShowLinkInput(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-2xl w-[400px] z-10 p-5" onClick={e => e.stopPropagation()}>
             <label className="block text-[12px] font-medium text-[#353535] mb-2">链接地址</label>
