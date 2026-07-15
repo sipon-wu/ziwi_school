@@ -297,15 +297,15 @@ const FormulaNode = Node.create({
         parseHTML: (el: HTMLElement) => el.getAttribute('data-latex') || '',
         renderHTML: (attrs: any) => ({ 'data-latex': attrs.latex || '' }),
       },
+      // 注：wrap / kind 不序列化到 HTML，解析时回退默认值（块级 / math）。
+      // 原因：多 data-* 属性经 mergeAttributes 在部分 TipTap 版本下会丢属性并导致重解析崩溃。
       wrap: {
         default: 'block' as 'block' | 'float-left' | 'float-right' | 'inline',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-wrap') as any) || 'block',
-        renderHTML: (attrs: any) => ({ 'data-wrap': attrs.wrap || 'block' }),
       },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
-        renderHTML: (attrs: any) => ({ 'data-kind': attrs.kind || 'math' }),
       },
       fontSize: {
         default: 0,
@@ -318,11 +318,11 @@ const FormulaNode = Node.create({
     return [{ tag: 'div[data-formula]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    // latex/wrap/kind/fsize 由 addAttributes 的 renderHTML 输出到 HTMLAttributes；
-    // 这里只补 data-formula 壳与 contenteditable（KaTeX 由 NodeView 渲染）。
-    // 关键修复：此前 latex 未序列化，导致保存后重开公式变空白。
+    // 关键修复：latex 序列化进 data-latex，避免保存后重开公式变空白。
+    // 只序列化 data-latex 单属性，规避多 data-* 经 mergeAttributes 丢属性导致的重解析崩溃。
     return ['div', mergeAttributes(HTMLAttributes, {
       'data-formula': 'true',
+      'data-latex': (HTMLAttributes as any).latex || '',
       contenteditable: 'false',
     })]
   },
@@ -357,12 +357,10 @@ const FormulaInlineNode = Node.create({
       wrap: {
         default: 'inline' as 'block' | 'float-left' | 'float-right' | 'inline',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-wrap') as any) || 'inline',
-        renderHTML: (attrs: any) => ({ 'data-wrap': attrs.wrap || 'inline' }),
       },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
-        renderHTML: (attrs: any) => ({ 'data-kind': attrs.kind || 'math' }),
       },
       fontSize: {
         default: 0,
@@ -377,6 +375,7 @@ const FormulaInlineNode = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes, {
       'data-formula-inline': 'true',
+      'data-latex': (HTMLAttributes as any).latex || '',
       contenteditable: 'false',
     })]
   },
