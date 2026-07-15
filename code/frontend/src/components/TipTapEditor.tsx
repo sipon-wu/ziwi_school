@@ -3,9 +3,9 @@
  * - 所见即所得排版（无 Markdown 对照预览）
  * - Word 标准工具栏：字体/字号/B/I/U/S/H1/H2/H3/对齐/公式∫/化学⚗/表格/图片/链接/撤销/重做
  * - 右侧：版本历史面板（保存快照 + 恢复）
- * - 公式/化学式：自定义节点，支持拖拽位移 + 上下/四周环绕
+ * - 公式/化学式：自定义节点，支持拖拽位移 + 缩放（调字号）+ 上下/四周环绕
  */
-import { useState, useCallback, useRef, useEffect, type JSX } from 'react'
+import { useState, useCallback, useRef, useEffect, type JSX, type PointerEvent as ReactPointerEvent } from 'react'
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -31,10 +31,11 @@ import katex from 'katex'
 
 /* ──────── 自定义公式节点 ──────── */
 /* ──────── 自定义公式节点 ──────── */
-function FormulaView({ node }: { node: any }) {
+function FormulaView({ node, updateAttributes, selected }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const latex = (node.attrs.latex as string) || ''
   const wrap = (node.attrs.wrap as 'block' | 'inline') || 'block'
+  const fontSize = (node.attrs.fontSize as number) || 0
   useEffect(() => {
     if (!ref.current) return
     try {
@@ -48,14 +49,56 @@ function FormulaView({ node }: { node: any }) {
       ref.current.textContent = latex
     }
   }, [latex, wrap])
+
+  // 缩放：拖右下角手柄，按纵向位移调整公式字号（真正缩放公式，而非只缩放空白框）
+  const startResize = (e: ReactPointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startY = e.clientY
+    const startFont = fontSize || (wrap === 'block' ? 20 : 16)
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.min(200, Math.max(8, Math.round(startFont + (ev.clientY - startY) * 0.6)))
+      updateAttributes({ fontSize: next })
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  const isInlineSpan = wrap === 'inline' && node.type.spec.inline
   return (
     <NodeViewWrapper
+      as={isInlineSpan ? 'span' : 'div'}
       data-wrap={wrap}
       data-latex={latex}
-      className={`formula-box-container border-2 border-dashed border-[#02A7F0]/30 rounded bg-[#F0F9FF]/50 p-2 cursor-grab select-none ${wrap === 'block' ? 'block my-3 text-center' : 'inline-block float-right ml-3 mb-2 max-w-[50%]'}`}
-      style={{ userSelect: 'none' }}
+      className={`formula-box-container select-none relative ${isInlineSpan
+        ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
+        : wrap === 'block'
+          ? 'block my-3 mx-auto text-center border-2 rounded bg-[#F0F9FF]/50 p-2'
+          : 'inline-block float-right ml-3 mb-2 max-w-[80%] border-2 rounded bg-[#F0F9FF]/50 p-2'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/30'}`}
+      style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
-      <div ref={ref} />
+      <span ref={ref} className="inline-block leading-none align-middle" />
+      {selected && (
+        <>
+          {/* 拖拽提示：节点 draggable=true，按住公式主体即可在文档内移动位置 */}
+          <span
+            className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[10px] cursor-grab opacity-90"
+            title="按住公式主体拖拽即可移动位置"
+            contentEditable={false}
+          >⠿</span>
+          {/* 缩放手柄 */}
+          <span
+            onPointerDown={startResize}
+            className="absolute -bottom-2 -right-2 w-5 h-5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[11px] cursor-nwse-resize opacity-90"
+            title="拖拽缩放公式"
+            contentEditable={false}
+          >⤡</span>
+        </>
+      )}
     </NodeViewWrapper>
   )
 }
@@ -71,6 +114,11 @@ const FormulaNode = Node.create({
     return {
       latex: { default: '' },
       wrap: { default: 'block' as 'block' | 'inline' },
+      fontSize: {
+        default: 0,
+        parseHTML: (el: HTMLElement) => Number(el.getAttribute('data-fsize')) || 0,
+        renderHTML: (attrs: any) => (attrs.fontSize ? { 'data-fsize': String(attrs.fontSize) } : {}),
+      },
     }
   },
   parseHTML() {
@@ -88,18 +136,79 @@ const FormulaNode = Node.create({
   },
   addCommands() {
     return {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'inline' }) => ({ commands }: any) => {
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline' }) => ({ commands }: any) => {
         return commands.insertContent({ type: this.name, attrs })
       },
     } as any
   },
 })
 
-// 扩展 TipTap 命令类型，使 editor.commands.insertFormula 合法
+// 真·行内公式节点：inline atom，插入到段落字间（仅用于不超行高的简单化学式/短数学式）
+const FormulaInlineNode = Node.create({
+  name: 'formulaInline',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: true,
+  content: '',
+  addAttributes() {
+    return {
+      latex: { default: '' },
+      wrap: { default: 'inline' as 'block' | 'inline' },
+      fontSize: {
+        default: 0,
+        parseHTML: (el: HTMLElement) => Number(el.getAttribute('data-fsize')) || 0,
+        renderHTML: (attrs: any) => (attrs.fontSize ? { 'data-fsize': String(attrs.fontSize) } : {}),
+      },
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-formula-inline]' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, {
+      'data-formula-inline': 'true',
+      contenteditable: 'false',
+    })]
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(FormulaView)
+  },
+  addCommands() {
+    return {
+      insertFormulaInline: (attrs: { latex: string }) => ({ commands }: any) => {
+        return commands.insertContent({ type: this.name, attrs: { ...attrs, wrap: 'inline' } })
+      },
+    } as any
+  },
+})
+
+// 高度检测：包含高结构（分式/根号/矩阵/大型算子/多行/可换行的化学机理）→ 应走块级，避免挤压正文行高
+function isTallFormula(latex: string): boolean {
+  if (!latex) return false
+  const patterns = [
+    /\\frac\s*[{]/,            // 分式 a/b
+    /\\dfrac\s*[{]/,          // 显示分式
+    /\\sqrt\s*[{]/,           // 根号
+    /\\int/, /\\sum/, /\\prod/, /\\lim/, /\\iint/, /\\oint/, // 大算子
+    /\\begin\s*[{]/,          // 矩阵/多行环境（pmatrix/bmatrix/array/cases）
+    /\\over/, /\\overline\s*[{]/, /\\underbrace/, /\\overbrace/,
+    /\\substack/, /\\binom\s*[{]/, /\\limits/,
+    /\\rightleftharpoons/, // 可逆箭头（化学变化常用，较宽但可接受；保留为块级更稳）
+    /\\xrightarrow\s*[{]?/, /\\rightarrow\s*[{]?/, // 反应箭头（化学式里通常是块级更美观）
+  ]
+  return patterns.some(p => p.test(latex))
+}
+
+// 扩展 TipTap 命令类型，使 editor.commands.insertFormula / insertFormulaInline 合法
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     formulaContainer: {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'inline' }) => ReturnType
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline' }) => ReturnType
+    }
+    formulaInline: {
+      insertFormulaInline: (attrs: { latex: string }) => ReturnType
     }
   }
 }
@@ -138,7 +247,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const [formulaOpen, setFormulaOpen] = useState(false)
   const [formulaDraft, setFormulaDraft] = useState('')
   const [formulaType, setFormulaType] = useState<'math' | 'chemistry'>('math')
-  const [formulaWrap, setFormulaWrap] = useState<'block' | 'inline'>('block')
+  const [formulaWrap, setFormulaWrap] = useState<'block' | 'float' | 'inline'>('block')
 
   // 链接弹窗
   const [linkUrl, setLinkUrl] = useState('')
@@ -183,6 +292,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       TextStyle, FontFamily,
       FormulaNode,
+      FormulaInlineNode,
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -301,9 +411,24 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   }
 
   const insertFormula = () => {
-    editor?.commands.insertFormula({ latex: formulaDraft, wrap: formulaWrap })
+    if (!formulaDraft.trim()) {
+      toast('请先输入公式内容', 'error')
+      return
+    }
+    if (formulaWrap === 'inline') {
+      editor?.commands.insertFormulaInline({ latex: formulaDraft })
+    } else {
+      editor?.commands.insertFormula({ latex: formulaDraft, wrap: formulaWrap })
+    }
     setFormulaOpen(false)
   }
+
+  // 高度自动检测：含分式/根号/矩阵/大算子/反应箭头的高公式，行内会挤压正文，自动降级为块级
+  useEffect(() => {
+    if (formulaWrap === 'inline' && isTallFormula(formulaDraft)) {
+      setFormulaWrap('block')
+    }
+  }, [formulaDraft, formulaWrap])
 
   // 链接
   const setLink = () => {
@@ -607,7 +732,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
                 <img src={formulaType === 'math' ? '/icon-math.svg' : '/icon-chemistry.svg'} alt="" width={formulaType === 'math' ? 16 : 10} height={formulaType === 'math' ? 16 : 10} />
                 {formulaType === 'math' ? '插入数学公式' : '插入化学式'}
               </span>
-              <span className="text-[10px] text-[#9A9A9A]">图片式容器 · 支持拖拽位移和文字环绕</span>
+              <span className="text-[10px] text-[#9A9A9A]">图片式容器 · 行内字间 / 四周环绕 / 上下环绕 · 支持拖拽与缩放</span>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex flex-wrap gap-1.5">
@@ -647,19 +772,26 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
                 <div className="flex-1">
                   <label className="block text-[11px] text-[#9A9A9A] mb-1">实时预览</label>
                   <div className="min-h-[48px] p-3 bg-[#F9FAFB] border border-[#E7E7EB] rounded-[4px] flex items-center justify-center">
-                    <FormulaPreview latex={formulaDraft} isBlock={formulaWrap === 'block'} />
+                    <FormulaPreview latex={formulaDraft} isBlock={formulaWrap !== 'inline'} />
                   </div>
                 </div>
                 <div className="shrink-0">
-                  <label className="block text-[11px] text-[#9A9A9A] mb-1">环绕方式</label>
-                  <div className="flex gap-2">
+                  <label className="block text-[11px] text-[#9A9A9A] mb-1">插入方式</label>
+                  <div className="flex flex-col gap-1.5">
                     <button onClick={() => setFormulaWrap('block')}
-                      className={`px-3 py-2 text-[11px] rounded border ${formulaWrap === 'block' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>▬ 上下环绕</button>
+                      className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'block' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>▬ 上下环绕（块级）</button>
+                    <button onClick={() => setFormulaWrap('float')}
+                      className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'float' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>◧ 四周环绕（浮动）</button>
                     <button onClick={() => setFormulaWrap('inline')}
-                      className={`px-3 py-2 text-[11px] rounded border ${formulaWrap === 'inline' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>◧ 四周环绕</button>
+                      className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'inline' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>∷ 行内字间（行内）</button>
                   </div>
                 </div>
               </div>
+              {isTallFormula(formulaDraft) && formulaWrap !== 'block' && (
+                <p className="text-[11px] text-[#B26A00] bg-[#FFF7E6] border border-[#FFE0A3] rounded px-2 py-1.5">
+                  检测到该公式含分式 / 根号 / 矩阵 / 大算子 / 反应箭头，行内或浮动会挤压正文行高，已自动切换为「上下环绕（块级）」。如需紧凑排版，建议用块级并适当缩放。
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-[#F0F0F0]">
               <button onClick={() => setFormulaOpen(false)} className="px-4 py-1.5 text-[12px] text-[#595959] border border-[#E7E7EB] rounded-[4px]">取消</button>
