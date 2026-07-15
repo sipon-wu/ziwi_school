@@ -62,15 +62,27 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
     }
   }, [latex, wrap])
 
-  // 缩放：拖右下角手柄，按纵向位移调整公式字号（真正缩放公式，而非只缩放空白框）
-  const startResize = (e: ReactPointerEvent) => {
+  // 缩放：8 个控制点共用一个工厂函数，按 handle 方向决定用 dx / dy / max(|dx|,|dy|)
+  // 4 边中点：n/s 用 dy，e/w 用 dx（单方向缩放，光标语义与行为一致）
+  // 4 角：取两方向绝对值较大者，符号跟随 sum（自然的方向感）
+  const startResize = (handle: string) => (e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setResizing(true)
+    const startX = e.clientX
     const startY = e.clientY
     const startFont = fontSize || (wrap === 'block' ? 20 : 16)
     const onMove = (ev: PointerEvent) => {
-      const next = Math.min(200, Math.max(8, Math.round(startFont + (ev.clientY - startY) * 0.6)))
+      const dx = ev.clientX - startX
+      const dy = ev.clientY - startY
+      let delta: number
+      if (handle === 'n' || handle === 's') delta = dy
+      else if (handle === 'e' || handle === 'w') delta = dx
+      else {
+        const m = Math.max(Math.abs(dx), Math.abs(dy))
+        delta = m * (dx + dy >= 0 ? 1 : -1)
+      }
+      const next = Math.min(200, Math.max(8, Math.round(startFont + delta * 0.6)))
       updateAttributes({ fontSize: next })
     }
     const onUp = () => {
@@ -81,6 +93,18 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
   }
+
+  // 8 个控制点定义（Figma/Photoshop 选区样式：白底灰边小方块骑在框线上）
+  const handles: Array<{ k: string; pos: string; cur: string }> = [
+    { k: 'nw', pos: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2', cur: 'nwse-resize' },
+    { k: 'n',  pos: 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2', cur: 'ns-resize' },
+    { k: 'ne', pos: 'top-0 right-0 translate-x-1/2 -translate-y-1/2', cur: 'nesw-resize' },
+    { k: 'e',  pos: 'top-1/2 right-0 translate-x-1/2 -translate-y-1/2', cur: 'ew-resize' },
+    { k: 'se', pos: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2', cur: 'nwse-resize' },
+    { k: 's',  pos: 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2', cur: 'ns-resize' },
+    { k: 'sw', pos: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2', cur: 'nesw-resize' },
+    { k: 'w',  pos: 'top-1/2 left-0 -translate-x-1/2 -translate-y-1/2', cur: 'ew-resize' },
+  ]
 
   const onEdit = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -98,41 +122,39 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
       className={`formula-box-container select-none relative ${isInlineSpan
         ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
         : wrap === 'block'
-          ? 'block my-3 mx-auto text-center border-2 rounded bg-[#F0F9FF]/50 py-1 px-1.5'
-          : 'inline-block float-right ml-3 mb-2 max-w-[80%] border-2 rounded bg-[#F0F9FF]/50 py-1 px-1.5'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/30'}`}
+          ? 'block my-3 mx-auto text-center border rounded bg-[#F0F9FF]/50 py-1 px-1.5'
+          : 'inline-block float-right ml-3 mb-2 max-w-[80%] border rounded bg-[#F0F9FF]/50 py-1 px-1.5'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'}`}
       style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
       <span ref={ref} className="inline-block leading-none align-middle" />
       {selected && (
         <>
-          {/* 拖拽提示：节点 draggable=true，按住公式主体即可在文档内移动位置 */}
-          <span
-            className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[9px] cursor-grab opacity-90"
-            title="按住公式主体拖拽即可移动位置"
+          {/* 8 个缩放控制点（Figma/Photoshop 选区样式：白底灰边小方块骑在框线上） */}
+          {handles.map(h => (
+            <span
+              key={h.k}
+              draggable={false}
+              onPointerDown={startResize(h.k)}
+              className={`absolute w-1.5 h-1.5 bg-white border border-[#9CA3AF] ${h.pos} cursor-${h.cur} z-10`}
+              contentEditable={false}
+            />
+          ))}
+          {/* 右上角外浮窗：编辑 + 删除（与缩放控制点职责分离，操作更明显） */}
+          <div
+            className="absolute -top-3 -right-3 flex gap-px z-20"
             contentEditable={false}
-          >⠿</span>
-          {/* 编辑按钮：打开对话框预填当前公式，原地修改而非删除重来 */}
-          <span
-            onClick={onEdit}
-            className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#F59E0B] text-white text-[9px] cursor-pointer opacity-90"
-            title="编辑公式内容"
-            contentEditable={false}
-          >✎</span>
-          {/* 缩放手柄 */}
-          <span
-            onPointerDown={startResize}
-            draggable={false}
-            className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[9px] cursor-nwse-resize opacity-90"
-            title="拖拽缩放公式"
-            contentEditable={false}
-          >⤡</span>
-          {/* 删除按钮：直接从文档移除该公式节点（省得用键盘 Delete） */}
-          <span
-            onClick={onDelete}
-            className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#EF4444] text-white text-[9px] cursor-pointer opacity-90"
-            title="删除该公式"
-            contentEditable={false}
-          >🗑</span>
+          >
+            <span
+              onClick={onEdit}
+              className="w-5 h-5 flex items-center justify-center bg-white border border-[#9CA3AF] rounded cursor-pointer text-[11px] text-[#595959] hover:bg-[#F6F7F8]"
+              title="编辑公式"
+            >✎</span>
+            <span
+              onClick={onDelete}
+              className="w-5 h-5 flex items-center justify-center bg-white border border-[#9CA3AF] rounded cursor-pointer text-[11px] text-[#595959] hover:bg-[#FEE2E2] hover:text-[#EF4444]"
+              title="删除该公式"
+            >✕</span>
+          </div>
         </>
       )}
     </NodeViewWrapper>
