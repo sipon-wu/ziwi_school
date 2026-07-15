@@ -118,7 +118,6 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
       as={isInlineSpan ? 'span' : 'div'}
       data-wrap={wrap}
       data-latex={latex}
-      draggable={!resizing}
       className={`formula-box-container select-none relative ${isInlineSpan
         ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
         : wrap === 'block'
@@ -318,6 +317,18 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const [formulaWrap, setFormulaWrap] = useState<'block' | 'float' | 'inline'>('block')
   // 正在编辑的已有公式节点名（null=新建）；保存时原地更新而非插入新节点
   const [editingNodeName, setEditingNodeName] = useState<null | 'formulaContainer' | 'formulaInline'>(null)
+
+  // 公式弹窗防闪退：在 native 捕获阶段拦截弹窗白面板内的 mousedown，阻止 ProseMirror 因 mousedown 触发 blur
+  // （ProseMirror 在捕获阶段处理 blur，React 冒泡阶段的 onClick 晚了半步，导致弹窗在 selection 时被卸载）
+  useEffect(() => {
+    if (!formulaOpen) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('[data-formula-panel]')) e.stopPropagation()
+    }
+    document.addEventListener('mousedown', handler, { capture: true, passive: true })
+    return () => document.removeEventListener('mousedown', handler, { capture: true })
+  }, [formulaOpen])
 
   // 链接弹窗
   const [linkUrl, setLinkUrl] = useState('')
