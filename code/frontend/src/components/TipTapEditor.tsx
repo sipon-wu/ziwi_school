@@ -35,7 +35,7 @@ import katex from 'katex'
 export type FormulaEditAttrs = { latex: string; wrap: string; kind: 'math' | 'chemistry'; type: string }
 const FormulaEditContext = createContext<(a: FormulaEditAttrs) => void>(() => {})
 
-function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean; deleteNode: () => void }) {
+function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, editor }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean; deleteNode: () => void; getPos: () => number | undefined; editor: any }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const latex = (node.attrs.latex as string) || ''
   const wrap = (node.attrs.wrap as 'block' | 'inline') || 'block'
@@ -106,6 +106,52 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
     { k: 'w',  pos: 'top-1/2 left-0 -translate-x-1/2 -translate-y-1/2', cur: 'ew-resize' },
   ]
 
+  // 手动拖拽：mousedown 在公式主体（非控制点/浮窗）后，移动 > 4px 才视为拖拽，mouseup 用 ProseMirror transaction 把节点从原 pos 移到新 pos
+  // 阈值判定避免误把"点击选中"当拖拽起点，让 ProseMirror 仍能正常处理单击选中
+  const handleNodeMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (target.closest('[data-formula-handle]')) return // 点在控制点/浮窗上不进入拖拽
+
+    const startX = e.clientX
+    const startY = e.clientY
+    let hasMoved = false
+
+    const onMove = (ev: MouseEvent) => {
+      if (!hasMoved) {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        if (Math.abs(dx) + Math.abs(dy) < 4) return
+        hasMoved = true
+      }
+    }
+
+    const onUp = (ev: MouseEvent) => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      if (!hasMoved) return // 单击不视为拖拽，让 ProseMirror 处理选中
+
+      const pos = getPos?.()
+      if (typeof pos !== 'number' || !editor) return
+      const nodeRef = editor.state.doc.nodeAt(pos)
+      if (!nodeRef) return
+      const nodeSize = nodeRef.nodeSize
+      const view = editor.view
+      const result = view.posAtCoords({ left: ev.clientX, top: ev.clientY })
+      if (!result) return
+      let targetPos = result.pos
+      if (targetPos >= pos && targetPos <= pos + nodeSize) return // 落到原节点内不移动
+      if (targetPos > pos + nodeSize) targetPos -= nodeSize // 调整因删除导致的位置偏移
+
+      const tr = view.state.tr
+      tr.delete(pos, pos + nodeSize)
+      tr.insert(targetPos, nodeRef)
+      view.dispatch(tr)
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
   const onEdit = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -118,6 +164,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
       as={isInlineSpan ? 'span' : 'div'}
       data-wrap={wrap}
       data-latex={latex}
+      onMouseDown={handleNodeMouseDown}
       className={`formula-box-container select-none relative ${isInlineSpan
         ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
         : wrap === 'block'
@@ -134,23 +181,30 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
               key={h.k}
               draggable={false}
               onPointerDown={startResize(h.k)}
+              onMouseDown={e => e.stopPropagation()}
+              data-formula-handle
               className={`absolute w-1.5 h-1.5 bg-white border border-[#9CA3AF] ${h.pos} cursor-${h.cur} z-10`}
               contentEditable={false}
             />
           ))}
-          {/* 右上角外浮窗：编辑 + 删除（与缩放控制点职责分离，操作更明显） */}
+          {/* 右上角外浮窗：紧凑迷你工具栏（白底+淡边+细分割线），避免纯文字按钮在浅底色上"隐身" */}
           <div
-            className="absolute -top-3 -right-3 flex gap-px z-20"
+            data-formula-handle
+            onMouseDown={e => e.stopPropagation()}
+            className="absolute -top-3 -right-3 flex items-center bg-white border border-[#E5E7EB] rounded-md shadow-sm z-20 overflow-hidden"
             contentEditable={false}
           >
             <span
               onClick={onEdit}
-              className="w-5 h-5 flex items-center justify-center bg-white border border-[#9CA3AF] rounded cursor-pointer text-[11px] text-[#595959] hover:bg-[#F6F7F8]"
+              onMouseDown={e => e.stopPropagation()}
+              className="w-6 h-6 flex items-center justify-center cursor-pointer text-[13px] text-[#595959] hover:bg-[#F0F9FF] hover:text-[#02A7F0] border-r border-[#E5E7EB]"
               title="编辑公式"
+              style={{ transform: 'scaleX(-1)' }}
             >✎</span>
             <span
               onClick={onDelete}
-              className="w-5 h-5 flex items-center justify-center bg-white border border-[#9CA3AF] rounded cursor-pointer text-[11px] text-[#595959] hover:bg-[#FEE2E2] hover:text-[#EF4444]"
+              onMouseDown={e => e.stopPropagation()}
+              className="w-6 h-6 flex items-center justify-center cursor-pointer text-[12px] text-[#595959] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
               title="删除该公式"
             >✕</span>
           </div>
@@ -318,13 +372,6 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   // 正在编辑的已有公式节点名（null=新建）；保存时原地更新而非插入新节点
   const [editingNodeName, setEditingNodeName] = useState<null | 'formulaContainer' | 'formulaInline'>(null)
 
-  // 公式弹窗防闪退：弹窗打开时禁用编辑器（setEditable(false)），阻止 ProseMirror 因焦点转移/selection 变化触发任何 transaction
-  useEffect(() => {
-    if (!formulaOpen) return
-    editor?.setEditable(false)
-    return () => { editor?.setEditable(true) }
-  }, [formulaOpen, editor])
-
   // 链接弹窗
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
@@ -404,6 +451,13 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
       },
     },
   }, [])
+
+  // 公式弹窗防闪退：弹窗打开时禁用编辑器（setEditable(false)），阻止 ProseMirror 因焦点转移/selection 变化触发任何 transaction
+  useEffect(() => {
+    if (!formulaOpen) return
+    editor?.setEditable(false)
+    return () => { editor?.setEditable(true) }
+  }, [formulaOpen, editor])
 
   // 同步 editorRef
   useEffect(() => {
