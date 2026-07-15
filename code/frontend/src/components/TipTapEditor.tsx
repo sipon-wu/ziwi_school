@@ -107,6 +107,9 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   // - 拖拽中：克隆公式渲染结果为 ghost 副本，跟随鼠标并带阻尼插值（丝滑）；同时画一条起点→ghost 的虚线轨迹
   // - 原节点半透明占位，松手前不实际改动文档
   // - 松手：按落点水平位置决定环绕方向（左/右/块级），并用 ProseMirror transaction 把节点移到新位置
+  // 关键修复（2026-07-15）：原先在每次 mousedown 立即 appendChild(ghost/svg) + 改 opacity，会在 ProseMirror 选区建立前
+  // 动 document.body，导致行内公式首次点中时 selected 永远变不成 true、手柄/编辑/删除图标不出现。
+  // 改为：简单点击完全空操作（让 ProseMirror 正常建选区），只有真正检测到移动后才创建 ghost/svg/调 opacity。
   const handleNodeMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
     if (target.closest('[data-formula-handle]')) return // 点在控制点/浮窗上不进入拖拽
@@ -116,34 +119,44 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
     let hasMoved = false
     const isInline = !!node.type.spec.inline
 
-    // ghost 副本：内容与当前渲染结果一致，fixed 定位跟随鼠标
-    const ghost = document.createElement('div')
-    ghost.innerHTML = ref.current?.innerHTML || ''
-    ghost.style.cssText = `position:fixed;z-index:9999;pointer-events:none;opacity:0.85;left:${startX}px;top:${startY}px;transform:translate(-50%,-50%);font-size:${fontSize ? fontSize + 'px' : '16px'};`
-    document.body.appendChild(ghost)
-
-    // 轨迹线（SVG 虚线，起点→ghost 当前位置）
-    const svgNS = 'http://www.w3.org/2000/svg'
-    const svg = document.createElementNS(svgNS, 'svg')
-    svg.setAttribute('style', 'position:fixed;inset:0;width:100%;height:100%;z-index:9998;pointer-events:none;')
-    const path = document.createElementNS(svgNS, 'path')
-    path.setAttribute('stroke', '#02A7F0')
-    path.setAttribute('stroke-width', '2')
-    path.setAttribute('fill', 'none')
-    path.setAttribute('stroke-dasharray', '5 4')
-    path.setAttribute('opacity', '0.55')
-    svg.appendChild(path)
-    document.body.appendChild(svg)
-
-    // 原节点半透明占位
-    const placeholder = ref.current?.parentElement as HTMLElement | null
-    if (placeholder) placeholder.style.opacity = '0.35'
-
-    // 阻尼：ghost 当前位置每帧逼近鼠标目标（系数 0.25 产生丝滑拖尾）
+    // 拖拽相关 DOM 元素的延迟创建容器（仅在 hasMoved 变 true 时才真正 append）
+    let ghost: HTMLDivElement | null = null
+    let svg: SVGSVGElement | null = null
+    let path: SVGPathElement | null = null
+    let placeholder: HTMLElement | null = null
     let curX = startX, curY = startY
     let lastX = startX, lastY = startY
     let raf = 0
+
+    const setupDragVisuals = () => {
+      if (ghost) return // 幂等：只创建一次
+      // ghost 副本：内容与当前渲染结果一致，fixed 定位跟随鼠标
+      ghost = document.createElement('div')
+      ghost.innerHTML = ref.current?.innerHTML || ''
+      ghost.style.cssText = `position:fixed;z-index:9999;pointer-events:none;opacity:0.85;left:${startX}px;top:${startY}px;transform:translate(-50%,-50%);font-size:${fontSize ? fontSize + 'px' : '16px'};`
+      document.body.appendChild(ghost)
+
+      // 轨迹线（SVG 虚线，起点→ghost 当前位置）
+      const svgNS = 'http://www.w3.org/2000/svg'
+      svg = document.createElementNS(svgNS, 'svg')
+      svg.setAttribute('style', 'position:fixed;inset:0;width:100%;height:100%;z-index:9998;pointer-events:none;')
+      path = document.createElementNS(svgNS, 'path')
+      path.setAttribute('stroke', '#02A7F0')
+      path.setAttribute('stroke-width', '2')
+      path.setAttribute('fill', 'none')
+      path.setAttribute('stroke-dasharray', '5 4')
+      path.setAttribute('opacity', '0.55')
+      svg.appendChild(path)
+      document.body.appendChild(svg)
+
+      // 原节点半透明占位
+      placeholder = (ref.current?.parentElement as HTMLElement | null)
+      if (placeholder) placeholder.style.opacity = '0.35'
+    }
+
+    // 阻尼：ghost 当前位置每帧逼近鼠标目标（系数 0.25 产生丝滑拖尾）
     const tick = () => {
+      if (!ghost || !path) return
       curX += (lastX - curX) * 0.25
       curY += (lastY - curY) * 0.25
       ghost.style.left = curX + 'px'
@@ -158,15 +171,16 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       if (!hasMoved) {
         if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return
         hasMoved = true
+        setupDragVisuals() // 关键：只在确认是拖拽时才动 body
         raf = requestAnimationFrame(tick)
       }
     }
 
     const cleanup = () => {
       cancelAnimationFrame(raf)
-      ghost.remove()
-      svg.remove()
-      if (placeholder) placeholder.style.opacity = ''
+      if (ghost) { ghost.remove(); ghost = null }
+      if (svg) { svg.remove(); svg = null }
+      if (placeholder) { placeholder.style.opacity = ''; placeholder = null }
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -218,7 +232,12 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   const isInlineSpan = wrap === 'inline' && node.type.spec.inline
   // 内层样式：border/background/padding 紧贴 KaTeX 内容（消除"容器内左侧大量空白"）
   // 外层只管布局/拖拽/控制点定位，不挂 border 避免全宽背景把空白"框"进来
-  const innerBoxClass = `inline-block leading-none align-middle border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 px-1.5 py-1`
+  // 关键修复（2026-07-15）：行内公式改用 align-baseline + py-0，消除"上半截空白"——
+  // 之前 align-middle + py-1 让 KaTeX 行内内容掉到容器下半部分。
+  const innerBoxClass = `${isInlineSpan
+    ? 'inline-block leading-none align-baseline'
+    : 'inline-block leading-none align-middle'
+  } border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-1 py-0' : 'px-1.5 py-1'}`
   return (
     <NodeViewWrapper
       as={isInlineSpan ? 'span' : 'div'}
@@ -226,7 +245,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       data-latex={latex}
       onMouseDown={handleNodeMouseDown}
       className={`formula-box-container select-none relative ${isInlineSpan
-        ? 'inline-block align-middle mx-0.5'
+        ? 'inline-block align-baseline mx-0.5'
         : wrap === 'block'
           ? 'flex justify-center my-3'
           : wrap === 'float-left'
