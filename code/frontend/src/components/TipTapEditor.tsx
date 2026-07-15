@@ -5,7 +5,7 @@
  * - 右侧：版本历史面板（保存快照 + 恢复）
  * - 公式/化学式：自定义节点，支持拖拽位移 + 缩放（调字号）+ 上下/四周环绕
  */
-import { useState, useCallback, useRef, useEffect, type JSX, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useCallback, useRef, useEffect, createContext, useContext, type JSX, type PointerEvent as ReactPointerEvent } from 'react'
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -31,11 +31,18 @@ import katex from 'katex'
 
 /* ──────── 自定义公式节点 ──────── */
 /* ──────── 自定义公式节点 ──────── */
+// 公式节点 → 主组件 的编辑回调上下文（选中公式后点 ✎ 打开对话框预填）
+export type FormulaEditAttrs = { latex: string; wrap: string; kind: 'math' | 'chemistry'; type: string }
+const FormulaEditContext = createContext<(a: FormulaEditAttrs) => void>(() => {})
+
 function FormulaView({ node, updateAttributes, selected }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const latex = (node.attrs.latex as string) || ''
   const wrap = (node.attrs.wrap as 'block' | 'inline') || 'block'
+  const kind = (node.attrs.kind as 'math' | 'chemistry') || 'math'
   const fontSize = (node.attrs.fontSize as number) || 0
+  const openEditor = useContext(FormulaEditContext)
+  const [resizing, setResizing] = useState(false)
   useEffect(() => {
     if (!ref.current) return
     try {
@@ -54,6 +61,7 @@ function FormulaView({ node, updateAttributes, selected }: { node: any; updateAt
   const startResize = (e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setResizing(true)
     const startY = e.clientY
     const startFont = fontSize || (wrap === 'block' ? 20 : 16)
     const onMove = (ev: PointerEvent) => {
@@ -61,11 +69,18 @@ function FormulaView({ node, updateAttributes, selected }: { node: any; updateAt
       updateAttributes({ fontSize: next })
     }
     const onUp = () => {
+      setResizing(false)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+  }
+
+  const onEdit = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    openEditor?.({ latex, wrap, kind, type: node.type.name })
   }
 
   const isInlineSpan = wrap === 'inline' && node.type.spec.inline
@@ -74,6 +89,7 @@ function FormulaView({ node, updateAttributes, selected }: { node: any; updateAt
       as={isInlineSpan ? 'span' : 'div'}
       data-wrap={wrap}
       data-latex={latex}
+      draggable={!resizing}
       className={`formula-box-container select-none relative ${isInlineSpan
         ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
         : wrap === 'block'
@@ -90,9 +106,17 @@ function FormulaView({ node, updateAttributes, selected }: { node: any; updateAt
             title="按住公式主体拖拽即可移动位置"
             contentEditable={false}
           >⠿</span>
+          {/* 编辑按钮：打开对话框预填当前公式，原地修改而非删除重来 */}
+          <span
+            onClick={onEdit}
+            className="absolute -top-2.5 -right-2.5 w-5 h-5 flex items-center justify-center rounded bg-[#F59E0B] text-white text-[10px] cursor-pointer opacity-90"
+            title="编辑公式内容"
+            contentEditable={false}
+          >✎</span>
           {/* 缩放手柄 */}
           <span
             onPointerDown={startResize}
+            draggable={false}
             className="absolute -bottom-2 -right-2 w-5 h-5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[11px] cursor-nwse-resize opacity-90"
             title="拖拽缩放公式"
             contentEditable={false}
@@ -114,6 +138,10 @@ const FormulaNode = Node.create({
     return {
       latex: { default: '' },
       wrap: { default: 'block' as 'block' | 'inline' },
+      kind: {
+        default: 'math' as 'math' | 'chemistry',
+        parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
+      },
       fontSize: {
         default: 0,
         parseHTML: (el: HTMLElement) => Number(el.getAttribute('data-fsize')) || 0,
@@ -128,6 +156,7 @@ const FormulaNode = Node.create({
     // HTML 序列化时只输出占位外壳，KaTeX 内容由 NodeView 渲染
     return ['div', mergeAttributes(HTMLAttributes, {
       'data-formula': 'true',
+      'data-kind': (HTMLAttributes as any).kind || 'math',
       contenteditable: 'false',
     })]
   },
@@ -136,8 +165,8 @@ const FormulaNode = Node.create({
   },
   addCommands() {
     return {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline' }) => ({ commands }: any) => {
-        return commands.insertContent({ type: this.name, attrs })
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline'; kind?: 'math' | 'chemistry' }) => ({ commands }: any) => {
+        return commands.insertContent({ type: this.name, attrs: { kind: 'math', ...attrs } })
       },
     } as any
   },
@@ -156,6 +185,10 @@ const FormulaInlineNode = Node.create({
     return {
       latex: { default: '' },
       wrap: { default: 'inline' as 'block' | 'inline' },
+      kind: {
+        default: 'math' as 'math' | 'chemistry',
+        parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
+      },
       fontSize: {
         default: 0,
         parseHTML: (el: HTMLElement) => Number(el.getAttribute('data-fsize')) || 0,
@@ -169,6 +202,7 @@ const FormulaInlineNode = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes, {
       'data-formula-inline': 'true',
+      'data-kind': (HTMLAttributes as any).kind || 'math',
       contenteditable: 'false',
     })]
   },
@@ -177,8 +211,8 @@ const FormulaInlineNode = Node.create({
   },
   addCommands() {
     return {
-      insertFormulaInline: (attrs: { latex: string }) => ({ commands }: any) => {
-        return commands.insertContent({ type: this.name, attrs: { ...attrs, wrap: 'inline' } })
+      insertFormulaInline: (attrs: { latex: string; kind?: 'math' | 'chemistry' }) => ({ commands }: any) => {
+        return commands.insertContent({ type: this.name, attrs: { kind: 'math', wrap: 'inline', ...attrs } })
       },
     } as any
   },
@@ -195,8 +229,8 @@ function isTallFormula(latex: string): boolean {
     /\\begin\s*[{]/,          // 矩阵/多行环境（pmatrix/bmatrix/array/cases）
     /\\over/, /\\overline\s*[{]/, /\\underbrace/, /\\overbrace/,
     /\\substack/, /\\binom\s*[{]/, /\\limits/,
-    /\\rightleftharpoons/, // 可逆箭头（化学变化常用，较宽但可接受；保留为块级更稳）
-    /\\xrightarrow\s*[{]?/, /\\rightarrow\s*[{]?/, // 反应箭头（化学式里通常是块级更美观）
+    // 注：横向反应箭头（\rightleftharpoons / \rightarrow 等）虽宽但不占行高，行内可用，不计入"高公式"
+    // 反应箭头（\rightarrow 等）虽宽但不占行高，行内可用，不计入"高公式"
   ]
   return patterns.some(p => p.test(latex))
 }
@@ -205,10 +239,10 @@ function isTallFormula(latex: string): boolean {
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     formulaContainer: {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline' }) => ReturnType
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline'; kind?: 'math' | 'chemistry' }) => ReturnType
     }
     formulaInline: {
-      insertFormulaInline: (attrs: { latex: string }) => ReturnType
+      insertFormulaInline: (attrs: { latex: string; kind?: 'math' | 'chemistry' }) => ReturnType
     }
   }
 }
@@ -248,6 +282,8 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const [formulaDraft, setFormulaDraft] = useState('')
   const [formulaType, setFormulaType] = useState<'math' | 'chemistry'>('math')
   const [formulaWrap, setFormulaWrap] = useState<'block' | 'float' | 'inline'>('block')
+  // 正在编辑的已有公式节点名（null=新建）；保存时原地更新而非插入新节点
+  const [editingNodeName, setEditingNodeName] = useState<null | 'formulaContainer' | 'formulaInline'>(null)
 
   // 链接弹窗
   const [linkUrl, setLinkUrl] = useState('')
@@ -402,23 +438,46 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   }
   const deleteAnnotation = (id: string) => setAnnotations(prev => prev.filter(a => a.id !== id))
 
-  // 公式插入
+  // 公式插入（新建）
   const openFormulaEditor = (type: 'math' | 'chemistry') => {
+    setEditingNodeName(null)
     setFormulaType(type)
     setFormulaDraft(type === 'chemistry' ? '2H_{2} + O_{2} \\rightarrow 2H_{2}O' : '')
     setFormulaWrap('block')
     setFormulaOpen(true)
   }
 
+  // 公式编辑（来自节点 ✎ 按钮）：预填当前节点内容，记录节点类型
+  const editFormulaRef = useRef<(a: FormulaEditAttrs) => void>(() => {})
+  editFormulaRef.current = (a: FormulaEditAttrs) => {
+    setEditingNodeName(a.type as 'formulaContainer' | 'formulaInline')
+    setFormulaType(a.kind || 'math')
+    setFormulaDraft(a.latex)
+    setFormulaWrap(a.wrap as 'block' | 'float' | 'inline')
+    setFormulaOpen(true)
+  }
+  const editFormulaStable = useCallback((a: FormulaEditAttrs) => editFormulaRef.current(a), [])
+
   const insertFormula = () => {
     if (!formulaDraft.trim()) {
       toast('请先输入公式内容', 'error')
       return
     }
+    // 编辑已有节点：原地更新属性，而非插入新节点
+    if (editingNodeName) {
+      if (editingNodeName === 'formulaInline') {
+        editor?.chain().focus().updateAttributes('formulaInline', { latex: formulaDraft, wrap: 'inline', kind: formulaType }).run()
+      } else {
+        editor?.chain().focus().updateAttributes('formulaContainer', { latex: formulaDraft, wrap: formulaWrap, kind: formulaType }).run()
+      }
+      setEditingNodeName(null)
+      setFormulaOpen(false)
+      return
+    }
     if (formulaWrap === 'inline') {
-      editor?.commands.insertFormulaInline({ latex: formulaDraft })
+      editor?.commands.insertFormulaInline({ latex: formulaDraft, kind: formulaType })
     } else {
-      editor?.commands.insertFormula({ latex: formulaDraft, wrap: formulaWrap })
+      editor?.commands.insertFormula({ latex: formulaDraft, wrap: formulaWrap, kind: formulaType })
     }
     setFormulaOpen(false)
   }
@@ -464,6 +523,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const headingNodes = toc
 
   return (
+    <FormulaEditContext.Provider value={editFormulaStable}>
     <div className="h-full flex flex-col bg-white">
       {/* ── Word 式工具栏 ── */}
       <div className="border-b border-[#E7E7EB] bg-[#F9FAFB] px-2 py-1.5 flex items-center gap-0.5 flex-wrap select-none text-[#595959] shrink-0">
@@ -724,15 +784,15 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
       {/* ── 公式/化学式 编辑弹窗 ── */}
       {formulaOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setFormulaOpen(false)}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => { setFormulaOpen(false); setEditingNodeName(null) }}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-2xl w-[540px] max-w-[92vw] z-10" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-[#F0F0F0]">
               <span className="text-sm font-semibold text-[#353535] flex items-center gap-1.5">
                 <img src={formulaType === 'math' ? '/icon-math.svg' : '/icon-chemistry.svg'} alt="" width={formulaType === 'math' ? 16 : 10} height={formulaType === 'math' ? 16 : 10} />
-                {formulaType === 'math' ? '插入数学公式' : '插入化学式'}
+                {editingNodeName ? (formulaType === 'math' ? '编辑数学公式' : '编辑化学式') : (formulaType === 'math' ? '插入数学公式' : '插入化学式')}
               </span>
-              <span className="text-[10px] text-[#9A9A9A]">图片式容器 · 行内字间 / 四周环绕 / 上下环绕 · 支持拖拽与缩放</span>
+              <span className="text-[10px] text-[#9A9A9A]">图片式容器 · 行内字间 / 四周环绕 / 上下环绕 · 选中公式可点 ✎ 编辑</span>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex flex-wrap gap-1.5">
@@ -794,8 +854,8 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
               )}
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-[#F0F0F0]">
-              <button onClick={() => setFormulaOpen(false)} className="px-4 py-1.5 text-[12px] text-[#595959] border border-[#E7E7EB] rounded-[4px]">取消</button>
-              <button onClick={insertFormula} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">插入到文档</button>
+              <button onClick={() => { setFormulaOpen(false); setEditingNodeName(null) }} className="px-4 py-1.5 text-[12px] text-[#595959] border border-[#E7E7EB] rounded-[4px]">取消</button>
+              <button onClick={insertFormula} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">{editingNodeName ? '保存修改' : '插入到文档'}</button>
             </div>
           </div>
         </div>
@@ -871,5 +931,6 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
         />
       )}
     </div>
+    </FormulaEditContext.Provider>
   )
 }
