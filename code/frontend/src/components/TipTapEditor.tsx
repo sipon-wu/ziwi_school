@@ -611,34 +611,40 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     }
     // 弹窗打开时 editor 被设为不可编辑（防止编辑弹窗内操作触发 blur 闪退）；
     // 但插入/更新命令必须在可编辑状态下执行，否则 ProseMirror 会忽略事务
+    const beforeEditable = editor?.isEditable
     editor?.setEditable(true)
+    const afterEditable = editor?.isEditable
     // 编辑已有节点：原地更新属性，而非插入新节点
     if (editingNodeName) {
+      let r: any
       if (editingNodeName === 'formulaInline') {
-        editor?.chain().focus().updateAttributes('formulaInline', { latex: formulaDraft, wrap: 'inline', kind: formulaType }).run()
+        r = editor?.chain().focus().updateAttributes('formulaInline', { latex: formulaDraft, wrap: 'inline', kind: formulaType }).run()
       } else {
-        editor?.chain().focus().updateAttributes('formulaContainer', { latex: formulaDraft, wrap: formulaWrap, kind: formulaType }).run()
+        r = editor?.chain().focus().updateAttributes('formulaContainer', { latex: formulaDraft, wrap: formulaWrap, kind: formulaType }).run()
       }
+      console.log('[insertFormula] EDIT mode: editableBefore=', beforeEditable, 'editableAfter=', afterEditable, 'result=', r, 'wrap=', formulaWrap)
       setEditingNodeName(null)
       setFormulaOpen(false)
       return
     }
     // 关键修复：用 insertContentAt 在文档末尾显式插入,而不是 insertContent(在光标处)
     // insertContent 会在光标位置(可能是一个已选中的公式节点内)插入,导致"覆盖"已有公式
+    let result: any
     if (editor) {
       const endPos = editor.state.doc.content.size
       if (formulaWrap === 'inline') {
-        editor.commands.insertContentAt(endPos, {
+        result = editor.commands.insertContentAt(endPos, {
           type: 'formulaInline',
           attrs: { kind: formulaType, latex: formulaDraft, wrap: 'inline' }
         })
       } else {
-        editor.commands.insertContentAt(endPos, {
+        result = editor.commands.insertContentAt(endPos, {
           type: 'formulaContainer',
           attrs: { kind: formulaType, latex: formulaDraft, wrap: formulaWrap }
         })
       }
     }
+    console.log('[insertFormula] INSERT mode: editableBefore=', beforeEditable, 'editableAfter=', afterEditable, 'endPos=', editor?.state.doc.content.size, 'result=', result, 'latex=', JSON.stringify(formulaDraft.slice(0, 30)), 'wrap=', formulaWrap)
     setFormulaOpen(false)
   }
 
