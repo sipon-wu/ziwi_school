@@ -35,7 +35,7 @@ import katex from 'katex'
 export type FormulaEditAttrs = { latex: string; wrap: string; kind: 'math' | 'chemistry'; type: string }
 const FormulaEditContext = createContext<(a: FormulaEditAttrs) => void>(() => {})
 
-function FormulaView({ node, updateAttributes, selected }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean }) {
+function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean; deleteNode: () => void }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const latex = (node.attrs.latex as string) || ''
   const wrap = (node.attrs.wrap as 'block' | 'inline') || 'block'
@@ -43,6 +43,11 @@ function FormulaView({ node, updateAttributes, selected }: { node: any; updateAt
   const fontSize = (node.attrs.fontSize as number) || 0
   const openEditor = useContext(FormulaEditContext)
   const [resizing, setResizing] = useState(false)
+  const onDelete = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    deleteNode()
+  }
   useEffect(() => {
     if (!ref.current) return
     try {
@@ -121,6 +126,13 @@ function FormulaView({ node, updateAttributes, selected }: { node: any; updateAt
             title="拖拽缩放公式"
             contentEditable={false}
           >⤡</span>
+          {/* 删除按钮：直接从文档移除该公式节点（省得用键盘 Delete） */}
+          <span
+            onClick={onDelete}
+            className="absolute -bottom-2 -left-2 w-5 h-5 flex items-center justify-center rounded bg-[#EF4444] text-white text-[11px] cursor-pointer opacity-90"
+            title="删除该公式"
+            contentEditable={false}
+          >🗑</span>
         </>
       )}
     </NodeViewWrapper>
