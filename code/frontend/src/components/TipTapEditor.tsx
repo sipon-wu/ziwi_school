@@ -38,7 +38,7 @@ const FormulaEditContext = createContext<(a: FormulaEditAttrs) => void>(() => {}
 function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, editor }: { node: any; updateAttributes: (a: Record<string, any>) => void; selected: boolean; deleteNode: () => void; getPos: () => number | undefined; editor: any }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const latex = (node.attrs.latex as string) || ''
-  const wrap = (node.attrs.wrap as 'block' | 'inline') || 'block'
+  const wrap = (node.attrs.wrap as 'block' | 'float-left' | 'float-right' | 'inline') || 'block'
   const kind = (node.attrs.kind as 'math' | 'chemistry') || 'math'
   const fontSize = (node.attrs.fontSize as number) || 0
   const openEditor = useContext(FormulaEditContext)
