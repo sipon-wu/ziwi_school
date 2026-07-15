@@ -320,11 +320,9 @@ const FormulaNode = Node.create({
     return [{ tag: 'div[data-formula]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    // 关键修复：latex 序列化进 data-latex，避免保存后重开公式变空白。
-    // 只序列化 data-latex 单属性，规避多 data-* 经 mergeAttributes 丢属性导致的重解析崩溃。
+    // latex / wrap / kind / fontSize 由 addAttributes 的 renderHTML 统一输出到 data-*，此处仅补 data-formula 标记。
     return ['div', mergeAttributes(HTMLAttributes, {
       'data-formula': 'true',
-      'data-latex': (HTMLAttributes as any).latex || '',
       contenteditable: 'false',
     })]
   },
@@ -359,10 +357,12 @@ const FormulaInlineNode = Node.create({
       wrap: {
         default: 'inline' as 'block' | 'float-left' | 'float-right' | 'inline',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-wrap') as any) || 'inline',
+        renderHTML: (attrs: any) => ({ 'data-wrap': attrs.wrap || 'inline' }),
       },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
+        renderHTML: (attrs: any) => ({ 'data-kind': attrs.kind || 'math' }),
       },
       fontSize: {
         default: 0,
