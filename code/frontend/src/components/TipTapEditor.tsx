@@ -72,6 +72,11 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
     const startX = e.clientX
     const startY = e.clientY
     const startFont = fontSize || (wrap === 'block' ? 20 : 16)
+    // 动态上限：测量编辑区宽度和公式当前宽度，保证放大后不超出页宽
+    // maxFont = (编辑区宽 × 0.92 × startFont) / 公式当前宽
+    const editorWidth = editor?.view?.dom?.clientWidth || 800
+    const formulaWidth = ref.current?.parentElement?.clientWidth || 100
+    const maxFont = Math.min(200, Math.max(startFont, Math.floor((editorWidth * 0.92 * startFont) / Math.max(formulaWidth, 1))))
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX
       const dy = ev.clientY - startY
@@ -94,7 +99,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
         case 'nw': delta = m * (-(dx + dy) >= 0 ? 1 : -1); break // 向外=(-1,-1)
         default: delta = 0
       }
-      const next = Math.min(200, Math.max(8, Math.round(startFont + delta * 0.6)))
+      const next = Math.min(maxFont, Math.max(8, Math.round(startFont + delta * 0.6)))
       updateAttributes({ fontSize: next })
     }
     const onUp = () => {
@@ -251,7 +256,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   const innerBoxClass = `${isInlineSpan
     ? 'inline-block leading-none align-baseline'
     : 'inline-block leading-none align-middle'
-  } border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-0.5 py-0' : 'px-1.5 py-1'}`
+  } whitespace-nowrap border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-0.5 py-0' : 'px-1.5 py-1'}`
   return (
     <NodeViewWrapper
       as={isInlineSpan ? 'span' : 'div'}
