@@ -645,17 +645,26 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
       setFormulaOpen(false)
       return
     }
-    // 关键修复：用 insertContentAt 在文档末尾显式插入,而不是 insertContent(在光标处)
-    // insertContent 会在光标位置(可能是一个已选中的公式节点内)插入,导致"覆盖"已有公式
+    // 用 insertContentAt 在【光标位置】显式插入（而非文档末尾），尊重用户编辑位置。
+    // 仍用 insertContentAt(显式坐标) 而非 insertContent，避免光标落在某已选中公式节点内时覆盖已有公式。
     if (editor) {
-      const endPos = editor.state.doc.content.size
+      let pos = editor.state.selection.from
       if (formulaWrap === 'inline') {
-        editor.commands.insertContentAt(endPos, {
+        // 行内公式必须落在文本块内：若当前光标不在文本块（如在块级公式上/文档边界），回退到末尾文本块末尾
+        const $pos = editor.state.doc.resolve(pos)
+        if (!$pos.parent.isTextblock) {
+          const doc = editor.state.doc
+          const lastChild = doc.lastChild as any
+          pos = (lastChild && lastChild.isTextblock)
+            ? doc.content.size - lastChild.nodeSize + 1 + lastChild.content.size
+            : doc.content.size
+        }
+        editor.commands.insertContentAt(pos, {
           type: 'formulaInline',
           attrs: { kind: formulaType, latex: formulaDraft, wrap: 'inline' }
         })
       } else {
-        editor.commands.insertContentAt(endPos, {
+        editor.commands.insertContentAt(pos, {
           type: 'formulaContainer',
           attrs: { kind: formulaType, latex: formulaDraft, wrap: formulaWrap }
         })
