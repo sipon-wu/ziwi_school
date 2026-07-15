@@ -20,7 +20,7 @@ import { TextAlign } from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { FontFamily } from '@tiptap/extension-font-family'
 import { Node, mergeAttributes } from '@tiptap/core'
-import { Maximize2, Minimize2, Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus, MessageSquare, Trash2, X, FileText } from 'lucide-react'
+import { Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Quote, Code, Link2, ImageIcon, Table2, Undo2, Redo2, Heading1, Heading2, Type, ListTree, History, RotateCcw, Eye, Save, ChevronLeft, Plus, MessageSquare, Trash2, X, FileText, Pencil } from 'lucide-react'
 import { FormulaPreview } from './FormulaRender'
 import ResourcePicker from './ResourcePicker'
 import { useToast } from './Toast'
@@ -42,7 +42,6 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   const kind = (node.attrs.kind as 'math' | 'chemistry') || 'math'
   const fontSize = (node.attrs.fontSize as number) || 0
   const openEditor = useContext(FormulaEditContext)
-  const [resizing, setResizing] = useState(false)
   const onDelete = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -68,7 +67,6 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   const startResize = (handle: string) => (e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setResizing(true)
     const startX = e.clientX
     const startY = e.clientY
     const startFont = fontSize || (wrap === 'block' ? 20 : 16)
@@ -86,7 +84,6 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       updateAttributes({ fontSize: next })
     }
     const onUp = () => {
-      setResizing(false)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
@@ -219,6 +216,9 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   }
 
   const isInlineSpan = wrap === 'inline' && node.type.spec.inline
+  // 内层样式：border/background/padding 紧贴 KaTeX 内容（消除"容器内左侧大量空白"）
+  // 外层只管布局/拖拽/控制点定位，不挂 border 避免全宽背景把空白"框"进来
+  const innerBoxClass = `inline-block leading-none align-middle border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 px-1.5 py-1`
   return (
     <NodeViewWrapper
       as={isInlineSpan ? 'span' : 'div'}
@@ -226,15 +226,15 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       data-latex={latex}
       onMouseDown={handleNodeMouseDown}
       className={`formula-box-container select-none relative ${isInlineSpan
-        ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
+        ? 'inline-block align-middle mx-0.5'
         : wrap === 'block'
-          ? 'block my-3 mx-auto text-center border rounded bg-[#F0F9FF]/50 py-1 px-1.5'
+          ? 'flex justify-center my-3'
           : wrap === 'float-left'
-            ? 'inline-block float-left mr-3 mb-2 max-w-[80%] border rounded bg-[#F0F9FF]/50 py-1 px-1.5'
-            : 'inline-block float-right ml-3 mb-2 max-w-[80%] border rounded bg-[#F0F9FF]/50 py-1 px-1.5'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'}`}
+            ? 'float-left mr-3 mb-2 max-w-[80%]'
+            : 'float-right ml-3 mb-2 max-w-[80%]'}`}
       style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
-      <span ref={ref} className="inline-block leading-none align-middle" />
+      <span ref={ref} className={innerBoxClass} />
       {selected && (
         <>
           {/* 8 个缩放控制点（Figma/Photoshop 选区样式：白底灰边小方块骑在框线上） */}
@@ -249,26 +249,33 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
               contentEditable={false}
             />
           ))}
-          {/* 右上角外浮窗：紧凑迷你工具栏（白底+淡边+细分割线），避免纯文字按钮在浅底色上"隐身" */}
+          {/* 右上角外浮窗：紧凑迷你工具栏（白底+淡边+细分割线），SVG 图标确保跨字体稳定渲染 */}
           <div
             data-formula-handle
             onMouseDown={e => e.stopPropagation()}
-            className="absolute -top-3 -right-3 flex items-center bg-white border border-[#E5E7EB] rounded-md shadow-sm z-20 overflow-hidden"
+            className="absolute -top-3 -right-3 flex items-center bg-white border border-[#D1D5DB] rounded-md shadow-md z-20 overflow-hidden"
             contentEditable={false}
           >
-            <span
+            <button
+              type="button"
               onClick={onEdit}
               onMouseDown={e => e.stopPropagation()}
-              className="w-6 h-6 flex items-center justify-center cursor-pointer text-[13px] text-[#595959] hover:bg-[#F0F9FF] hover:text-[#02A7F0] border-r border-[#E5E7EB]"
+              className="w-6 h-6 flex items-center justify-center cursor-pointer text-[#595959] hover:bg-[#F0F9FF] hover:text-[#02A7F0] border-r border-[#E5E7EB]"
               title="编辑公式"
-              style={{ transform: 'scaleX(-1)' }}
-            >✎</span>
-            <span
+              contentEditable={false}
+            >
+              <Pencil size={12} strokeWidth={2.2} />
+            </button>
+            <button
+              type="button"
               onClick={onDelete}
               onMouseDown={e => e.stopPropagation()}
-              className="w-6 h-6 flex items-center justify-center cursor-pointer text-[12px] text-[#595959] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
+              className="w-6 h-6 flex items-center justify-center cursor-pointer text-[#595959] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
               title="删除该公式"
-            >✕</span>
+              contentEditable={false}
+            >
+              <Trash2 size={12} strokeWidth={2.2} />
+            </button>
           </div>
         </>
       )}
@@ -414,8 +421,6 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const [formulaDraft, setFormulaDraft] = useState('')
   const [formulaType, setFormulaType] = useState<'math' | 'chemistry'>('math')
   const [formulaWrap, setFormulaWrap] = useState<'block' | 'float-left' | 'float-right' | 'inline'>('block')
-  // 实测公式是否"高"（渲染高度超过 2 倍行高），高公式不允许行内字间
-  const [isTall, setIsTall] = useState(false)
   // 正在编辑的已有公式节点名（null=新建）；保存时原地更新而非插入新节点
   const [editingNodeName, setEditingNodeName] = useState<null | 'formulaContainer' | 'formulaInline'>(null)
 
@@ -986,11 +991,6 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
                   </div>
                 </div>
               </div>
-              {isTall && formulaWrap !== 'block' && (
-                <p className="text-[11px] text-[#B26A00] bg-[#FFF7E6] border border-[#FFE0A3] rounded px-2 py-1.5">
-                  检测到该公式含分式 / 根号 / 矩阵 / 大算子 / 反应箭头，行内或浮动会挤压正文行高，已自动切换为「上下环绕（块级）」。如需紧凑排版，建议用块级并适当缩放。
-                </p>
-              )}
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-[#F0F0F0]">
               <button onClick={() => { setFormulaOpen(false); setEditingNodeName(null) }} className="px-4 py-1.5 text-[12px] text-[#595959] border border-[#E7E7EB] rounded-[4px]">取消</button>
