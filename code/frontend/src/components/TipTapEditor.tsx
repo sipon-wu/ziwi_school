@@ -292,11 +292,20 @@ const FormulaNode = Node.create({
   content: '',
   addAttributes() {
     return {
-      latex: { default: '' },
-      wrap: { default: 'block' as 'block' | 'float-left' | 'float-right' | 'inline' },
+      latex: {
+        default: '',
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-latex') || '',
+        renderHTML: (attrs: any) => ({ 'data-latex': attrs.latex || '' }),
+      },
+      wrap: {
+        default: 'block' as 'block' | 'float-left' | 'float-right' | 'inline',
+        parseHTML: (el: HTMLElement) => (el.getAttribute('data-wrap') as any) || 'block',
+        renderHTML: (attrs: any) => ({ 'data-wrap': attrs.wrap || 'block' }),
+      },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
+        renderHTML: (attrs: any) => ({ 'data-kind': attrs.kind || 'math' }),
       },
       fontSize: {
         default: 0,
@@ -309,10 +318,11 @@ const FormulaNode = Node.create({
     return [{ tag: 'div[data-formula]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    // HTML 序列化时只输出占位外壳，KaTeX 内容由 NodeView 渲染
+    // latex/wrap/kind/fsize 由 addAttributes 的 renderHTML 输出到 HTMLAttributes；
+    // 这里只补 data-formula 壳与 contenteditable（KaTeX 由 NodeView 渲染）。
+    // 关键修复：此前 latex 未序列化，导致保存后重开公式变空白。
     return ['div', mergeAttributes(HTMLAttributes, {
       'data-formula': 'true',
-      'data-kind': (HTMLAttributes as any).kind || 'math',
       contenteditable: 'false',
     })]
   },
@@ -339,11 +349,20 @@ const FormulaInlineNode = Node.create({
   content: '',
   addAttributes() {
     return {
-      latex: { default: '' },
-      wrap: { default: 'inline' as 'block' | 'float-left' | 'float-right' | 'inline' },
+      latex: {
+        default: '',
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-latex') || '',
+        renderHTML: (attrs: any) => ({ 'data-latex': attrs.latex || '' }),
+      },
+      wrap: {
+        default: 'inline' as 'block' | 'float-left' | 'float-right' | 'inline',
+        parseHTML: (el: HTMLElement) => (el.getAttribute('data-wrap') as any) || 'inline',
+        renderHTML: (attrs: any) => ({ 'data-wrap': attrs.wrap || 'inline' }),
+      },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
+        renderHTML: (attrs: any) => ({ 'data-kind': attrs.kind || 'math' }),
       },
       fontSize: {
         default: 0,
@@ -358,7 +377,6 @@ const FormulaInlineNode = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes, {
       'data-formula-inline': 'true',
-      'data-kind': (HTMLAttributes as any).kind || 'math',
       contenteditable: 'false',
     })]
   },
@@ -1030,7 +1048,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
       {/* ── 图片弹窗（URL / 素材库）── */}
       {showImgInput && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowImgInput(false)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center" onClick={() => setShowImgInput(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-2xl w-[420px] z-10 p-5" onClick={e => e.stopPropagation()}>
             <div className="flex gap-3 mb-4">

@@ -681,7 +681,9 @@ export default function LessonPlanEditor() {
           </div>
         </div>
         <div className="flex-1 overflow-hidden">
-          <TipTapEditor value={content} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
+          {/* 全屏编辑必须与文档模式一致：value 必须是 HTML（contentToHtml 把 Markdown 转 HTML），
+              不能传原始 content（Markdown），否则编辑器会把 #/## 当成纯文本显示 */}
+          <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
         </div>
       </div>
     )}
