@@ -604,6 +604,9 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
       toast('请先输入公式内容', 'error')
       return
     }
+    // 弹窗打开时 editor 被设为不可编辑（防止编辑弹窗内操作触发 blur 闪退）；
+    // 但插入/更新命令必须在可编辑状态下执行，否则 ProseMirror 会忽略事务
+    editor?.setEditable(true)
     // 编辑已有节点：原地更新属性，而非插入新节点
     if (editingNodeName) {
       if (editingNodeName === 'formulaInline') {
