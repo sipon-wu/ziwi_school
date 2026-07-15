@@ -272,7 +272,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
             : 'float-right ml-3 mb-2 max-w-[80%] z-10'}`}
       style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
-      <span ref={ref} className={innerBoxClass} />
+      <span ref={ref} className={innerBoxClass} style={{ textIndent: 0 }} />
       {selected && (
         <>
           {/* 8 个缩放控制点（Figma/Photoshop 选区样式：白底灰边小方块骑在框线上） */}
