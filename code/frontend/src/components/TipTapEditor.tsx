@@ -230,8 +230,8 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
         : wrap === 'block'
           ? 'flex justify-center my-3'
           : wrap === 'float-left'
-            ? 'float-left mr-3 mb-2 max-w-[80%]'
-            : 'float-right ml-3 mb-2 max-w-[80%]'}`}
+            ? 'float-left mr-3 mb-2 max-w-[80%] z-10'
+            : 'float-right ml-3 mb-2 max-w-[80%] z-10'}`}
       style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
       <span ref={ref} className={innerBoxClass} />
@@ -623,6 +623,11 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
       setFormulaOpen(false)
       return
     }
+    // 关键修复：先把光标移到文档末尾,避免 insertContent 在光标处"覆盖"已存在的公式节点
+    // (之前 bug:连续插入公式时,后插入的会替换前一个,光标停留在前一个公式节点内)
+    const docSize = editor?.state.doc.content.size || 0
+    editor?.commands.setTextSelection(docSize)
+
     if (formulaWrap === 'inline') {
       editor?.commands.insertFormulaInline({ latex: formulaDraft, kind: formulaType })
     } else {
