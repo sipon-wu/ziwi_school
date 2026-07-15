@@ -98,8 +98,8 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
       className={`formula-box-container select-none relative ${isInlineSpan
         ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
         : wrap === 'block'
-          ? 'block my-3 mx-auto text-center border-2 rounded bg-[#F0F9FF]/50 p-2'
-          : 'inline-block float-right ml-3 mb-2 max-w-[80%] border-2 rounded bg-[#F0F9FF]/50 p-2'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/30'}`}
+          ? 'block my-3 mx-auto text-center border-2 rounded bg-[#F0F9FF]/50 py-1 px-1.5'
+          : 'inline-block float-right ml-3 mb-2 max-w-[80%] border-2 rounded bg-[#F0F9FF]/50 py-1 px-1.5'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/30'}`}
       style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
       <span ref={ref} className="inline-block leading-none align-middle" />
@@ -107,14 +107,14 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
         <>
           {/* 拖拽提示：节点 draggable=true，按住公式主体即可在文档内移动位置 */}
           <span
-            className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[10px] cursor-grab opacity-90"
+            className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[9px] cursor-grab opacity-90"
             title="按住公式主体拖拽即可移动位置"
             contentEditable={false}
           >⠿</span>
           {/* 编辑按钮：打开对话框预填当前公式，原地修改而非删除重来 */}
           <span
             onClick={onEdit}
-            className="absolute -top-2.5 -right-2.5 w-5 h-5 flex items-center justify-center rounded bg-[#F59E0B] text-white text-[10px] cursor-pointer opacity-90"
+            className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#F59E0B] text-white text-[9px] cursor-pointer opacity-90"
             title="编辑公式内容"
             contentEditable={false}
           >✎</span>
@@ -122,14 +122,14 @@ function FormulaView({ node, updateAttributes, selected, deleteNode }: { node: a
           <span
             onPointerDown={startResize}
             draggable={false}
-            className="absolute -bottom-2 -right-2 w-5 h-5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[11px] cursor-nwse-resize opacity-90"
+            className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#02A7F0] text-white text-[9px] cursor-nwse-resize opacity-90"
             title="拖拽缩放公式"
             contentEditable={false}
           >⤡</span>
           {/* 删除按钮：直接从文档移除该公式节点（省得用键盘 Delete） */}
           <span
             onClick={onDelete}
-            className="absolute -bottom-2 -left-2 w-5 h-5 flex items-center justify-center rounded bg-[#EF4444] text-white text-[11px] cursor-pointer opacity-90"
+            className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 flex items-center justify-center rounded bg-[#EF4444] text-white text-[9px] cursor-pointer opacity-90"
             title="删除该公式"
             contentEditable={false}
           >🗑</span>
