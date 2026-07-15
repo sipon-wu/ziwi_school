@@ -63,7 +63,9 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
 
   // 缩放：8 个控制点共用一个工厂函数，按 handle 方向决定用 dx / dy / max(|dx|,|dy|)
   // 4 边中点：n/s 用 dy，e/w 用 dx（单方向缩放，光标语义与行为一致）
-  // 4 角：取两方向绝对值较大者，符号跟随 sum（自然的方向感）
+  // 4 角：取两方向绝对值较大者，符号按出门向量投影确定（正=向外=放大）
+  // 关键修复（2026-07-15）：左/上边（w/n/nw/sw/ne）方向需 invert，因为向外移动时 delta 为负；
+  // 原代码所有 left/top 相关手柄都是反的——拖左边的手柄向中心（向右）=dx>0 → delta>0 → 放大 ❌
   const startResize = (handle: string) => (e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -74,11 +76,23 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       const dx = ev.clientX - startX
       const dy = ev.clientY - startY
       let delta: number
-      if (handle === 'n' || handle === 's') delta = dy
-      else if (handle === 'e' || handle === 'w') delta = dx
-      else {
-        const m = Math.max(Math.abs(dx), Math.abs(dy))
-        delta = m * (dx + dy >= 0 ? 1 : -1)
+      const m = Math.max(Math.abs(dx), Math.abs(dy)) || 0
+      // 每个手柄的"向外"方向投影（正=向外=放大）：
+      //  e(右):向外=右,dx>0 为正 → delta=dx
+      //  w(左):向外=左,dx<0 为正 → delta=-dx
+      //  s(下):向外=下,dy>0 为正 → delta=dy
+      //  n(上):向外=上,dy<0 为正 → delta=-dy
+      //  角：向外方向为沿对角向外,投影用 dx*dirX + dy*dirY
+      switch (handle) {
+        case 'e':  delta = dx; break
+        case 'w':  delta = -dx; break
+        case 's':  delta = dy; break
+        case 'n':  delta = -dy; break
+        case 'se': delta = m * (dx + dy >= 0 ? 1 : -1); break   // 向外=(+1,+1)
+        case 'ne': delta = m * (dx - dy >= 0 ? 1 : -1); break   // 向外=(+1,-1)
+        case 'sw': delta = m * (-dx + dy >= 0 ? 1 : -1); break  // 向外=(-1,+1)
+        case 'nw': delta = m * (-(dx + dy) >= 0 ? 1 : -1); break // 向外=(-1,-1)
+        default: delta = 0
       }
       const next = Math.min(200, Math.max(8, Math.round(startFont + delta * 0.6)))
       updateAttributes({ fontSize: next })
@@ -237,7 +251,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   const innerBoxClass = `${isInlineSpan
     ? 'inline-block leading-none align-baseline'
     : 'inline-block leading-none align-middle'
-  } border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-1 py-0' : 'px-1.5 py-1'}`
+  } border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-0.5 py-0' : 'px-1.5 py-1'}`
   return (
     <NodeViewWrapper
       as={isInlineSpan ? 'span' : 'div'}
