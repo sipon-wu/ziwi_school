@@ -286,7 +286,7 @@ const FormulaNode = Node.create({
   addAttributes() {
     return {
       latex: { default: '' },
-      wrap: { default: 'block' as 'block' | 'inline' },
+      wrap: { default: 'block' as 'block' | 'float-left' | 'float-right' | 'inline' },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
@@ -333,7 +333,7 @@ const FormulaInlineNode = Node.create({
   addAttributes() {
     return {
       latex: { default: '' },
-      wrap: { default: 'inline' as 'block' | 'inline' },
+      wrap: { default: 'inline' as 'block' | 'float-left' | 'float-right' | 'inline' },
       kind: {
         default: 'math' as 'math' | 'chemistry',
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-kind') as any) || 'math',
