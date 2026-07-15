@@ -256,7 +256,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
   const innerBoxClass = `${isInlineSpan
     ? 'inline-block leading-none align-baseline'
     : 'inline-block leading-none align-middle'
-  } whitespace-nowrap border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-0.5 py-0' : 'px-1.5 py-1'}`
+  } whitespace-nowrap border rounded ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'} bg-[#F0F9FF]/50 ${isInlineSpan ? 'px-0 py-0' : 'px-1.5 py-1'}`
   return (
     <NodeViewWrapper
       as={isInlineSpan ? 'span' : 'div'}
@@ -264,7 +264,7 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       data-latex={latex}
       onMouseDown={handleNodeMouseDown}
       className={`formula-box-container select-none relative ${isInlineSpan
-        ? 'inline-block align-baseline mx-0.5'
+        ? 'inline-block align-baseline mx-0'
         : wrap === 'block'
           ? 'flex justify-center my-3'
           : wrap === 'float-left'
