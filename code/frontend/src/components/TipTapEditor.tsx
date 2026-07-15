@@ -106,8 +106,10 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
     { k: 'w',  pos: 'top-1/2 left-0 -translate-x-1/2 -translate-y-1/2', cur: 'ew-resize' },
   ]
 
-  // 手动拖拽：mousedown 在公式主体（非控制点/浮窗）后，移动 > 4px 才视为拖拽，mouseup 用 ProseMirror transaction 把节点从原 pos 移到新 pos
-  // 阈值判定避免误把"点击选中"当拖拽起点，让 ProseMirror 仍能正常处理单击选中
+  // 手动拖拽：mousedown 在公式主体（非控制点/浮窗）后，移动 > 4px 才视为拖拽
+  // - 拖拽中：克隆公式渲染结果为 ghost 副本，跟随鼠标并带阻尼插值（丝滑）；同时画一条起点→ghost 的虚线轨迹
+  // - 原节点半透明占位，松手前不实际改动文档
+  // - 松手：按落点水平位置决定环绕方向（左/右/块级），并用 ProseMirror transaction 把节点移到新位置
   const handleNodeMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
     if (target.closest('[data-formula-handle]')) return // 点在控制点/浮窗上不进入拖拽
@@ -115,19 +117,65 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
     const startX = e.clientX
     const startY = e.clientY
     let hasMoved = false
+    const isInline = !!node.type.spec.inline
+
+    // ghost 副本：内容与当前渲染结果一致，fixed 定位跟随鼠标
+    const ghost = document.createElement('div')
+    ghost.innerHTML = ref.current?.innerHTML || ''
+    ghost.style.cssText = `position:fixed;z-index:9999;pointer-events:none;opacity:0.85;left:${startX}px;top:${startY}px;transform:translate(-50%,-50%);font-size:${fontSize ? fontSize + 'px' : '16px'};`
+    document.body.appendChild(ghost)
+
+    // 轨迹线（SVG 虚线，起点→ghost 当前位置）
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    svg.setAttribute('style', 'position:fixed;inset:0;width:100%;height:100%;z-index:9998;pointer-events:none;')
+    const path = document.createElementNS(svgNS, 'path')
+    path.setAttribute('stroke', '#02A7F0')
+    path.setAttribute('stroke-width', '2')
+    path.setAttribute('fill', 'none')
+    path.setAttribute('stroke-dasharray', '5 4')
+    path.setAttribute('opacity', '0.55')
+    svg.appendChild(path)
+    document.body.appendChild(svg)
+
+    // 原节点半透明占位
+    const placeholder = ref.current?.parentElement as HTMLElement | null
+    if (placeholder) placeholder.style.opacity = '0.35'
+
+    // 阻尼：ghost 当前位置每帧逼近鼠标目标（系数 0.25 产生丝滑拖尾）
+    let curX = startX, curY = startY
+    let lastX = startX, lastY = startY
+    let raf = 0
+    const tick = () => {
+      curX += (lastX - curX) * 0.25
+      curY += (lastY - curY) * 0.25
+      ghost.style.left = curX + 'px'
+      ghost.style.top = curY + 'px'
+      path.setAttribute('d', `M ${startX} ${startY} L ${curX.toFixed(1)} ${curY.toFixed(1)}`)
+      raf = requestAnimationFrame(tick)
+    }
 
     const onMove = (ev: MouseEvent) => {
+      lastX = ev.clientX
+      lastY = ev.clientY
       if (!hasMoved) {
-        const dx = ev.clientX - startX
-        const dy = ev.clientY - startY
-        if (Math.abs(dx) + Math.abs(dy) < 4) return
+        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return
         hasMoved = true
+        raf = requestAnimationFrame(tick)
       }
     }
 
-    const onUp = (ev: MouseEvent) => {
+    const cleanup = () => {
+      cancelAnimationFrame(raf)
+      ghost.remove()
+      svg.remove()
+      if (placeholder) placeholder.style.opacity = ''
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+    }
+
+    const onUp = (ev: MouseEvent) => {
+      cleanup()
       if (!hasMoved) return // 单击不视为拖拽，让 ProseMirror 处理选中
 
       const pos = getPos?.()
@@ -142,9 +190,21 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
       if (targetPos >= pos && targetPos <= pos + nodeSize) return // 落到原节点内不移动
       if (targetPos > pos + nodeSize) targetPos -= nodeSize // 调整因删除导致的位置偏移
 
+      // 落点水平位置决定环绕方向（字间节点保持 inline；块级节点按左右半区切换环绕方向）
+      let newWrap: string = (nodeRef.attrs.wrap as string) || 'block'
+      if (isInline) {
+        newWrap = 'inline'
+      } else {
+        const vw = window.innerWidth
+        if (ev.clientX < vw * 0.4) newWrap = 'float-left'
+        else if (ev.clientX > vw * 0.6) newWrap = 'float-right'
+        else newWrap = 'block'
+      }
+
       const tr = view.state.tr
       tr.delete(pos, pos + nodeSize)
-      tr.insert(targetPos, nodeRef)
+      const newNode = nodeRef.type.create({ ...nodeRef.attrs, wrap: newWrap }, nodeRef.content)
+      tr.insert(targetPos, newNode)
       view.dispatch(tr)
     }
 
@@ -169,7 +229,9 @@ function FormulaView({ node, updateAttributes, selected, deleteNode, getPos, edi
         ? 'inline-block align-middle border rounded bg-[#F0F9FF]/50 px-0.5 mx-0.5'
         : wrap === 'block'
           ? 'block my-3 mx-auto text-center border rounded bg-[#F0F9FF]/50 py-1 px-1.5'
-          : 'inline-block float-right ml-3 mb-2 max-w-[80%] border rounded bg-[#F0F9FF]/50 py-1 px-1.5'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'}`}
+          : wrap === 'float-left'
+            ? 'inline-block float-left mr-3 mb-2 max-w-[80%] border rounded bg-[#F0F9FF]/50 py-1 px-1.5'
+            : 'inline-block float-right ml-3 mb-2 max-w-[80%] border rounded bg-[#F0F9FF]/50 py-1 px-1.5'} ${selected ? 'border-[#02A7F0]' : 'border-[#02A7F0]/25'}`}
       style={{ userSelect: 'none', fontSize: fontSize ? `${fontSize}px` : undefined }}
     >
       <span ref={ref} className="inline-block leading-none align-middle" />
@@ -252,7 +314,7 @@ const FormulaNode = Node.create({
   },
   addCommands() {
     return {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline'; kind?: 'math' | 'chemistry' }) => ({ commands }: any) => {
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float-left' | 'float-right' | 'inline'; kind?: 'math' | 'chemistry' }) => ({ commands }: any) => {
         return commands.insertContent({ type: this.name, attrs: { kind: 'math', ...attrs } })
       },
     } as any
@@ -305,28 +367,11 @@ const FormulaInlineNode = Node.create({
   },
 })
 
-// 高度检测：包含高结构（分式/根号/矩阵/大型算子/多行/可换行的化学机理）→ 应走块级，避免挤压正文行高
-function isTallFormula(latex: string): boolean {
-  if (!latex) return false
-  const patterns = [
-    /\\frac\s*[{]/,            // 分式 a/b
-    /\\dfrac\s*[{]/,          // 显示分式
-    /\\sqrt\s*[{]/,           // 根号
-    /\\int/, /\\sum/, /\\prod/, /\\lim/, /\\iint/, /\\oint/, // 大算子
-    /\\begin\s*[{]/,          // 矩阵/多行环境（pmatrix/bmatrix/array/cases）
-    /\\over/, /\\overline\s*[{]/, /\\underbrace/, /\\overbrace/,
-    /\\substack/, /\\binom\s*[{]/, /\\limits/,
-    // 注：横向反应箭头（\rightleftharpoons / \rightarrow 等）虽宽但不占行高，行内可用，不计入"高公式"
-    // 反应箭头（\rightarrow 等）虽宽但不占行高，行内可用，不计入"高公式"
-  ]
-  return patterns.some(p => p.test(latex))
-}
-
 // 扩展 TipTap 命令类型，使 editor.commands.insertFormula / insertFormulaInline 合法
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     formulaContainer: {
-      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float' | 'inline'; kind?: 'math' | 'chemistry' }) => ReturnType
+      insertFormula: (attrs: { latex: string; wrap: 'block' | 'float-left' | 'float-right' | 'inline'; kind?: 'math' | 'chemistry' }) => ReturnType
     }
     formulaInline: {
       insertFormulaInline: (attrs: { latex: string; kind?: 'math' | 'chemistry' }) => ReturnType
@@ -368,7 +413,9 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   const [formulaOpen, setFormulaOpen] = useState(false)
   const [formulaDraft, setFormulaDraft] = useState('')
   const [formulaType, setFormulaType] = useState<'math' | 'chemistry'>('math')
-  const [formulaWrap, setFormulaWrap] = useState<'block' | 'float' | 'inline'>('block')
+  const [formulaWrap, setFormulaWrap] = useState<'block' | 'float-left' | 'float-right' | 'inline'>('block')
+  // 实测公式是否"高"（渲染高度超过 2 倍行高），高公式不允许行内字间
+  const [isTall, setIsTall] = useState(false)
   // 正在编辑的已有公式节点名（null=新建）；保存时原地更新而非插入新节点
   const [editingNodeName, setEditingNodeName] = useState<null | 'formulaContainer' | 'formulaInline'>(null)
 
@@ -547,7 +594,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     setEditingNodeName(a.type as 'formulaContainer' | 'formulaInline')
     setFormulaType(a.kind || 'math')
     setFormulaDraft(a.latex)
-    setFormulaWrap(a.wrap as 'block' | 'float' | 'inline')
+    setFormulaWrap(a.wrap as 'block' | 'float-left' | 'float-right' | 'inline')
     setFormulaOpen(true)
   }
   const editFormulaStable = useCallback((a: FormulaEditAttrs) => editFormulaRef.current(a), [])
@@ -575,13 +622,6 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     }
     setFormulaOpen(false)
   }
-
-  // 高度自动检测：含分式/根号/矩阵/大算子/反应箭头的高公式，行内会挤压正文，自动降级为块级
-  useEffect(() => {
-    if (formulaWrap === 'inline' && isTallFormula(formulaDraft)) {
-      setFormulaWrap('block')
-    }
-  }, [formulaDraft, formulaWrap])
 
   // 链接
   const setLink = () => {
@@ -934,14 +974,16 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
                   <div className="flex flex-col gap-1.5">
                     <button onClick={() => setFormulaWrap('block')}
                       className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'block' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>▬ 上下环绕（块级）</button>
-                    <button onClick={() => setFormulaWrap('float')}
-                      className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'float' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>◧ 四周环绕（浮动）</button>
+                    <button onClick={() => setFormulaWrap('float-left')}
+                      className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'float-left' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>◧ 四周环绕·左</button>
+                    <button onClick={() => setFormulaWrap('float-right')}
+                      className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'float-right' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>◩ 四周环绕·右</button>
                     <button onClick={() => setFormulaWrap('inline')}
                       className={`px-3 py-1.5 text-[11px] rounded border text-left ${formulaWrap === 'inline' ? 'bg-[#02A7F0]/10 border-[#02A7F0] text-[#02A7F0]' : 'border-[#E7E7EB] text-[#9A9A9A]'}`}>∷ 行内字间（行内）</button>
                   </div>
                 </div>
               </div>
-              {isTallFormula(formulaDraft) && formulaWrap !== 'block' && (
+              {isTall && formulaWrap !== 'block' && (
                 <p className="text-[11px] text-[#B26A00] bg-[#FFF7E6] border border-[#FFE0A3] rounded px-2 py-1.5">
                   检测到该公式含分式 / 根号 / 矩阵 / 大算子 / 反应箭头，行内或浮动会挤压正文行高，已自动切换为「上下环绕（块级）」。如需紧凑排版，建议用块级并适当缩放。
                 </p>
