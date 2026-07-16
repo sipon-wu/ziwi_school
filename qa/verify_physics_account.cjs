@@ -4,6 +4,8 @@
  */
 const { chromium } = require('playwright')
 const BASE = process.env.BASE || 'http://school1.ziwi.cn'
+const PHONE = process.env.PHONE || '13800000028'
+const PASS = process.env.PASS || 'teacher123'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const path = require('path')
 const fs = require('fs')
@@ -20,8 +22,8 @@ const rec = (s, st, d) => { const l=`[${st}] ${s}: ${d}`; console.log(l); summar
 
   // 1. 新账号登录
   await p.goto(BASE + '/login', { waitUntil: 'domcontentloaded' })
-  await p.fill('input[placeholder="请输入手机号"]', '13800000028')
-  await p.fill('input[placeholder="请输入密码"]', 'teacher123')
+  await p.fill('input[placeholder="请输入手机号"]', PHONE)
+  await p.fill('input[placeholder="请输入密码"]', PASS)
   await p.click('button[type=submit]')
   await sleep(2000)
   rec('登录', p.url().includes('/login')?'WARN':'PASS', `落地=${new URL(p.url()).pathname}`)

@@ -2,7 +2,14 @@
 // 每题只测关键按钮(≤5个)，不再逐按钮复位页面，快扫发现 bug
 const { chromium } = require('playwright')
 const fs = require('fs'), path = require('path')
-const BASE = 'http://school1.ziwi.cn'; const SHOTS = path.join(__dirname, 'shots'); fs.mkdirSync(SHOTS, { recursive: true })
+const BASE = process.env.BASE || 'http://school1.ziwi.cn';
+const PHONE = process.env.PHONE || '13800000002';
+const PASS = process.env.PASS || 'teacher123';
+const IT_PHONE = process.env.IT_PHONE || '13800000001';
+const IT_PASS = process.env.IT_PASS || 'admin123';
+const HEAD_PHONE = process.env.HEAD_PHONE || '13800000006';
+const PRINCIPAL_PHONE = process.env.PRINCIPAL_PHONE || '13800000005';
+const SHOTS = path.join(__dirname, 'shots'); fs.mkdirSync(SHOTS, { recursive: true })
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const results = []; let ctx; let page
 function R(pg, ck, st, dt) { results.push({ page: pg, check: ck, status: st, detail: String(dt).slice(0, 250) }); console.log(`[${st}] ${pg} | ${ck} :: ${String(dt).slice(0, 150)}`) }
@@ -103,7 +110,7 @@ async function tryBtn(text) {
   await ctx.close()
 
   // ── 班主任+校长 ──
-  for (const [role, ph, pw, pth] of [['班主任', '13800000006', 'teacher123', '/classes'], ['校长', '13800000005', 'teacher123', '/principal']]) {
+  for (const [role, ph, pw, pth] of [['班主任', HEAD_PHONE, PASS, '/classes'], ['校长', PRINCIPAL_PHONE, PASS, '/principal']]) {
     ctx = await browser.newContext({ ignoreHTTPSErrors: true }); page = await ctx.newPage()
     let pe3 = []; page.on('pageerror', e => pe3.push(e.message.slice(0, 120)))
     await login(ph, pw); await nav(pth); R(role, '渲染', await hlt()); R(role, 'pageError', pe3.length === 0 ? 'PASS' : 'FAIL', pe3.length + 'errs')

@@ -1,17 +1,20 @@
 const { chromium } = require('playwright');
+const BASE = process.env.BASE || 'http://school1.ziwi.cn';
+const PHONE = process.env.PHONE || '13800000002';
+const PASS = process.env.PASS || 'teacher123';
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.on('pageerror', e => console.log('PE:', e.message));
 
-  await page.goto('http://school1.ziwi.cn/login', { waitUntil: 'domcontentloaded' });
-  const resp = await page.evaluate(async () => {
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '13800000002', password: 'teacher123' }) });
+  await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
+  const resp = await page.evaluate(async ({ phone, password }) => {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) });
     return await r.json();
-  });
+  }, { phone: PHONE, password: PASS });
   await page.evaluate(t => localStorage.setItem('zhiwei_token', t), resp.token);
 
-  await page.goto('http://school1.ziwi.cn/lesson-plans/new', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/lesson-plans/new', { waitUntil: 'networkidle' });
   await page.waitForTimeout(3000);
 
   // 切到文档模式

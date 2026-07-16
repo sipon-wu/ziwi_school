@@ -45,6 +45,9 @@ export default function ExamBuilder() {
   // 课标对齐（来自 AI 组卷返回的 curriculum_alignments，保存试卷时一并落库）
   const [curriculumAlign, setCurriculumAlign] = useState<any[]>([])
 
+  // 文档模式：内联试卷预览（A4/A3 切换，所见即所得，导出 = 预览）
+  const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
+
   // 退出提醒
   const hasChanges = examTitle.length > 0 || picker.selectedIds.length > 0 || selectedQuestions.length > 0
   useUnsavedChanges(hasChanges)
@@ -303,9 +306,71 @@ export default function ExamBuilder() {
     />
   )
 
+  // 文档模式左侧：试卷信息 + 操作指引（导出在右侧预览工具栏）
+  const docLeftPanel = (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div>
+          <label className="block text-[12px] font-medium text-[#353535] mb-1.5">试卷标题</label>
+          <input type="text" value={examTitle} onChange={e => setExamTitle(e.target.value)}
+            placeholder="如：四年级语文第一单元检测"
+            className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-[#9A9A9A] bg-[#F6F7F8] rounded-[4px] px-3 py-2">
+          <span>学科 {teaching.subject}</span><span className="text-[#E7E7EB]">|</span><span>年级 {gradeName}</span><span className="text-[#E7E7EB]">|</span><span>{totalScore} 分 · {examDuration} 分钟</span>
+        </div>
+        <div className="text-[12px] text-[#9A9A9A] leading-relaxed space-y-1.5">
+          <p>文档模式为<span className="text-[#353535]">所见即所得的试卷纸面</span>：</p>
+          <p>· 右侧可切换 <span className="text-[#353535]">A4 单栏</span> / <span className="text-[#353535]">A3 双栏</span>（默认 A3）；</p>
+          <p>· 顶部切换 <span className="text-[#353535]">学生卷 / 教师卷</span>；</p>
+          <p>· 工具栏 <span className="text-[#353535]">Word / PDF</span> 导出与预览纸型完全一致。</p>
+        </div>
+        {selectedQuestions.length === 0 && (
+          <p className="text-[11px] text-[#FF4D4F]">尚未添加题目，请先在 AI 模式选取或生成题目。</p>
+        )}
+      </div>
+    </div>
+  )
+
+  // 顶部模式切换（与教案编辑器一致）
+  const modeToggle = (
+    <div className="inline-flex rounded-[4px] border border-white/20 overflow-hidden bg-white/10">
+      <button onClick={() => setEditMode('ai')}
+        className={`px-4 py-1.5 text-[12px] ${editMode === 'ai' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>AI 模式</button>
+      <button onClick={() => setEditMode('doc')}
+        className={`px-4 py-1.5 text-[12px] border-l border-white/20 ${editMode === 'doc' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>文档模式</button>
+    </div>
+  )
+
+  // 试卷预览所需的题目 / 元信息（AI 模式弹层预览与文档模式内联预览共用）
+  const previewQuestions: ExamQuestion[] = selectedQuestions.map((q: any, i: number) => ({
+    id: q.id || `q_${i}`,
+    stem: q.stem || q.content || '',
+    type: (q.type || 'choice') as ExamQuestion['type'],
+    options: typeof q.options === 'string' ? q.options : (Array.isArray(q.options) ? q.options.join('\n') : (q.options || '')),
+    answer: q.answer || '',
+    analysis: q.analysis || '',
+    difficulty: q.difficulty || 'L2',
+    score: q.score,
+    sort: q.sort || i + 1,
+  }))
+  const previewMeta: ExamMeta = {
+    title: examTitle || '未命名试卷',
+    subject: teaching.subject,
+    grade: gradeName,
+    totalScore: totalScore,
+    durationMinutes: examDuration,
+    teacherName: user.name || '教师',
+  }
+
+  const leftNow = editMode === 'doc' ? docLeftPanel : leftPanel
+  const rightNow = editMode === 'doc'
+    ? <ExamPreview embedded paperSize="A3" allowA3 questions={previewQuestions} meta={previewMeta} />
+    : rightPanel
+
   return (
     <>
-      <EditorLayout left={leftPanel} right={rightPanel} subtitle="AI辅助智能组卷，校本题库灵活搭配" />
+      <EditorLayout left={leftNow} right={rightNow} topCenter={modeToggle} subtitle="AI辅助智能组卷，校本题库灵活搭配" />
       <ResourcePicker
         open={pickerOpen}
         mode="questions"
@@ -315,25 +380,8 @@ export default function ExamBuilder() {
       />
       {showPreview && (
         <ExamPreview
-          questions={selectedQuestions.map((q: any, i: number) => ({
-            id: q.id || `q_${i}`,
-            stem: q.stem || q.content || '',
-            type: q.type || 'choice',
-            options: typeof q.options === 'string' ? q.options : (Array.isArray(q.options) ? q.options.join('\n') : (q.options || '')),
-            answer: q.answer || '',
-            analysis: q.analysis || '',
-            difficulty: q.difficulty || 'L2',
-            score: q.score,
-            sort: q.sort || i + 1,
-          }))}
-          meta={{
-            title: examTitle || '未命名试卷',
-            subject: teaching.subject,
-            grade: gradeName,
-            totalScore: totalScore,
-            durationMinutes: examDuration,
-            teacherName: user.name || '教师',
-          }}
+          questions={previewQuestions}
+          meta={previewMeta}
           onClose={() => setShowPreview(false)}
         />
       )}

@@ -15,6 +15,10 @@ type Exam struct {
 	DurationMinutes int       `gorm:"column:duration_minutes;default:45" json:"duration_minutes"`
 	Difficulty      string    `gorm:"column:difficulty;type:varchar(10);default:L2" json:"difficulty"`
 	Status          string    `gorm:"column:status;type:varchar(20);default:draft" json:"status"`
+	// 文档模式：自由排版 HTML 卷面 + 当前编辑模式 + 纸型（A3/A4）
+	DocContent      string    `gorm:"column:doc_content;type:text" json:"doc_content"`
+	EditMode        string    `gorm:"column:edit_mode;type:varchar(10);default:'ai'" json:"edit_mode"`
+	PaperSize       string    `gorm:"column:paper_size;type:varchar(4);default:'A3'" json:"paper_size"`
 	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }

@@ -79,20 +79,30 @@ export function getQuestionTypes(subject: string): QuestionType[] {
   return QUESTION_TYPES_BY_SUBJECT[subject] || DEFAULT_QTYPES
 }
 
-/** 题型 id → 中文名（用于渲染题目角标，覆盖所有已知题型） */
+/** 题型 id → 中文名（用于渲染题目角标，覆盖所有已知题型，含种子/AI 产出） */
 export const QUESTION_TYPE_LABELS: Record<string, string> = {
   choice: '选择题',
   fill: '填空题',
   judge: '判断题',
   truefalse: '判断题',
   short_answer: '简答题',
+  brief: '简述题',
   match: '匹配题',
   cloze: '完形填空',
   reading: '阅读理解',
   writing: '写作题',
+  essay: '解答题',
+  drawing: '作图题',
   calculation: '计算题',
   application: '应用题',
   operation: '操作题',
+  equation: '方程题',
+  geometry: '几何题',
+  concept: '概念题',
+  analysis: '分析题',
+  case: '案例题',
+  observation: '观察题',
+  translation: '翻译题',
   listening: '听力题',
   vocab: '词汇运用',
 }

@@ -1,8 +1,8 @@
 const { chromium } = require('playwright')
 
-const BASE = 'http://school1.ziwi.cn'
-const PHONE = '13800000002'
-const PWD = 'teacher123'
+const BASE = process.env.BASE || 'http://school1.ziwi.cn'
+const PHONE = process.env.PHONE || '13800000002'
+const PWD = process.env.PASS || 'teacher123'
 
 ;(async () => {
   const browser = await chromium.launch()

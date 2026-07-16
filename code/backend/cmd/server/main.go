@@ -75,6 +75,7 @@ func main() {
 	researchRepo := repository.NewResearchRepository(db)
 	materialRepo := repository.NewMaterialRepository(db)
 	examRepo := repository.NewExamRepository(db)
+	exerciseSheetRepo := repository.NewExerciseSheetRepository(db)
 
 	// 其余 GORM 托管的业务表随 model 演进自动同步（发布管线的一部分，幂等）
 	for _, m := range []func() error{researchRepo.AutoMigrate, deanRepo.AutoMigrate, opsRepo.AutoMigrate} {
@@ -142,6 +143,7 @@ func main() {
 	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
 	examHandler := handler.NewExamHandler(examRepo)
+	exerciseSheetHandler := handler.NewExerciseSheetHandler(exerciseSheetRepo)
 	deanHandler := handler.NewDeanHandler(deanRepo)
 	itHandler := handler.NewITHandler(itRepo, deanRepo)
 	importHandler := handler.NewImportHandler(importRepo)
@@ -229,6 +231,12 @@ func main() {
 		teacher.GET("/exams/:id", examHandler.GetExam)
 		teacher.PUT("/exams/:id", examHandler.UpdateExam)
 		teacher.DELETE("/exams/:id", examHandler.DeleteExam)
+		// 习题库（工作单 / 简单卷面）：与试卷库同构，单题用快照
+		teacher.GET("/worksheets", exerciseSheetHandler.ListSheets)
+		teacher.POST("/worksheets", exerciseSheetHandler.CreateSheet)
+		teacher.GET("/worksheets/:id", exerciseSheetHandler.GetSheet)
+		teacher.PUT("/worksheets/:id", exerciseSheetHandler.UpdateSheet)
+		teacher.DELETE("/worksheets/:id", exerciseSheetHandler.DeleteSheet)
 		// 作业
 		teacher.GET("/assignments", assignmentHandler.ListAssignments)
 		teacher.POST("/assignments", assignmentHandler.CreateAssignment)

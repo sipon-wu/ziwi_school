@@ -1,6 +1,7 @@
 # 知微教学（school.ziwi.cn）账户系统对接 cloud.ziwi.cn 方案
 
-> 版本：v0.4（已同步实际接入经验）｜日期：2026-07-10
+> 版本：v0.5（新增短信验证码通道 + 微信登录规划）｜日期：2026-07-16
+> 变更：v0.4 完成 cloud IdP 对接（公钥验签 + CloudLogin 邮箱登录）后，手机号短信验证码通道、微信登录两项正式纳入统一认证路线图，见 §9、§10；改造清单 §4、待拍板 §5 同步更新。2026-07-16 方案定稿：短信服务商定腾讯云、微信登录定范围（仅 Web 扫码）、身份归属定 school 自管，三项均仅规划不实现；§12 新增 mfg 跨产品线统一认证决策（租户管理员/财务/SaaS 用户纳入 cloud 认证，同构 school 策略）。
 > 依据：
 > - `cloud运营与运维/multi-product-platform-integration.md` v0.1（cloud 统一 IdP 总体说明）
 > - ziwi_school 代码现状（models.go / auth_handler.go / middleware/auth.go / rbac.go / frontend api.ts）
@@ -159,6 +160,8 @@ cloud.ziwi.cn 已定位为**统一身份与授权平台（IdP）**：统一登�
 | 私有部署心跳对齐 `heartbeat.ziwi.cn` | P2 | ⬜ 未做 | cron + 离线 License |
 | 逐步关闭旧登录入口 | P2 | ⬜ 未做 | 等迁移完成 |
 | 数据初始化更新机制（KG/课标/教材版本刷新 pipeline） | P2 | 📋 备忘 | 设计备忘，不绑上线。与教材覆盖层"上报审核回灌"同理（2026-07-09 拍板暂缓）。当前 staging 数据够跑 MVP，后续按需迭代。 |
+| 短信验证码通道（school 侧自建，见 §9） | P1 | 📋 规划 | `/api/auth/sms/{send,login,bind}` + Redis 存码 + 服务商对接 |
+| 微信登录（school 侧 OAuth，见 §10） | P1 | 📋 规划 | `/api/auth/wechat/{web,miniapp}/login` + `User.WeChatUnionID` 绑定 |
 
 **不阻塞上线条件**：school 可先上"公钥获取 + cloud JWT 验证"能力，但**不强制**用户使用，对现有用户零影响（继承 cloud 7.2）。
 
@@ -171,6 +174,9 @@ cloud.ziwi.cn 已定位为**统一身份与授权平台（IdP）**：统一登�
 3. **B2C 个人版账户归属**：由 cloud 独立库管，还是 school `User` 表加"无 SchoolID 的个人版标记"？
 4. **平台角色**：`platform_ops/devops` 是否从 school 用户表剥离，纯靠 cloud JWT 识别？
 5. **迁移节奏**：并行期持续多久？是否有强制切换时间窗？
+6. **短信服务商选型**：✅ 已定——腾讯云短信（`sms.tencentcloudapi.com`，与现有腾讯云 CVM 同生态，SDK 即 `tencentcloud-sdk-go`）
+7. **微信登录形态**：✅ 已定——**先做 Web 端扫码登录**（微信开放平台"网站应用" `snsapi_login`）；公众号网页授权、小程序 `wx.login` 暂不实现，待统一小程序策略推进时再补。资质（开放平台认证 300 元/年 + 回调域名白名单）办好前不排期。
+8. **身份归属**：✅ 已定——短信验证码（phone OTP）与微信 unionid 均由 **school 自管**（phone 本就是 school 主键，且 §3.7 私有部署边界要求业务身份不出本地），不沉淀 cloud IdP。
 
 ---
 
@@ -276,3 +282,127 @@ cloudLogin: async (email, password) => {
 另：school 接入所需的**实测接口契约模板**已建在 `cloud运营与运维/school接入cloud接口契约模板.md`（v1.0 待填），由 mfg 团队部署 cloud 后填实测值交付 school，作为 `verify_cloud_token` 中间件实现的唯一依据。本方案 §3.1–§3.8 的对接契约对应模板的 A–F 章节。
 
 另：`blazing-pulse-turing.md` 是针对早期 V2.0（`nqpf` 命名）域名策略的可执行性评估（7/10），其 4 处断裂中，断裂 1（admin 入口对等）、断裂 2（`nqpf`→`mfg` 改名）、断裂 4（`ai.ziwi.cn` 延后）已被 `域名规划` v2.1-Final 吸收。遗留的“优化 1：cloud 角色变更后全量文档同步”提示——**school 项目内若有旧文档仍把 `cloud.ziwi.cn` 当作“制造门户”，需同步修正**。本方案以 v2.1-Final（cloud = 租户服务中心）为准，不引用 `nqpf` 旧命名。
+
+---
+
+## 9. 手机号短信验证码通道（SMS OTP）
+
+### 9.1 目标与定位
+- **定位**：在现有「phone+密码」「cloud 邮箱登录」之外，新增**手机号 + 短信验证码**登录/注册/绑定通道，作为并行期第三种登录方式（不替代密码，不强制）。
+- **用户价值**：教师/家长/学生免记密码、手机号即身份；用于首次激活、密码找回、家长端认领（见一期 MVP 剩余项）等低摩擦场景。
+- **与架构关系**：短信验证码的"身份"仍是 `User.Phone`（school 主键），属 school 业务身份，**由 school 自管**，不下沉 cloud IdP（cloud 以 email 为匹配键，且 §3.7 私有部署边界要求业务身份不出本地）。这与 §3.1「并行期多路并存」一致。
+
+### 9.2 架构（school 侧自建）
+- **通道**：school backend 直连短信服务商 API（[待拍板] 腾讯云/阿里云短信），发送 6 位数字码。
+- **存码**：复用 compose 已部署的 `zhiwei-redis`（staging/prod 均存在），key=`sms:otp:{phone}`，TTL=5min，附带发送计数防刷。
+- **校验**：用户输入 code → 比对 Redis → 通过则签发 school HS256 token（与现有 phone+密码登录同一条签发路径）。
+- **不依赖 cloud**：纯 school 域内闭环，SaaS 与私有部署（若网关可达）均可用；私有部署离线时短信不可用属预期降级。
+
+### 9.3 端点设计
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/auth/sms/send` | POST | body `{phone}` → 校验手机号格式 + 频控（同号 60s/次、同 IP/号每日上限）→ 发码 → 仅回"已发送"，**绝不回传 code** |
+| `/api/auth/sms/login` | POST | body `{phone, code}` → 校验 → 手机号已存在则登录、不存在则自动注册（角色默认=学生/家长按场景，[待拍板]）→ 签发 token |
+| `/api/auth/sms/bind` | POST | 已登录用户 body `{phone, code}` → 绑定手机号到当前 `User`（解绑旧号需二次验证） |
+| `/api/auth/sms/reset-pwd` | POST | body `{phone, code, new_pwd}` → 校验后重置密码（替代"管理员代找回"） |
+
+### 9.4 服务商与模板（✅ 已定：腾讯云短信）
+- **服务商**：腾讯云短信 `sms.tencentcloudapi.com`（SDK `tencentcloud-sdk-go`），SecretId/SecretKey 存入 `.env`，不入库、不提交。
+- **签名与模板**：需运营商审核「验证码」类短信模板 + 签名（如"知微教学"）。模板如：`【知微教学】您的验证码为{code}，5分钟内有效，请勿泄露。`
+- **成本**：按条计费（约 0.04–0.05 元/条），需评估家长端批量认领的发送量。
+
+### 9.5 安全与防刷
+- 频控：单号 60s 冷却、单号单日上限（如 10 条）、单 IP 单日上限；超限返回 429，不发包。
+- 验证码：6 位随机、Redis TTL 5min、单次有效（验证后 `DEL`）、连续错误 5 次锁 15min。
+- 防刷：图形/滑块验证码前置（高频或异地时触发），避免被刷量。
+- 绝不透出 code、绝不因"用户不存在"而差异化响应（防手机号遍历）。
+
+### 9.6 与现有体系衔接
+- `User.Phone` 已是 unique 主键，无需加字段；`/api/auth/sms/login` 的"不存在则注册"需与现有导入（IT 批量导入教师/学生）去重——**已存在的 phone 直接登录，不重复建号**。
+- 前端：`LoginPage.tsx` 增加「短信验证码登录」tab（对称 CloudLogin 的 tab 切换）；`api.ts` 增加 `authAPI.smsLogin/smsSend/smsBind`。
+
+---
+
+## 10. 微信登录（WeChat OAuth）
+
+### 10.1 形态（✅ 已定：先做 Web 扫码登录）
+| 形态 | 适用端 | 资质 | 技术 | 本次范围 |
+|------|--------|------|------|----------|
+| Web 端扫码登录 | PC 浏览器 school.ziwi.cn | 微信开放平台"网站应用"（appid/secret，认证 300 元/年） | OAuth2 `snsapi_login`（扫码回调 `code`→`access_token`→`userinfo`，拿 `unionid`） | ✅ 规划实现 |
+| 公众号网页授权 | 微信内打开的 H5 | 服务号（认证 300 元/年） | `snsapi_base`/`snsapi_userinfo`，同样拿 `unionid` | ⏸ 暂不做（视微信内 H5 投放需求） |
+| 小程序 `wx.login` | 知微小程序（见 2026-07-13 统一小程序策略） | 小程序 appid（同主体 unionid 互通） | `code`→`auth.code2Session`→`openid`+`unionid` | ⏸ 暂不做（随统一小程序策略推进） |
+
+**已定范围（2026-07-16）**：先做 **Web 扫码登录**（PC 教师端最强感知）；公众号、小程序延后。三者共用 `unionid` 作为跨端唯一身份键。授权回调域名 `school.ziwi.cn` 需加入微信开放平台白名单（依赖资质办理，办理前不排期实现）。
+
+### 10.2 架构（school 侧 OAuth，对称 CloudLogin）
+- 不经由 cloud IdP（cloud 当前不持有微信身份）；由 school backend 直接对接微信开放平台/小程序 API，模式与 §4 的 `CloudLogin` 一致：`调微信 API 验证 → 取 unionid → 按 unionid 匹配/绑定 school User → 签发 school HS256 token`。
+- **跨端归一**：以 `unionid` 为绑定键（非 `openid`，openid 各应用不同），保证 Web/小程序/公众号三端识别同一人。
+
+### 10.3 端点设计
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/auth/wechat/web/login` | POST | body `{code}`（前端经微信 JS-SDK/扫码拿到）→ 校后端换 `access_token`+`userinfo`→ 取 `unionid` |
+| `/api/auth/wechat/miniapp/login` | POST | body `{code}`（`wx.login` 拿）→ `auth.code2Session`→`unionid`/`openid` |
+| `/api/auth/wechat/bind` | POST | 已登录用户 body `{unionid}` → 绑定到当前 `User`（unionid 唯一索引，防重复绑） |
+| `/api/auth/wechat/callback`（仅 Web 扫码用） | GET | 微信重定向 `?code=...` → 内部换身份 → 前端 `302` 回带 token 的落地页 |
+
+### 10.4 数据模型
+- `User` 表新增 `WeChatUnionID varchar(64) unique`（空字段，不阻塞现有功能），自动迁移；`WeChatOpenID` 可选（按端存，用于消息推送）。
+- 绑定规则：`unionid` 匹配已存在 `User` → 直接登录；无匹配 → 走绑定流程（链接到已有 phone 账号，或注册新号）。
+
+### 10.5 绑定流程（新微信用户）
+1. 微信身份首次到来（unionid 无匹配）。
+2. 若该微信未绑任何 school 账号：
+   - 若请求的 `phone` + 短信 code 校验通过 → 绑到该 phone 对应 `User`（优先复用已有教师/学生号）；
+   - 否则引导"绑定已有账号"（输 phone+密码/短信）或"注册"（按场景给默认角色）。
+3. 绑定后写 `WeChatUnionID`，后续免输直接微信登录。
+
+### 10.6 资质与成本（✅ 范围已定，资质待办理）
+- 微信开放平台"网站应用"需企业主体认证（300 元/年）+ 配置授权回调域名（需在 `域名规划` 增 `school.ziwi.cn` 的微信回调白名单）。**资质办好前不排期实现**。
+- 小程序需单独 appid（与开放平台同主体 → unionid 互通），本次暂不涉及。
+- 隐私合规：微信 `unionid`/`userinfo` 属个人信息，需在校隐私政策与《家长/学生授权》中明示用途（结合 P2 家长端合规）。
+
+### 10.7 与现有体系衔接
+- `LoginPage.tsx` 增加「微信登录」入口（Web 扫码弹窗 / 小程序按钮）；`api.ts` 增加 `authAPI.wechatLogin`。
+- 与 §4 `CloudLogin` 同理：并行运行，不关闭旧登录；微信登录失败（如微信不可达）不阻断其他通道。
+
+---
+
+## 11. 统一认证路线图小结（v0.5 方案定稿，仅规划未实现）
+| 登录方式 | 状态 | 信任域 | 备注 |
+|----------|------|--------|------|
+| phone + 密码 | ✅ 在用 | school（HS256） | 基线 |
+| cloud 邮箱登录（CloudLogin） | ✅ 已交付 | cloud IdP（RS256） | §4 P1 |
+| 手机号短信验证码 | 📋 规划 P1（腾讯云短信已定） | school | §9，待排期实现 |
+| 微信登录（Web 扫码） | 📋 规划 P1（范围已定：仅 Web） | school（对称 CloudLogin） | §10，资质办好后实现；公众号/小程序延后 |
+| 私有部署本地 IdP | 既有 | 本地 | §3.7，与 SaaS 账户边界隔离 |
+
+**原则**：四种登录方式并行期长期共存，统一收敛到 school `User`（phone 主键 + cloud_user_id + WeChatUnionID 三个外部身份键），业务侧始终用 `user.ID`；任何新通道失败都不阻断其他通道。
+
+**方案定稿说明（2026-07-16）**：本次仅确定方案，不落地代码。已拍板决策——①短信服务商=腾讯云短信；②微信登录先做 Web 扫码、公众号/小程序延后；③短信 OTP 与微信 unionid 均由 school 自管，不沉淀 cloud IdP。实现时机：短信通道可先行（腾讯云已定、家长端认领刚需）；微信登录待开放平台资质（300 元/年 + 回调白名单）办好后再排期。
+
+---
+
+## 12. 跨产品线统一认证一致性（mfg 侧）
+
+### 12.1 决策（2026-07-16）
+**mfg 产品线（mfg.ziwi.cn，智能制造）的「租户管理员 / 财务人员 / SaaS 用户」三类角色，同样纳入 cloud 用户认证，采用与 school 一致的統一认证策略**——以 cloud 为统一 IdP，三类角色皆为 cloud 认证用户，由 cloud JWT 的 `tenant_id + products[] + roles` claims 区分归属与权限。
+
+### 12.2 与 school 策略的对齐点（同构）
+| 维度 | school 侧 | mfg 侧（本决策） |
+|------|-----------|------------------|
+| 信任锚 | cloud RS256 JWT（邮箱登录）+ school 本地 HS256（phone/SMS/微信） | cloud RS256 JWT 为主；mfg 三类角色均走 cloud 认证 |
+| 用户收敛 | `User`（phone + cloud_user_id + WeChatUnionID） | mfg `User`（cloud_user_id 为主键映射，phone/微信同信任域） |
+| 登录并行 | 密码/cloud邮箱/短信/微信 长期共存，单通道失败不阻断 | 同：多通道并行，单通道失败不阻断 |
+| 角色区分 | school 内 `Role` + cloud `products[].roles` | mfg 内 `tenant_admin` / `finance` / `saas_user` 映射为 cloud `products:["mfg"]` 下的 role |
+| 外部身份键 | cloud_user_id / WeChatUnionID / phone | 同，三键收敛到 mfg `User` |
+
+### 12.3 mfg 三类角色的 cloud 映射建议
+- **租户管理员（tenant_admin）**：cloud `tenant_id` 的 owner，products=["mfg"]、roles=["tenant_admin"]；对应 mfg 内"企业租户最高权限"（管成员、看账单、配 License）。
+- **财务人员（finance）**：products=["mfg"]、roles=["finance"]；仅能访问账单/发票/Token 用量等财务视图，不碰业务数据。
+- **SaaS 用户（saas_user）**：多租户下的普通业务用户，products=["mfg"]、roles=["member"（或细分岗位角色）]；按 `tenant_id` 隔离数据。
+
+### 12.4 落点边界（重要）
+- mfg 的详细接入实现以 mfg 团队 `cloud-jwt-integration-guide.md` v1.0（姊妹方案）为准，本 §12 为**产品级决策备忘**，要求该 guide 显式覆盖上述三类角色的映射与登录入口，与 school §9/§10 保持同构。
+- **职责边界（2026-07-12 工作流拍板，2026-07-16 重申）**：**cloud、heartbeat 及 mfg 全部代码由 workbuddy（Win 机）团队开发并部署**；本 agent（codebuddy）职责限于**提供认证策略与跨产品线决策备忘**，不代执行 mfg / cloud / heartbeat 任何代码或部署。本 §12 决策需同步到 `cloud-jwt-integration-guide.md` 由 mfg 团队落地，跨环境对齐走 `ziwi-integration-contracts` 共享仓 SOP。
+- 本决策与 §0「各产品线信任 cloud JWT、不自签业务 token」的总体定位一致，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。

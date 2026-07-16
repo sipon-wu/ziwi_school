@@ -631,12 +631,18 @@ export default function LessonPlanEditor() {
           <div className="h-full flex flex-col">
             <div className="px-4 py-2 border-b border-[#F0F0F0] flex items-center justify-between shrink-0 bg-[#FAFBFC]">
               <span className="text-[12px] text-[#9A9A9A]">教案正文 · 自由排版（支持 Markdown / 表格 / 列表 / 公式）</span>
-              <button onClick={() => setShowFullscreenEditor(true)}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] transition-colors"
-                title="全屏编辑（A4 纸面，文档模式）"
-              >
-                <Maximize2 size={12} /> 全屏
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={handleExportDocx}
+                  className="flex items-center gap-1 text-[11px] px-2 py-1 text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] transition-colors"
+                  title="导出教案正文为 Word（公式以图片嵌入）"
+                >导出教案</button>
+                <button onClick={() => setShowFullscreenEditor(true)}
+                  className="flex items-center gap-1 text-[11px] px-2 py-1 text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] transition-colors"
+                  title="全屏编辑（A4 纸面，文档模式）"
+                >
+                  <Maximize2 size={12} /> 全屏
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden">
               <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />

@@ -1,0 +1,625 @@
+{
+  "summary": {
+    "total": 102,
+    "warn": 0,
+    "fail": 0,
+    "pageerror": 0,
+    "consoleError": 0
+  },
+  "results": [
+    {
+      "role": "语文教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=语文 ·"
+    },
+    {
+      "role": "语文教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "语文教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=“落霞与孤鹜齐飞，______。”出自王勃《滕王阁序》。"
+    },
+    {
+      "role": "语文教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "语文教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/d8ff3486-b9b2-4a06-8d3b-93ea9696413e?preview=1"
+    },
+    {
+      "role": "语文教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级语文第3单元测试卷"
+    },
+    {
+      "role": "语文教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=607 含题=true"
+    },
+    {
+      "role": "数学教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=数学 ·"
+    },
+    {
+      "role": "数学教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "数学教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=一个等腰三角形的顶角是80°，底角是（）。"
+    },
+    {
+      "role": "数学教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=选择题"
+    },
+    {
+      "role": "数学教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/da7a8d3f-bfd9-45c3-9075-b75ac555d33e?preview=1"
+    },
+    {
+      "role": "数学教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级数学第3单元测试卷"
+    },
+    {
+      "role": "数学教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=596 含题=true"
+    },
+    {
+      "role": "英语教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=英语 ·"
+    },
+    {
+      "role": "英语教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "英语教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=Fillin:She_____(go)toschooleve"
+    },
+    {
+      "role": "英语教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "英语教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/42ac0a33-a928-4ea8-85d1-bb4392c34dc4?preview=1"
+    },
+    {
+      "role": "英语教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级英语第3单元测试卷"
+    },
+    {
+      "role": "英语教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=646 含题=true"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=道德与法治 ·"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=公民享有权利，也应履行义务。（判断对错）"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=判断题"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/d80f4b20-6ef7-4f4a-8ce1-2c172ebf510e?preview=1"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级道德与法治第3单元测试卷"
+    },
+    {
+      "role": "道德与法治教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=613 含题=true"
+    },
+    {
+      "role": "科学教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=科学 ·"
+    },
+    {
+      "role": "科学教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "科学教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=水的化学式是（）。"
+    },
+    {
+      "role": "科学教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "科学教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/233d9809-ad07-4e21-893a-cd895e819a1b?preview=1"
+    },
+    {
+      "role": "科学教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级科学第3单元测试卷"
+    },
+    {
+      "role": "科学教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=586 含题=true"
+    },
+    {
+      "role": "物理教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=物理 ·"
+    },
+    {
+      "role": "物理教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "物理教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=物体以5m/s匀速运动10s，路程为（）。"
+    },
+    {
+      "role": "物理教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=计算题"
+    },
+    {
+      "role": "物理教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/309e6d50-84c2-4634-b3c2-19f6356b70d8?preview=1"
+    },
+    {
+      "role": "物理教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级物理第3单元测试卷"
+    },
+    {
+      "role": "物理教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=587 含题=true"
+    },
+    {
+      "role": "化学教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=化学 ·"
+    },
+    {
+      "role": "化学教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "化学教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=氧气的化学式是（）。"
+    },
+    {
+      "role": "化学教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "化学教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/5f0bb582-90bd-48ce-b16b-96d3f93e968f?preview=1"
+    },
+    {
+      "role": "化学教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级化学第3单元测试卷"
+    },
+    {
+      "role": "化学教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=586 含题=true"
+    },
+    {
+      "role": "生物教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=生物 ·"
+    },
+    {
+      "role": "生物教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "生物教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=细胞进行呼吸作用的主要场所是（）。"
+    },
+    {
+      "role": "生物教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "生物教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/be8c2ddc-3490-483e-a0b0-1b70e03f05fd?preview=1"
+    },
+    {
+      "role": "生物教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级生物第3单元测试卷"
+    },
+    {
+      "role": "生物教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=589 含题=true"
+    },
+    {
+      "role": "历史教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=历史 ·"
+    },
+    {
+      "role": "历史教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "历史教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=丝绸之路开通于（）朝。"
+    },
+    {
+      "role": "历史教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "历史教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/e8403d0b-2f55-445e-b58c-7a1333b5f030?preview=1"
+    },
+    {
+      "role": "历史教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级历史第3单元测试卷"
+    },
+    {
+      "role": "历史教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=581 含题=true"
+    },
+    {
+      "role": "地理教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=地理 ·"
+    },
+    {
+      "role": "地理教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "地理教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=赤道把地球分为南、北（）。"
+    },
+    {
+      "role": "地理教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "地理教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/31bec71b-39cd-4291-b9ef-8433d8e5b1ed?preview=1"
+    },
+    {
+      "role": "地理教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级地理第3单元测试卷"
+    },
+    {
+      "role": "地理教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=584 含题=true"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=体育与健康 ·"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=长跑后宜采用（）的方式放松，而非立即坐下。"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/34c1a41f-01cb-4325-aac3-5912ac6bf362?preview=1"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级体育与健康第3单元测试卷"
+    },
+    {
+      "role": "体育与健康教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=611 含题=true"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=音乐 ·"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=音乐中“4/4拍”表示以四分音符为一拍，每小节（）拍。"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/5da587b1-dab6-44ea-b67e-d386a062285d?preview=1"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级音乐第3单元测试卷"
+    },
+    {
+      "role": "音乐教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=584 含题=true"
+    },
+    {
+      "role": "美术教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=美术 ·"
+    },
+    {
+      "role": "美术教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "美术教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=中国画按题材可分为山水、花鸟和（）。"
+    },
+    {
+      "role": "美术教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "美术教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/13974f69-9436-489d-b802-a58bf7d9eab4?preview=1"
+    },
+    {
+      "role": "美术教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级美术第3单元测试卷"
+    },
+    {
+      "role": "美术教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=592 含题=true"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "教学上下文学科",
+      "status": "PASS",
+      "detail": "头部=信息科技 ·"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "题库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "题库·题目内容非空",
+      "status": "PASS",
+      "detail": "首行内容=十进制数10转为二进制是（）。"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "题库·题型显示",
+      "status": "PASS",
+      "detail": "首行题型=填空题"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "题库·点击进入详情",
+      "status": "PASS",
+      "detail": "url=/exercises/0c64e51a-f6fa-4a36-87ea-01aba5088e60?preview=1"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "试卷库·列表渲染",
+      "status": "PASS",
+      "detail": "行数=3 首卷=四年级信息科技第3单元测试卷"
+    },
+    {
+      "role": "信息科技教师",
+      "journey": "试卷库·预览渲染",
+      "status": "PASS",
+      "detail": "len=601 含题=true"
+    },
+    {
+      "role": "语文种子教师(B4)",
+      "journey": "头部年级下拉存在",
+      "status": "PASS",
+      "detail": "select数=1"
+    },
+    {
+      "role": "语文种子教师(B4)",
+      "journey": "年级切换→一年级",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "语文种子教师(B4)",
+      "journey": "年级切换→四年级",
+      "status": "PASS",
+      "detail": "行数=3"
+    },
+    {
+      "role": "语文种子教师(B4)",
+      "journey": "年级切换→九年级",
+      "status": "PASS",
+      "detail": "行数=3"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": []
+}

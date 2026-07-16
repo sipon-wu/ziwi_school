@@ -16,6 +16,7 @@ import { printExamPaper } from '../lib/printPdf'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
+import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const PURPOSES = [
   { id: 'classwork', label: '课堂练习', icon: '📝', desc: '当堂巩固', count: [3, 5], difficulty: 'L1', time: '5-8分钟' },
@@ -90,6 +91,9 @@ export default function ExerciseGenerator() {
   const [duplicates, setDuplicates] = useState<any[]>([])
   const [showPublishPanel, setShowPublishPanel] = useState(false)
   const [classes, setClasses] = useState<any[]>([])
+
+  // 文档模式：内联 A4 纸面预览（所见即所得，导出 = 预览；出题线恒 A4）
+  const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
 
   // 口述作业
   const [voiceRecording, setVoiceRecording] = useState(false)
@@ -749,10 +753,62 @@ export default function ExerciseGenerator() {
     />
   )
 
+  // 文档模式左侧：习题信息 + 指引（A4 纸面，导出在右侧预览工具栏）
+  const docLeftPanel = (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="text-[13px] text-[#353535] font-medium">{knowledgeLabel || '知识图谱选题'} · {PURPOSES.find(p => p.id === purpose)?.label || '练习'}</div>
+        <div className="flex items-center gap-2 text-[11px] text-[#9A9A9A] bg-[#F6F7F8] rounded-[4px] px-3 py-2">
+          <span>学科 {teaching.subject}</span><span className="text-[#E7E7EB]">|</span><span>年级 {gradeName}</span><span className="text-[#E7E7EB]">|</span><span>{difficulty}</span>
+        </div>
+        <div className="text-[12px] text-[#9A9A9A] leading-relaxed space-y-1.5">
+          <p>文档模式为<span className="text-[#353535]">所见即所得的 A4 习题纸面</span>：</p>
+          <p>· 右侧按 A4 单栏排版全部题目；</p>
+          <p>· 顶部切换 <span className="text-[#353535]">学生卷 / 教师卷</span>；</p>
+          <p>· 工具栏 <span className="text-[#353535]">Word / PDF</span> 导出与预览完全一致（恒 A4）。</p>
+        </div>
+        {questions.length === 0 && (
+          <p className="text-[11px] text-[#FF4D4F]">尚未生成题目，请先在 AI 模式生成习题。</p>
+        )}
+      </div>
+    </div>
+  )
+
+  // 顶部模式切换（与教案编辑器一致）
+  const modeToggle = (
+    <div className="inline-flex rounded-[4px] border border-white/20 overflow-hidden bg-white/10">
+      <button onClick={() => setEditMode('ai')}
+        className={`px-4 py-1.5 text-[12px] ${editMode === 'ai' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>AI 模式</button>
+      <button onClick={() => setEditMode('doc')}
+        className={`px-4 py-1.5 text-[12px] border-l border-white/20 ${editMode === 'doc' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>文档模式</button>
+    </div>
+  )
+
+  // 文档模式预览所需的题目 / 元信息（A4 单栏）
+  const previewQuestions: ExamQuestion[] = questions.map((q: any, i: number) => ({
+    id: `q_${i}`,
+    stem: q.content || q.stem || '',
+    type: (q.type || 'choice') as ExamQuestion['type'],
+    options: typeof q.options === 'string' ? q.options : (Array.isArray(q.options) ? q.options.join('\n') : ''),
+    answer: q.answer || '',
+    difficulty: q.difficulty || difficulty,
+    sort: i + 1,
+  }))
+  const previewMeta: ExamMeta = {
+    title: `${knowledgeLabel || '练习'} - ${PURPOSES.find(p => p.id === purpose)?.label || '试卷'}`,
+    subject: teaching.subject,
+    grade: gradeName,
+    totalScore: 100,
+  }
+
+  const leftNow = editMode === 'doc' ? docLeftPanel : leftPanel
+  const rightNow = editMode === 'doc'
+    ? <ExamPreview embedded paperSize="A4" allowA3={false} questions={previewQuestions} meta={previewMeta} />
+    : rightPanel
 
   return (
     <>
-      <EditorLayout left={leftPanel} right={rightPanel} subtitle="AI辅助智能出题，知识图谱驱动精准选题" />
+      <EditorLayout left={leftNow} right={rightNow} topCenter={modeToggle} subtitle="AI辅助智能出题，知识图谱驱动精准选题" />
       <ResourcePicker
         open={materialPickerOpen}
         mode="materials"

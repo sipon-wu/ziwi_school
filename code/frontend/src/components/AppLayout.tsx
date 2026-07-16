@@ -235,7 +235,18 @@ export default function AppLayout({ children }: Props) {
                     )}
                   </div>
                 ) : (
-                  <span className="ml-3 text-[13px] text-[#9A9A9A]">{teaching.subject} · {GRADE_NAMES[teaching.grade - 1]}</span>
+                  // 无任教班级的教师（如种子教师）：仍可按学科切换年级浏览内容
+                  <div className="relative ml-3 flex items-center gap-1">
+                    <span className="text-[13px] text-[#353535]">{teaching.subject} ·</span>
+                    <select
+                      value={teaching.grade - 1}
+                      onChange={e => teaching.setGrade(Number(e.target.value) + 1)}
+                      className="text-[13px] bg-white border border-[#E7E7EB] rounded-[3px] px-2 py-1 cursor-pointer hover:border-[#02A7F0] outline-none text-[#353535]"
+                      title="切换年级"
+                    >
+                      {GRADE_NAMES.map((g, i) => <option key={g} value={i}>{g}</option>)}
+                    </select>
+                  </div>
                 )}
               </>
             )}

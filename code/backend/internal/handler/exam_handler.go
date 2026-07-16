@@ -21,7 +21,8 @@ func NewExamHandler(repo *repository.ExamRepository) *ExamHandler {
 
 func (h *ExamHandler) ListExams(c *gin.Context) {
 	schoolID, _ := c.Get("school_id")
-	exams, err := h.repo.List(schoolID.(string))
+	teacherID, _ := c.Get("user_id")
+	exams, err := h.repo.List(schoolID.(string), teacherID.(string))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -51,6 +52,9 @@ func (h *ExamHandler) CreateExam(c *gin.Context) {
 		TotalScore          float64 `json:"total_score"`
 		DurationMinutes     int    `json:"duration_minutes"`
 		Difficulty          string `json:"difficulty"`
+		DocContent          string `json:"doc_content"`
+		EditMode            string `json:"edit_mode"`
+		PaperSize           string `json:"paper_size"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -72,6 +76,9 @@ func (h *ExamHandler) CreateExam(c *gin.Context) {
 		TotalScore:      req.TotalScore,
 		DurationMinutes: req.DurationMinutes,
 		Difficulty:      req.Difficulty,
+		DocContent:      req.DocContent,
+		EditMode:        req.EditMode,
+		PaperSize:       req.PaperSize,
 		Status:          "draft",
 	}
 	if exam.Questions == "" {
@@ -114,6 +121,9 @@ func (h *ExamHandler) UpdateExam(c *gin.Context) {
 	if v, ok := req["duration_minutes"]; ok { existing.DurationMinutes = int(v.(float64)) }
 	if v, ok := req["difficulty"]; ok { existing.Difficulty = v.(string) }
 	if v, ok := req["status"]; ok { existing.Status = v.(string) }
+	if v, ok := req["doc_content"]; ok { existing.DocContent = v.(string) }
+	if v, ok := req["edit_mode"]; ok { existing.EditMode = v.(string) }
+	if v, ok := req["paper_size"]; ok { existing.PaperSize = v.(string) }
 	existing.UpdatedAt = time.Now()
 
 	if err := h.repo.Update(existing); err != nil {

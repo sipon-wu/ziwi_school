@@ -14,11 +14,22 @@
 const { chromium } = require('playwright')
 const fs = require('fs')
 const path = require('path')
+const cp = require('child_process')
 
 const BASE = process.env.BASE || 'http://school1.ziwi.cn'
 const isProd = /school\.ziwi\.cn/.test(BASE) && !/school1/.test(BASE)
 const SHOTS = path.join(__dirname, 'shots')
 fs.mkdirSync(SHOTS, { recursive: true })
+const DOWNLOADS = path.join(__dirname, 'downloads')
+fs.mkdirSync(DOWNLOADS, { recursive: true })
+
+// 校验 docx 是否含 word/media（公式 PNG 嵌入标志）
+function docxHasMedia(fp) {
+  try {
+    const out = cp.execSync(`unzip -l "${fp}" 2>/dev/null`, { encoding: 'utf8' })
+    return /word\/media/.test(out)
+  } catch (e) { return false }
+}
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 const results = []
@@ -79,18 +90,33 @@ async function run() {
     const pe = []
     page.on('pageerror', e => pe.push(String(e.message || e)))
 
+    // 下载监听（用于导出 Word 仿真用例）
+    const dlList = []
+    page.on('download', async d => {
+      try {
+        const fname = d.suggestedFilename() || ('export_' + Date.now() + '.docx')
+        const fpath = path.join(DOWNLOADS, fname)
+        await d.saveAs(fpath)
+        dlList.push({ fname, fpath })
+      } catch (e) { dlList.push({ err: String(e) }) }
+    })
+
     const url = await realLogin(page, '13800000002', 'teacher123')
     record('教师(语文)', 'UI登录', url.endsWith('/login') ? 'FAIL' : 'PASS', '落地=' + new URL(url).pathname)
 
-    // 关键页面渲染（直接 goto 真实渲染）
+    // 关键页面渲染（直接 goto 真实渲染；轮询等待内容出现，兼容大体积懒加载编辑器 chunk）
     for (const [label, p] of [
       ['首页', '/teacher'], ['出题列表', '/exercises'], ['出题新建', '/exercises/new'],
       ['教案新建', '/lesson-plans/new'], ['素材库', '/materials'], ['学情', '/analytics'],
       ['作业', '/assignments'], ['班级切换', '/classes'], ['系统设置', '/settings'],
     ]) {
       await page.goto(BASE + p, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {})
-      await sleep(1800)
-      const h = await renderHealth(page)
+      let h = { visible: false, appError: false, redirected: false, len: 0 }
+      for (let i = 0; i < 16; i++) {
+        h = await renderHealth(page)
+        if (h.visible) break
+        await sleep(500)
+      }
       record('教师(语文)', '渲染·' + label, (h.visible && !h.appError && !h.redirected) ? 'PASS' : 'FAIL',
         `visible=${h.visible} appErr=${h.appError} redirect=${h.redirected} len=${h.len}`)
     }
@@ -98,9 +124,9 @@ async function run() {
     // —— 出题 AI 生成链路（核心回归点：真实点击生成 + 等待题目渲染）——
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await sleep(8000)
-    const genBtn = page.locator('button', { hasText: '会话式补充出题要求' })
+    const genBtn = page.locator('button', { hasText: 'AI 生成' })
     let genDisabled = true
-    try { genDisabled = await genBtn.isDisabled() } catch {}
+    try { genDisabled = await genBtn.first().isDisabled() } catch {}
     let exStatus = 'FAIL', exDetail = `按钮disabled=${genDisabled}`
     if (!genDisabled) {
       await genBtn.scrollIntoViewIfNeeded().catch(() => {})
@@ -213,6 +239,58 @@ async function run() {
 
     record('教师(语文)', '运行期pageerror', pe.length === 0 ? 'PASS' : 'WARN',
       'count=' + pe.length + (pe.length ? ' :: ' + pe.slice(0, 2).join(' | ') : ''))
+
+    // ============ 新增仿真用例：公式导出（教案 Word 含公式 + 保存草稿保留数据）============
+    await page.goto(BASE + '/lesson-plans/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
+    let lready = false
+    for (let i = 0; i < 25; i++) {
+      const t = await page.evaluate(() => document.body ? document.body.innerText : '')
+      if (t && t.length > 30) { lready = true; break }
+      await sleep(1000)
+    }
+    // 切文档模式
+    const docTab = page.locator('button', { hasText: '文档模式' })
+    if (await docTab.count() > 0) { await docTab.first().click(); await sleep(1200) }
+    // 输入含公式文本到编辑区
+    let typed = false
+    try {
+      const pm = page.locator('.ProseMirror').first()
+      await pm.waitFor({ timeout: 8000 })
+      await pm.click()
+      await page.keyboard.type('教案仿真：质量守恒 $m_1+m_2=m_3$ 与化学式 $\\ce{H2O}$，积分 $\\int_0^1 x^2\\,dx$。', { delay: 5 })
+      typed = true
+      await sleep(500)
+    } catch (e) { typed = false }
+    // 真实点击「导出教案」按钮
+    const expBtn = page.locator('button', { hasText: '导出教案' })
+    let expStatus = 'FAIL', expDetail = `typed=${typed}`
+    const dlBefore = dlList.length
+    if (await expBtn.count() > 0) {
+      await expBtn.first().click()
+      let dl = null
+      for (let i = 0; i < 24; i++) {
+        if (dlList.length > dlBefore) { dl = dlList[dlList.length - 1]; break }
+        await sleep(500)
+      }
+      if (dl && dl.fpath) {
+        const hasMedia = docxHasMedia(dl.fpath)
+        expStatus = hasMedia ? 'PASS' : 'FAIL'
+        expDetail = `typed=${typed} 下载=${dl.fname} word/media=${hasMedia}`
+        // 保留数据：保存为草稿（仿真教案落地，不清理）
+        const saveBtn = page.locator('button', { hasText: '保存为草稿' })
+        if (await saveBtn.count() > 0) {
+          await saveBtn.first().click(); await sleep(1200)
+          expDetail += ' · 已保存草稿(保留仿真数据)'
+        }
+      } else {
+        expDetail += ' · 按钮已点但无下载文件(导出/公式渲染异常)'
+      }
+    } else {
+      expDetail += ' · 未找到导出教案按钮'
+    }
+    await page.screenshot({ path: path.join(SHOTS, 'teacher_export_docx.png') }).catch(() => {})
+    record('教师(语文)', '仿真·教案Word导出(含公式)', expStatus, expDetail)
+
     await ctx.close()
   }
 
@@ -251,9 +329,9 @@ async function run() {
 
     // 出题新建（数学，验证 autoSelect 是否因学科不同而异）
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
-    await sleep(6000)
-    const genBtn = page.locator('button', { hasText: '会话式补充出题要求' })
-    let d = true; try { d = await genBtn.isDisabled() } catch {}
+    await sleep(10000)
+    const genBtn = page.locator('button', { hasText: 'AI 生成' })
+    let d = true; try { d = await genBtn.first().isDisabled() } catch {}
     record('教师(数学·多班)', '出题·生成按钮态', d ? 'FAIL' : 'PASS', `disabled=${d}（autoSelect兜底应对各学科）`)
     record('教师(数学·多班)', '运行期pageerror', pe.length === 0 ? 'PASS' : 'WARN', 'count=' + pe.length)
     await ctx.close()
@@ -304,11 +382,15 @@ async function run() {
     const url = await realLogin(page, phone, 'teacher123')
     const land = new URL(url).pathname
     record(role, 'UI登录+落地', land.endsWith('/login') ? 'FAIL' : 'PASS', '落地=' + land)
-    // 渲染几个教师页验证无崩溃
+    // 渲染几个教师页验证无崩溃（轮询等待内容出现，兼容大体积懒加载编辑器 chunk）
     for (const [label, p] of [['出题', '/exercises'], ['教案', '/lesson-plans'], ['学情', '/analytics']]) {
       await page.goto(BASE + p, { waitUntil: 'domcontentloaded' }).catch(() => {})
-      await sleep(1500)
-      const hh = await renderHealth(page)
+      let hh = { visible: false, appError: false, redirected: false, len: 0 }
+      for (let i = 0; i < 24; i++) {
+        hh = await renderHealth(page)
+        if (hh.visible) break
+        await sleep(500)
+      }
       record(role, '渲染·' + label, (hh.visible && !hh.appError && !hh.redirected) ? 'PASS' : 'FAIL', `visible=${hh.visible} len=${hh.len}`)
     }
     record(role, '运行期pageerror', pe.length === 0 ? 'PASS' : 'WARN', 'count=' + pe.length)

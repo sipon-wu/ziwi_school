@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +40,12 @@ func (h *ExerciseHandler) ListQuestions(c *gin.Context) {
 
 	page := 1
 	pageSize := 20
+	// 允许前端按 ?page_size= 拉取全部（题库为客户端过滤+分页，需一次性取全量）
+	if ps := c.Query("page_size"); ps != "" {
+		if n, err := strconv.Atoi(ps); err == nil && n > 0 && n <= 2000 {
+			pageSize = n
+		}
+	}
 
 	questions, total, err := h.repo.ListByTeacher(teacherIDStr, page, pageSize)
 	if err != nil {

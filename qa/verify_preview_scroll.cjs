@@ -5,16 +5,18 @@
  * 使用: node qa/verify_preview_scroll.cjs
  */
 const { chromium } = require('playwright');
-const BASE = 'http://school1.ziwi.cn';
+const BASE = process.env.BASE || 'http://school1.ziwi.cn';
+const PHONE = process.env.PHONE || '13800000002';
+const PASS = process.env.PASS || 'teacher123';
 
 async function loginAndToken(page) {
-  const resp = await page.evaluate(async () => {
+  const resp = await page.evaluate(async ({ phone, password }) => {
     const r = await fetch('/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: '13800000002', password: 'teacher123' }),
+      body: JSON.stringify({ phone, password }),
     });
     return await r.json();
-  });
+  }, { phone: PHONE, password: PASS });
   await page.evaluate(t => localStorage.setItem('zhiwei_token', t), resp.token);
   return resp.token;
 }

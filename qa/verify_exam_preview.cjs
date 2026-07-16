@@ -4,13 +4,15 @@
  * 使用: node qa/verify_exam_preview.cjs
  */
 const { chromium } = require('playwright');
-const BASE = 'http://school1.ziwi.cn';
+const BASE = process.env.BASE || 'http://school1.ziwi.cn';
+const PHONE = process.env.PHONE || '13800000002';
+const PASS = process.env.PASS || 'teacher123';
 
 async function login(page) {
-  const resp = await page.evaluate(async () => {
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '13800000002', password: 'teacher123' }) });
+  const resp = await page.evaluate(async ({ phone, password }) => {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) });
     return await r.json();
-  });
+  }, { phone: PHONE, password: PASS });
   await page.evaluate(t => localStorage.setItem('zhiwei_token', t), resp.token);
   return resp.token;
 }
@@ -87,8 +89,8 @@ async function main() {
           fail++;
         }
 
-        // 6. 验证 A3 画布渲染
-        const canvas = modal.locator('[style*="aspect"]');
+        // 6. 验证 A3 画布渲染（新版 ExamPreview 用 Tailwind 类 aspect-[420/297]，非内联 style）
+        const canvas = modal.locator('[class*="aspect"]');
         const canvasCount = await canvas.count();
         if (canvasCount > 0) {
           console.log(`   ✓ A3 画布存在 (${canvasCount} 张), pass+1`);
@@ -129,8 +131,8 @@ async function main() {
           fail++;
         }
 
-        // 10. 验证导出 Word 按钮
-        const exportBtn = modal.locator('button:has-text("导出 Word")').first();
+        // 10. 验证导出按钮（新版文案为图标+「Word」/「PDF」，非「导出 Word」）
+        const exportBtn = modal.locator('button:has-text("Word")').first();
         if (await exportBtn.isVisible().catch(() => false)) {
           console.log('   ✓ 导出 Word 按钮存在, pass+1');
           pass++;
@@ -139,9 +141,9 @@ async function main() {
           fail++;
         }
 
-        // 11. 验证题目渲染（至少应显示题干文本）
-        const questionText = modal.locator('text=下列加点字注音完全正确的是？');
-        if (await questionText.isVisible().catch(() => false)) {
+        // 11. 验证题目渲染（检查 modal 内文本含题干，避免 text= 精确匹配因 DOM 结构脆弱）
+        const hasQuestion = await modal.evaluate(el => el.innerText.includes('下列加点字注音完全正确的是？')).catch(() => false);
+        if (hasQuestion) {
           console.log('   ✓ 题目内容已渲染, pass+1');
           pass++;
         } else {

@@ -5,13 +5,15 @@
  * 使用: node qa/verify_formula.cjs
  */
 const { chromium } = require('playwright');
-const BASE = 'http://school1.ziwi.cn';
+const BASE = process.env.BASE || 'http://school1.ziwi.cn';
+const PHONE = process.env.PHONE || '13800000002';
+const PASS = process.env.PASS || 'teacher123';
 
 async function login(page) {
-  const resp = await page.evaluate(async () => {
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '13800000002', password: 'teacher123' }) });
+  const resp = await page.evaluate(async ({ phone, password }) => {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) });
     return await r.json();
-  });
+  }, { phone: PHONE, password: PASS });
   await page.evaluate(t => localStorage.setItem('zhiwei_token', t), resp.token);
   return resp.token;
 }
@@ -49,9 +51,16 @@ async function main() {
       console.log('试卷已创建:', created.body.id);
       await page.goto(BASE + '/exams', { waitUntil: 'networkidle' });
       await page.waitForTimeout(2000);
-      const eyeBtn = page.locator('button[title="预览"]').first();
+      // 定位新建的含公式试卷所在行，打开其预览（避免误点排序在前的旧试卷）
+      const newRow = page.locator('tr', { hasText: '公式渲染测试卷' }).first();
+      const eyeBtn = newRow.locator('button[title="预览"]');
       if (await eyeBtn.isVisible().catch(() => false)) await eyeBtn.click();
-      else { const row = page.locator('tbody tr').first(); if (await row.isVisible().catch(() => false)) await row.click(); }
+      else {
+        const fb = page.locator('button[title="预览"]').first();
+        if (await fb.isVisible().catch(() => false)) await fb.click();
+        else { const row = page.locator('tbody tr').first(); if (await row.isVisible().catch(() => false)) await row.click(); }
+      }
+      await page.waitForSelector('.fixed.inset-0.z-[70]', { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(3000);
 
       // Check KaTeX rendering

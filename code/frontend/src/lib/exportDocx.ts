@@ -1,13 +1,16 @@
 /**
  * 教案导出 Word (.docx)
- * 将 markdown 教案内容解析为结构化 Word 文档
+ * 统一底座：HTML-aware 解析（markdown 自动转 HTML），公式节点 / 文本 $...$ 渲染为 PNG 嵌入。
+ * 解决"编辑态完美、导出断裂"：content 经 TipTap 编辑后已是 HTML，原 markdown 正则解析会整体失配。
  */
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, ShadingType, WidthType,
-  Table, TableRow, TableCell,
+  Table, TableRow, TableCell, ImageRun,
   Header, Footer, PageNumber,
 } from 'docx'
+import { marked } from 'marked'
+import { parseContentFragments, formulaToPng, type FormulaImage } from './formulaExport'
 
 interface LessonMeta {
   subject: string
@@ -20,42 +23,123 @@ interface LessonMeta {
   model?: string
 }
 
-/** 解析 markdown 教案内容为结构化段落 */
-function parseContent(markdown: string): { sections: { level: number; title: string; body: string[] }[] } {
-  const lines = markdown.split('\n')
-  const sections: { level: number; title: string; body: string[] }[] = []
-  let current: { level: number; title: string; body: string[] } | null = null
+/** base64 dataURL → Uint8Array（docx 浏览器端 ImageRun 需要） */
+function dataUrlToUint8Array(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.split(',')[1] || ''
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes
+}
 
-  for (const line of lines) {
-    const hMatch = line.match(/^(#{1,4})\s+(.+)/)
-    if (hMatch) {
-      if (current) sections.push(current)
-      current = { level: hMatch[1].length, title: hMatch[2].replace(/\*+/g, '').trim(), body: [] }
-    } else if (current) {
-      current.body.push(line)
+/** 公式 PNG 按目标逻辑像素缩放，高度对齐正文（inline≈12pt, block≈19pt） */
+function scaleTransform(img: FormulaImage, displayMode: boolean) {
+  const targetH = displayMode ? 26 : 16
+  const w = Math.round((img.width * targetH) / Math.max(1, img.height))
+  return { width: w, height: targetH }
+}
+
+/** 把一段 HTML/文本解析为 docx runs（文本 TextRun + 公式 ImageRun） */
+async function buildRuns(html: string, fontSize: number): Promise<(TextRun | ImageRun)[]> {
+  const frags = parseContentFragments(html)
+  const runs: (TextRun | ImageRun)[] = []
+  for (const f of frags) {
+    if (f.kind === 'text') {
+      if (f.text) runs.push(new TextRun({ text: f.text, size: fontSize, font: 'SimSun' }))
     } else {
-      //  preamble before any heading
-      if (line.trim()) {
-        if (!current) current = { level: 1, title: '', body: [] }
-        current.body.push(line)
+      try {
+        const img = await formulaToPng(f.latex, { displayMode: f.displayMode, fontSize: f.displayMode ? 24 : 16 })
+        runs.push(new ImageRun({
+          data: dataUrlToUint8Array(img.dataUrl),
+          type: 'png',
+          transformation: scaleTransform(img, f.displayMode),
+        }))
+      } catch {
+        runs.push(new TextRun({ text: f.latex, size: fontSize, font: 'SimSun' }))
       }
     }
   }
-  if (current) sections.push(current)
-  return { sections }
+  if (runs.length === 0) runs.push(new TextRun({ text: '', size: fontSize }))
+  return runs
 }
 
-function cleanText(t: string): string {
-  return t.replace(/\*{1,3}/g, '').replace(/`/g, '').trim()
+const border = { style: BorderStyle.SINGLE, size: 1, color: 'BFBFBF' }
+const borders = { top: border, bottom: border, left: border, right: border }
+const cellMargins = { top: 60, bottom: 60, left: 100, right: 100 }
+
+/** 解析 HTML 正文为 docx 块序列 */
+async function htmlToDocxBlocks(html: string): Promise<(Paragraph | Table)[]> {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const blocks: (Paragraph | Table)[] = []
+  const levelMap: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
+    1: HeadingLevel.HEADING_2, 2: HeadingLevel.HEADING_2, 3: HeadingLevel.HEADING_3, 4: HeadingLevel.HEADING_4,
+  }
+
+  const children = Array.from(doc.body.children)
+  for (const el of children) {
+    const tag = el.tagName.toLowerCase()
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') {
+      const level = Number(tag[1])
+      const runs = await buildRuns(el.innerHTML, 26)
+      blocks.push(new Paragraph({
+        heading: levelMap[level] || HeadingLevel.HEADING_3,
+        spacing: { before: 240, after: 120 },
+        children: runs,
+      }))
+    } else if (tag === 'ul' || tag === 'ol') {
+      const ordered = tag === 'ol'
+      const items = Array.from(el.children)
+      const paras = await Promise.all(items.map(async (li, i) => {
+        const prefix = ordered ? `${i + 1}. ` : '• '
+        const runs = await buildRuns((li as HTMLElement).innerHTML, 21)
+        return new Paragraph({
+          spacing: { after: 40 }, indent: { left: 480 },
+          children: [new TextRun({ text: prefix, size: 21, font: 'SimSun' }), ...runs],
+        })
+      }))
+      blocks.push(...paras)
+    } else if (tag === 'table') {
+      blocks.push(await tableFromEl(el as HTMLElement))
+    } else {
+      // p / div / 其他：作为普通段落
+      const runs = await buildRuns(el.innerHTML, 21)
+      blocks.push(new Paragraph({ spacing: { after: 80, line: 360 }, children: runs }))
+    }
+  }
+  return blocks
+}
+
+async function tableFromEl(el: HTMLElement): Promise<Table> {
+  const rows = Array.from(el.querySelectorAll('tr'))
+  const tableRows = await Promise.all(rows.map(async (r) => {
+    const cells = Array.from(r.children)
+    const tableCells = await Promise.all(cells.map(async (c) => {
+      const runs = await buildRuns((c as HTMLElement).innerHTML, 20)
+      return new TableCell({
+        borders, width: { size: Math.floor(9026 / Math.max(1, cells.length)), type: WidthType.DXA },
+        shading: (c as HTMLElement).tagName.toLowerCase() === 'th' ? { fill: 'F0F4FF', type: ShadingType.CLEAR } : undefined,
+        margins: cellMargins,
+        children: [new Paragraph({ children: runs })],
+      })
+    }))
+    return new TableRow({ children: tableCells })
+  }))
+  return new Table({
+    width: { size: 9026, type: WidthType.DXA },
+    rows: tableRows,
+  })
 }
 
 /** 生成 Word 文档 Blob */
 export async function exportLessonPlanToDocx(content: string, meta: LessonMeta): Promise<Blob> {
-  const { sections } = parseContent(content)
-  const children: (Paragraph | Table)[] = []
+  let html = content || ''
+  if (!(html.trim().startsWith('<') && /<[a-z!]/i.test(html))) {
+    try { html = marked.parse(html) as string } catch { html = `<p>${html.replace(/\n/g, '<br/>')}</p>` }
+  }
+  const bodyBlocks = await htmlToDocxBlocks(html)
 
   // ── 封面信息 ──
-  children.push(
+  const children: (Paragraph | Table)[] = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
       alignment: AlignmentType.CENTER,
@@ -70,9 +154,8 @@ export async function exportLessonPlanToDocx(content: string, meta: LessonMeta):
         meta.textbookUnit ? new TextRun({ text: ` · ${meta.textbookUnit}`, size: 24, font: 'SimSun', color: '666666' }) : new TextRun({}),
       ],
     }),
-  )
+  ]
 
-  // 基本信息表
   const infoRows = [
     ['学科', meta.subject],
     ['年级', meta.grade],
@@ -83,10 +166,6 @@ export async function exportLessonPlanToDocx(content: string, meta: LessonMeta):
     ['生成日期', meta.date || new Date().toLocaleDateString('zh-CN')],
   ]
 
-  const border = { style: BorderStyle.SINGLE, size: 1, color: 'BFBFBF' }
-  const borders = { top: border, bottom: border, left: border, right: border }
-  const cellMargins = { top: 60, bottom: 60, left: 100, right: 100 }
-
   children.push(
     new Table({
       width: { size: 9026, type: WidthType.DXA },
@@ -95,16 +174,12 @@ export async function exportLessonPlanToDocx(content: string, meta: LessonMeta):
         new TableRow({
           children: [
             new TableCell({
-              borders,
-              width: { size: 2000, type: WidthType.DXA },
-              shading: { fill: 'F0F4FF', type: ShadingType.CLEAR },
-              margins: cellMargins,
+              borders, width: { size: 2000, type: WidthType.DXA },
+              shading: { fill: 'F0F4FF', type: ShadingType.CLEAR }, margins: cellMargins,
               children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 21, font: 'SimSun' })] })],
             }),
             new TableCell({
-              borders,
-              width: { size: 7026, type: WidthType.DXA },
-              margins: cellMargins,
+              borders, width: { size: 7026, type: WidthType.DXA }, margins: cellMargins,
               children: [new Paragraph({ children: [new TextRun({ text: String(value), size: 21, font: 'SimSun' })] })],
             }),
           ],
@@ -114,138 +189,35 @@ export async function exportLessonPlanToDocx(content: string, meta: LessonMeta):
     new Paragraph({ spacing: { after: 300 }, children: [] }),
   )
 
-  // ── 教案正文 ──
-  const level2heading: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
-    1: HeadingLevel.HEADING_2,
-    2: HeadingLevel.HEADING_2,
-    3: HeadingLevel.HEADING_3,
-    4: HeadingLevel.HEADING_4,
-  }
+  children.push(...bodyBlocks)
 
-  for (const sec of sections) {
-    if (sec.title) {
-      const hLevel = level2heading[sec.level] || HeadingLevel.HEADING_3
-      children.push(
-        new Paragraph({
-          heading: hLevel,
-          spacing: { before: 240, after: 120 },
-          children: [new TextRun({ text: sec.title, bold: true, size: 26, font: 'SimSun' })],
-        }),
-      )
-    }
-    for (const line of sec.body) {
-      const trimmed = cleanText(line)
-      if (!trimmed) {
-        children.push(new Paragraph({ spacing: { after: 60 }, children: [] }))
-        continue
-      }
-      // 代码块/板书
-      if (line.trim().startsWith('```')) continue
-      // 表格行
-      if (line.trim().startsWith('|')) {
-        children.push(
-          new Paragraph({
-            spacing: { after: 40 },
-            children: [new TextRun({ text: line.trim(), size: 20, font: 'SimSun' })],
-          }),
-        )
-        continue
-      }
-      // 有序列表
-      const olMatch = trimmed.match(/^(\d+)[\.)]\s*(.+)/)
-      if (olMatch) {
-        children.push(
-          new Paragraph({
-            spacing: { after: 40 },
-            indent: { left: 480 },
-            children: [
-              new TextRun({ text: `${olMatch[1]}. `, bold: true, size: 21, font: 'SimSun' }),
-              new TextRun({ text: cleanText(olMatch[2]), size: 21, font: 'SimSun' }),
-            ],
-          }),
-        )
-        continue
-      }
-      // 无序列表
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-        children.push(
-          new Paragraph({
-            spacing: { after: 40 },
-            indent: { left: 480 },
-            children: [
-              new TextRun({ text: '• ', size: 21, font: 'SimSun' }),
-              new TextRun({ text: trimmed.slice(2), size: 21, font: 'SimSun' }),
-            ],
-          }),
-        )
-        continue
-      }
-      // 普通段落
-      children.push(
-        new Paragraph({
-          spacing: { after: 80, line: 360 },
-          children: [new TextRun({ text: trimmed, size: 21, font: 'SimSun' })],
-        }),
-      )
-    }
-  }
-
-  // ── 构建文档 ──
   const doc = new Document({
     styles: {
-      default: {
-        document: { run: { font: 'SimSun', size: 21 } },
-      },
+      default: { document: { run: { font: 'SimSun', size: 21 } } },
       paragraphStyles: [
-        {
-          id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-          run: { size: 36, bold: true, font: 'SimHei' },
-          paragraph: { spacing: { before: 360, after: 240 }, outlineLevel: 0 },
-        },
-        {
-          id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-          run: { size: 28, bold: true, font: 'SimHei' },
-          paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 },
-        },
-        {
-          id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-          run: { size: 24, bold: true, font: 'SimHei' },
-          paragraph: { spacing: { before: 200, after: 100 }, outlineLevel: 2 },
-        },
+        { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 36, bold: true, font: 'SimHei' }, paragraph: { spacing: { before: 360, after: 240 }, outlineLevel: 0 } },
+        { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 28, bold: true, font: 'SimHei' }, paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 } },
+        { id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 24, bold: true, font: 'SimHei' }, paragraph: { spacing: { before: 200, after: 100 }, outlineLevel: 2 } },
       ],
     },
     sections: [
       {
         properties: {
-          page: {
-            size: { width: 11906, height: 16838 }, // A4
-            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-          },
+          page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } },
         },
-        headers: {
-          default: new Header({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [new TextRun({ text: `知微教学 · ${meta.title || '教案'}`, size: 16, font: 'SimSun', color: '999999' })],
-              }),
-            ],
-          }),
-        },
-        footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [
-                  new TextRun({ text: '第 ', size: 16, font: 'SimSun', color: '999999' }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: 16, font: 'SimSun', color: '999999' }),
-                  new TextRun({ text: ' 页', size: 16, font: 'SimSun', color: '999999' }),
-                ],
-              }),
-            ],
-          }),
-        },
+        headers: { default: new Header({ children: [
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `知微教学 · ${meta.title || '教案'}`, size: 16, font: 'SimSun', color: '999999' })] }),
+        ] }) },
+        footers: { default: new Footer({ children: [
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [
+            new TextRun({ text: '第 ', size: 16, font: 'SimSun', color: '999999' }),
+            new TextRun({ children: [PageNumber.CURRENT], size: 16, font: 'SimSun', color: '999999' }),
+            new TextRun({ text: ' 页', size: 16, font: 'SimSun', color: '999999' }),
+          ] }),
+        ] }) },
         children,
       },
     ],

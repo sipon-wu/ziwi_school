@@ -1,0 +1,127 @@
+- generic [ref=e5]:
+  - complementary [ref=e6]:
+    - generic [ref=e8]:
+      - img "知微" [ref=e9]
+      - generic [ref=e10]:
+        - text: 知微教学
+        - generic [ref=e11]: (AI)
+    - navigation [ref=e12]:
+      - link "首页" [ref=e14] [cursor=pointer]:
+        - /url: /teacher
+        - img [ref=e15]
+        - generic [ref=e20]: 首页
+      - button "教学备课" [ref=e22]:
+        - generic [ref=e23]:
+          - img [ref=e24]
+          - generic [ref=e26]: 教学备课
+        - img [ref=e27]
+      - link "素材库" [ref=e30] [cursor=pointer]:
+        - /url: /materials
+        - img [ref=e31]
+        - generic [ref=e35]: 素材库
+      - button "作业练习" [ref=e37]:
+        - generic [ref=e38]:
+          - img [ref=e39]
+          - generic [ref=e42]: 作业练习
+        - img [ref=e43]
+      - button "教学数据" [ref=e46]:
+        - generic [ref=e47]:
+          - img [ref=e48]
+          - generic [ref=e50]: 教学数据
+        - img [ref=e51]
+      - button "家校沟通" [ref=e54]:
+        - generic [ref=e55]:
+          - img [ref=e56]
+          - generic [ref=e58]: 家校沟通
+        - img [ref=e59]
+      - generic [ref=e61]:
+        - button "个人中心" [ref=e62]:
+          - generic [ref=e63]:
+            - img [ref=e64]
+            - generic [ref=e67]: 个人中心
+          - img [ref=e68]
+        - link "班级切换" [ref=e70] [cursor=pointer]:
+          - /url: /classes
+          - img [ref=e71]
+          - generic [ref=e76]: 班级切换
+        - link "系统设置" [ref=e77] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e78]
+          - generic [ref=e81]: 系统设置
+    - generic [ref=e82]: 知微网 | 版权所有
+  - generic [ref=e83]:
+    - banner [ref=e84]:
+      - generic [ref=e85]:
+        - button "收起侧边栏" [ref=e86]:
+          - img [ref=e87]
+        - generic [ref=e89]: 个人中心 - 系统设置
+      - generic [ref=e90]:
+        - generic [ref=e93]: Token 5%
+        - generic [ref=e94]:
+          - button [ref=e95]:
+            - img [ref=e96]
+          - generic [ref=e99]: "3"
+        - generic [ref=e100]:
+          - button [ref=e101]
+          - generic [ref=e102]: 李老师
+    - main [ref=e103]:
+      - generic [ref=e104]:
+        - heading "系统设置" [level=1] [ref=e106]
+        - generic [ref=e107]:
+          - button "帐号设置" [ref=e108]
+          - button "学校 · 班级" [ref=e109]
+          - button "教材版本" [ref=e110]
+          - button "学期配置" [ref=e111]
+          - button "训练小微" [ref=e112]
+          - button "日志 · 反馈" [ref=e113]
+        - generic [ref=e115]:
+          - generic [ref=e116]:
+            - generic [ref=e117]: 头像
+            - generic [ref=e118]:
+              - img [ref=e121] [cursor=pointer]
+              - button "修改" [ref=e124]
+          - generic [ref=e125]:
+            - generic [ref=e126]: 用户ID
+            - generic [ref=e127]: u-teacher
+            - generic [ref=e128]:
+              - button "复制" [ref=e129]:
+                - img [ref=e130]
+                - text: 复制
+              - generic "您的唯一用户标识，用于技术支持排查问题" [ref=e133]: ？
+          - generic [ref=e134]:
+            - generic [ref=e135]: 名称
+            - generic [ref=e136]: 李老师
+            - generic [ref=e137]:
+              - button "修改" [ref=e138]
+              - generic "您的真实姓名，学生和家长可见" [ref=e139]: ？
+          - generic [ref=e140]:
+            - generic [ref=e141]: 姓别
+            - generic [ref=e142]: 女
+            - generic [ref=e143]:
+              - button "修改" [ref=e144]
+              - generic "个人性别信息" [ref=e145]: ？
+          - generic [ref=e146]:
+            - generic [ref=e147]: 手机号
+            - generic [ref=e148]: "13800000002"
+            - generic [ref=e149]:
+              - button "修改" [ref=e150]
+              - generic "用于登录和接收重要通知" [ref=e151]: ？
+          - generic [ref=e152]:
+            - generic [ref=e153]: 登录邮箱
+            - generic [ref=e154]: 123456789@qq.com
+            - generic [ref=e155]:
+              - button "修改" [ref=e156]
+              - generic "用于找回密码和接收系统消息" [ref=e157]: ？
+          - generic [ref=e158]:
+            - generic [ref=e159]: 地区
+            - generic [ref=e160]: 中国 四川 成都
+            - generic [ref=e161]:
+              - button "修改" [ref=e162]
+              - generic "所在地区，影响教材版本推荐" [ref=e163]: ？
+          - generic [ref=e164]:
+            - generic [ref=e165]:
+              - generic [ref=e166]:
+                - generic [ref=e167]: 教案互审
+                - generic [ref=e168]: 开启后教案送审到教研组长，关闭则直接发布
+              - button [ref=e169]
+            - button "帐号移交" [ref=e171]

@@ -1,9 +1,9 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-07-12T02:25:36.171Z",
+  "generatedAt": "2026-07-16T15:33:57.718Z",
   "summary": {
-    "total": 42,
-    "PASS": 41,
+    "total": 43,
+    "PASS": 42,
     "WARN": 1,
     "FAIL": 0
   },
@@ -28,35 +28,35 @@
       "role": "教师(语文)",
       "journey": "渲染·首页",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=438",
+      "detail": "visible=true appErr=false redirect=false len=308",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题列表",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=633",
+      "detail": "visible=true appErr=false redirect=false len=357",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=548",
+      "detail": "visible=true appErr=false redirect=false len=547",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·教案新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=315",
+      "detail": "visible=true appErr=false redirect=false len=387",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·素材库",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=460",
+      "detail": "visible=true appErr=false redirect=false len=224",
       "shot": ""
     },
     {
@@ -70,14 +70,14 @@
       "role": "教师(语文)",
       "journey": "渲染·作业",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=427",
+      "detail": "visible=true appErr=false redirect=false len=522",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·班级切换",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=295",
+      "detail": "visible=true appErr=false redirect=false len=315",
       "shot": ""
     },
     {
@@ -137,6 +137,13 @@
       "shot": ""
     },
     {
+      "role": "教师(语文)",
+      "journey": "仿真·教案Word导出(含公式)",
+      "status": "PASS",
+      "detail": "typed=true 下载=李老师_教案_语文四年级.docx word/media=true · 已保存草稿(保留仿真数据)",
+      "shot": ""
+    },
+    {
       "role": "教师(数学·多班)",
       "journey": "UI登录",
       "status": "PASS",
@@ -175,7 +182,7 @@
       "role": "班主任",
       "journey": "我的班级·渲染",
       "status": "PASS",
-      "detail": "visible=true len=284",
+      "detail": "visible=true len=316",
       "shot": ""
     },
     {
@@ -217,21 +224,21 @@
       "role": "教务",
       "journey": "渲染·出题",
       "status": "PASS",
-      "detail": "visible=true len=259",
+      "detail": "visible=true len=357",
       "shot": ""
     },
     {
       "role": "教务",
       "journey": "渲染·教案",
       "status": "PASS",
-      "detail": "visible=true len=231",
+      "detail": "visible=true len=336",
       "shot": ""
     },
     {
       "role": "教务",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true len=553",
+      "detail": "visible=true len=585",
       "shot": ""
     },
     {
@@ -252,21 +259,21 @@
       "role": "教研",
       "journey": "渲染·出题",
       "status": "PASS",
-      "detail": "visible=true len=259",
+      "detail": "visible=true len=357",
       "shot": ""
     },
     {
       "role": "教研",
       "journey": "渲染·教案",
       "status": "PASS",
-      "detail": "visible=true len=231",
+      "detail": "visible=true len=336",
       "shot": ""
     },
     {
       "role": "教研",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true len=553",
+      "detail": "visible=true len=585",
       "shot": ""
     },
     {
@@ -287,14 +294,14 @@
       "role": "IT管理员",
       "journey": "IT·教材版本tab",
       "status": "PASS",
-      "detail": "visible=true len=308",
+      "detail": "visible=true len=1134",
       "shot": ""
     },
     {
       "role": "IT管理员",
       "journey": "设置·版本库维护",
       "status": "PASS",
-      "detail": "visible=true len=15918",
+      "detail": "visible=true len=182",
       "shot": ""
     },
     {

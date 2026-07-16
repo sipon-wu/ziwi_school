@@ -15,9 +15,10 @@ func NewExamRepository(db *gorm.DB) *ExamRepository {
 	return &ExamRepository{db: db}
 }
 
-func (r *ExamRepository) List(schoolID string) ([]model.Exam, error) {
+// List 返回某教师在本校的试卷（按 teacher_id 隔离，避免跨教师数据越权/错乱）。
+func (r *ExamRepository) List(schoolID, teacherID string) ([]model.Exam, error) {
 	var exams []model.Exam
-	err := r.db.Where("school_id = ?", schoolID).Order("created_at DESC").Find(&exams).Error
+	err := r.db.Where("school_id = ? AND teacher_id = ?", schoolID, teacherID).Order("created_at DESC").Find(&exams).Error
 	return exams, err
 }
 
