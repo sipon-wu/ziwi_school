@@ -17,18 +17,25 @@ EMBED_DIM = int(os.getenv("EMBED_DIM", "1024"))
 dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 
 
-def embed_texts(texts, batch_size=16, max_retries=6):
+def embed_texts(texts, batch_size=10, max_retries=6, throttle=0.1):
     """批量获取 embedding，返回 list[list[float]]，与输入顺序严格一致。
 
-    batch_size 控制单次 API 调用携带的条数；DashScope 有 QPS/TPM 限制，
+    batch_size=10：text-embedding-v3 单次 API 调用最多携带 10 条，超过会 400。
+    throttle=0.1：每批之间的节流 sleep（秒），对应 ~10 QPS / 600 次·分，
+    给百炼工作空间 1200 次·分限额留 2× 余量，避免临界 429 风暴；
+    全量入库 5 万条仅靠失败退避仍会抖动，显式节流更稳。
     超限时按指数退避重试，避免批量任务中途失败。
     """
     if not texts:
         return []
     out = []
-    for i in range(0, len(texts), batch_size):
+    n = len(texts)
+    for i in range(0, n, batch_size):
         batch = texts[i : i + batch_size]
         out.extend(_embed_batch_with_retry(batch, max_retries))
+        # 末批后无需 sleep
+        if throttle and i + batch_size < n:
+            time.sleep(throttle)
     return out
 
 

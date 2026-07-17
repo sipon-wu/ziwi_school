@@ -19,7 +19,7 @@ DEFAULT_MODEL = os.getenv("DASHSCOPE_MODEL", "qwen-turbo")
 
 # 向量检索（备课包/教材底料 RAG）
 from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
-from vector_store import ensure_schema, search as vs_search  # noqa: E402
+from vector_store import ensure_schema, search as vs_search, retrieve_boundary  # noqa: E402
 # 素材库检索（AI 决定挂载 / 找相近生成新版本）
 from materials_store import list_materials, rank_materials  # noqa: E402
 # 知识图谱 / 课标 / 题库检索（知识面约束、课标备注、组卷抽题）
@@ -101,6 +101,34 @@ def _recommend_materials(lesson_title, subject, grade, school_id, top_k=3):
         return [r["id"] for r in ranked[:top_k]], [r["name"] for r in ranked[:top_k]]
 
 
+async def _boundary_block(subject, grade, version, unit, query_text, top_k=5):
+    """按教材知识边界检索，返回注入 prompt 的文本块；失败/无结果返回空串。
+
+    先按 (grade,subject,version) 裁剪分片，分片内按单元(±1)过滤，再语义排序取 top-N，
+    与知识图谱的知识点约束互补（图谱给知识点名，这里给真实教材内容）。
+    """
+    try:
+        q_emb = embed_texts([query_text])[0]
+        rows = await run_in_threadpool(
+            retrieve_boundary, q_emb, subject, grade, version, unit, True, top_k
+        )
+        if not rows:
+            return ""
+        items = []
+        for r in rows:
+            u = r.get("unit", "") or ""
+            ch = r.get("chapter", "") or ""
+            c = (r.get("content", "") or "")[:400]
+            items.append(f"- 【{u}/{ch}】{c}")
+        return (
+            "教材知识边界（以下为对应年级/学科/版本/单元的教材实际内容，"
+            "设计须贴合这些底料，可适度参考但不偏离其范围）：\n"
+            + "\n".join(items)
+        )
+    except Exception:
+        return ""
+
+
 def build_system_prompt(ctx: dict) -> str:
     role = ctx.get("role", "teacher")
     name = ctx.get("teacher_name", "老师")
@@ -150,6 +178,14 @@ async def xiaowei_chat(req: Request):
     ctx = body.get("context") or {}
     if not message:
         return {"reply": "老师，您想聊点什么呢？", "suggestions": []}
+    # 教材知识边界锚定：尽量按前端上下文的 学科/年级/版本 检索对应教材底料
+    if ctx.get("subject") and ctx.get("grade"):
+        b = await _boundary_block(
+            ctx["subject"], ctx.get("grade"), ctx.get("textbook_version", ""),
+            "", message,
+        )
+        if b:
+            ctx["knowledge_boundary"] = (ctx.get("knowledge_boundary", "") + "\n" + b).strip()
     messages = [
         {"role": "system", "content": build_system_prompt(ctx)},
         {"role": "user", "content": message},
@@ -230,6 +266,12 @@ async def gen_lesson_plan(req: Request):
     if chat_ctx:
         scope_hint += f"\n用户此前与小微助教沟通中提出的诉求（应融入本课设计）：{chat_ctx}。"
 
+    # 教材知识边界锚定：按 年级/学科/版本/单元 裁剪分片后语义检索 top-N
+    boundary_q = (f"{title} {' '.join(kp_names)}").strip() or title
+    boundary = await _boundary_block(subject, grade, textbook_version, unit, boundary_q)
+    if boundary:
+        scope_hint += "\n" + boundary
+
     prompt = (
         f"你是资深中小学教研员，请为{grade}{subject}《{title}》设计一份可直接用于课堂的正式教案。"
         f"{scope_hint}\n"
@@ -292,6 +334,7 @@ async def gen_courseware(req: Request):
     consult_answers = (body.get("consult_answers") or "").strip()
     edge_enabled = bool(body.get("edge_enabled", False))
     edge_categories = body.get("edge_categories") or []
+    unit = body.get("textbook_unit", "")
 
     kp_names, prereq_names = _resolve_scope(body)
     budget = divergence_budget(divergence_level)
@@ -347,6 +390,11 @@ async def gen_courseware(req: Request):
         scope_hint += f"\n用户的附加要求/关键词（必须落实）：{extra}。"
     if chat_ctx:
         scope_hint += f"\n用户此前与小微助教沟通中提出的诉求（应融入课件）：{chat_ctx}。"
+    # 教材知识边界锚定：按 年级/学科/版本/单元 裁剪分片后语义检索 top-N
+    boundary_q = (f"{title} {' '.join(kp_names)}").strip() or title
+    boundary = await _boundary_block(subject, grade, textbook_version, unit, boundary_q)
+    if boundary:
+        scope_hint += "\n" + boundary
     # ── 边缘（可选：价值观/行为/情感，靠互动承载）──
     if edge_enabled:
         cats = "、".join(edge_categories) if edge_categories else "价值观/行为准则/文化认同"
@@ -609,7 +657,7 @@ def _assign_scores(questions, total_score=None):
 
 
 def _build_question_prompt(subject, grade, kp_names, prereq_names, textbook_version,
-                           difficulty, ai_spec, purpose, extra, chat_ctx):
+                           difficulty, ai_spec, purpose, extra, chat_ctx, boundary=""):
     spec_txt = "；".join(f"{t} {c} 道" for t, c in ai_spec.items() if c > 0)
     scope = "、".join(kp_names) if kp_names else "（按教材常规进度）"
     pre = f"；可能用到的前置知识点：{', '.join(prereq_names)}。" if prereq_names else ""
@@ -628,6 +676,7 @@ def _build_question_prompt(subject, grade, kp_names, prereq_names, textbook_vers
         '"answer": 答案, "analysis": 解析, "difficulty": "L1"~"L4", "knowledge_points": [1~2个知识点名称]}\n'
         "规则：选择题须有 A-D 四项 options 且 answer 为选项字母；答案与解析须正确；"
         "每题 knowledge_points 必须从给定知识点中选取；不要输出任何解释性文字，只输出 JSON 数组。"
+        + (("\n" + boundary) if boundary else "")
     )
 
 
@@ -654,6 +703,7 @@ async def gen_exam(req: Request):
     total_score = body.get("total_score") or None
     exclude_ids = body.get("exclude_question_ids") or []
     kp_ids = body.get("selected_knowledge_ids") or []
+    unit = body.get("textbook_unit", "")
 
     kp_names, prereq_names = _resolve_scope(body)
     try:
@@ -698,10 +748,14 @@ async def gen_exam(req: Request):
         have[q["type"]] = have.get(q["type"], 0) + 1
     ai_spec = {t: max(0, c - have.get(t, 0)) for t, c in type_ratio.items()}
     ai_spec = {t: c for t, c in ai_spec.items() if c > 0}
+    boundary = await _boundary_block(
+        subject, grade, textbook_version, unit,
+        (' '.join(kp_names) or f"{grade}{subject}"),
+    )
     for t, c in ai_spec.items():
         prompt = _build_question_prompt(
             subject, grade, kp_names, prereq_names, textbook_version,
-            difficulty, {t: c}, purpose, extra, chat_ctx,
+            difficulty, {t: c}, purpose, extra, chat_ctx, boundary,
         )
         max_tokens = min(6000, max(1500, c * 220))
         for attempt in range(2):  # 解析失败重试一次
@@ -796,6 +850,8 @@ async def rag_search(req: Request):
         "volume": body.get("volume"),
         "version": body.get("version"),
         "source_type": body.get("source_type"),
+        "unit": body.get("unit"),
+        "chapter": body.get("chapter"),
     }
 
     def _do():
