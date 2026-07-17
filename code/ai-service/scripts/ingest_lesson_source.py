@@ -18,7 +18,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from embeddings import embed_texts, EMBED_DIM  # noqa: E402
 from vector_store import ensure_schema, truncate, insert_rows, COLUMNS  # noqa: E402
 
-DEFAULT_FILES = ["底料_课程包_全.jsonl", "底料_教材_全.jsonl"]
+DEFAULT_FILES = [
+    "底料_课程包_全.jsonl",
+    "底料_教材_全.jsonl",
+    "底料_教材OCR.jsonl",
+    "底料_小度诗教.jsonl",
+]
 
 # K12 核心学科白名单（音乐/美术/体育/特教/小语种等不属知微教学范围）
 SUBJECT_ALLOWLIST = frozenset({
