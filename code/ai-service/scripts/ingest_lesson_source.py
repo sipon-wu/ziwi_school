@@ -20,6 +20,19 @@ from vector_store import ensure_schema, truncate, insert_rows, COLUMNS  # noqa: 
 
 DEFAULT_FILES = ["底料_课程包_全.jsonl", "底料_教材_全.jsonl"]
 
+# K12 核心学科白名单（音乐/美术/体育/特教/小语种等不属知微教学范围）
+SUBJECT_ALLOWLIST = frozenset({
+    "语文", "数学", "英语",
+    "物理", "化学", "生物学",
+    "科学", "地理", "历史",
+    "道德与法治", "思想政治",
+    "信息技术", "信息科技",
+    "语文·书法练习指导",
+    "地理图册",
+    "中国历史", "世界历史",
+    "英语（三年级起点）",
+})
+
 
 def compose_text(row):
     """把元数据 + 正文字段拼成一段可嵌入的文本。
@@ -103,6 +116,9 @@ def main():
         buf = []
         n = 0
         for row in iter_jsonl(path):
+            subject = (row.get("学科", "") or "").strip()
+            if not subject or subject not in SUBJECT_ALLOWLIST:
+                continue  # 跳过空学科 + 音乐/美术/体育/特教/小语种等非核心学科
             buf.append(row_to_record(row))
             n += 1
             if args.limit and n >= args.limit:
