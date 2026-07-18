@@ -8,7 +8,7 @@ import HeaderRight from './HeaderRight'
 import LogoText from './LogoText'
 import XiaoWeiChat from './XiaoWeiChat'
 import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
-import { classAPI } from '../lib/api'
+import { classAPI, notifyError } from '../lib/api'
 
 /* ──────── Sidebar ──────── */
 type SidebarGroup = { id: string; label: string; icon: ReactNode; to?: string; children?: SidebarChild[] }
@@ -75,7 +75,7 @@ export default function AppLayout({ children }: Props) {
         teaching.setGrade(gradeToNum(primary.grade))
         teaching.selectClass(toClassInfo(primary))
       }
-    }).catch(() => {})
+    }).catch((e) => notifyError('初始化班级信息失败', e))
     return () => { alive = false }
   }, [])
 

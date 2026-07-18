@@ -4,7 +4,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
-import { api } from '../lib/api'
+import { api, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 import CreateNewModal from '../components/CreateNewModal'
@@ -52,7 +52,7 @@ export default function ExamList() {
           updated_at: e.updated_at?.slice(0, 16).replace('T', ' ') || '',
         }
       }))
-    }).catch(() => {})
+    }).catch((e) => notifyError('试卷列表加载失败', e))
   }, [])
 
   const classFiltered = useMemo(() => {

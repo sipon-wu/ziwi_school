@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import PresentationMode from '../components/PresentationMode'
 import PptxPreview from '../components/PptxPreview'
-import { api, aiAPI, materialAPI } from '../lib/api'
+import { api, aiAPI, materialAPI, notifyError, type MaterialItem } from '../lib/api'
 import { useTeaching } from '../lib/TeachingContext'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
@@ -84,14 +84,14 @@ export default function Materials() {
 
   // 刷新素材库列表
   const refreshMaterials = () => {
-    api<{ items: any[] }>('/materials').then(res => {
-      setMaterials(res.items.map((m: any) => ({
+    api<{ items: MaterialItem[] }>('/materials').then(res => {
+      setMaterials(res.items.map((m: MaterialItem) => ({
         id: m.id, name: m.name, type: m.type as MaterialType,
         group: m.tag || '未分组', tags: m.tag ? [m.tag] : [],
-        stars: 3, usage: 0, version: 'v1.0', size: m.size,
+        stars: 3, usage: 0, version: 'v1.0', size: m.size != null ? String(m.size) : '',
         updatedAt: m.created_at?.slice(0, 10) || '', shared: false,
       })))
-    }).catch(() => {})
+    }).catch((e) => notifyError('素材库加载失败', e))
   }
 
   // ── AI 生成课件（在素材库直接创作新课件并入库） ──

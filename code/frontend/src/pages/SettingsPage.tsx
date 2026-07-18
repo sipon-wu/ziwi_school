@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { Pencil, Plus, Trash2, Copy, Check, X, Upload } from 'lucide-react'
-import { api, adminAPI, classAPI, teacherPrefAPI } from '../lib/api'
+import { api, adminAPI, classAPI, teacherPrefAPI, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import SubmitTextbookModal from '../components/SubmitTextbookModal'
 import { useTeaching } from '../lib/TeachingContext'
@@ -104,7 +104,7 @@ function AccountTab() {
       case 'email': body.email = v; break
       case 'region': body.region = v; break
     }
-    api('/user/profile', { method: 'PUT', body: JSON.stringify(body) }).catch(() => {})
+    api('/user/profile', { method: 'PUT', body: JSON.stringify(body) }).catch((e) => notifyError('保存资料失败', e))
   }
 
   const handleCopy = () => {
@@ -121,7 +121,7 @@ function AccountTab() {
       if (!file) return
       if (file.size > 5 * 1024 * 1024) { setAvatarMsg('图片不能超过5MB'); setTimeout(() => setAvatarMsg(''), 2000); return }
       const reader = new FileReader()
-      reader.onload = () => { setAvatarSrc(reader.result as string); setAvatarMsg('头像已更新'); setTimeout(() => setAvatarMsg(''), 2000); api('/user/profile', { method: 'PUT', body: JSON.stringify({ avatar: reader.result as string }) }).catch(() => {}) }
+      reader.onload = () => { setAvatarSrc(reader.result as string); setAvatarMsg('头像已更新'); setTimeout(() => setAvatarMsg(''), 2000); api('/user/profile', { method: 'PUT', body: JSON.stringify({ avatar: reader.result as string }) }).catch((e) => notifyError('更新头像失败', e)) }
       reader.readAsDataURL(file)
     }
     input.click()
@@ -579,7 +579,7 @@ function TextbookLibraryAdmin() {
   const [importText, setImportText] = useState('')
 
   const load = () => adminAPI.listTextbookLibrary().then((r: any) => setItems(r.items || [])).finally(() => setLoading(false))
-  const loadPending = () => adminAPI.listPendingSubmittedVersions().then((r: any) => setPendingItems(r.items || [])).catch(() => {})
+  const loadPending = () => adminAPI.listPendingSubmittedVersions().then((r: any) => setPendingItems(r.items || [])).catch((e) => notifyError('待审版本加载失败', e))
   useEffect(() => { setLoading(true); Promise.all([load(), loadPending()]).finally(() => setLoading(false)) }, [])
 
   const openNew = () => { setEditId(null); setForm({ version_key: '', xue_duan: '小学', nian_ji: '一年级', xue_ke: '语文', jiao_cai_ming: '', chu_ban_she: '', ban_ben_biao_shi: '', ce_bie: '上册', mu_lu_url: '' }); setShowForm(true) }

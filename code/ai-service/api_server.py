@@ -9,6 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 import uvicorn
 import sys
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+logger = logging.getLogger("zhiwei-ai")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -63,7 +67,12 @@ def _call_llm(messages, model=DEFAULT_MODEL, max_tokens=2000):
 
 async def call_llm(messages, model=DEFAULT_MODEL, max_tokens=2000):
     """在 FastAPI 异步端点中在线程池调用同步 SDK，避免阻塞事件循环。"""
-    return await run_in_threadpool(_call_llm, messages, model, max_tokens)
+    try:
+        return await run_in_threadpool(_call_llm, messages, model, max_tokens)
+    except Exception:
+        # 统一记录 AI 调用失败根因（route 层仍按原样静默降级，保证有返回）
+        logger.exception("call_llm failed model=%s", model)
+        raise
 
 
 def _recommend_materials(lesson_title, subject, grade, school_id, top_k=3):

@@ -4,7 +4,7 @@ import { BookOpen, Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } 
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { api, lessonPlanAPI } from '../lib/api'
+import { api, lessonPlanAPI, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 
@@ -53,7 +53,7 @@ export default function LessonPlanList() {
         review_status: r.review_status || 'none', updated_at: r.updated_at,
         format_template: r.template_type || '',
       })))
-    }).catch(() => {}).finally(() => setLoading(false))
+    }).catch((e) => notifyError('教案列表加载失败', e)).finally(() => setLoading(false))
   }, [])
   const [filterStatus, setFilterStatus] = useState('')
   const [filterYear, setFilterYear] = useState('')

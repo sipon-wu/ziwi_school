@@ -1,4 +1,15 @@
 /** 知微AI教学助手 — 前端API工具类 */
+import { showToast } from '../components/Toast'
+
+/** 素材库条目（/materials 接口返回结构） */
+export interface MaterialItem {
+  id: string
+  name: string
+  type: string
+  tag?: string
+  size?: number
+  created_at?: string
+}
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
@@ -286,7 +297,7 @@ export const lessonPlanAPI = {
 // ── 素材/课件接口 ──
 
 export const materialAPI = {
-  list: () => request<any>('/materials'),
+  list: () => request<{ items: MaterialItem[] }>('/materials'),
   /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
   createJSON: (data: { name: string; type: string; tag?: string; url?: string; content?: string }) =>
     request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
@@ -452,6 +463,12 @@ export const assignmentAPI = {
 }
 
 export const api = request
+
+// 统一错误提示：console.error（可观测）+ 用户 toast（感知），替代散落的 .catch(() => {})
+export const notifyError = (msg: string, e?: unknown) => {
+  if (e !== undefined) console.error(`[notifyError] ${msg}`, e)
+  showToast(msg, 'error')
+}
 
 // ── 数据初始化批量导入接口 ──
 

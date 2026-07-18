@@ -4,7 +4,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
-import { api } from '../lib/api'
+import { api, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 interface AssignmentItem {
@@ -232,7 +232,7 @@ export default function AssignmentList() {
           </div>
         )}
 
-        <ConfirmDialog open={Boolean(deleteTarget)} title="确认删除" message="删除后将无法恢复，确认删除吗？" danger onConfirm={() => { if (deleteTarget) { const tok = localStorage.getItem('zhiwei_token'); fetch('/api/assignments/' + deleteTarget, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + tok } }).catch(() => {}); setDeleteTarget(null) }}} onCancel={() => setDeleteTarget(null)} />
+        <ConfirmDialog open={Boolean(deleteTarget)} title="确认删除" message="删除后将无法恢复，确认删除吗？" danger onConfirm={() => { if (deleteTarget) { const tok = localStorage.getItem('zhiwei_token'); fetch('/api/assignments/' + deleteTarget, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + tok } }).catch((e) => notifyError('删除作业失败', e)); setDeleteTarget(null) }}} onCancel={() => setDeleteTarget(null)} />
       </div>
     </AppLayout>
   )

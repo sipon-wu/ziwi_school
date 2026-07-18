@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Trash2, Copy, Eye, FileText, PenTool, Files, Send, Image as ImgIcon, Music, Video, X, Bell } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
-import { api } from '../lib/api'
+import { api, notifyError } from '../lib/api'
 import { useTeaching } from '../lib/TeachingContext'
 
 function safeGetUser() {
@@ -41,7 +41,7 @@ export default function TeacherDashboard() {
       subject: teaching.subject || '',
       grade: gradeName,
     })
-    api<DashboardData>(`/analytics/teacher-dashboard?${params.toString()}`).then(setData).catch(() => {})
+    api<DashboardData>(`/analytics/teacher-dashboard?${params.toString()}`).then(setData).catch((e) => notifyError('仪表盘数据加载失败', e))
   }, [timeTab, teaching.selectedClassId, teaching.subject, teaching.grade])
 
   const s = data?.stats

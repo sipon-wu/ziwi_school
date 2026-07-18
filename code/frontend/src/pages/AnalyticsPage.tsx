@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, Target, AlertTriangle, Star, ArrowUp, ArrowDown } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
-import { api } from '../lib/api'
+import { api, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
@@ -60,7 +60,7 @@ export default function AnalyticsPage() {
         completion_trend: 1.8, mastery_rate: 76, mastery_trend: -2,
         below_threshold: 8, total_students: 42,
       })
-    }).catch(() => {})
+    }).catch((e) => notifyError('学情数据加载失败', e))
   }, [])
 
   return (

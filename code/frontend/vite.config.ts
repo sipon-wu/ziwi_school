@@ -7,4 +7,21 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   server: { port: 5173, proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } },
+  build: {
+    // KnowledgeGraph(@antv/g6) 等重库体积大，拆独立 chunk 降低主包体积
+    // 注意：vite v8 使用 rolldown，manualChunks 仅支持函数式（对象式会构建失败）
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@antv')) return 'g6'
+            if (id.includes('pptxgenjs') || id.includes('docx') || id.includes('mammoth') || id.includes('html-to-image') || id.includes('marked')) return 'office'
+            if (id.includes('recharts')) return 'charts'
+            if (id.includes('react-dom') || id.includes('react-router') || id.includes('/react/') || id.includes('scheduler')) return 'react-vendor'
+          }
+        },
+      },
+    },
+  },
 })

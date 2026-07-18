@@ -5,7 +5,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '@/lib/TeachingContext'
-import { api, lessonPlanAPI } from '../lib/api'
+import { api, lessonPlanAPI, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 interface LessonPlan {
@@ -51,7 +51,7 @@ export default function PublishedLessons() {
         review_status: r.review_status || 'none', updated_at: r.updated_at,
         format_template: r.template_type || '',
       })))
-    }).catch(() => {})
+    }).catch((e) => notifyError('已发布教案加载失败', e))
   }, [])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
@@ -224,7 +224,7 @@ export default function PublishedLessons() {
             open={!!deleteTarget}
             title="确认删除"
             message="删除后教案将移至回收站，30天内可恢复。"
-            onConfirm={() => { if (deleteTarget) { lessonPlanAPI.delete(deleteTarget).catch(() => {}); setDeleteTarget(null) } }}
+            onConfirm={() => { if (deleteTarget) { lessonPlanAPI.delete(deleteTarget).catch((e) => notifyError('删除教案失败', e)); setDeleteTarget(null) } }}
             onCancel={() => setDeleteTarget(null)}
           />
         )}

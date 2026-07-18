@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
-import { teacherPrefAPI } from './api'
+import { teacherPrefAPI, notifyError } from './api'
 
 // ── 类型定义 ──
 
@@ -293,7 +293,7 @@ export function TeachingProvider({ children }: { children: ReactNode }) {
             ? prev
             : ({ ...prev, textbookBySubject: { ...prev.textbookBySubject, [subject]: v } }))
       })
-      .catch(() => {})
+      .catch((e) => notifyError('教材版本解析失败', e))
   // 学科/年级/选中班级变化时重新解析
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.subject, state.grade, state.selectedClassId])

@@ -5,7 +5,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching, QUESTION_TYPE_LABELS } from '../lib/TeachingContext'
-import { api } from '../lib/api'
+import { api, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import CreateNewModal from '../components/CreateNewModal'
 
@@ -62,7 +62,7 @@ export default function Exercises() {
   const teaching = useTeaching()
   const [showCreate, setShowCreate] = useState(false)
   const [questions, setQuestions] = useState<QuestionItem[]>([])
-  useEffect(() => { api<{ items: any[] }>('/exercises?page_size=1000').then(res => { setQuestions(res.items || []) }).catch(() => {}) }, [])
+  useEffect(() => { api<{ items: any[] }>('/exercises?page_size=1000').then(res => { setQuestions(res.items || []) }).catch((e) => notifyError('习题加载失败', e)) }, [])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
   const [filterType, setFilterType] = useState('')

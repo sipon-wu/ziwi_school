@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Download, Printer } from 'lucide-react'
-import { lessonPlanAPI, materialAPI } from '../lib/api'
+import { lessonPlanAPI, materialAPI, notifyError } from '../lib/api'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
@@ -48,7 +48,7 @@ export default function LessonPlanView() {
         const map: Record<string, any> = {}
         ;(res.items || []).forEach((m: any) => { map[m.id] = m })
         setMaterialMap(map)
-      }).catch(() => {})
+      }).catch((e) => notifyError('关联素材加载失败', e))
     }
   }, [plan])
 
