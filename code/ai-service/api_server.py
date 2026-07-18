@@ -19,7 +19,13 @@ DEFAULT_MODEL = os.getenv("DASHSCOPE_MODEL", "qwen-turbo")
 
 # 向量检索（备课包/教材底料 RAG）
 from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
-from vector_store import ensure_schema, search as vs_search, retrieve_boundary  # noqa: E402
+from vector_store import (
+    ensure_schema,
+    search as vs_search,
+    retrieve_boundary,
+    retrieve_lecture,
+    retrieve_by_kg_unit,
+)  # noqa: E402
 # 素材库检索（AI 决定挂载 / 找相近生成新版本）
 from materials_store import list_materials, rank_materials  # noqa: E402
 # 知识图谱 / 课标 / 题库检索（知识面约束、课标备注、组卷抽题）
@@ -104,8 +110,11 @@ def _recommend_materials(lesson_title, subject, grade, school_id, top_k=3):
 async def _boundary_block(subject, grade, version, unit, query_text, top_k=5):
     """按教材知识边界检索，返回注入 prompt 的文本块；失败/无结果返回空串。
 
-    先按 (grade,subject,version) 裁剪分片，分片内按单元(±1)过滤，再语义排序取 top-N，
-    与知识图谱的知识点约束互补（图谱给知识点名，这里给真实教材内容）。
+    三级递进策略（原文清除后的降级保障）：
+      Level 1 — 有 lecture_id → 返回讲义摘要
+      Level 2 — content 为 A/C 类清洗文本 → 返回清洗片段
+      Level 3 — content 为 B/D 类蒸馏数据 → 返回知识点+教学要点
+      Level 4 — content 为空 → 2-pass kg_unit 跳转同单元其他行
     """
     try:
         q_emb = embed_texts([query_text])[0]
@@ -118,8 +127,95 @@ async def _boundary_block(subject, grade, version, unit, query_text, top_k=5):
         for r in rows:
             u = r.get("unit", "") or ""
             ch = r.get("chapter", "") or ""
-            c = (r.get("content", "") or "")[:400]
+            content = r.get("content", "") or ""
+            lecture_id = r.get("lecture_id")
+            kg_unit = r.get("kg_unit", "") or ""
+
+            # Level 1：有讲义
+            if lecture_id:
+                lecture = await run_in_threadpool(retrieve_lecture, str(lecture_id))
+                if lecture and lecture.get("lecture"):
+                    lec = lecture["lecture"]
+                    if isinstance(lec, str):
+                        try:
+                            lec = json.loads(lec)
+                        except json.JSONDecodeError:
+                            lec = {}
+                    parts = []
+                    objs = lec.get("teaching_objectives") or []
+                    if objs:
+                        parts.append("教学目标：" + "；".join(o[:60] for o in objs[:2]))
+                    kd = lec.get("key_difficult_points") or {}
+                    keys = kd.get("key") or []
+                    if keys:
+                        parts.append("重点：" + "；".join(k[:60] for k in keys[:2]))
+                    ext = lec.get("cultural_extension") or ""
+                    if ext:
+                        parts.append("拓展：" + ext[:100])
+                    c = " | ".join(parts) if parts else f"[讲义 {str(lecture_id)[:8]}]"
+                    items.append(f"- 【{u}/{ch}】{c}")
+                    continue
+
+            # 尝试解析 content JSON
+            content_dict = {}
+            if content.startswith("{") and content != "{}":
+                try:
+                    content_dict = json.loads(content)
+                except json.JSONDecodeError:
+                    content_dict = {}
+
+            # Level 2：A/C 类清洗文本
+            cleaned = content_dict.get("cleaned_text", "")
+            if cleaned:
+                c = cleaned[:400]
+                items.append(f"- 【{u}/{ch}】{c}")
+                continue
+
+            # Level 3：B/D 类蒸馏数据
+            if content_dict.get("distilled"):
+                ktopics = content_dict.get("knowledge_topics", [])
+                hints = content_dict.get("teaching_hints", "")
+                if ktopics or hints:
+                    parts = []
+                    if ktopics:
+                        parts.append("知识点：" + "、".join(ktopics[:4]))
+                    if hints:
+                        parts.append("教学要点：" + hints[:150])
+                    c = " | ".join(parts)
+                    items.append(f"- 【{u}/{ch}】{c}")
+                    continue
+
+            # Level 4：静默行 → 2-pass kg_unit 跳转
+            if kg_unit:
+                nearby = await run_in_threadpool(
+                    retrieve_by_kg_unit, kg_unit, subject, grade,
+                    r.get("chunk_id"), top_k=2,
+                )
+                bounce_texts = []
+                for nb in nearby:
+                    nb_content = nb.get("content", "") or ""
+                    nb_lecture_id = nb.get("lecture_id")
+                    if nb_lecture_id:
+                        bounce_texts.append("[同单元讲义]")
+                    elif nb_content.startswith("{"):
+                        try:
+                            nb_dict = json.loads(nb_content)
+                            bt = nb_dict.get("cleaned_text", "") or (
+                                "知识点：" + "、".join(nb_dict.get("knowledge_topics", [])[:3])
+                            )
+                            if bt:
+                                bounce_texts.append(bt[:100])
+                        except json.JSONDecodeError:
+                            pass
+                if bounce_texts:
+                    c = "同单元参考：" + " | ".join(bounce_texts)
+                else:
+                    c = "（该单元知识点，见教学大纲）"
+            else:
+                c = "（该行已蒸馏，知识点见教学大纲）"
+
             items.append(f"- 【{u}/{ch}】{c}")
+
         return (
             "教材知识边界（以下为对应年级/学科/版本/单元的教材实际内容，"
             "设计须贴合这些底料，可适度参考但不偏离其范围）：\n"

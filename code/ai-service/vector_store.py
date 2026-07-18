@@ -18,6 +18,7 @@ from psycopg2.extras import execute_values
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 TABLE = "tb_lesson_source"
+LECTURE_TABLE = "tb_lesson_lecture"
 PARTITION_COUNT = 32  # 固定 32 个 HASH 分片，免维护、无需为每个组合预建分区
 
 # 入库列与 jsonl 字段的对应（课程包/教材两表字段略有差异，缺失按空串处理）
@@ -103,6 +104,7 @@ def _table_columns_sql(dim):
         std_clauses TEXT,
         kg_unit TEXT,
         copyright TEXT,
+        lecture_id UUID,
         shard_key TEXT,
         unit_seq INT,
         embedding vector({dim})
@@ -128,7 +130,10 @@ def ensure_schema(dim=1024):
         )
         if cur.fetchone()[0]:
             conn.commit()
-            return  # 已是分区表，保留数据
+            # 已有分区表：仅做 lecture 相关迁移
+            migrate_add_lecture_id()
+            ensure_lecture_schema()
+            return  # 保留数据
 
         ver = _pgvector_version(cur)
         if _version_ge(ver, "0.5.0"):
@@ -136,6 +141,7 @@ def ensure_schema(dim=1024):
         else:
             _create_single(cur, dim)
         conn.commit()
+        ensure_lecture_schema()
     finally:
         conn.close()
 
@@ -179,6 +185,149 @@ def _create_single(cur, dim):
         f"CREATE INDEX IF NOT EXISTS ix_{TABLE}_shard "
         f"ON {TABLE} (grade, subject, version, unit);"
     )
+
+
+# ── tb_lesson_lecture（讲义表） ────────────────────────────────────────
+
+
+def ensure_lecture_schema():
+    """建 tb_lesson_lecture 表（幂等）。"""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {LECTURE_TABLE} (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                lesson_key VARCHAR(255) NOT NULL,
+                subject VARCHAR(100) NOT NULL,
+                grade VARCHAR(50) NOT NULL,
+                unit VARCHAR(255),
+                chapter VARCHAR(255),
+                title VARCHAR(255) NOT NULL,
+                lecture JSONB NOT NULL,
+                source_type VARCHAR(50) NOT NULL,
+                source_ids TEXT[],
+                textbook_version_ids UUID[],
+                knowledge_node_ids UUID[],
+                standard_clause_ids UUID[],
+                original_text_status VARCHAR(20) DEFAULT 'replaced_by_lecture',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute(f"""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_lecture_lesson_key
+            ON {LECTURE_TABLE} (lesson_key);
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def migrate_add_lecture_id():
+    """为 tb_lesson_source 加 lecture_id 列（幂等）。"""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = '{TABLE}' AND column_name = 'lecture_id'
+                ) THEN
+                    ALTER TABLE {TABLE} ADD COLUMN lecture_id UUID REFERENCES {LECTURE_TABLE}(id);
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def insert_lecture(lecture_data: dict) -> str:
+    """插入一条讲义记录，返回 id（UUID 字符串）。"""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cols = [
+            "lesson_key", "subject", "grade", "unit", "chapter", "title",
+            "lecture", "source_type", "source_ids",
+            "textbook_version_ids", "knowledge_node_ids", "standard_clause_ids",
+            "original_text_status",
+        ]
+        placeholders = ", ".join("%s" for _ in cols)
+        col_list = ", ".join(cols)
+        # ON CONFLICT 只更新 lecture 和 source_ids
+        sql = f"""
+            INSERT INTO {LECTURE_TABLE} ({col_list})
+            VALUES ({placeholders})
+            ON CONFLICT (lesson_key) DO UPDATE SET
+                lecture = EXCLUDED.lecture,
+                source_ids = EXCLUDED.source_ids,
+                updated_at = NOW()
+            RETURNING id;
+        """
+        # lecture 是 dict，用 psycopg2 自动转 JSONB
+        from psycopg2.extras import Json
+        vals = [
+            lecture_data.get("lesson_key", ""),
+            lecture_data.get("subject", ""),
+            lecture_data.get("grade", ""),
+            lecture_data.get("unit", ""),
+            lecture_data.get("chapter", ""),
+            lecture_data.get("title", ""),
+            Json(lecture_data.get("lecture", {})),
+            lecture_data.get("source_type", ""),
+            lecture_data.get("source_ids", []),
+            lecture_data.get("textbook_version_ids", []),
+            lecture_data.get("knowledge_node_ids", []),
+            lecture_data.get("standard_clause_ids", []),
+            lecture_data.get("original_text_status", "replaced_by_lecture"),
+        ]
+        cur.execute(sql, vals)
+        rid = cur.fetchone()[0]
+        conn.commit()
+        return str(rid)
+    finally:
+        conn.close()
+
+
+def update_source_lecture_id(chunk_ids: list, lecture_id: str):
+    """将一批 tb_lesson_source 行的 lecture_id 设为指定值，清空 content。"""
+    if not chunk_ids:
+        return
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        for cid in chunk_ids:
+            cur.execute(
+                f"UPDATE {TABLE} SET lecture_id = %s::uuid, content = '' WHERE chunk_id = %s;",
+                (lecture_id, cid),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def retrieve_lecture(lecture_id: str) -> dict | None:
+    """按 lecture_id 获取讲义。"""
+    if not lecture_id:
+        return None
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT * FROM {LECTURE_TABLE} WHERE id = %s::uuid;",
+            (lecture_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cols = [d[0] for d in cur.description]
+        return dict(zip(cols, row))
+    finally:
+        conn.close()
 
 
 def truncate():
@@ -318,9 +467,47 @@ def retrieve_boundary(query_embedding, subject, grade, version, unit="", extend=
         sql = (
             f"SELECT chunk_id, stage, subject, grade, volume, version, "
             f"source_type, source_id, unit, chapter, content, std_clauses, "
-            f"kg_unit, copyright, 1 - (embedding <=> %s::vector) AS similarity "
+            f"kg_unit, copyright, lecture_id, "
+            f"1 - (embedding <=> %s::vector) AS similarity "
             f"FROM {TABLE} {where} ORDER BY embedding <=> %s::vector LIMIT %s;"
         )
+        cur.execute(sql, params)
+        cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def retrieve_by_kg_unit(kg_unit, subject, grade, exclude_chunk_id=None, top_k=3):
+    """按 kg_unit 查找同单元下有 lecture_id 或非空 content 的邻近行。
+
+    用于 _boundary_block 2-pass：被命中的行原文已清除时，跳转同单元下
+    其他有内容的行来提供上下文。
+    """
+    if not kg_unit:
+        return []
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        shard_key = shard_key_of(grade, subject, "")
+        params = [shard_key, kg_unit]
+        excl = ""
+        if exclude_chunk_id:
+            excl = "AND chunk_id != %s"
+            params.append(exclude_chunk_id)
+        sql = f"""
+            SELECT chunk_id, stage, subject, grade, volume, version,
+                   source_type, source_id, unit, chapter, content, std_clauses,
+                   kg_unit, copyright, lecture_id
+            FROM {TABLE}
+            WHERE shard_key = %s
+              AND kg_unit = %s
+              {excl}
+              AND (lecture_id IS NOT NULL OR (content IS NOT NULL AND content != ''))
+            ORDER BY lecture_id NULLS LAST
+            LIMIT %s;
+        """
+        params.append(int(top_k))
         cur.execute(sql, params)
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
