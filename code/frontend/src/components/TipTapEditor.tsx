@@ -455,13 +455,15 @@ function Tb({ active, onClick, children, title }: { active?: boolean; onClick: (
 
 /* ──────── 主组件 ──────── */
 interface Props {
-  value: string   // HTML 内容（或 Markdown，通过 TipTap 双向转换）
+  value: string
   onChange: (html: string) => void
   placeholder?: string
-  readOnly?: boolean   // 只读渲染（用于「预览」：所见即所得，不可编辑）
+  readOnly?: boolean   // 只读渲染：保留完整布局（工具栏/章节导航/批注/版本），仅禁用编辑
+  noPanels?: boolean    // 额外参数：readOnly 时强制隐藏工具栏与侧栏（仅用于预览弹窗）
+  docTitle?: string     // 页眉展示的文档标题（不存储，仅视觉，对齐 Word/腾讯文档）
 }
 
-export default function TipTapEditor({ value, onChange, placeholder, readOnly }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, docTitle }: Props) {
   const { toast } = useToast()
   const [outlineVisible, setOutlineVisible] = useState(true)
   const [historyVisible, setHistoryVisible] = useState(true)
@@ -492,6 +494,16 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
   // 字号
   const [fontSize, setFontSize] = useState('16')
   const FONT_SIZES = ['12', '14', '16', '18', '20', '24', '28', '36']
+
+  // 页眉页脚：当前页码（按滚动位置估算，不存储，纯视觉）
+  const [curPage, setCurPage] = useState(1)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const handleDocScroll = () => {
+    const el = scrollRef.current
+    if (!el || el.scrollHeight <= el.clientHeight + 4) { setCurPage(1); return }
+    const p = Math.floor((el.scrollTop + el.clientHeight / 2) / el.clientHeight) + 1
+    setCurPage(Math.max(1, p))
+  }
 
   // Word 导入
   const wordInputRef = useRef<HTMLInputElement | null>(null)
@@ -746,8 +758,8 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
 
   const headingNodes = toc
 
-  // 只读预览：复用同一套渲染（含公式/表格），隐藏工具栏与侧栏，不可编辑
-  if (readOnly) {
+  // 只读 + 极简模式：隐藏工具栏与侧栏（仅用于预览弹窗，保持原有简洁阅读体验）
+  if (readOnly && noPanels) {
     return (
       <div className="h-full flex flex-col bg-white">
         <div className="flex-1 overflow-auto">
@@ -865,7 +877,8 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
 
         <div className="flex-1" />
 
-        {/* 导入 Word & 版本快照 & 全屏 */}
+        {/* 导入 Word & 版本快照（只读态隐藏） */}
+        {!readOnly && (<>
         <input ref={wordInputRef} type="file" accept=".docx" className="hidden" onChange={handleWordImport} />
         <button onClick={() => wordInputRef.current?.click()} title="导入本地 Word 文档（.docx）"
           className="flex items-center gap-1 px-2 h-7 text-[10px] rounded hover:bg-[#F0F2F5] text-[#9A9A9A] mr-1">
@@ -875,6 +888,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
           className="flex items-center gap-1 px-2 h-7 text-[10px] rounded hover:bg-[#F0F2F5] text-[#9A9A9A] mr-1">
           <Save size={11} /> 保存版本
         </button>
+        </>)}
       </div>
 
       {/* ── 主编辑区（三栏) ── */}
@@ -903,9 +917,28 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
           </div>
         )}
 
-        {/* 中央：编辑器 */}
-        <div className="flex-1 overflow-auto">
-          <EditorContent editor={editor} />
+        {/* 中央：编辑器（A4 页面纸 + 页眉/页脚 + 版心四角直角标记·角向外，对齐 Word） */}
+        <div ref={scrollRef} onScroll={handleDocScroll} className="flex-1 overflow-auto bg-[#F3F4F6] py-6">
+          <div className="relative max-w-[794px] w-full mx-auto aspect-[210/297] min-h-[1122px] bg-white border border-[#E7E7EB] shadow-sm flex flex-col">
+            {/* 版心：左右 3.18cm≈120px，上/下边距 2.54cm≈96px（严格锁版心顶/底到纸边） */}
+            <div className="px-[120px] flex-1 relative pt-[96px] pb-[96px] min-h-0">
+              <div className="relative h-full min-h-0">
+                <span className="absolute left-0 top-0 w-3 h-3 border-r-2 border-b-2 border-[#BFBFBF]" />
+                <span className="absolute right-0 top-0 w-3 h-3 border-l-2 border-b-2 border-[#BFBFBF]" />
+                <span className="absolute left-0 bottom-0 w-3 h-3 border-r-2 border-t-2 border-[#BFBFBF]" />
+                <span className="absolute right-0 bottom-0 w-3 h-3 border-l-2 border-t-2 border-[#BFBFBF]" />
+                <EditorContent editor={editor} />
+              </div>
+            </div>
+            {/* 页眉：标题落在上边距区域（距纸顶约 64px），不撑高上边距 */}
+            <div className="absolute top-0 left-0 right-0 px-[120px] pt-[64px] text-center text-[11px] text-[#9A9A9A] select-none">
+              {docTitle || '教案'}
+            </div>
+            {/* 页脚：页码落在下边距区域（距纸底约 40px），不撑高下边距 */}
+            <div className="absolute bottom-0 left-0 right-0 px-[120px] pb-[40px] text-center text-[11px] text-[#9A9A9A] select-none">
+              第 {curPage} 页
+            </div>
+          </div>
         </div>
 
         {/* 右侧：批注 / 版本历史（双 Tab） */}
@@ -986,6 +1019,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
                         <span className="text-[11px] text-[#353535]">{s.time}</span>
                         <span className="text-[9px] text-[#C0C0C0]">{s.label}</span>
                       </div>
+                      {!readOnly && (
                       <div className="flex gap-2 mt-0.5">
                         <button onClick={() => restoreSnapshot(s.content)}
                           className="text-[10px] text-[#02A7F0] hover:underline flex items-center gap-0.5">
@@ -996,6 +1030,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly }:
                           <Eye size={9} />预览
                         </button>
                       </div>
+                      )}
                     </div>
                   ))
                 )}
