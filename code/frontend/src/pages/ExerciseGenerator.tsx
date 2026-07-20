@@ -6,7 +6,7 @@ import { useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LA
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
-import { questionBankAPI, assignmentAPI } from '../lib/api'
+import { questionBankAPI, assignmentAPI, classAPI } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import AiPreviewBadge from '../components/AiPreviewBadge'
@@ -100,6 +100,11 @@ export default function ExerciseGenerator() {
   const [voiceText, setVoiceText] = useState('')
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } })()
+
+  // 任教班级
+  const [myClassesEG, setMyClassesEG] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClassesEG(r?.items || [])).catch(() => {}) }, [])
+  const classLabelEG = myClassesEG.find(it => it.class_id === teaching.selectedClassId)?.class_name || GRADE_NAMES[teaching.grade - 1]
 
   // 从已选图谱节点派生知识点标签
   const knowledgeLabel = picker.selectedNodes.map((n: any) => n.name).join('、') || ''
@@ -366,7 +371,7 @@ export default function ExerciseGenerator() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[#9A9A9A] w-10">班级</span>
-                <span className="text-[#353535]">{user?.grade_class || '四年级 (1)班'}</span>
+                <span className="text-[#353535]">{classLabelEG}</span>
               </div>
             </div>
             <div className="w-[80px] h-[100px] bg-[#F6F7F8] rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">

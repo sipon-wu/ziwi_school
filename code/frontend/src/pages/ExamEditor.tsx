@@ -7,14 +7,14 @@ import AppLayout from '../components/AppLayout'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const TYPE_LABELS: Record<string, string> = {
-  choice: '选择', fill: '填空', judge: '判断',
-  match: '匹配', cloze: '完形', reading: '阅读', writing: '写作',
+  choice: '选择', fill: '填空', judge: '判断', judge: '判断', truefalse: '判断',
+  match: '匹配', cloze: '完形', reading: '阅读', writing: '写作', short_answer: '简答',
 }
 
-const MOCK_DATA: Record<string, any> = {
-  'e1': { id: 'e1', title: '四年级语文第一单元检测', subject: '语文', grade: '四年级', question_count: 15, total_score: 100, duration: 40, status: 'published', updated_at: '2026-07-03', type_breakdown: { choice: 6, fill: 3, judge: 2, reading: 3, writing: 1 }, knowledge_points: ['边读边想象画面', '感受自然之美', '推荐一个好地方'] },
-  'e2': { id: 'e2', title: '四年级语文期中考试卷', subject: '语文', grade: '四年级', question_count: 25, total_score: 100, duration: 60, status: 'published', updated_at: '2026-06-25', type_breakdown: { choice: 8, fill: 5, judge: 4, reading: 5, writing: 3 }, knowledge_points: ['阅读时尝试提问', '从不同角度提问', '连续观察方法', '准确生动表达'] },
-  'e3': { id: 'e3', title: '《观潮》课内阅读练习', subject: '语文', grade: '四年级', question_count: 8, total_score: 50, duration: 20, status: 'draft', updated_at: '2026-07-04', type_breakdown: { choice: 3, fill: 2, reading: 2, writing: 1 }, knowledge_points: ['边读边想象画面', '感受自然之美'] },
+function parseQuestions(raw: any): any[] {
+  if (!raw) return []
+  const arr = typeof raw === 'string' ? JSON.parse(raw || '[]') : raw
+  return Array.isArray(arr) ? arr : []
 }
 
 export default function ExamEditor() {
@@ -22,14 +22,53 @@ export default function ExamEditor() {
   const [searchParams] = useSearchParams()
   const isPreview = searchParams.get('preview') === '1'
   const { toast } = useToast()
-  const exam = useMemo(() => (id ? MOCK_DATA[id] : null), [id])
 
-  const [editTitle, setEditTitle] = useState(exam?.title || '')
+  const [exam, setExam] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [editTitle, setEditTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [showTemplate, setShowTemplate] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [previewData, setPreviewData] = useState<{ questions: any[]; meta: any } | null>(null)
 
+  useEffect(() => {
+    if (!id) { setLoading(false); return }
+    setLoading(true)
+    api<any>(`/exams/${id}`)
+      .then(res => { setExam(res); setEditTitle(res?.title || '') })
+      .catch(() => { setExam(undefined) })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  const isEditMode = exam?.status === 'draft'
+
+  // 从真实题目计算题型分布，避免依赖旧 mock 的 type_breakdown 字段
+  // 注意：以下 useMemo 必须在任何条件 return 之前调用，否则 Hooks 顺序不一致会崩整棵树
+  const questions = useMemo(() => parseQuestions(exam?.questions), [exam])
+  const totalTypes = useMemo(() => {
+    const m: Record<string, number> = {}
+    questions.forEach((q: any) => { const t = q.type || 'choice'; m[t] = (m[t] || 0) + 1 })
+    return Object.entries(m).filter(([, c]) => (c as number) > 0) as [string, number][]
+  }, [questions])
+
+  const previewData = useMemo(() => ({
+    questions: questions.filter(q => q.stem || q.content).map((q: any) => ({
+      id: q.id || '', stem: q.stem || q.content || '', type: q.type || 'choice',
+      options: q.options || '', answer: q.answer || '', analysis: q.analysis || '',
+      difficulty: q.difficulty, score: q.score, sort: q.sort,
+    })),
+    meta: {
+      title: editTitle || exam?.title, subject: exam?.subject, grade: exam?.grade,
+      totalScore: exam?.total_score, durationMinutes: exam?.duration_minutes,
+    },
+  }), [questions, exam, editTitle])
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64 text-[13px] text-[#9A9A9A]">加载中…</div>
+      </AppLayout>
+    )
+  }
   if (!exam) {
     return (
       <AppLayout>
@@ -38,38 +77,14 @@ export default function ExamEditor() {
     )
   }
 
-  const isEditMode = exam.status === 'draft'
-
-  // 打开试卷预览（走真实 API 获取题目数据）
-  const openPreview = async () => {
-    try {
-      const res = await api<{ questions: string; title: string; subject: string; grade: string; total_score: number; duration_minutes: number }>(`/exams/${id}`)
-      const parsed = typeof res.questions === 'string' ? JSON.parse(res.questions || '[]') : (res.questions || [])
-      setPreviewData({
-        questions: parsed.filter((q: any) => q.stem || q.content).map((q: any) => ({
-          id: q.id || '', stem: q.stem || q.content || '', type: q.type || 'choice',
-          options: q.options || '', answer: q.answer || '', analysis: q.analysis || '',
-          difficulty: q.difficulty, score: q.score, sort: q.sort,
-        })),
-        meta: { title: editTitle || exam.title, subject: exam.subject, grade: exam.grade, totalScore: exam.total_score, durationMinutes: exam.duration },
-      })
-      setPreviewOpen(true)
-    } catch { /* ignore */ }
-  }
-
   const handleSave = async () => {
     setSaving(true)
     try {
-      if (id) {
-        await api(`/exams/${id}`, { method: 'PUT', body: JSON.stringify({ title: editTitle }) })
-      }
+      if (id) await api(`/exams/${id}`, { method: 'PUT', body: JSON.stringify({ title: editTitle }) })
       toast('保存成功', 'success')
     } catch { toast('保存失败', 'error') }
     finally { setSaving(false) }
   }
-
-  const totalTypes = Object.entries(exam.type_breakdown || {})
-    .filter(([_, c]) => (c as number) > 0)
 
   return (
     <AppLayout>
@@ -99,7 +114,7 @@ export default function ExamEditor() {
             )}
             {isEditMode && (
               <>
-                <button onClick={openPreview}
+                <button onClick={() => setPreviewOpen(true)}
                   className="flex items-center gap-1.5 px-4 py-2 text-[13px] border border-[#E7E7EB] text-[#353535] rounded-[4px] hover:bg-[#F6F7F8] transition-colors">
                   <Eye size={14} /> 预览
                 </button>
@@ -135,7 +150,7 @@ export default function ExamEditor() {
               {exam.status === 'published' ? '已发布' : '草稿'}
             </span>
             <span className="text-[11px] text-[#9A9A9A]">{exam.subject} · {exam.grade}</span>
-            <span className="ml-auto text-[11px] text-[#9A9A9A]">更新于 {exam.updated_at}</span>
+            <span className="ml-auto text-[11px] text-[#9A9A9A]">更新于 {exam.updated_at?.slice(0, 16).replace('T', ' ') || '—'}</span>
           </div>
 
           <div className="p-5 space-y-4">
@@ -153,9 +168,9 @@ export default function ExamEditor() {
             {/* 基本信息 */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: '总分', value: `${exam.total_score} 分` },
-                { label: '题量', value: `${exam.question_count} 题` },
-                { label: '时长', value: `${exam.duration || 40} 分钟` },
+                { label: '总分', value: `${exam.total_score || 100} 分` },
+                { label: '题量', value: `${questions.length} 题` },
+                { label: '时长', value: `${exam.duration_minutes || 40} 分钟` },
               ].map((item, i) => (
                 <div key={i} className="p-3 bg-[#F6F7F8] rounded-[4px] text-center">
                   <div className="text-lg font-bold text-[#353535]">{item.value}</div>
@@ -168,30 +183,21 @@ export default function ExamEditor() {
             <div>
               <label className="block text-[12px] font-medium text-[#353535] mb-2">题型分布</label>
               <div className="grid grid-cols-2 gap-2">
-                {(totalTypes as [string, number][]).map(([type, count]) => (
+                {totalTypes.length > 0 ? totalTypes.map(([type, count]) => (
                   <div key={type} className="flex items-center justify-between px-3 py-2 bg-[#F6F7F8] rounded-[4px]">
                     <span className="text-[12px] text-[#353535]">{TYPE_LABELS[type as string] || (type as string)}</span>
                     <span className="text-[12px] font-medium text-[#02A7F0]">{count} 题</span>
                   </div>
-                ))}
+                )) : (
+                  <div className="col-span-2 px-3 py-2 text-[12px] text-[#9A9A9A] bg-[#F6F7F8] rounded-[4px]">暂无题目</div>
+                )}
               </div>
             </div>
           </div>
         </div>
-
-        {/* 知识点 */}
-        {exam.knowledge_points?.length > 0 && (
-          <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-5">
-            <h3 className="text-[13px] font-semibold text-[#353535] mb-3">考察知识点</h3>
-            <div className="flex flex-wrap gap-2">
-              {exam.knowledge_points.map((kp: string, i: number) => (
-                <span key={i} className="px-2.5 py-1 text-[11px] bg-[#F6F7F8] text-[#353535] rounded-full">{kp}</span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
-          {/* 存为模板弹层 */}
+
+      {/* 存为模板弹层 */}
       {showTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowTemplate(false)}>
           <div className="absolute inset-0 bg-black/30" />
@@ -215,7 +221,7 @@ export default function ExamEditor() {
       )}
 
       {previewOpen && previewData && (
-        <ExamPreview questions={previewData.questions} meta={previewData.meta} onClose={() => setPreviewOpen(false)} />
+        <ExamPreview questions={previewData.questions as ExamQuestion[]} meta={previewData.meta as ExamMeta} onClose={() => setPreviewOpen(false)} />
       )}
     </AppLayout>
   )

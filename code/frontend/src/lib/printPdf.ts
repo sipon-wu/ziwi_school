@@ -21,7 +21,7 @@ interface ExamQuestion {
 }
 
 /** 试卷打印（学生卷） */
-export function printExamPaper(questions: ExamQuestion[], meta: { subject:string; grade:string; title:string; difficulty:string; teacherName:string }, paperSize: 'A3' | 'A4' = 'A4') {
+export function printExamPaper(questions: ExamQuestion[], meta: { subject:string; grade:string; title:string; difficulty:string; teacherName:string }, paperSize: 'A4' | 'A3' | 'A3_3' = 'A4') {
   const typeName: Record<string,string> = QUESTION_TYPE_LABELS
   let qi = 0
   const questionsHtml = questions.map(q => {
@@ -38,10 +38,12 @@ export function printExamPaper(questions: ExamQuestion[], meta: { subject:string
     return html
   }).join('')
 
-  const isA3 = paperSize === 'A3'
+  const isA3 = paperSize !== 'A4'
+  const cols = paperSize === 'A4' ? 1 : paperSize === 'A3' ? 2 : 3
   const pageCss = isA3 ? '@page { size: A3; margin: 1.5cm 2cm; }' : '@page { size: A4; margin: 2cm 2.5cm; }'
-  const columnCss = isA3 ? 'body { columns: 2; column-gap: 40px; }' : ''
-  const hint = isA3 ? '<div class="hint">A3 双栏 · 请双面打印</div>' : ''
+  const columnCss = isA3 ? `body { columns: ${cols}; column-gap: 40px; }` : ''
+  const hintText = paperSize === 'A3_3' ? 'A3 三栏 · 请双面打印' : (isA3 ? 'A3 双栏 · 请双面打印' : '')
+  const hint = hintText ? `<div class="hint">${hintText}</div>` : ''
   const hintCss = isA3 ? '.hint { text-align:center; font-size:12px; color:#999; margin-top:8px; }' : ''
 
   const win = window.open('', '_blank', 'width=800,height=600')
@@ -87,11 +89,13 @@ export function printLessonPlan(content: string, meta: { subject:string; grade:s
 <link rel="stylesheet" href="${KATEX_CSS_HREF}">
 <style>
   @page { size: A4; margin: 2cm 2.5cm; }
-  body { font-family: SimSun, serif; font-size: 14px; line-height: 1.8; color: #333; max-width:700px; margin:0 auto; padding:20px; }
-  h1 { font-size:22px; }
-  h2 { font-size:18px; margin-top:20px; border-bottom:1px solid #eee; padding-bottom:4px; }
-  h3 { font-size:15px; margin-top:16px; }
-  p { margin:6px 0; }
+  /* 与编辑器（.ProseMirror）完全一致的版式，确保「所见即所得」：编辑态 = 打印/导出态。
+     工具栏所选字体/字号会以 inline 样式带入正文，故此处仅定默认（无衬线 = 编辑器默认）。 */
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif; font-size: 16px; line-height: 2; color: #333; max-width:700px; margin:0 auto; padding:20px; }
+  h1 { font-size:22px; font-weight:700; }
+  h2 { font-size:18px; font-weight:600; margin-top:20px; border-bottom:1px solid #eee; padding-bottom:4px; }
+  h3 { font-size:16px; font-weight:600; margin-top:16px; }
+  p { margin:0 0 0.75em 0; text-indent: 2em; min-height: 1em; }
   pre { background:#f5f5f5; padding:12px; border-radius:4px; font-size:12px; white-space:pre-wrap; }
   table { border-collapse: collapse; width: 100%; margin: 10px 0; }
   th, td { border: 1px solid #ddd; padding: 6px 10px; font-size: 13px; }

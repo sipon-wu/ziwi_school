@@ -458,9 +458,10 @@ interface Props {
   value: string   // HTML 内容（或 Markdown，通过 TipTap 双向转换）
   onChange: (html: string) => void
   placeholder?: string
+  readOnly?: boolean   // 只读渲染（用于「预览」：所见即所得，不可编辑）
 }
 
-export default function TipTapEditor({ value, onChange, placeholder }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, readOnly }: Props) {
   const { toast } = useToast()
   const [outlineVisible, setOutlineVisible] = useState(true)
   const [historyVisible, setHistoryVisible] = useState(true)
@@ -513,6 +514,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
 
   const editorRef = useRef<Editor | null>(null)
   const editor = useEditor({
+    editable: readOnly ? false : true,
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       Placeholder.configure({ placeholder: placeholder || '开始编写教案正文...' }),
@@ -671,7 +673,7 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
     }
     // 弹窗打开时 editor 被设为不可编辑（防止编辑弹窗内操作触发 blur 闪退）；
     // 但插入/更新命令必须在可编辑状态下执行，否则 ProseMirror 会忽略事务
-    editor?.setEditable(true)
+    editor?.setEditable(readOnly ? false : true)
     // 编辑已有节点：原地更新属性，而非插入新节点
     if (editingNodeName) {
       if (editingNodeName === 'formulaInline') {
@@ -743,6 +745,19 @@ export default function TipTapEditor({ value, onChange, placeholder }: Props) {
   if (!editor) return null
 
   const headingNodes = toc
+
+  // 只读预览：复用同一套渲染（含公式/表格），隐藏工具栏与侧栏，不可编辑
+  if (readOnly) {
+    return (
+      <div className="h-full flex flex-col bg-white">
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-[820px] mx-auto px-10 py-8">
+            <EditorContent editor={editor} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <FormulaEditContext.Provider value={editFormulaStable}>

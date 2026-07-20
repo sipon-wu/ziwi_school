@@ -1,10 +1,10 @@
 /**
  * 试卷预览组件（支持 出题 / 组卷 两种形态）
- * - paperSize: 'A3'（默认，双栏 + 中折 + 正/背翻页）/ 'A4'（单栏连续分页）
+ * - paperSize: 'A4'（默认，单栏连续分页）/ 'A3'（双栏 + 中折 + 正/背翻页）/ 'A3_3'（三栏 + 中折 + 正/背翻页）
  * - embedded: true 时内联于编辑器文档模式（不浮层、不强制关闭）；false 时为全屏浮层
  * - 学生卷 / 教师卷切换、缩放、导出 Word / PDF 均随当前 paperSize 走（导出 = 预览）
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { X, ChevronLeft, ChevronRight, Eye, EyeOff, Printer, Download } from 'lucide-react'
 import { QUESTION_TYPE_LABELS } from '../lib/TeachingContext'
 import { renderFormulaText } from './FormulaRender'
@@ -33,10 +33,22 @@ export interface ExamMeta {
   teacherName?: string
 }
 
+/** 按学科返回最可能的试卷默认排版（联网调研结论）：
+ *  - 语文：长阅读/作文为主 → A3 双栏
+ *  - 数学 / 英语：题量密集、小题多 → A3 三栏（较双栏更常见）
+ *  - 其余学科：默认 A3 三栏（空间利用率高、题量密集场景多）
+ * 预览、导出、打印均以此为初始排版，保证三者对齐。 */
+export function defaultPaperSizeForSubject(subject: string): 'A4' | 'A3' | 'A3_3' {
+  const s = (subject || '').replace(/\s/g, '')
+  if (s.includes('语文')) return 'A3'
+  if (s.includes('数学') || s.includes('英语')) return 'A3_3'
+  return 'A3_3'
+}
+
 interface Props {
   questions: ExamQuestion[]
   meta: ExamMeta
-  paperSize?: 'A3' | 'A4'
+  paperSize?: 'A4' | 'A3' | 'A3_3'
   /** 是否允许切到 A3（出题线锁定 A4，传 false） */
   allowA3?: boolean
   /** 内联模式：渲染进父容器而非全屏浮层 */
@@ -44,27 +56,19 @@ interface Props {
   onClose?: () => void
 }
 
-/* ──────── 分栏分页算法（A3：1 张纸 = 4 个 A4 版面）──────── */
-interface PanelQuestions {
-  frontLeft: ExamQuestion[]
-  frontRight: ExamQuestion[]
-  backLeft: ExamQuestion[]
-  backRight: ExamQuestion[]
+/* ──────── 分栏分页算法（A3：1 张纸 = 正/背两面，每面 cols 栏）──────── */
+interface SheetPanels {
+  front: ExamQuestion[][]   // 每面 = cols 个栏
+  back: ExamQuestion[][]
 }
 
-function splitToPanels(questions: ExamQuestion[]): PanelQuestions {
-  const n = Math.max(4, Math.ceil(questions.length / 4) * 4)
-  const half = Math.ceil(n / 2)
-  const front = questions.slice(0, half)
-  const back = questions.slice(half, n)
-  const fl = Math.ceil(front.length / 2)
-  const bl = Math.ceil(back.length / 2)
-  return {
-    frontLeft: front.slice(0, fl),
-    frontRight: front.slice(fl),
-    backLeft: back.slice(0, bl),
-    backRight: back.slice(bl),
-  }
+/** 把题目均分到 cols 个栏（用于 A3 每面的分栏） */
+function splitCols(arr: ExamQuestion[], cols: number): ExamQuestion[][] {
+  const n = Math.max(cols, Math.ceil(arr.length / cols) * cols)
+  const per = Math.ceil(n / cols)
+  const out: ExamQuestion[][] = []
+  for (let i = 0; i < cols; i++) out.push(arr.slice(i * per, (i + 1) * per))
+  return out
 }
 
 /** 估算题目高度评分（用于 A4 单栏分页） */
@@ -77,15 +81,19 @@ function questionScore(q: ExamQuestion): number {
   return s
 }
 
-/** A3：将全部题目分配到多张纸（每张 4 版面，按题数切分） */
-function paginateA3(questions: ExamQuestion[]): PanelQuestions[] {
+/** A3：将全部题目分配到多张纸（每张 = 正/背两面，每面 cols 栏，按题数切分） */
+function paginateA3(questions: ExamQuestion[], cols: number): SheetPanels[] {
   if (!questions.length) return []
-  const pages: PanelQuestions[] = []
-  const perPage = Math.max(4, Math.ceil(questions.length / Math.ceil(questions.length / 8)))
+  const pages: SheetPanels[] = []
+  const perPage = cols * 4
   let offset = 0
   while (offset < questions.length) {
     const chunk = questions.slice(offset, offset + perPage)
-    pages.push(splitToPanels(chunk))
+    const half = Math.ceil(chunk.length / 2)
+    pages.push({
+      front: splitCols(chunk.slice(0, half), cols),
+      back: splitCols(chunk.slice(half), cols),
+    })
     offset += perPage
   }
   return pages
@@ -177,12 +185,15 @@ function QuestionColumn({ questions, startNum, showAnswer }: {
 export default function ExamPreview({
   questions,
   meta,
-  paperSize: paperSizeProp = 'A3',
+  paperSize: paperSizeProp,
   allowA3 = true,
   embedded = false,
   onClose,
 }: Props) {
-  const [paperSize, setPaperSize] = useState<'A3' | 'A4'>(allowA3 ? paperSizeProp : 'A4')
+  const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3_3'>(
+    !allowA3 ? 'A4' : (paperSizeProp ?? defaultPaperSizeForSubject(meta.subject))
+  )
+  const cols = paperSize === 'A4' ? 1 : paperSize === 'A3' ? 2 : 3
   const [side, setSide] = useState<'front' | 'back'>('front')
   const [sheet, setSheet] = useState(0)
   const [showAnswer, setShowAnswer] = useState(false)
@@ -194,7 +205,7 @@ export default function ExamPreview({
     return arr
   }, [questions])
 
-  const a3Pages = useMemo(() => paginateA3(sorted), [sorted])
+  const a3Pages = useMemo(() => paginateA3(sorted, cols), [sorted, cols])
   const a4Pages = useMemo(() => paginateA4(sorted), [sorted])
 
   const isEmpty = !sorted.length
@@ -255,21 +266,16 @@ export default function ExamPreview({
     }
   }
 
-  /* ── A3 当前纸的版面与题号起点 ── */
+  /* ── A3 当前纸的版面与题号起点（栏数可配置）── */
   const page = (!isEmpty && a3Pages.length) ? a3Pages[Math.min(sheet, a3Pages.length - 1)] : null
-  const panels = page
-    ? (side === 'front' ? [page.frontLeft, page.frontRight] : [page.backLeft, page.backRight])
-    : []
+  const panels = page ? (side === 'front' ? page.front : page.back) : []
   let cum = 0
   for (let pj = 0; pj < Math.min(sheet, a3Pages.length - 1); pj++) {
     const p = a3Pages[pj]
-    cum += p.frontLeft.length + p.frontRight.length + p.backLeft.length + p.backRight.length
+    cum += p.front.reduce((a, c) => a + c.length, 0) + p.back.reduce((a, c) => a + c.length, 0)
   }
-  const order = panels
   let acc = cum
-  const starts = order.map(panel => { const s = acc + 1; acc += (panel?.length || 0); return s })
-  const leftStart = side === 'front' ? starts[0] : starts[2]
-  const rightStart = side === 'front' ? starts[1] : starts[3]
+  const starts = panels.map(col => { const s = acc + 1; acc += (col?.length || 0); return s })
 
   /* ── 顶部工具栏 ── */
   const toolbar = (
@@ -289,6 +295,8 @@ export default function ExamPreview({
               className={`px-2.5 py-1 ${paperSize === 'A4' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>A4</button>
             <button onClick={() => setPaperSize('A3')}
               className={`px-2.5 py-1 border-l border-white/20 ${paperSize === 'A3' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>A3 双排</button>
+            <button onClick={() => setPaperSize('A3_3')}
+              className={`px-2.5 py-1 border-l border-white/20 ${paperSize === 'A3_3' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>A3 三排</button>
           </div>
         )}
         {/* 学生卷/教师卷 */}
@@ -323,31 +331,32 @@ export default function ExamPreview({
         </div>
       ) : (
       <div className="flex flex-col items-center gap-6">
-        {paperSize === 'A3' ? (
+        {paperSize !== 'A4' ? (
           <div key={`a3-${sheet}-${side}`} className="relative">
             <div className="absolute -top-6 left-0 text-[10px] text-gray-500">
               第 {sheet + 1} 张 · {side === 'front' ? '正面' : '背面'}
             </div>
             <div
               className={zoom100
-                ? 'w-[1190px] aspect-[420/297]'
-                : 'w-[calc(100vw-3rem)] max-w-[1120px] aspect-[420/297]'}
-              style={{ background: 'white' }}
+                ? 'w-[1190px]'
+                : 'w-[calc(100vw-3rem)] max-w-[1120px]'}
+              style={{ height: 842, background: 'white' }}
             >
               <div className="h-full flex">
-                <div className="flex-1 overflow-hidden flex flex-col">
-                  <div className="px-4 py-5 flex-1 overflow-hidden">
-                    <QuestionColumn questions={panels[0]} startNum={leftStart} showAnswer={showAnswer} />
-                  </div>
-                </div>
-                <div className="h-full border-r-2 border-dashed border-gray-300 relative">
-                  <span className="absolute top-1/2 -translate-y-1/2 -right-[7px] text-[8px] text-gray-300 whitespace-nowrap rotate-90 origin-center">· · 对折 · ·</span>
-                </div>
-                <div className="flex-1 overflow-hidden flex flex-col">
-                  <div className="px-4 py-5 flex-1 overflow-hidden">
-                    <QuestionColumn questions={panels[1]} startNum={rightStart} showAnswer={showAnswer} />
-                  </div>
-                </div>
+                {panels.map((col, ci) => (
+                  <Fragment key={ci}>
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                      <div className="px-4 py-5 flex-1 overflow-hidden">
+                        <QuestionColumn questions={col} startNum={starts[ci]} showAnswer={showAnswer} />
+                      </div>
+                    </div>
+                    {ci < panels.length - 1 && (
+                      <div className="h-full border-r-2 border-dashed border-gray-300 relative">
+                        <span className="absolute top-1/2 -translate-y-1/2 -right-[7px] text-[8px] text-gray-300 whitespace-nowrap rotate-90 origin-center">· · 对折 · ·</span>
+                      </div>
+                    )}
+                  </Fragment>
+                ))}
               </div>
             </div>
           </div>
@@ -358,8 +367,8 @@ export default function ExamPreview({
               <div key={`a4-${pi}`} className="relative">
                 <div className="absolute -top-6 left-0 text-[10px] text-gray-500">第 {pi + 1} 页 / 共 {a4Pages.length} 页</div>
                 <div
-                  className={zoom100 ? 'w-[794px] aspect-[210/297]' : 'w-full max-w-[794px] aspect-[210/297]'}
-                  style={{ background: 'white' }}
+                  className={zoom100 ? 'w-[794px]' : 'w-full max-w-[794px]'}
+                  style={{ height: 1122, background: 'white' }}
                 >
                   <div className="h-full overflow-hidden">
                     <div className="px-8 py-10">
@@ -381,9 +390,9 @@ export default function ExamPreview({
     <div className="flex items-center justify-between px-5 py-2.5 bg-gray-800/90 shrink-0">
       {isEmpty ? (
         <span className="text-xs text-white/60">
-          {paperSize === 'A3' ? 'A3 横排 · 双栏 · 双面打印' : 'A4 · 单栏'} · 暂无题目
+          {cols === 1 ? 'A4 · 单栏' : `A3 横排 · ${cols === 3 ? '三栏' : '双栏'} · 双面打印`} · 暂无题目
         </span>
-      ) : paperSize === 'A3' ? (
+      ) : paperSize !== 'A4' ? (
         <>
           <div className="flex items-center gap-2">
             <button onClick={() => setSide('front')}
@@ -398,7 +407,7 @@ export default function ExamPreview({
             <button onClick={() => setSheet(s => Math.min(a3Pages.length - 1, s + 1))} disabled={sheet >= a3Pages.length - 1}
               className="p-1 hover:bg-white/10 rounded disabled:opacity-30"><ChevronRight size={14} /></button>
             <span className="text-white/30">|</span>
-            <span>A3 横排 · 双栏 · 双面打印</span>
+            <span>A3 横排 · {cols === 3 ? '三栏' : '双栏'} · 双面打印</span>
             {zoom100 && <span> · 100%</span>}
           </div>
           <div className="flex items-center gap-2">

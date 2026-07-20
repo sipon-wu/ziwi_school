@@ -74,7 +74,7 @@ async function buildRuns(text: string): Promise<(TextRun | ImageRun)[]> {
 }
 
 /** 生成学生试卷（无答案） */
-export async function exportExamPaper(questions: ExamQuestion[], meta: ExamMeta, paperSize: 'A3' | 'A4' = 'A4'): Promise<Blob> {
+export async function exportExamPaper(questions: ExamQuestion[], meta: ExamMeta, paperSize: 'A4' | 'A3' | 'A3_3' = 'A4'): Promise<Blob> {
   const children: (Paragraph|Table)[] = []
 
   children.push(
@@ -136,7 +136,7 @@ export async function exportExamPaper(questions: ExamQuestion[], meta: ExamMeta,
 }
 
 /** 生成教师答案卷（含答案） */
-export async function exportExamAnswer(questions: ExamQuestion[], meta: ExamMeta, paperSize: 'A3' | 'A4' = 'A4'): Promise<Blob> {
+export async function exportExamAnswer(questions: ExamQuestion[], meta: ExamMeta, paperSize: 'A4' | 'A3' | 'A3_3' = 'A4'): Promise<Blob> {
   const children: (Paragraph|Table)[] = []
 
   children.push(
@@ -177,12 +177,13 @@ export async function exportExamAnswer(questions: ExamQuestion[], meta: ExamMeta
   return buildDoc(children, meta, '教师答案卷', paperSize)
 }
 
-function buildDoc(children: (Paragraph|Table)[], meta: ExamMeta, label: string, paperSize: 'A3' | 'A4' = 'A4') {
-  const isA3 = paperSize === 'A3'
+function buildDoc(children: (Paragraph|Table)[], meta: ExamMeta, label: string, paperSize: 'A4' | 'A3' | 'A3_3' = 'A4') {
+  const isA3 = paperSize !== 'A4'
+  const cols = paperSize === 'A4' ? 1 : paperSize === 'A3' ? 2 : 3
   const pageProps = isA3
     ? { size: { width: 15874, height: 22445 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
     : { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
-  const columns = isA3 ? { count: 2, space: 720 } : undefined
+  const columns = isA3 ? { count: cols, space: 720 } : undefined
 
   const footerChildren = [
     new TextRun({ text: '第 ', size: 16, color: '999999' }),
@@ -190,7 +191,8 @@ function buildDoc(children: (Paragraph|Table)[], meta: ExamMeta, label: string, 
     new TextRun({ text: ' 页', size: 16, color: '999999' }),
   ]
   if (isA3) {
-    footerChildren.push(new TextRun({ text: '    ·    A3 双栏 · 请双面打印', size: 16, color: '999999' }))
+    const colText = cols === 3 ? 'A3 三栏' : 'A3 双栏'
+    footerChildren.push(new TextRun({ text: `    ·    ${colText} · 请双面打印`, size: 16, color: '999999' }))
   }
 
   const doc = new Document({

@@ -1,49 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Repeat, X, Check } from 'lucide-react'
-import { useTeaching } from '../lib/TeachingContext'
+import { useTeaching, gradeToNum } from '../lib/TeachingContext'
+import { classAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
-interface Campus {
-  id: string
-  name: string
-  label: string
-  classes: { id: string; label: string; grade: number; subject: string }[]
+interface MyClassItem {
+  class_id: string
+  class_name: string
+  grade: string
+  subject: string
+  is_primary: boolean
 }
-
-const MOCK_CAMPUSES: Campus[] = [
-  {
-    id: 'c1', name: '金牛一小', label: '金牛一小',
-    classes: [
-      { id: 'cl1', label: '语文 · 四年级（1班）', grade: 4, subject: '语文' },
-      { id: 'cl2', label: '语文 · 四年级（2班）', grade: 4, subject: '语文' },
-      { id: 'cl3', label: '语文 · 四年级（实验班）', grade: 4, subject: '语文' },
-    ],
-  },
-  {
-    id: 'c2', name: '金牛一小分校', label: '金牛一小分校',
-    classes: [],
-  },
-]
 
 export default function ClassSwitchPage() {
   const teaching = useTeaching()
   const [showModal, setShowModal] = useState(true)
-  const [selectedCampus, setSelectedCampus] = useState(MOCK_CAMPUSES[0].id)
-  const [selectedClass, setSelectedClass] = useState('cl1')
+  const [items, setItems] = useState<MyClassItem[]>([])
+  const [selectedClassId, setSelectedClassId] = useState('')
   const [switched, setSwitched] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const campus = MOCK_CAMPUSES.find(c => c.id === selectedCampus)
-  const cls = campus?.classes.find(c => c.id === selectedClass)
-  const isCurrent = cls?.subject === teaching.subject && cls?.grade === teaching.grade
+  useEffect(() => {
+    classAPI.myClasses().then(res => {
+      const list = res?.items || []
+      setItems(list)
+      if (list.length > 0 && teaching.selectedClassId) {
+        setSelectedClassId(teaching.selectedClassId)
+      } else if (list.length > 0) {
+        setSelectedClassId(list[0].class_id)
+      }
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [teaching.selectedClassId])
+
+  const selected = items.find(it => it.class_id === selectedClassId)
+  const isCurrent = selected?.class_id === teaching.selectedClassId
 
   const handleSwitch = () => {
-    if (cls && !isCurrent) {
-      teaching.setSubject(cls.subject as '语文' | '数学' | '英语')
-      teaching.setGrade(cls.grade)
+    if (selected && !isCurrent) {
+      teaching.setSubject(selected.subject)
+      teaching.setGrade(gradeToNum(selected.grade))
+      teaching.selectClass({
+        id: selected.class_id,
+        label: selected.class_name,
+        courseGroupId: '',
+        subject: selected.subject as any,
+        grade: gradeToNum(selected.grade),
+        semester: '下',
+        textbook: '',
+      })
       setSwitched(true)
       setTimeout(() => setSwitched(false), 2000)
     }
   }
+
+  if (loading) return <AppLayout><div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" /></div></AppLayout>
 
   return (
     <AppLayout>
@@ -65,51 +76,27 @@ export default function ClassSwitchPage() {
           <Repeat size={15} />打开班级切换
         </button>
 
-        {/* 弹层 */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowModal(false)}>
-            <div className="bg-white rounded-[4px] shadow-2xl w-[520px] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-              {/* 弹层头部 */}
+            <div className="bg-white rounded-[4px] shadow-2xl w-[480px] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="px-5 py-3 border-b border-[#E7E7EB] flex items-center justify-between">
-                <h3 className="text-[14px] font-semibold text-[#353535]">班级切换</h3>
+                <h3 className="text-[14px] font-semibold text-[#353535]">选择任教班级</h3>
                 <button onClick={() => setShowModal(false)} className="p-1 hover:bg-[#F6F7F8] rounded-[4px]">
                   <X size={16} className="text-[#9A9A9A]" />
                 </button>
               </div>
 
-              <div className="flex" style={{ height: 320 }}>
-                {/* 左侧：学校 */}
-                <div className="w-36 border-r border-[#E7E7EB] bg-[#F9FAFB] py-2">
-                  {MOCK_CAMPUSES.map(c => {
-                    const isActive = c.id === selectedCampus
-                    const hasActive = c.classes.some(cl => cl.id === selectedClass)
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCampus(c.id)
-                          if (c.classes.length > 0) {
-                            setSelectedClass(c.classes[0].id)
-                          }
-                        }}
-                        className={`w-full text-left px-4 py-2.5 text-[12px] transition-colors ${isActive ? 'bg-white text-[#353535] font-medium border-l-2 border-[#02A7F0]' : 'text-[#595959] hover:bg-white/60'}`}
-                      >
-                        {c.name}
-                        {hasActive && <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-[#52C41A] inline-block align-middle" />}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {/* 右侧：班级 */}
-                <div className="flex-1 p-4 overflow-y-auto">
+              <div className="p-4 overflow-y-auto" style={{ maxHeight: 320 }}>
+                {items.length === 0 ? (
+                  <p className="text-[12px] text-[#9A9A9A] text-center py-8">暂无可切换班级</p>
+                ) : (
                   <div className="space-y-1">
-                    {campus?.classes.map(cl => {
-                      const isActive = cl.id === selectedClass
+                    {items.map(it => {
+                      const isActive = it.class_id === selectedClassId
                       return (
                         <button
-                          key={cl.id}
-                          onClick={() => setSelectedClass(cl.id)}
+                          key={it.class_id}
+                          onClick={() => setSelectedClassId(it.class_id)}
                           className={`w-full text-left px-4 py-2.5 rounded-[3px] text-[12px] transition-colors flex items-center gap-2.5
                             ${isActive
                               ? 'bg-[#02A7F0]/10 text-[#02A7F0] border border-[#02A7F0]/20'
@@ -117,35 +104,30 @@ export default function ClassSwitchPage() {
                             }`}
                         >
                           <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-[#52C41A]' : 'bg-[#E7E7EB]'}`} />
-                          {cl.label}
+                          {it.subject} · {it.grade} ({it.class_name})
+                          {it.is_primary && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 ml-auto">主班级</span>}
                           {isActive && <Check size={12} className="ml-auto text-[#52C41A]" />}
                         </button>
                       )
-                    }) || (
-                      <p className="text-[12px] text-[#9A9A9A] text-center py-8">该校区暂无可切换班级</p>
-                    )}
+                    })}
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* 底部确认 */}
               <div className="px-5 py-3 border-t border-[#E7E7EB] flex items-center justify-between">
                 <div className="text-[11px] text-[#9A9A9A]">
-                  {cls ? (
+                  {selected ? (
                     <span>
-                      切换至：<span className="font-medium text-[#353535]">{campus?.name} · {cls.label}</span>
+                      切换至：<span className="font-medium text-[#353535]">{selected.subject} · {selected.grade} ({selected.class_name})</span>
                       {isCurrent && <span className="ml-2 text-[#52C41A]">（当前）</span>}
                     </span>
                   ) : '请选择要切换的班级'}
                 </div>
                 <button
                   onClick={() => {
-                    if (isCurrent) {
-                      setShowModal(false)
-                    } else {
-                      handleSwitch()
-                      setShowModal(false)
-                    }
+                    if (isCurrent) setShowModal(false)
+                    else handleSwitch()
+                    setShowModal(false)
                   }}
                   className="px-5 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
                 >
@@ -156,10 +138,9 @@ export default function ClassSwitchPage() {
           </div>
         )}
 
-        {/* 切换成功提示 */}
         {switched && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#353535] text-white text-[12px] rounded-[4px] shadow-lg flex items-center gap-1.5">
-            <Check size={13} />已切换至 {campus?.name} · {cls?.label}
+            <Check size={13} />已切换至 {selected?.subject} · {selected?.grade} ({selected?.class_name})
           </div>
         )}
       </div>

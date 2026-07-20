@@ -182,6 +182,8 @@ export const aiAPI = {
     textbook_version?: string
     extra_requirements?: string
     chat_context?: string
+    /** AI ↔ DOC 反复切换：当前文档全文（含用户编辑），AI 将其作为输入上下文 */
+    current_content?: string
   }) =>
     request<any>('/ai/lesson-plan/generate', {
       method: 'POST',

@@ -5,7 +5,6 @@ import {
   Repeat, Settings, GitPullRequest, ChevronDown, ChevronRight, PanelLeft, Check
 } from 'lucide-react'
 import HeaderRight from './HeaderRight'
-import LogoText from './LogoText'
 import XiaoWeiChat from './XiaoWeiChat'
 import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 import { classAPI, notifyError } from '../lib/api'
@@ -111,10 +110,12 @@ export default function AppLayout({ children }: Props) {
   }, [path])
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
-    // 初始：自动展开当前路径所属分组，默认至少展开「备课」
-    const init = new Set(autoExpanded)
-    if (init.size === 0) init.add('备课')
-    return init
+    // 持久化：用户主动收起/展开后刷新保持；首次访问默认全部展开
+    try {
+      const saved = JSON.parse(localStorage.getItem('ziwi_sidebar_expanded') || 'null')
+      if (Array.isArray(saved)) return new Set(saved)
+    } catch {}
+    return new Set(['备课', '练习', '数据', '沟通', '个人'])
   })
 
   // 路径变化时同步展开对应分组
@@ -135,52 +136,72 @@ export default function AppLayout({ children }: Props) {
     const next = new Set(expanded)
     if (next.has(id)) next.delete(id)
     else next.add(id)
+    localStorage.setItem('ziwi_sidebar_expanded', JSON.stringify([...next]))
     setExpanded(next)
   }
 
   return (
     <div className="flex h-screen bg-[#F6F7F8]">
       {/* ── Sidebar ── */}
-      <aside className="fixed top-0 left-0 bottom-0 bg-[#212529] flex flex-col z-50" style={{ width: sidebarW }}>
-        <div className="h-12 flex items-center justify-start px-3 shrink-0">
+      <aside className="fixed top-0 left-0 bottom-0 bg-white flex flex-col z-50 border-r border-[#F0F0F0]" style={{ width: sidebarW }}>
+        {/* LOGO */}
+        <div className="h-12 px-4 flex items-center border-b border-[#F0F0F0]">
           {collapsed ? (
-            <img src="/ziwiAI.jpg" alt="知微" className="w-7 h-7 rounded-sm" />
+            <div className="flex items-center justify-center">
+              <img src="/ziwiAI.jpg" alt="知微" className="w-6 h-6 shrink-0"
+                style={{ boxShadow: '0 0 0 1px rgba(128,128,128,0.50)', borderRadius: 6 }} />
+            </div>
           ) : (
-            <LogoText>
-              <span className="text-[11px] opacity-60 font-normal ml-1">(AI)</span>
-            </LogoText>
+            <div className="flex items-center gap-[8px]">
+              <img src="/ziwiAI.jpg" alt="知微" className="w-6 h-6 shrink-0"
+                style={{ boxShadow: '0 0 0 1px rgba(128,128,128,0.50)', borderRadius: 6 }} />
+              <span className="text-[13px] font-semibold text-[#353535] leading-none">
+                知微教学<span className="text-[11px] opacity-60 font-normal ml-1">(AI)</span>
+              </span>
+            </div>
           )}
         </div>
-        <nav className="flex-1 overflow-y-auto py-2 sidebar-scroll">
+        {/* 导航 */}
+        <nav className="flex-1 overflow-y-auto p-[8px] sidebar-scroll">
           {SIDEBAR.map((g) => {
-            const active = g.to && path.startsWith(g.to)
+            const hasActiveChild = g.children?.some(c => path.startsWith(c.to)) ?? false
+            const groupActive = g.to ? path.startsWith(g.to) : hasActiveChild
             const exp = expanded.has(g.id)
             if (collapsed) return (
               <a key={g.id} href={g.to || g.children?.[0]?.to || '/teacher'} title={g.label}
-                className={`flex items-center justify-center py-3 ${active ? 'text-white bg-[#1F2C3D]' : 'text-white/50 hover:text-white hover:bg-white/[0.06]'}`}>
+                className="flex items-center justify-center py-3 text-[#353535] hover:bg-[#F6F7F8] rounded-[6px]">
                 {g.icon}
               </a>
             )
             return (
-              <div key={g.id}>
+              <div key={g.id} className="mt-[2px]">
                 {!g.children ? (
                   <a href={g.to!}
-                    className={`flex items-center px-4 py-2.5 gap-3 text-[13px] ${active ? 'text-white bg-[#1F2C3D] border-l-[3px] border-[#1A3A6B]' : 'text-white/65 hover:text-white hover:bg-white/[0.06]'}`}>
+                    className={`flex items-center gap-[8px] px-[10px] py-[6px] rounded-[6px] text-[14px] leading-[24px] font-[400] ${groupActive ? 'text-[#02A7F0]' : 'text-[#353535] hover:bg-[#F6F7F8]'}`}>
                     {g.icon}<span>{g.label}</span>
                   </a>
                 ) : (
                   <>
                     <button onClick={() => toggle(g.id)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 gap-3 text-[13px] text-white/65 hover:text-white hover:bg-white/[0.06]">
-                      <span className="flex items-center gap-3">{g.icon}<span>{g.label}</span></span>
-                      {exp ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      className={`w-full flex items-center gap-[8px] px-[10px] py-[6px] rounded-[6px] text-[14px] leading-[24px] font-[400] ${groupActive ? 'text-[#02A7F0]' : 'text-[#353535] hover:bg-[#F6F7F8]'}`}>
+                      {g.icon}<span>{g.label}</span>
+                      <span className="ml-auto">{exp
+                        ? <ChevronDown size={12} strokeWidth={2} />
+                        : <ChevronRight size={12} strokeWidth={2} />}</span>
                     </button>
-                    {exp && g.children.map((c) => (
-                      <a key={c.to} href={c.to}
-                        className={`flex items-center px-4 py-2 pl-11 gap-2 text-[13px] ${path.startsWith(c.to) ? 'text-white bg-[#1F2C3D] border-l-[3px] border-[#1A3A6B]' : 'text-white/65 hover:text-white hover:bg-white/[0.06]'}`}>
-                        {c.icon}<span>{c.label}</span>
-                      </a>
-                    ))}
+                    {exp && (
+                      <div className="flex flex-col gap-[1px] mt-[2px]">
+                        {g.children.map((c) => {
+                          const childActive = path.startsWith(c.to)
+                          return (
+                            <a key={c.to} href={c.to}
+                              className={`flex items-center gap-[6px] pl-[34px] pr-[12px] py-[4px] text-[14px] leading-[24px] font-[400] ${childActive ? 'bg-[#02A7F0] text-white rounded-[999px]' : 'text-[#9A9A9A] hover:text-[#353535]'}`}>
+                              {c.icon}<span>{c.label}</span>
+                            </a>
+                          )
+                        })}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -188,7 +209,7 @@ export default function AppLayout({ children }: Props) {
           })}
         </nav>
         {!collapsed && (
-          <div className="px-4 py-3 border-t border-white/10 text-[11px] text-white/40">知微网 | 版权所有</div>
+          <div className="px-4 py-3 border-t border-[#F0F0F0] text-[11px] text-[#9A9A9A]">知微网 | 版权所有</div>
         )}
       </aside>
 

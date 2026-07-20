@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type JSX } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Monitor, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
-import { aiAPI, lessonPlanAPI, materialAPI } from '../lib/api'
+import { aiAPI, lessonPlanAPI, materialAPI, classAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
@@ -13,7 +13,6 @@ import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { parseSections, combineSections } from '../lib/parseSections'
 import { printLessonPlan } from '../lib/printPdf'
-import PresentationMode from '../components/PresentationMode'
 import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
 import ResourcePicker from '../components/ResourcePicker'
 import EditorLayout from '../components/EditorLayout'
@@ -88,7 +87,7 @@ export default function LessonPlanEditor() {
   const [genTime, setGenTime] = useState(0)
   const [loadingExisting, setLoadingExisting] = useState(false)
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
-  const [showPresentation, setShowPresentation] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [_autoSaveTip, setAutoSaveTip] = useState('')
   const [customTags, setCustomTags] = useState<string[]>(['自定义标签1'])
   const [newTagInput, setNewTagInput] = useState('')
@@ -106,6 +105,11 @@ export default function LessonPlanEditor() {
   const [savingCourseware, setSavingCourseware] = useState(false)
   // 富媒体编辑器全屏
   const [showFullscreenEditor, setShowFullscreenEditor] = useState(false)
+
+  // ── 任教班级（班级切换联动）──
+  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
+  const classLabel = myClasses.find(it => it.class_id === teaching.selectedClassId)?.class_name || grade
 
   // 编辑模式切换：AI 模式（元数据+知识图谱+AI） / 文档模式（腾讯文档式自由排版）
   // 编辑模式：优先以 URL ?mode=doc 进入文档模式；SPA 导航时首帧 searchParams 可能滞后，
@@ -237,7 +241,6 @@ export default function LessonPlanEditor() {
   const currentKnowledgeIds = content ? savedKnowledgeIds : picker.selectedIds
 
   const handleGenerate = async () => {
-    if (!lessonTitle.trim()) { toast('请先填写教案标题', 'warning'); return }
     // 必填校验：自动预选已满足缺省值，但用户主动清空时需拦截
     if (picker.selectedIds.length === 0) {
       toast('请先在知识图谱中选取本课知识点', 'warning')
@@ -253,9 +256,19 @@ export default function LessonPlanEditor() {
         textbook_version: teaching.currentTextbook(),
         extra_requirements: extraRequirements || undefined,
         chat_context: getXiaoweiContext() || undefined,
+        current_content: content || undefined,
       })
-      // 仅设置预览内容，不自动保存（等用户确认后手动保存）
-      setContent(res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
+      // AI ↔ DOC 反复切换：保留既有内容，AI 新生成追加到末尾
+      const hasExisting = content && content.trim().length > 0
+      setContent(hasExisting ? content + '\n\n---\n\n' + res.content : res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
+      // 自动命名标题：用户未填时，根据知识点/单元/日期自动生成
+      if (!lessonTitle.trim()) {
+        const names = picker.selectedNodes.map(n => n.name).filter(Boolean)
+        const autoTitle = names.length > 0
+          ? `《${names.length <= 2 ? names.join('》《') : names.slice(0, 2).join('》《') + '》等'}》—— ${subject}${grade}`
+          : `${subject}${grade} · ${textbookUnit || '教案'} · ${new Date().toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}`
+        setLessonTitle(autoTitle)
+      }
       setPlanId(null) // 确保走新建流程，不误覆盖已有教案
       setAiPreview(true)
       setAiConfirmed(false)
@@ -267,6 +280,25 @@ export default function LessonPlanEditor() {
       }
     } catch(e:any) { toast('AI 生成失败: '+(e.message||'未知错误'), 'error') }
     setGenerating(false)
+  }
+
+  // 切换到文档模式时立即保存草稿（不走 30 秒定时器），保证左侧面板的数据不丢
+  const handleSwitchToDoc = async () => {
+    if (content && !planId && !showFinalizeConfirm) {
+      try {
+        const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
+        const saved = await lessonPlanAPI.create({
+          subject, grade, title: lessonTitle || '未命名教案', unit: textbookUnit, period,
+          content, format_template: template,
+          curriculum_alignments: JSON.stringify(curriculum),
+          knowledge_node_ids: JSON.stringify(kIds),
+          ai_generated: true, ai_model_version: modelVersion || 'qwen-plus', generation_time_ms: genTime,
+        })
+        setPlanId(saved.id); setSavedKnowledgeIds(kIds); setAutoSaveTip('已自动保存')
+        setTimeout(() => setAutoSaveTip(''), 2000)
+      } catch { /* 切换时保存失败静默，文档模式内仍可手动保存 */ }
+    }
+    setEditMode('doc')
   }
 
   const handleFinalize = async () => {
@@ -427,7 +459,7 @@ export default function LessonPlanEditor() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[#9A9A9A] w-8">班级</span>
-                    <span className="text-[#353535]">{user?.grade_class || '四年级 (1)班'}</span>
+                    <span className="text-[#353535]">{classLabel}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[#9A9A9A] w-8">校区</span>
@@ -435,7 +467,7 @@ export default function LessonPlanEditor() {
                   </div>
                 </div>
                 <div className="w-[80px] h-[100px] bg-gray-100 rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">
-                  人教版<br/>四年级下册
+                  {teaching.currentTextbook() || '人教版'}<br/>{grade}{teaching.semester || '下'}册
                 </div>
               </div>
             </div>
@@ -482,29 +514,32 @@ export default function LessonPlanEditor() {
                 <option value="unit_teaching">单元教学模板</option>
               </select>
             </div>
-
-            {/* 知识点 */}
+            </>)}
+            {/* 知识点（双模式：AI 可删改，DOC 只读） */}
             <div className="px-5 py-3">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[13px] font-medium text-[#353535]">知识点 <span className="text-red-500">*</span></span>
+                <span className="text-[13px] font-medium text-[#353535]">知识点 {editMode === 'ai' && <span className="text-red-500">*</span>}</span>
                 <span className="text-[11px] text-[#9A9A9A]">({picker.selectedIds.length}/12)</span>
               </div>
               {picker.selectedNodes.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {picker.selectedNodes.map(n => (
-                    <span key={n.id} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#F0F0F0] text-[#353535] rounded-full">
+                    <span key={n.id} className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full ${editMode === 'doc' ? 'bg-[#F6F7F8] text-[#353535]' : 'bg-[#F0F0F0] text-[#353535]'}`}>
                       {n.name}
-                      <button onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">
-                        <X size={10} />
-                      </button>
+                      {editMode === 'ai' && (
+                        <button onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">
+                          <X size={10} />
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p className="text-[11px] text-[#9A9A9A]">请在右侧知识图谱中选取知识点</p>
+                <p className="text-[11px] text-[#9A9A9A]">请在右侧{editMode === 'ai' ? '知识图谱' : 'AI 模式'}中选取知识点</p>
               )}
             </div>
 
+            {editMode === 'ai' && (<>
             {/* 附加要求 / 关键词 */}
             <div className="px-5 py-3 border-t border-[#F0F0F0]">
               <label className="block text-[12px] font-medium text-[#353535] mb-1.5">附加要求 / 关键词</label>
@@ -516,16 +551,22 @@ export default function LessonPlanEditor() {
             {/* 课标关联（备注，不污染正文） */}
             {curriculum.length > 0 && (
               <div className="px-5 py-3 border-t border-[#F0F0F0]">
-                <span className="text-[12px] font-medium text-[#353535]">课标关联（备注）</span>
+                <span className="text-[12px] font-medium text-[#353535]">课标关联 · 仅显示与所选知识点匹配的条目</span>
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {curriculum.map((c: any, i: number) => (
-                    <span key={i} className="px-2 py-0.5 text-[10px] bg-[#F0ECF7] text-[#722ED1] rounded-full">{c.code}{c.text ? ` · ${c.text.slice(0, 12)}` : ''}</span>
-                  ))}
+                  {(() => {
+                    const relCodes = new Set(picker.selectedNodes.map((n: any) => n.curriculum_code).filter(Boolean))
+                    return curriculum.map((c: any, i: number) => {
+                      const relevant = !relCodes.size || relCodes.has(c.code)
+                      return (
+                        <span key={i} className={`px-2 py-0.5 text-[10px] rounded-full ${relevant ? 'bg-[#F0ECF7] text-[#722ED1]' : 'bg-gray-100 text-gray-400 line-through'}`}>{c.code}{c.text ? ` · ${c.text.slice(0, 16)}` : ''}</span>
+                      )
+                    })
+                  })()}
                 </div>
               </div>
             )}
-
-            {/* 自定义标签 */}
+            </>)}
+            {/* 自定义标签（双模式：AI 可编辑，DOC 只读） */}
             <div className="px-5 py-3">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[13px] font-medium text-[#353535]">自定义标签</span>
@@ -535,12 +576,14 @@ export default function LessonPlanEditor() {
                 {customTags.map((tag, i) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#F0F0F0] text-[#353535] rounded-full">
                     {tag}
-                    <button onClick={() => setCustomTags(prev => prev.filter((_, idx) => idx !== i))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">
-                      <X size={10} />
-                    </button>
+                    {editMode === 'ai' && (
+                      <button onClick={() => setCustomTags(prev => prev.filter((_, idx) => idx !== i))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">
+                        <X size={10} />
+                      </button>
+                    )}
                   </span>
                 ))}
-                {customTags.length < 3 && (
+                {editMode === 'ai' && customTags.length < 3 && (
                   <input
                     type="text"
                     value={newTagInput}
@@ -553,32 +596,65 @@ export default function LessonPlanEditor() {
               </div>
             </div>
 
-            {/* 关联课件：作者从素材库指定 + AI 决定挂载 */}
+            {/* 关联素材（双模式：AI 可删改 chip，DOC 卡片+超链接） */}
             <div className="px-5 py-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[13px] font-medium text-[#353535]">关联课件</span>
-                <button onClick={() => setShowMaterialPicker(true)} className="text-[11px] text-[#02A7F0] hover:underline">+ 从素材库指定</button>
+                <span className="text-[13px] font-medium text-[#353535]">关联素材</span>
+                {editMode === 'ai' && (
+                  <button onClick={() => setShowMaterialPicker(true)} className="text-[11px] text-[#02A7F0] hover:underline">+ 从素材库指定</button>
+                )}
               </div>
               {materialRefs.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {materialRefs.map(mid => {
-                    const m = materialMap[mid]
-                    return (
-                      <span key={mid} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#E6F7FF] text-[#0958D9] rounded-full">
-                        {m?.name || '课件'}
-                        <button onClick={() => setMaterialRefs(prev => prev.filter(x => x !== mid))} className="text-[#0958D9] hover:text-[#FF4D4F]"><X size={10} /></button>
-                      </span>
-                    )
-                  })}
-                </div>
+                editMode === 'doc' ? (
+                  <div className="space-y-2">
+                    {materialRefs.map(mid => {
+                      const m = materialMap[mid]
+                      const type = m?.type || 'doc'
+                      const typeLabel: Record<string, string> = { courseware: '课件', video: '视频', audio: '音频', image: '图片', doc: '文档' }
+                      const typeIcon: Record<string, string> = { courseware: '📦', video: '🎬', audio: '🎵', image: '🖼️', doc: '📄' }
+                      const duration = m?.duration ? (type === 'video' || type === 'audio' ? m.duration : `${m.duration}分钟`) : (type === 'courseware' ? '45分钟' : type === 'video' || type === 'audio' ? '--' : '')
+                      const materialUrl = m?.url || m?.id || ''
+                      return (
+                        <a key={mid} href={materialUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-3 px-3 py-2.5 bg-[#F9FAFB] border border-[#E7E7EB] rounded-[6px] hover:border-[#02A7F0] hover:bg-[#F0F7FF] transition-colors no-underline">
+                          <span className="text-[16px] shrink-0">{typeIcon[type] || '📄'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[12px] text-[#353535] font-medium truncate">{m?.name || '未命名素材'}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-[#E7E7EB] text-[#9A9A9A] rounded shrink-0">{typeLabel[type] || type}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {duration && <span className="text-[10px] text-[#9A9A9A]">⏱ {duration}</span>}
+                              {m?.tag && <span className="text-[10px] text-[#9A9A9A]">{m.tag}</span>}
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-[#02A7F0] shrink-0">打开 ↗</span>
+                        </a>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {materialRefs.map(mid => {
+                      const m = materialMap[mid]
+                      return (
+                        <span key={mid} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#E6F7FF] text-[#0958D9] rounded-full">
+                          {m?.name || '素材'}
+                          <button onClick={() => setMaterialRefs(prev => prev.filter(x => x !== mid))} className="text-[#0958D9] hover:text-[#FF4D4F]"><X size={10} /></button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )
               ) : (
-                <p className="text-[11px] text-[#9A9A9A]">未关联课件。AI 生成教案时会自动推荐，也可手动指定。</p>
+                <p className="text-[11px] text-[#9A9A9A]">未关联素材。AI 生成教案时会自动推荐，也可手动指定。</p>
               )}
               {recommendedMaterials.length > 0 && (
                 <p className="text-[11px] text-[#02A7F0] mt-1.5">AI 推荐：{recommendedMaterials.join('、')}</p>
               )}
             </div>
 
+            {editMode === 'ai' && (<>
             {/* AI 生成课件（AI 润色 + 找相近生成新版本，支持 HTML/Word/PDF 导出） */}
             <div className="px-5 py-3">
               <button onClick={handleGenerateCourseware} disabled={generatingCourseware || !content}
@@ -593,7 +669,7 @@ export default function LessonPlanEditor() {
                 <p className="text-[12px] text-[#8A6D00] mb-2">当前正文含文档模式或此前的手动编辑，AI 润色将基于现有内容重写并覆盖。确定继续？</p>
                 <div className="flex items-center gap-2">
                   <button onClick={() => { if ((document.getElementById('lp-skip') as HTMLInputElement)?.checked) sessionStorage.setItem('lp_skip_ai_confirm', '1'); setShowAiConfirm(false); handleGenerate() }}
-                    className="px-3 py-1.5 text-[12px] text-white bg-[#FAAD14] rounded-[4px] hover:bg-[#D48806]">覆盖并重写</button>
+                    className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">追加生成</button>
                   <button onClick={() => setShowAiConfirm(false)} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0]">取消</button>
                   <label className="flex items-center gap-1 text-[11px] text-[#9A9A9A] ml-1">
                     <input id="lp-skip" type="checkbox" /> 本次不再提示
@@ -617,7 +693,7 @@ export default function LessonPlanEditor() {
             <button onClick={handleSaveDraft} className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
               保存为草稿
             </button>
-            <button onClick={() => setShowPresentation(true)} className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
+            <button onClick={() => setShowPreview(true)} className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
               预览
             </button>
             <button onClick={() => setShowFinalizeConfirm(true)} disabled={saving} className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 transition-colors">
@@ -661,7 +737,7 @@ export default function LessonPlanEditor() {
         <div className="inline-flex rounded-[4px] border border-white/20 overflow-hidden bg-white/10">
           <button onClick={() => setEditMode('ai')}
             className={`px-4 py-1.5 text-[12px] ${editMode === 'ai' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>AI 模式</button>
-          <button onClick={() => setEditMode('doc')}
+          <button onClick={handleSwitchToDoc}
             className={`px-4 py-1.5 text-[12px] border-l border-white/20 ${editMode === 'doc' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>文档模式</button>
         </div>
       }
@@ -707,14 +783,24 @@ export default function LessonPlanEditor() {
         onCancel={() => setShowFinalizeConfirm(false)}
       />
 
-      {/* 课件投屏模式 */}
-      {showPresentation && (
-        <PresentationMode
-          content={content} title={lessonTitle || '未命名教案'}
-          subject={subject} grade={grade}
-          teacherName={safeGetUser().name}
-          onClose={() => setShowPresentation(false)}
-        />
+      {/* 只读预览：所见即所得（DOC 模式渲染，不可编辑） */}
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/70 flex flex-col"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPreview(false) }}
+        >
+          <div className="flex items-center justify-between px-6 py-3 bg-[#1F2937] text-white shrink-0">
+            <span className="text-[13px] text-gray-300">{lessonTitle || '未命名教案'} · {subject}{grade} · 只读预览</span>
+            <button onClick={() => setShowPreview(false)} className="p-1.5 hover:bg-white/10 rounded transition-colors" title="关闭预览">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto bg-[#E5E7EB] p-6">
+            <div className="max-w-[860px] mx-auto bg-white rounded-[8px] shadow-2xl" style={{ height: 'calc(100vh - 9rem)' }}>
+              <TipTapEditor value={contentToHtml(content)} readOnly onChange={() => {}} />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* AI 课件预览 / 导出 / 挂载 */}

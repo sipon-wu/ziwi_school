@@ -34,10 +34,11 @@ COLUMNS = [
     "chapter",      # 章节
     "source_type",  # 来源类型
     "source_id",    # 来源标识
-    "content",      # 正文（JSON 字符串）
+    "content",      # 正文（SaaS 仅自有资源可非空；教材原文恒为空，见 CHECK）
     "std_clauses",  # 关联课标条目
     "kg_unit",      # 关联 KG 单元
     "copyright",    # 版权标识
+    "storage_mode", # 'distilled_only'(SaaS) | 'private_original'(私有化)
     "embedding",    # vector
 ]
 
@@ -104,6 +105,7 @@ def _table_columns_sql(dim):
         std_clauses TEXT,
         kg_unit TEXT,
         copyright TEXT,
+        storage_mode TEXT,
         lecture_id UUID,
         shard_key TEXT,
         unit_seq INT,
@@ -245,6 +247,51 @@ def migrate_add_lecture_id():
         conn.close()
 
 
+def migrate_add_storage_mode():
+    """为 tb_lesson_source 加 storage_mode 列（幂等）。
+
+    分水岭：'distilled_only'(SaaS，原文不入库) | 'private_original'(单租户私有化)。
+    PG 11+ 分区表 ADD COLUMN 会自动传播到所有分区。
+    """
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = '{TABLE}' AND column_name = 'storage_mode'
+                ) THEN
+                    ALTER TABLE {TABLE} ADD COLUMN storage_mode TEXT NOT NULL DEFAULT 'distilled_only';
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_original_text():
+    """清空 SaaS 教材原文 content（分水岭落地）。
+
+    '教材-%' 类 source_type 的 content 恒置空，并设 storage_mode='distilled_only'。
+    返回受影响的行数。
+    """
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE {TABLE} SET content = '', storage_mode = 'distilled_only' "
+            f"WHERE source_type LIKE '教材-%';"
+        )
+        n = cur.rowcount
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
 def insert_lecture(lecture_data: dict) -> str:
     """插入一条讲义记录，返回 id（UUID 字符串）。"""
     conn = get_conn()
@@ -372,9 +419,16 @@ def insert_rows(rows):
             if unit_seq is None:
                 unit_seq = _unit_seq(r.get("unit", "") or "")
             values = []
+            # 代码层硬保证（分水岭）：SaaS 模式下教材原文 content 恒为空
+            _force_empty = (
+                r.get("storage_mode") != "private_original"
+                and str(r.get("source_type", "")).startswith("教材")
+            )
             for c in COLUMNS:
                 if c == "embedding":
                     values.append(_embed_to_literal(r.get("embedding")))
+                elif c == "content" and _force_empty:
+                    values.append("")
                 else:
                     values.append(r.get(c, "") or "")
             values.append(shard_key)

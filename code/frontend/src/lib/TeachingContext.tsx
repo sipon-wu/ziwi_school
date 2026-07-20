@@ -157,7 +157,7 @@ const DEFAULT_STATE: TeachingState = {
 const STORAGE_PREFIX = 'zhiwei_teaching'
 /** 学段中文 → 年级序号（四年级→4） */
 export const GRADE_NAMES = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级']
-function gradeToNum(g?: string): number {
+export function gradeToNum(g?: string): number {
   if (!g) return 4
   const i = GRADE_NAMES.indexOf(g)
   return i >= 0 ? i + 1 : 4

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Plus, X, Sparkles, Eye } from 'lucide-react'
-import { useTeaching, getQuestionTypes } from '../lib/TeachingContext'
+import { useTeaching, getQuestionTypes, gradeToNum } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useToast } from '../components/Toast'
+import { classAPI } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import EditorLayout from '../components/EditorLayout'
@@ -24,6 +25,11 @@ export default function ExamBuilder() {
   useState(() => { setKGPicker(picker as any); return () => setKGPicker(null) })
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } })()
+
+  // 任教班级
+  const [myClassesEB, setMyClassesEB] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClassesEB(r?.items || [])).catch(() => {}) }, [])
+  const classLabelEB = myClassesEB.find(it => it.class_id === teaching.selectedClassId)?.class_name || gradeName
 
   // 表单状态
   const [examTitle, setExamTitle] = useState('')
@@ -134,7 +140,7 @@ export default function ExamBuilder() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[#9A9A9A] w-10">班级</span>
-                <span className="text-[#353535]">{user?.grade_class || '四年级 (1)班'}</span>
+                <span className="text-[#353535]">{classLabelEB}</span>
               </div>
             </div>
             <div className="w-[80px] h-[100px] bg-[#F6F7F8] rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">
@@ -365,7 +371,7 @@ export default function ExamBuilder() {
 
   const leftNow = editMode === 'doc' ? docLeftPanel : leftPanel
   const rightNow = editMode === 'doc'
-    ? <ExamPreview embedded paperSize="A3" allowA3 questions={previewQuestions} meta={previewMeta} />
+    ? <ExamPreview embedded allowA3 questions={previewQuestions} meta={previewMeta} />
     : rightPanel
 
   return (
