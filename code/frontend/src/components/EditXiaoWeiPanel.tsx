@@ -68,7 +68,7 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
     try {
       const history = [...messages, userMsg].slice(-20)
       const fullPrompt = systemPrompt + '\n\n对话历史：\n' + history.map(m => (m.role === 'user' ? '用户' : '小微') + '：' + m.content).join('\n') + '\n\n小微：'
-      const res = await aiAPI.chat({ messages: [{ role: 'user', content: fullPrompt }] })
+      const res = await aiAPI.chat({ message: fullPrompt, context: { teacher_name: '老师', subject, grade } })
       let reply = ''
       if (typeof res === 'string') reply = res
       else if (res?.reply) reply = res.reply

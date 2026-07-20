@@ -7,7 +7,7 @@ import AppLayout from '../components/AppLayout'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const TYPE_LABELS: Record<string, string> = {
-  choice: '选择', fill: '填空', judge: '判断', judge: '判断', truefalse: '判断',
+  choice: '选择', fill: '填空', judge: '判断', truefalse: '判断',
   match: '匹配', cloze: '完形', reading: '阅读', writing: '写作', short_answer: '简答',
 }
 
