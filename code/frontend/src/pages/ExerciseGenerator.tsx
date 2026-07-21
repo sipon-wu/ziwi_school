@@ -1,7 +1,7 @@
 import { useToast } from "../components/Toast"
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sparkles, Send, RefreshCw, X, Save, Check, AlertTriangle, Download, FileText, Mic, MicOff, Share2, Plus, Image } from 'lucide-react'
+import { Sparkles, Send, X, Save, Check, AlertTriangle, Download, FileText, Mic, MicOff, Share2, Plus, Image, MessageCircle } from 'lucide-react'
 import { useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LABELS, isTypeAllowed } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
@@ -16,6 +16,7 @@ import { printExamPaper } from '../lib/printPdf'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
+import EditXiaoWeiPanel from '../components/EditXiaoWeiPanel'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const PURPOSES = [
@@ -95,6 +96,9 @@ export default function ExerciseGenerator() {
   // 文档模式：内联 A4 纸面预览（所见即所得，导出 = 预览；出题线恒 A4）
   const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
 
+  // 左侧编辑小微面板：展开/收起
+  const [showLeftXiaoWei, setShowLeftXiaoWei] = useState(false)
+
   // 口述作业
   const [voiceRecording, setVoiceRecording] = useState(false)
   const [voiceText, setVoiceText] = useState('')
@@ -163,7 +167,7 @@ export default function ExerciseGenerator() {
     setSelectedTypes(prev => prev.includes(typeId) ? prev.filter(t => t !== typeId) : [...prev, typeId])
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (leftChatContext?: string) => {
     if (picker.selectedIds.length === 0) return
     setGenerating(true)
     setSavedIds([]); setSaveMsg(''); setShowPublishPanel(false)
@@ -180,7 +184,7 @@ export default function ExerciseGenerator() {
           ...buildKnowledgeScope(picker),
           textbook_version: teaching.currentTextbook(),
           extra_requirements: extraRequirements || undefined,
-          chat_context: getXiaoweiContext() || undefined,
+          chat_context: leftChatContext || getXiaoweiContext() || undefined,
         }),
       })
       const data = await res.json()
@@ -205,6 +209,13 @@ export default function ExerciseGenerator() {
       setEditingQuestion(null)
     } catch (e: any) { toast('出题失败: ' + (e.message || '网络错误'), 'error') }
     setGenerating(false)
+  }
+
+  // 左侧小微会话"应用到当前内容"：关闭面板 + 携带对话上下文触发 AI 生成 → 切换 DOC 模式展示结果
+  const handleLeftApply = async (chatContext: string) => {
+    setShowLeftXiaoWei(false)
+    await handleGenerate(chatContext)
+    if (editMode === 'ai') setEditMode('doc')
   }
 
   type AiQuestion = { type: string; content: string; answer?: string }
@@ -355,7 +366,7 @@ export default function ExerciseGenerator() {
   // ============ Left Panel ============
   const leftPanel = (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1 overflow-y-auto ${showLeftXiaoWei ? 'opacity-30 pointer-events-none select-none' : ''}`}>
         {/* 基本信息 */}
         <div className="px-5 py-3">
           <h3 className="text-[13px] font-semibold text-[#353535] mb-3">基本信息</h3>
@@ -522,16 +533,14 @@ export default function ExerciseGenerator() {
             className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
         </div>
 
-        {/* 生成按钮（初始态） */}
-        {questions.length === 0 && (
-          <div className="px-5 py-4">
-            <button onClick={handleGenerate} disabled={generating || picker.selectedIds.length === 0}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50">
-              <Sparkles size={20} className="text-[#02A7F0] shrink-0" />
-              <span className="text-[12px]">AI 生成（已带入附加要求与小微对话要点）</span>
-            </button>
-          </div>
-        )}
+        {/* 生成按钮：展开左侧小微面板（始终显示） */}
+        <div className="px-5 py-4">
+          <button onClick={() => setShowLeftXiaoWei(v => !v)} disabled={generating || picker.selectedIds.length === 0}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50">
+            <Sparkles size={20} className="text-[#02A7F0] shrink-0" />
+            <span className="text-[12px]">💬 和小微对话，补充出题需求</span>
+          </button>
+        </div>
 
         {/* 生成结果 */}
         {questions.length > 0 && !generating && (
@@ -548,9 +557,7 @@ export default function ExerciseGenerator() {
                   ))}
                 </div>
               )}
-              <button onClick={handleGenerate} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] text-[#9A9A9A] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">
-                <RefreshCw size={12} />重新生成
-              </button>
+
             </div>
 
             {questions.map((q: any, i: number) => {
@@ -729,6 +736,30 @@ export default function ExerciseGenerator() {
           </div>
         )}
       </div>
+
+      {/* 左侧编辑小微面板（展开时） */}
+      {showLeftXiaoWei && (
+        <EditXiaoWeiPanel
+          contextType="exercise"
+          subject={teaching.subject}
+          grade={gradeName}
+          knowledgeNodeNames={picker.selectedNodes.map((n: any) => n.name)}
+          extraRequirements={extraRequirements}
+          onApply={handleLeftApply}
+          onCollapse={() => setShowLeftXiaoWei(false)}
+        />
+      )}
+
+      {/* 左下角：展开左侧小微面板（收起时显示） */}
+      {!showLeftXiaoWei && (
+        <div className="px-5 py-2 border-t border-[#F0F0F0] bg-[#FAFBFC] shrink-0">
+          <button onClick={() => setShowLeftXiaoWei(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[#1A3A6B] bg-[#EAF0E8] hover:bg-[#DDE6DA] rounded-[4px] transition-colors">
+            <MessageCircle size={14} className="shrink-0" />
+            <span>和小微对话，补充出题需求（自动纳入生成）</span>
+          </button>
+        </div>
+      )}
 
       {/* Fixed Bottom Buttons — 与教案页一致 */}
       <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">

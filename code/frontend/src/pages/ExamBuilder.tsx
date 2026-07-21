@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, X, Sparkles, Eye } from 'lucide-react'
+import { Plus, X, Sparkles, Eye, MessageCircle } from 'lucide-react'
 import { useTeaching, getQuestionTypes, gradeToNum } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
@@ -11,6 +11,7 @@ import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import EditorLayout from '../components/EditorLayout'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
+import EditXiaoWeiPanel from '../components/EditXiaoWeiPanel'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
@@ -54,13 +55,23 @@ export default function ExamBuilder() {
   // 文档模式：内联试卷预览（A4/A3 切换，所见即所得，导出 = 预览）
   const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
 
+  // 左侧编辑小微面板：展开/收起
+  const [showLeftXiaoWei, setShowLeftXiaoWei] = useState(false)
+
   // 退出提醒
   const hasChanges = examTitle.length > 0 || picker.selectedIds.length > 0 || selectedQuestions.length > 0
   useUnsavedChanges(hasChanges)
 
   // ── AI 智能组卷 ──
   const [generating, setGenerating] = useState(false)
-  const handleAiGenerate = async () => {
+  // 左侧小微会话"应用到当前内容"：关闭面板 + 携带对话上下文触发 AI 生成 → 切换 DOC 模式
+  const handleLeftApply = async (chatContext: string) => {
+    setShowLeftXiaoWei(false)
+    await handleAiGenerate(chatContext)
+    if (editMode === 'ai') setEditMode('doc')
+  }
+
+  const handleAiGenerate = async (leftChatContext?: string) => {
     if (picker.selectedIds.length === 0) return
     setGenerating(true)
     try {
@@ -80,7 +91,7 @@ export default function ExamBuilder() {
           textbook_version: teaching.currentTextbook(),
           exclude_question_ids: selectedQuestions.map(q => q.id),
           extra_requirements: extraRequirements || undefined,
-          chat_context: getXiaoweiContext() || undefined,
+          chat_context: leftChatContext || getXiaoweiContext() || undefined,
         }),
       })
       const data = await res.json()
@@ -248,15 +259,39 @@ export default function ExamBuilder() {
           )}
         </div>
 
-        {/* AI 智能组卷 */}
+        {/* AI 组卷：展开左侧小微面板 */}
         <div className="px-5 py-3">
-          <button onClick={handleAiGenerate} disabled={generating || picker.selectedIds.length === 0}
+          <button onClick={() => setShowLeftXiaoWei(v => !v)} disabled={generating || picker.selectedIds.length === 0}
             className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-[4px] transition-colors disabled:opacity-50 ${generating ? 'bg-[#4A4A4A] text-white' : 'bg-[#353535] text-white hover:bg-[#1A1A1A]'}`}>
             <Sparkles size={20} className={generating ? 'animate-pulse text-[#02A7F0]' : 'text-[#02A7F0]'} />
-            <span className="text-[13px]">{generating ? '正在生成题目...' : (picker.selectedIds.length === 0 ? '请先选取知识点范围' : 'AI 智能组卷')}</span>
+            <span className="text-[13px]">{generating ? '正在生成题目...' : (picker.selectedIds.length === 0 ? '请先选取知识点范围' : '💬 和小微对话，补充组卷需求')}</span>
           </button>
         </div>
       </div>
+
+      {/* 左侧编辑小微面板（展开时） */}
+      {showLeftXiaoWei && (
+        <EditXiaoWeiPanel
+          contextType="exam"
+          subject={teaching.subject}
+          grade={gradeName}
+          knowledgeNodeNames={picker.selectedNodes.map((n: any) => n.name)}
+          extraRequirements={extraRequirements}
+          onApply={handleLeftApply}
+          onCollapse={() => setShowLeftXiaoWei(false)}
+        />
+      )}
+
+      {/* 左下角：展开左侧小微面板（收起时显示） */}
+      {!showLeftXiaoWei && (
+        <div className="px-5 py-2 border-t border-[#F0F0F0] bg-[#FAFBFC] shrink-0">
+          <button onClick={() => setShowLeftXiaoWei(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[#1A3A6B] bg-[#EAF0E8] hover:bg-[#DDE6DA] rounded-[4px] transition-colors">
+            <MessageCircle size={14} className="shrink-0" />
+            <span>和小微对话，补充组卷需求（自动纳入生成）</span>
+          </button>
+        </div>
+      )}
 
       {/* Fixed Bottom Buttons */}
       <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
