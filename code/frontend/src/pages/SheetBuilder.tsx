@@ -2,14 +2,17 @@ import { useState, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
+import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useToast } from '../components/Toast'
 import EditorLayout from '../components/EditorLayout'
+import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import { api } from '../lib/api'
+import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import QuestionNav from '../components/QuestionNav'
 import ExamPreview from '../components/ExamPreview'
 import type { ExamQuestion, ExamMeta } from '../components/ExamPreview'
-import { Sparkles, X, Save, Users, Calendar } from 'lucide-react'
+import { Sparkles, X, Save, Users, Calendar, Loader2 } from 'lucide-react'
 
 const DIFFICULTIES = ['L1', 'L2', 'L3', 'L4']
 const DIFFICULTY_LABELS: Record<string, string> = { L1: '基础', L2: '中等', L3: '进阶', L4: '挑战' }
@@ -21,6 +24,7 @@ const QUESTION_TYPES = [
   { id: 'writing', label: '写作题' },
 ]
 const CLASSES = ['一年级1班', '一年级2班', '二年级1班', '二年级2班', '三年级1班']
+const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
 export default function SheetBuilder() {
   const navigate = useNavigate()
@@ -28,6 +32,11 @@ export default function SheetBuilder() {
   const isEditing = !!id
   const teaching = useTeaching()
   const { toast } = useToast()
+  const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
+
+  const picker = useKnowledgePicker({ autoSelect: true })
+  const { setPicker: setKGPicker } = useKGContext()
+  useMemo(() => { setKGPicker(picker as any); return () => setKGPicker(null) }, [picker, setKGPicker])
 
   const [editMode, setEditMode] = useState<'primary' | 'secondary'>('primary')
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
@@ -46,13 +55,12 @@ export default function SheetBuilder() {
 
   const gradeMap: Record<string, number> = { '一年级': 1, '二年级': 2, '三年级': 3, '四年级': 4, '五年级': 5, '六年级': 6 }
   const gradeNum = gradeMap[teaching.grade] || 4
-  const picker = useKnowledgePicker({ autoSelect: true })
 
   const toggleType = (t: string) => {
     setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (leftChatContext?: string) => {
     if (picker.selectedIds.length === 0) {
       toast('请先在知识图谱选取知识点', 'warning')
       return
@@ -70,6 +78,7 @@ export default function SheetBuilder() {
           difficulty,
           count,
           extra_requirements: extraReq || undefined,
+          chat_context: leftChatContext || getXiaoweiContext() || undefined,
         }),
       })
       if (res?.questions) {
@@ -81,6 +90,8 @@ export default function SheetBuilder() {
     }
     setGenerating(false)
   }
+
+  const handleLeftApply = async (chatContext: string) => { await handleGenerate(chatContext) }
 
   const handleSave = async () => {
     setSaving(true)
@@ -130,141 +141,158 @@ export default function SheetBuilder() {
     setSaving(false)
   }
 
-  // ===== AI 模式左栏：配置 =====
+  // ===== AI 模式左栏（P0-3 EditorInfoPanel + P0-4 框架小微 + P0-6 统一 footer） =====
   const aiLeftPanel = (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-        <div>
-          <h3 className="text-[13px] font-semibold text-[#353535] mb-3">基本信息</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-[12px] text-[#9A9A9A] mb-1.5">标题</label>
-              <input value={sheetTitle} onChange={e => setSheetTitle(e.target.value)}
-                placeholder="如：第三单元课后练习"
-                className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
-            </div>
-            <div>
-              <label className="block text-[12px] text-[#9A9A9A] mb-1.5"><Users size={12} className="inline mr-1" />布置班级</label>
-              <select value={targetClass} onChange={e => setTargetClass(e.target.value)}
-                className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
-                <option value="">请选择班级</option>
-                {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[12px] text-[#9A9A9A] mb-1.5"><Calendar size={12} className="inline mr-1" />截止日期（选填）</label>
-              <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-[13px] font-semibold text-[#353535] mb-3">出题配置</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-[12px] text-[#9A9A9A] mb-1.5">难度</label>
-              <div className="flex gap-2">
-                {DIFFICULTIES.map(d => (
-                  <button key={d} onClick={() => setDifficulty(d)}
-                    className={`flex-1 px-2.5 py-2 text-[12px] rounded-[4px] transition-colors ${difficulty === d ? 'bg-[#02A7F0] text-white' : 'bg-[#F6F7F8] text-[#353535] hover:bg-[#E8E8E8]'}`}>
-                    {DIFFICULTY_LABELS[d]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-[12px] text-[#9A9A9A] mb-1.5">题量</label>
-                <select value={count} onChange={e => setCount(Number(e.target.value))}
-                  className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
-                  {[3,5,8,10,15,20].map(n => <option key={n} value={n}>{n} 题</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[12px] text-[#9A9A9A] mb-1.5">题型</label>
-              <div className="flex flex-wrap gap-1.5">
-                {QUESTION_TYPES.map(t => (
-                  <button key={t.id} onClick={() => toggleType(t.id)}
-                    className={`px-2.5 py-1.5 text-[11px] rounded-full transition-colors ${selectedTypes.includes(t.id) ? 'bg-[#02A7F0]/10 text-[#02A7F0] border border-[#02A7F0]' : 'bg-[#F6F7F8] text-[#353535] border border-transparent hover:border-[#E7E7EB]'}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-[12px] text-[#9A9A9A] mb-1.5">附加要求</label>
-              <textarea value={extraReq} onChange={e => setExtraReq(e.target.value)}
-                rows={2} placeholder="如：侧重基础、减少开放性题目…"
-                className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
-            </div>
-          </div>
-        </div>
-
-        <button onClick={handleGenerate} disabled={generating || picker.selectedIds.length === 0}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#353535] text-white rounded-[4px] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50">
-          <Sparkles size={18} className="text-[#02A7F0]" />
-          <span className="text-[13px]">{generating ? '正在生成题目...' : (picker.selectedIds.length === 0 ? '请先在知识图谱选取知识点' : 'AI 生成题目')}</span>
-        </button>
+    <EditorInfoPanel
+      showBasicInfo
+      showGrade
+      classLabel={gradeName}
+      xiaowei={{
+        contextType: 'sheet',
+        subject: teaching.subject,
+        grade: gradeName,
+        knowledgeNodeNames: picker.selectedNodes.map((n: any) => n.name),
+        extraRequirements: extraReq,
+        onApply: handleLeftApply,
+      }}
+    >
+      {/* 标题 */}
+      <div className="px-5 py-3">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">标题</label>
+        <input value={sheetTitle} onChange={e => setSheetTitle(e.target.value)}
+          placeholder="如：第三单元课后练习"
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1]" />
       </div>
 
-      <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
-        <button onClick={handleSave} disabled={saving || questions.length === 0}
-          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
-          <Save size={14} className="inline mr-1" />保存草稿
-        </button>
-        <button onClick={handlePublish} disabled={saving || questions.length === 0 || published}
-          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#059669] rounded-[4px] hover:bg-[#047857] transition-colors disabled:opacity-50">
-          <Users size={14} className="inline mr-1" />布置到班级
+      {/* 布置班级 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">
+          <Users size={12} className="inline mr-1" />布置班级
+        </label>
+        <select value={targetClass} onChange={e => setTargetClass(e.target.value)}
+          className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1] bg-white">
+          <option value="">请选择班级</option>
+          {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* 截止日期 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">
+          <Calendar size={12} className="inline mr-1" />截止日期（选填）
+        </label>
+        <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1]" />
+      </div>
+
+      {/* 出题配置 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0] space-y-3">
+        <h4 className="text-[12px] font-medium text-[#353535]">出题配置</h4>
+        <div>
+          <label className="block text-[12px] text-[#9A9A9A] mb-1.5">难度</label>
+          <div className="flex gap-2">
+            {DIFFICULTIES.map(d => (
+              <button key={d} onClick={() => setDifficulty(d)}
+                className={`flex-1 px-2.5 py-2 text-[12px] rounded-[4px] transition-colors ${difficulty === d ? 'bg-[#722ED1] text-white' : 'bg-[#F6F7F8] text-[#353535] hover:bg-[#E8E8E8]'}`}>
+                {DIFFICULTY_LABELS[d]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-[12px] text-[#9A9A9A] mb-1.5">题量</label>
+            <select value={count} onChange={e => setCount(Number(e.target.value))}
+              className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1] bg-white">
+              {[3,5,8,10,15,20].map(n => <option key={n} value={n}>{n} 题</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-[12px] text-[#9A9A9A] mb-1.5">题型</label>
+          <div className="flex flex-wrap gap-1.5">
+            {QUESTION_TYPES.map(t => (
+              <button key={t.id} onClick={() => toggleType(t.id)}
+                className={`px-2.5 py-1.5 text-[11px] rounded-full transition-colors ${selectedTypes.includes(t.id) ? 'bg-[#722ED1]/10 text-[#722ED1] border border-[#722ED1]' : 'bg-[#F6F7F8] text-[#353535] border border-transparent hover:border-[#E7E7EB]'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 附加要求 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-1.5">附加要求</label>
+        <textarea value={extraReq} onChange={e => setExtraReq(e.target.value)}
+          rows={2} placeholder="如：侧重基础、减少开放性题目…（也可先在左下角小微对话提需求，自动带入）"
+          className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1] resize-none" />
+      </div>
+
+      {/* AI 生成按钮 */}
+      <div className="px-5 py-4 border-t border-[#F0F0F0]">
+        <button onClick={() => handleGenerate()} disabled={generating || picker.selectedIds.length === 0}
+          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50 transition-colors">
+          {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {generating ? '正在生成题目...' : (picker.selectedIds.length === 0 ? '请先在知识图谱选取知识点' : (questions.length > 0 ? '重新生成题目' : 'AI 生成题目'))}
         </button>
       </div>
-    </div>
+    </EditorInfoPanel>
   )
 
-  // ===== 文档模式左栏：只读元数据 + 已选题目列表 =====
+  // ===== 文档模式左栏（只读元数据 + 已选题目列表） =====
   const docLeftPanel = (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        <div>
-          <h3 className="text-[13px] font-semibold text-[#353535]">{sheetTitle || '练习题'}</h3>
-          <div className="mt-1 flex items-center gap-2 text-[11px] text-[#9A9A9A]">
-            <span>{teaching.subject} · {teaching.grade}</span>
-            <span>|</span>
-            <span>{DIFFICULTY_LABELS[difficulty]}</span>
-            <span>|</span>
-            <span>{questions.length} 题</span>
-          </div>
-          {targetClass && <p className="mt-1 text-[11px] text-[#059669]">布置班级: {targetClass}</p>}
+    <EditorInfoPanel
+      showBasicInfo={false}
+      xiaowei={{
+        contextType: 'sheet',
+        subject: teaching.subject,
+        grade: gradeName,
+        knowledgeNodeNames: picker.selectedNodes.map((n: any) => n.name),
+        extraRequirements: extraReq,
+        onApply: handleLeftApply,
+      }}
+    >
+      <div className="px-5 py-4">
+        <h3 className="text-[13px] font-semibold text-[#353535]">{sheetTitle || '练习题'}</h3>
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-[#9A9A9A]">
+          <span>{teaching.subject} · {gradeName}</span>
+          <span>|</span>
+          <span>{DIFFICULTY_LABELS[difficulty]}</span>
+          <span>|</span>
+          <span>{questions.length} 题</span>
         </div>
+        {targetClass && <p className="mt-2 text-[11px] text-[#059669]">布置班级: {targetClass}</p>}
+        {deadline && <p className="mt-0.5 text-[11px] text-[#9A9A9A]">截止: {deadline}</p>}
+      </div>
 
-        {questions.length > 0 ? (
-          <div>
-            <span className="text-[12px] font-medium text-[#353535]">已选题目</span>
-            <div className="mt-2 space-y-1">
-              {questions.map((q, i) => (
-                <div key={q.id} className="flex items-center gap-2 px-3 py-2 bg-[#F6F7F8] rounded-[4px] text-[12px] text-[#353535]">
-                  <span className="text-[#9A9A9A]">{i + 1}.</span>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-white rounded text-[#9A9A9A]">{QUESTION_TYPES.find(t => t.id === q.type)?.label || q.type}</span>
-                  <span className="truncate">{q.stem || ''}</span>
-                </div>
-              ))}
-            </div>
+      {questions.length > 0 ? (
+        <div className="px-5 pb-4">
+          <span className="text-[12px] font-medium text-[#353535]">已选题目</span>
+          <div className="mt-2 space-y-1">
+            {questions.map((q, i) => (
+              <div key={q.id} className="flex items-center gap-2 px-3 py-2 bg-[#F6F7F8] rounded-[4px] text-[12px] text-[#353535]">
+                <span className="text-[#9A9A9A]">{i + 1}.</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-white rounded text-[#9A9A9A]">{QUESTION_TYPES.find(t => t.id === q.type)?.label || q.type}</span>
+                <span className="truncate">{q.stem || ''}</span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <p className="text-[11px] text-[#9A9A9A]">尚未生成题目，请在 AI 模式生成</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <p className="px-5 pb-4 text-[11px] text-[#9A9A9A]">尚未生成题目，请在 AI 模式生成</p>
+      )}
 
-      <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
-        <button onClick={handleSave} disabled={saving}
-          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-50">保存草稿</button>
-        <button onClick={handlePublish} disabled={saving || questions.length === 0}
-          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#059669] rounded-[4px] hover:bg-[#047857] disabled:opacity-50">
-          <Users size={14} className="inline mr-1" />布置到班级
-        </button>
-      </div>
-    </div>
+      {/* 在文档模式底部也放一个「重新生成」按钮，方便回溯 */}
+      {questions.length > 0 && (
+        <div className="px-5 py-4 border-t border-[#F0F0F0] mt-auto">
+          <button onClick={() => { setEditMode('primary'); handleGenerate() }} disabled={generating}
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50 transition-colors">
+            <Sparkles size={14} /> 重新生成题目
+          </button>
+        </div>
+      )}
+    </EditorInfoPanel>
   )
 
   const previewQuestions = useMemo(() => questions, [questions])
@@ -274,6 +302,15 @@ export default function SheetBuilder() {
     grade: String(teaching.grade || ''),
     totalScore: 100,
   }), [sheetTitle, teaching.subject, teaching.grade])
+
+  // ===== P0-6 统一 footer =====
+  const sheetFooterLifecycle = {
+    saveDraftLabel: '保存草稿',
+    publishLabel: published ? '已布置' : '布置到班级',
+    onSaveDraft: handleSave,
+    onPublish: handlePublish,
+    saving: saving,
+  }
 
   return (
     <EditorLayout
@@ -296,10 +333,11 @@ export default function SheetBuilder() {
       mode={editMode}
       modeLabels={['AI 模式', '文档模式']}
       onModeChange={setEditMode}
-      subtitle="AI辅助生成题单，选好知识点直接布置到班级"
+      subtitle="AI 辅助生成题单，选好知识点直接布置到班级"
       leftCollapsible={editMode === 'secondary'}
       leftCollapsed={leftPanelCollapsed}
       onToggleLeft={() => setLeftPanelCollapsed(prev => !prev)}
+      footerLifecycle={sheetFooterLifecycle}
     />
   )
 }
