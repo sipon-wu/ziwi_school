@@ -124,7 +124,9 @@ async function run() {
     // —— 出题 AI 生成链路（新流程：展开小微面板→对话一轮→应用到当前内容→等待题目渲染）——
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await sleep(8000)
-    const exEntry = page.locator('button', { hasText: '小微对话' })
+    // P0 迁移后入口按钮文案为「请补充要求…」（XiaoWeiLauncher 渲染，永不禁用，可点开小微面板）
+    const exEntry = page.locator('button', { hasText: '请补充要求' })
+    await exEntry.first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {})
     let exDisabled = true
     try { exDisabled = await exEntry.first().isDisabled() } catch {}
     let exStatus = 'FAIL', exDetail = `入口disabled=${exDisabled}`
@@ -157,7 +159,8 @@ async function run() {
     await sleep(6000)
     await page.fill('input[placeholder="请在这里输入标题"]', '单元测试示例教案').catch(() => {})
     await sleep(500)
-    const lpEntry = page.locator('button', { hasText: '小微对话' })
+    const lpEntry = page.locator('button', { hasText: '请补充要求' })
+    await lpEntry.first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {})
     let lpDisabled = true
     try { lpDisabled = await lpEntry.first().isDisabled() } catch {}
     let lpStatus = 'FAIL', lpDetail = `入口disabled=${lpDisabled}`
@@ -348,7 +351,8 @@ async function run() {
     // 出题新建（数学，验证 autoSelect 是否因学科不同而异 → 新流程入口"小微对话"按钮态）
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await sleep(10000)
-    const genBtn = page.locator('button', { hasText: '小微对话' })
+    const genBtn = page.locator('button', { hasText: '请补充要求' })
+    await genBtn.first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {})
     let d = true; try { d = await genBtn.first().isDisabled() } catch {}
     record('教师(数学·多班)', '出题·生成入口态', d ? 'FAIL' : 'PASS', `disabled=${d}（autoSelect兜底应对各学科，新流程入口）`)
     record('教师(数学·多班)', '运行期pageerror', pe.length === 0 ? 'PASS' : 'WARN', 'count=' + pe.length)
