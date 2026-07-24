@@ -6,6 +6,8 @@ interface Props {
   slides: CwSlide[]
   title: string
   onClose: () => void
+  /** embedded=true 时不自带全屏外层与顶部标题栏，由 PreviewOverlay 统一承载（与编辑器官方预览一致） */
+  embedded?: boolean
 }
 
 /** 渲染单行富文本（与 pptxgenjs 文本对象结构一致） */
@@ -31,7 +33,7 @@ function RichLine({ line, index }: { line: NonNullable<CwSlide['rich']>[number];
   )
 }
 
-export default function PptxPreview({ slides, title, onClose }: Props) {
+export default function PptxPreview({ slides, title, onClose, embedded = false }: Props) {
   const [idx, setIdx] = useState(0)
   const [zoom, setZoom] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -63,8 +65,9 @@ export default function PptxPreview({ slides, title, onClose }: Props) {
   if (!slide) return null
 
   return (
-    <div className="fixed inset-0 z-[70] bg-gray-900/95 flex flex-col" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      {/* 顶部工具栏 */}
+    <div className={embedded ? 'relative h-full w-full flex flex-col bg-[#0f172a]' : 'fixed inset-0 z-[70] bg-gray-900/95 flex flex-col'} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      {/* 顶部工具栏：独立全屏模式显示；embedded 时由 PreviewOverlay 提供标题栏与「返回编辑」 */}
+      {!embedded && (
       <div className="flex items-center justify-between px-6 py-3 bg-gray-800/90 text-white shrink-0">
         <div className="flex items-center gap-3">
           <FileText size={18} className="text-[#722ED1]" />
@@ -78,6 +81,7 @@ export default function PptxPreview({ slides, title, onClose }: Props) {
           <button onClick={onClose} className="p-1 hover:bg-white/10 rounded"><X size={16} /></button>
         </div>
       </div>
+      )}
 
       {/* 幻灯片舞台（16:9） */}
       <div

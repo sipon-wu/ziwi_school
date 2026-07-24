@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import PresentationMode from '../components/PresentationMode'
 import PptxPreview from '../components/PptxPreview'
+import PreviewOverlay from '../components/PreviewOverlay'
 import { api, aiAPI, materialAPI, notifyError, type MaterialItem } from '../lib/api'
 import { useTeaching } from '../lib/TeachingContext'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
@@ -786,13 +787,20 @@ export default function Materials() {
         </div>
       )}
 
-      {/* PPT 在线预览 */}
+      {/* PPT 在线预览（经 PreviewOverlay 统一全屏承载，与编辑器官方预览一致） */}
       {pptxPreview && (
-        <PptxPreview
-          slides={pptxPreview}
-          title={`${genTitle.trim()}_课件`}
+        <PreviewOverlay
+          open
+          title={`${genTitle.trim()}_课件 · PPT 预览`}
           onClose={() => setPptxPreview(null)}
-        />
+        >
+          <PptxPreview
+            slides={pptxPreview}
+            title={`${genTitle.trim()}_课件`}
+            onClose={() => setPptxPreview(null)}
+            embedded
+          />
+        </PreviewOverlay>
       )}
 
       {/* 教辅频道弹层 */}
@@ -819,16 +827,23 @@ export default function Materials() {
         </div>
       )}
 
-      {/* 课件在线播放 / 阅读 / 预览 */}
+      {/* 课件在线播放 / 阅读 / 预览（经 PreviewOverlay 统一全屏承载，与编辑器官方预览一致） */}
       {player && (
-        <PresentationMode
-          content={player.content}
-          title={player.title}
-          subject="课件"
-          grade=""
-          teacherName={safeGetUser().name || '教师'}
+        <PreviewOverlay
+          open
+          title={`${player.title} · 课件播放`}
           onClose={() => setPlayer(null)}
-        />
+        >
+          <PresentationMode
+            content={player.content}
+            title={player.title}
+            subject="课件"
+            grade=""
+            teacherName={safeGetUser().name || '教师'}
+            onClose={() => setPlayer(null)}
+            embedded
+          />
+        </PreviewOverlay>
       )}
     </AppLayout>
   )

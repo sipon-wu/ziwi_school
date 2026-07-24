@@ -9,9 +9,11 @@ interface Props {
   grade: string
   teacherName?: string
   onClose: () => void
+  /** embedded=true 时不自带全屏外层与顶部标题栏，由 PreviewOverlay 统一承载（与编辑器官方预览一致） */
+  embedded?: boolean
 }
 
-export default function PresentationMode({ content, title, subject, grade, teacherName, onClose }: Props) {
+export default function PresentationMode({ content, title, subject, grade, teacherName, onClose, embedded = false }: Props) {
   const sections = parseSections(content).filter(s => !s.collapsed && s.body.trim())
   const [slideIdx, setSlideIdx] = useState(0)
   const dragStart = useRef<{ x: number; y: number } | null>(null)
@@ -41,7 +43,7 @@ export default function PresentationMode({ content, title, subject, grade, teach
   const slide = sections[slideIdx]
   if (!slide) {
     return (
-      <div className="fixed inset-0 z-[70] bg-gray-900 flex items-center justify-center" onClick={onClose}>
+      <div className={embedded ? 'relative h-full w-full flex items-center justify-center bg-gray-900' : 'fixed inset-0 z-[70] bg-gray-900 flex items-center justify-center'} onClick={onClose}>
         <div className="text-center text-white/70 max-w-md px-6">
           <Monitor size={40} className="mx-auto mb-4 text-white/30" />
           <p className="text-lg">该教案暂无正文内容，无法投屏播放</p>
@@ -53,8 +55,9 @@ export default function PresentationMode({ content, title, subject, grade, teach
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-gray-900 flex flex-col" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      {/* 顶部工具栏 */}
+    <div className={embedded ? 'relative h-full w-full flex flex-col bg-gray-900' : 'fixed inset-0 z-[70] bg-gray-900 flex flex-col'} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      {/* 顶部工具栏：独立全屏模式显示；embedded 时由 PreviewOverlay 提供标题栏与「返回编辑」 */}
+      {!embedded && (
       <div className="flex items-center justify-between px-6 py-3 bg-gray-800/80 text-white">
         <div className="flex items-center gap-3">
           <img src="/xiaowei.png" alt="知微" className="w-6 h-6 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -66,6 +69,7 @@ export default function PresentationMode({ content, title, subject, grade, teach
           <button onClick={onClose} className="p-1 hover:bg-white/10 rounded"><X size={16}/></button>
         </div>
       </div>
+      )}
 
       {/* 幻灯片内容 */}
       <div
