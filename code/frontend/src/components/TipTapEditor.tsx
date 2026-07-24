@@ -467,7 +467,7 @@ interface Props {
 
 export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, docTitle, toolbarExtra }: Props) {
   const { toast } = useToast()
-  const [outlineVisible, setOutlineVisible] = useState(true)
+  const [outlineVisible, setOutlineVisible] = useState(false)
   const [historyVisible, setHistoryVisible] = useState(true)
 
   // 版本快照
