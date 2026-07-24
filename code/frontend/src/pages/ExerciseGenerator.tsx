@@ -1,5 +1,5 @@
 import { useToast } from "../components/Toast"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Sparkles, Send, X, Save, Check, AlertTriangle, Download, FileText, Mic, MicOff, Share2, Plus, Image, MessageCircle, ArrowLeft, Code2 } from 'lucide-react'
 import { useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LABELS, isTypeAllowed } from '../lib/TeachingContext'
@@ -776,18 +776,16 @@ export default function ExerciseGenerator() {
     </EditorInfoPanel>
   )
 
-  const footerLeftEG = (
-    <button onClick={handleSaveToBank}
-      className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
-      保存为草稿
-    </button>
-  )
-  const footerRightEG = (
-    <button onClick={handlePublish} disabled={publishing || savedIds.length === 0}
-      className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 transition-colors">
-      发布到题库
-    </button>
-  )
+  const exerciseFooterLifecycle = useMemo(() => ({
+    saveDraftLabel: '保存为草稿',
+    publishLabel: '发布到题库',
+    onSaveDraft: handleSaveToBank,
+    onPublish: () => {
+      if (savedIds.length === 0) toast('请先保存题目', 'warning')
+      else handlePublish()
+    },
+    saving: publishing,
+  }), [handleSaveToBank, handlePublish, savedIds.length, publishing])
 
   // ============ AI 模式左侧：知识图谱选知识点（与教案一致） ============
   const aiLeftPanel = (
@@ -1002,6 +1000,8 @@ export default function ExerciseGenerator() {
           mode={(editUIMode === 'edit' ? 'primary' : 'secondary')}
           modeLabels={['编辑模式', '预览模式']}
           onModeChange={(m) => setEditUIMode(m === 'primary' ? 'edit' : 'preview')}
+          footerAlign="left"
+          footerLifecycle={exerciseFooterLifecycle}
         />
       ) : (
         <EditorLayout
@@ -1021,8 +1021,8 @@ export default function ExerciseGenerator() {
           leftCollapsible={editMode === 'doc'}
           leftCollapsed={leftPanelCollapsed}
           onToggleLeft={() => setLeftPanelCollapsed(prev => !prev)}
-          footerLeft={footerLeftEG}
-          footerRight={footerRightEG}
+          footerAlign="left"
+          footerLifecycle={exerciseFooterLifecycle}
         />
       )}
       {!isEditing && (

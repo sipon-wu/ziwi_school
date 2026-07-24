@@ -329,18 +329,15 @@ export default function ExamBuilder() {
       }),
     }).then(r => { if (r.ok) toast('已保存为草稿', 'success'); else toast('保存失败', 'error') }).catch(() => toast('网络错误', 'error'))
   }
-  const footerLeftEB = (
-    <button onClick={handleSaveExamDraft}
-      className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
-      保存为草稿
-    </button>
-  )
-  const footerRightEB = (
-    <button onClick={() => toast('发布功能开发中，请先在出题页导出发布', 'warning')}
-      className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
-      发布
-    </button>
-  )
+  const examFooterLifecycle: {
+    saveDraftLabel: string; publishLabel: string
+    onSaveDraft: () => void; onPublish: () => void
+  } = {
+    saveDraftLabel: '保存为草稿',
+    publishLabel: '发布',
+    onSaveDraft: handleSaveExamDraft,
+    onPublish: () => toast('发布功能开发中，请先在出题页导出发布', 'warning'),
+  }
 
   const rightPanel = (
     <KnowledgeGraphTool
@@ -394,8 +391,8 @@ export default function ExamBuilder() {
         leftCollapsible={editMode === 'doc'}
         leftCollapsed={leftPanelCollapsed}
         onToggleLeft={() => setLeftPanelCollapsed(prev => !prev)}
-        footerLeft={footerLeftEB}
-        footerRight={footerRightEB}
+        footerAlign="left"
+        footerLifecycle={examFooterLifecycle}
       />
       <ResourcePicker
         open={pickerOpen}

@@ -468,7 +468,7 @@ interface Props {
 export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, docTitle, toolbarExtra }: Props) {
   const { toast } = useToast()
   const [outlineVisible, setOutlineVisible] = useState(false)
-  const [historyVisible, setHistoryVisible] = useState(true)
+  const [historyVisible, setHistoryVisible] = useState(false)
 
   // 版本快照
   const [snapshots, setSnapshots] = useState<Array<{ time: string; content: string; label?: string }>>([])
@@ -924,14 +924,13 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           </div>
         )}
 
-        {/* 中央：编辑器（A4 比例 210/297；优先以可用宽度撑开，溢出方向走纵向滚动——
-            旧版 `height: 100%` 把高度锁死父容器，宽度被迫按比例压缩到 ~480px，
-            在 1440 视口扣掉左栏 466 + 章节导航 180 + 批注 220 后只剩 ~574，中间 203px 可写区，
-            导致逐字符断行。现改用 width: 100% 优先，A4 自然会按 (210/297) 比例变高，
-            超出父容器时 overflow-auto 出现纵向滚动条，与 Word/飞书文档一致。） */}
+        {/* 中央：编辑器（A4 真实尺寸 794×1123 @96dpi，与 LessonPlanEditor 预览槽 / ExamPreview / 导出 Word 完全一致；
+            宽度固定不随视口压缩，高度随内容增长(≥1页)；横向/纵向溢出均走系统滚动条——
+            宁可滚动也绝不压窄版心，符合"真实纸张"定义；窄屏(开批注栏 220px)时自然出现横拉条。） */}
         <div ref={scrollRef} onScroll={handleDocScroll} className="flex-1 overflow-auto bg-[#F3F4F6] py-6">
-          <div className="relative mx-auto bg-white border border-[#E7E7EB] shadow-sm flex flex-col"
-            style={{ aspectRatio: '210/297', width: '100%', maxWidth: '1122px' }}>
+          <div className="w-fit mx-auto">
+            <div className="relative bg-white border border-[#E7E7EB] shadow-sm flex flex-col"
+              style={{ width: '794px', minHeight: '1123px' }}>
             {/* 版心：左右 3.18cm≈120px，上/下边距 2.54cm≈96px（严格锁版心顶/底到纸边） */}
             <div className="px-[120px] flex-1 relative pt-[96px] pb-[96px] min-h-0">
               <div className="relative h-full min-h-0">
@@ -950,6 +949,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
             <div className="absolute bottom-0 left-0 right-0 px-[120px] pb-[40px] text-center text-[11px] text-[#9A9A9A] select-none">
               第 {curPage} 页
             </div>
+          </div>
           </div>
         </div>
 

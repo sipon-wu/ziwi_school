@@ -337,6 +337,7 @@ export default function SheetBuilder() {
       leftCollapsible={editMode === 'secondary'}
       leftCollapsed={leftPanelCollapsed}
       onToggleLeft={() => setLeftPanelCollapsed(prev => !prev)}
+      footerAlign="left"
       footerLifecycle={sheetFooterLifecycle}
     />
   )

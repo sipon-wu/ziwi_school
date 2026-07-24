@@ -70,16 +70,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
     if (!footer) return null
     const btns = Array.from(footer.querySelectorAll('button')).map(b => b.innerText.trim()).filter(Boolean)
     const rect = footer.getBoundingClientRect()
-    return { btns, w: Math.round(rect.width), y: Math.round(rect.y) }
+    return { btns, w: Math.round(rect.width), y: Math.round(rect.y), x: Math.round(rect.x) }
   })
   const footerOk = footerBtns && footerBtns.btns && footerBtns.btns.length === 3 && footerBtns.btns[0].includes('保存') && footerBtns.btns[1].includes('预览') && /布置|发布/.test(footerBtns.btns[2])
   tag('P0-6 统一 footer(三按钮:保存/预览/布置到班级)', footerOk ? 'PASS' : 'FAIL', JSON.stringify(footerBtns))
 
-  // 6. footer 全宽（1440），不是左栏 466px
-  tag('footer 全宽(full align)', footerBtns && footerBtns.w === 1440 ? 'PASS' : 'FAIL', `width=${footerBtns?.w}`)
+  // 6. footer 嵌在左栏底部（x≈0，w≈466），不是全宽 1440（2026-07-24 设计变更：底栏按钮移入左栏底）
+  tag('footer 在左栏底部(x≈0, w≈466)', footerBtns && footerBtns.x <= 10 && footerBtns.w >= 450 && footerBtns.w <= 470 ? 'PASS' : 'FAIL', `x=${footerBtns?.x} w=${footerBtns?.w}`)
 
-  // 7. footer 位置：底部 ~835（与其他四页一致，已实测五页 w=1440 y=835 h=66）
-  tag('footer y 位置与其他四页一致', footerBtns && Math.abs(footerBtns.y - 835) <= 5 ? 'PASS' : 'FAIL', `y=${footerBtns?.y}`)
+  // 7. footer 位置：底部 ~834（左栏底，与其他四页一致）
+  tag('footer y 位置与其他四页一致', footerBtns && Math.abs(footerBtns.y - 834) <= 6 ? 'PASS' : 'FAIL', `y=${footerBtns?.y}`)
 
   // 8. 头部模式切换
   const hdrBtns = await p.evaluate(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
+import { useState, useEffect, useRef, useCallback, type JSX, type ReactNode } from 'react'
 import { useNavigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2, Pencil, MessageCircle } from 'lucide-react'
 import { aiAPI, lessonPlanAPI, materialAPI, classAPI } from '../lib/api'
@@ -30,14 +30,51 @@ function latexToFormulaPlaceholders(html: string): string {
     .replace(/\$([^$\n]+?)\$/g, '<span data-formula-inline data-latex="$1"></span>')
 }
 
+/** 防御：历史/异常数据可能把结构化 JSON 存进 content（契约应为 Markdown/HTML）。
+ *  尝试解析教案 JSON（objectives/process 等字段）并转成 Markdown；解析失败返回 null。
+ */
+function jsonLessonToMarkdown(c: string): string | null {
+  if (!c.startsWith('{')) return null
+  let j: any
+  try { j = JSON.parse(c) } catch { return null }
+  if (!j || typeof j !== 'object') return null
+  const cnNum = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+  const md: string[] = []
+  const obj = j.objectives || {}
+  if (obj.knowledge || obj.ability || obj.emotion) {
+    md.push('## 教学目标')
+    if (obj.knowledge) md.push(`- **知识与技能**：${obj.knowledge}`)
+    if (obj.ability) md.push(`- **过程与方法**：${obj.ability}`)
+    if (obj.emotion) md.push(`- **情感态度与价值观**：${obj.emotion}`)
+  }
+  if (j.key_points) md.push('', '## 教学重点', String(j.key_points))
+  if (j.difficult_points) md.push('', '## 教学难点', String(j.difficult_points))
+  if (Array.isArray(j.process) && j.process.length) {
+    md.push('', '## 教学过程')
+    j.process.forEach((p: any, i: number) => {
+      const dur = p?.duration ? `（${p.duration}分钟）` : ''
+      md.push('', `### ${cnNum[i] || i + 1}、${p?.phase || `环节${i + 1}`}${dur}`, String(p?.content || ''))
+    })
+  }
+  if (j.homework) md.push('', '## 作业布置', String(j.homework))
+  return md.length ? md.join('\n') : null
+}
+
 /** 将存储的教案内容转换为 TipTap 可用的 HTML
  *  - 若已经是 HTML（以 < 开头），直接返回
  *  - 若是 Markdown（带 ## / # / 列表 / 引用等），用 marked 转换
+ *  - 若是结构化 JSON（历史脏数据），先转 Markdown 再渲染（防御，不显示原始 {}）
  *  - 空字符串返回空段落
  */
 function contentToHtml(content: string): string {
-  const c = (content || '').trim()
+  let c = (content || '').trim()
   if (!c) return '<p></p>'
+  if (c === '{}' || c === '""' || c === '[]') return '<p></p>'
+  // 防御：JSON 脏数据 → Markdown（转换失败则按原文本走 marked，至少不崩）
+  if (c.startsWith('{')) {
+    const md = jsonLessonToMarkdown(c)
+    if (md) c = md
+  }
   // 公式统一渲染：裸 $...$ 转成 TipTap 公式节点占位，由 FormulaView 渲染 KaTeX（formula 节点不受影响）
   if (c.startsWith('<')) return latexToFormulaPlaceholders(c)
   try {
@@ -457,6 +494,34 @@ export default function LessonPlanEditor() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学' } } })()
   const gradeNum = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].indexOf(grade) + 1
 
+  // ============ P0-6 生命周期（框架统一 footer + 自动保存状态机）============
+  // 注意：hooks 必须在所有条件 return（loadingExisting/locked）之前调用，
+  // 否则预览态(locked 提前 return)与解锁编辑态 hooks 数量不一致 → React #310 崩溃、编辑器空白。
+  const silentSave = useCallback(async () => {
+    const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
+    const knowledgeNodeIds = JSON.stringify(kIds)
+    if (!planId) {
+      const saved = await lessonPlanAPI.create({
+        subject, grade, title: lessonTitle || '未命名教案', unit: textbookUnit, period,
+        content, format_template: template,
+        curriculum_alignments: JSON.stringify(curriculum),
+        knowledge_node_ids: knowledgeNodeIds,
+        material_refs: JSON.stringify(materialRefs),
+        ai_generated: false,
+      })
+      setPlanId(saved.id); setSavedKnowledgeIds(kIds)
+    } else {
+      await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds, material_refs: JSON.stringify(materialRefs) })
+    }
+  }, [picker, savedKnowledgeIds, planId, subject, grade, lessonTitle, textbookUnit, period, content, template, curriculum, materialRefs])
+
+  const lifecycle = useEditorLifecycle({
+    autoSaveDelay: 8000,
+    onAutoSave: silentSave,
+    onSaveDraft: handleSaveDraft,
+    onPublish: () => setShowFinalizeConfirm(true),
+  })
+
   if (loadingExisting) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#F6F7F8]">
@@ -498,26 +563,35 @@ export default function LessonPlanEditor() {
     )
   }
 
-  // 文档模式右侧：TipTap 编辑器
+  // 文档模式右侧：TipTap 编辑器（"导出教案/全屏"通过 toolbarExtra 注入 TipTap 工具栏尾部，与内置"导入 Word/保存版本"并列在最右）
+  const exportToolbarExtra: ReactNode = (
+    <>
+      <button onClick={handleExportDocx}
+        className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors"
+        title="导出教案正文为 Word（公式以图片嵌入）"
+      >导出教案</button>
+      <button onClick={() => setShowFullscreenEditor(true)}
+        className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors"
+        title="全屏编辑（A4 纸面，文档模式）"
+      >
+        <Maximize2 size={12} /> 全屏
+      </button>
+    </>
+  )
+
   const docRightPanel = (
     <div className="h-full flex flex-col">
-      <div className="px-4 py-2 border-b border-[#F0F0F0] flex items-center justify-between shrink-0 bg-[#FAFBFC]">
+      <div className="px-4 py-2 border-b border-[#F0F0F0] shrink-0 bg-[#FAFBFC]">
         <span className="text-[12px] text-[#9A9A9A]">教案正文 · 自由排版（支持 Markdown / 表格 / 列表 / 公式）</span>
-        <div className="flex items-center gap-2">
-          <button onClick={handleExportDocx}
-            className="flex items-center gap-1 text-[11px] px-2 py-1 text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] transition-colors"
-            title="导出教案正文为 Word（公式以图片嵌入）"
-          >导出教案</button>
-          <button onClick={() => setShowFullscreenEditor(true)}
-            className="flex items-center gap-1 text-[11px] px-2 py-1 text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] transition-colors"
-            title="全屏编辑（A4 纸面，文档模式）"
-          >
-            <Maximize2 size={12} /> 全屏
-          </button>
-        </div>
       </div>
       <div className="flex-1 overflow-hidden">
-        <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} docTitle={lessonTitle} placeholder="开始编写教案正文..." />
+        <TipTapEditor
+          value={contentToHtml(content)}
+          onChange={(v) => setContent(v || '')}
+          docTitle={lessonTitle}
+          placeholder="开始编写教案正文..."
+          toolbarExtra={exportToolbarExtra}
+        />
       </div>
     </div>
   )
@@ -731,37 +805,11 @@ export default function LessonPlanEditor() {
     </EditorInfoPanel>
   )
 
-  // ============ P0-6 生命周期（框架统一 footer + 自动保存状态机）============
-  const silentSave = useCallback(async () => {
-    const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
-    const knowledgeNodeIds = JSON.stringify(kIds)
-    if (!planId) {
-      const saved = await lessonPlanAPI.create({
-        subject, grade, title: lessonTitle || '未命名教案', unit: textbookUnit, period,
-        content, format_template: template,
-        curriculum_alignments: JSON.stringify(curriculum),
-        knowledge_node_ids: knowledgeNodeIds,
-        material_refs: JSON.stringify(materialRefs),
-        ai_generated: false,
-      })
-      setPlanId(saved.id); setSavedKnowledgeIds(kIds)
-    } else {
-      await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds, material_refs: JSON.stringify(materialRefs) })
-    }
-  }, [picker, savedKnowledgeIds, planId, subject, grade, lessonTitle, textbookUnit, period, content, template, curriculum, materialRefs])
-
-  const lifecycle = useEditorLifecycle({
-    autoSaveDelay: 8000,
-    onAutoSave: silentSave,
-    onSaveDraft: handleSaveDraft,
-    onPublish: () => setShowFinalizeConfirm(true),
-  })
-
-  // P0-2 全屏预览承载层：锁定只读版式（文字类）
+  // P0-2 全屏预览承载层：锁定只读版式（文字类）— 加 noPanels 隐藏工具栏/章节导航/批注 Tab
   const previewSlot = (
     <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
       <div className="w-[794px] min-h-[1123px] bg-white shadow-sm">
-        <TipTapEditor value={contentToHtml(content)} readOnly onChange={() => {}} />
+        <TipTapEditor value={contentToHtml(content)} readOnly noPanels onChange={() => {}} />
       </div>
     </div>
   )
@@ -783,6 +831,7 @@ export default function LessonPlanEditor() {
       mode={(editMode === 'ai' ? 'primary' : 'secondary')}
       modeLabels={['AI 模式', '文档模式']}
       onModeChange={(m) => m === 'secondary' ? handleSwitchToDoc() : setEditMode('ai')}
+      footerAlign="left"
       footerLifecycle={{
         saveDraftLabel: '保存为草稿',
         publishLabel: '发布',

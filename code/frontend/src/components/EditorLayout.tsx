@@ -67,6 +67,8 @@ interface Props {
     status?: EditorStatus
     saving?: boolean
   }
+  /** footer 对齐：'full'=横跨整页底部（默认），'left'=限制到左栏宽度 466px（贴左对齐） */
+  footerAlign?: 'full' | 'left'
 }
 
 export default function EditorLayout({
@@ -74,7 +76,7 @@ export default function EditorLayout({
   primaryLeft, primaryRight, secondaryLeft, secondaryRight,
   subtitle, leftCollapsible, leftCollapsed, onToggleLeft,
   footerExtra, footerLeft, footerRight, hidePreviewBtn, onPreview,
-  previewSlot, previewTitle, footerLifecycle,
+  previewSlot, previewTitle, footerLifecycle, footerAlign = 'full',
 }: Props) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const canCollapse = leftCollapsible && typeof leftCollapsed === 'boolean' && onToggleLeft
@@ -128,6 +130,52 @@ export default function EditorLayout({
   // 是否有任何 footer 内容需要渲染
   const hasFooter = footerExtra || footerLeft || footerRight || footerLifecycle
 
+  // 统一 footer 按钮：P0-6(footerLifecycle) 与 旧版(footerLeft+预览+footerRight) 共用一套渲染
+  const footerButtons = footerLifecycle ? (
+    <>
+      <button
+        onClick={footerLifecycle.onSaveDraft}
+        disabled={footerLifecycle.saving}
+        className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-50 transition-colors"
+      >
+        {footerLifecycle.saveDraftLabel}
+      </button>
+      {!hidePreviewBtn && (
+        <button
+          onClick={handlePreviewClick}
+          disabled={modeLocked}
+          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {previewLabel}
+        </button>
+      )}
+      <button
+        onClick={footerLifecycle.onPublish}
+        disabled={footerLifecycle.saving}
+        className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 transition-colors"
+      >
+        {footerLifecycle.publishLabel}
+      </button>
+    </>
+  ) : (
+    <>
+      {footerLeft}
+      {!hidePreviewBtn && (
+        <button
+          onClick={handlePreviewClick}
+          disabled={modeLocked}
+          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {previewLabel}
+        </button>
+      )}
+      {footerRight}
+    </>
+  )
+
+  // footer 是否嵌在左栏底部（对齐='left' 且左栏未收起）；否则走底部全宽条（或左栏收起时回退）
+  const footerInLeft = footerAlign === 'left' && !leftCollapsed
+
   return (
     <div className="flex flex-col h-screen bg-[#F6F7F8]">
       {/* Header */}
@@ -150,7 +198,18 @@ export default function EditorLayout({
             canCollapse && leftCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-[466px]',
           ].join(' ')}
         >
-          {(!canCollapse || !leftCollapsed) && currentLeft}
+          {(!canCollapse || !leftCollapsed) && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {currentLeft}
+            </div>
+          )}
+          {/* 左栏底部 footer（对齐='left' 时嵌在左栏底，与基本信息/小微入口同列） */}
+          {footerInLeft && hasFooter && (
+            <div className="shrink-0 border-t border-[#F0F0F0] bg-white px-5 py-3 flex gap-3">
+              {footerExtra}
+              {footerButtons}
+            </div>
+          )}
           {/* 左侧面板内关闭按钮（展开时贴面板右缘） */}
           {canCollapse && !leftCollapsed && (
             <button
@@ -180,56 +239,14 @@ export default function EditorLayout({
         </div>
       </div>
 
-      {/* Unified Footer — 框架内置预览按钮，所有页面零重复 */}
-      {hasFooter && (
-        <div className="shrink-0 border-t border-[#F0F0F0] bg-white">
+      {/* Unified Footer — 底部全宽条：仅当 footer 不在左栏内时渲染
+          （对齐!='left' 的页面，或左栏被收起时回退到全宽以便仍可操作） */}
+      {hasFooter && !footerInLeft && (
+        <div className={`shrink-0 border-t border-[#F0F0F0] bg-white ${footerAlign === 'left' ? 'w-[466px]' : 'w-full'}`}>
           {footerExtra}
-          {(footerLeft || footerRight || footerLifecycle) && (
-            <div className="px-5 py-3 flex gap-3">
-              {/* P0-6 统一 footer：传了 footerLifecycle 即用框架渲染 */}
-              {footerLifecycle ? (
-                <>
-                  <button
-                    onClick={footerLifecycle.onSaveDraft}
-                    disabled={footerLifecycle.saving}
-                    className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-50 transition-colors"
-                  >
-                    {footerLifecycle.saveDraftLabel}
-                  </button>
-                  {!hidePreviewBtn && (
-                    <button
-                      onClick={handlePreviewClick}
-                      disabled={modeLocked}
-                      className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {previewLabel}
-                    </button>
-                  )}
-                  <button
-                    onClick={footerLifecycle.onPublish}
-                    disabled={footerLifecycle.saving}
-                    className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 transition-colors"
-                  >
-                    {footerLifecycle.publishLabel}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {footerLeft}
-                  {!hidePreviewBtn && (
-                    <button
-                      onClick={handlePreviewClick}
-                      disabled={modeLocked}
-                      className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {previewLabel}
-                    </button>
-                  )}
-                  {footerRight}
-                </>
-              )}
-            </div>
-          )}
+          <div className="px-5 py-3 flex gap-3">
+            {footerButtons}
+          </div>
         </div>
       )}
 
