@@ -11,7 +11,7 @@ import { classAPI, notifyError } from '../lib/api'
 
 /* ──────── Sidebar ──────── */
 type SidebarGroup = { id: string; label: string; icon: ReactNode; to?: string; children?: SidebarChild[] }
-type SidebarChild = { label: string; icon: ReactNode; to: string }
+type SidebarChild = { label: string; icon: ReactNode; to: string; requireSchool?: boolean }
 
 const SIDEBAR: SidebarGroup[] = [
   { id: 'home', label: '首页', icon: <LayoutGrid size={16} />, to: '/teacher' },
@@ -31,8 +31,8 @@ const SIDEBAR: SidebarGroup[] = [
     { label: '成长足迹', icon: <Footprints size={14} />, to: '/growth' },
   ]},
   { id: '沟通', label: '家校沟通', icon: <MessageCircle size={16} />, children: [
-    { label: '家长签字', icon: <PenLine size={14} />, to: '/parent-sign' },
-    { label: '成长关爱', icon: <Heart size={14} />, to: '/care' },
+    { label: '家长签字', icon: <PenLine size={14} />, to: '/parent-sign', requireSchool: true },
+    { label: '成长关爱', icon: <Heart size={14} />, to: '/care', requireSchool: true },
   ]},
   { id: '个人', label: '个人中心', icon: <Settings size={16} />, children: [
     { label: '班级切换', icon: <Repeat size={14} />, to: '/classes' },
@@ -192,6 +192,7 @@ export default function AppLayout({ children }: Props) {
                     {exp && (
                       <div className="flex flex-col gap-[1px] mt-[2px]">
                         {g.children.map((c) => {
+                          if (c.requireSchool && teaching.licenseStatus !== 'active') return null
                           const childActive = path.startsWith(c.to)
                           return (
                             <a key={c.to} href={c.to}

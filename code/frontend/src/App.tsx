@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import LoginPage from './pages/LoginPage'
 import TeacherDashboard from './pages/TeacherDashboard'
+import RequireSchoolLicense from './components/RequireSchoolLicense'
 
 const LessonPlanList = lazy(() => import('./pages/LessonPlanList'))
 const LessonPlanEditor = lazy(() => import('./pages/LessonPlanEditor'))
@@ -57,9 +58,9 @@ export default function App() {
         <Route path="/analytics" element={<Suspense fallback={<Loading />}><AnalyticsPage /></Suspense>} />
         <Route path="/grading" element={<Suspense fallback={<Loading />}><GradingPage /></Suspense>} />
         <Route path="/growth" element={<Suspense fallback={<Loading />}><GrowthPage /></Suspense>} />
-        <Route path="/care" element={<Suspense fallback={<Loading />}><CarePage /></Suspense>} />
-        <Route path="/care/:id" element={<Suspense fallback={<Loading />}><CareDetail /></Suspense>} />
-        <Route path="/parent-sign" element={<Suspense fallback={<Loading />}><ParentSignPage /></Suspense>} />
+        <Route path="/care" element={<RequireSchoolLicense><Suspense fallback={<Loading />}><CarePage /></Suspense></RequireSchoolLicense>} />
+        <Route path="/care/:id" element={<RequireSchoolLicense><Suspense fallback={<Loading />}><CareDetail /></Suspense></RequireSchoolLicense>} />
+        <Route path="/parent-sign" element={<RequireSchoolLicense><Suspense fallback={<Loading />}><ParentSignPage /></Suspense></RequireSchoolLicense>} />
         <Route path="/published-lessons" element={<Suspense fallback={<Loading />}><PublishedLessons /></Suspense>} />
         <Route path="/review-pool" element={<Suspense fallback={<Loading />}><ReviewPool /></Suspense>} />
         <Route path="/classes" element={<Suspense fallback={<Loading />}><ClassSwitchPage /></Suspense>} />
