@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Plus, X, Sparkles, MessageCircle } from 'lucide-react'
+import { Plus, X, Sparkles, MessageCircle, Download, Printer } from 'lucide-react'
 import { useTeaching, getQuestionTypes, gradeToNum } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
@@ -13,7 +13,10 @@ import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
+import TipTapEditor from '../components/TipTapEditor'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
+import { exportExamPaper } from '../lib/exportExamDocx'
+import { printExamPaper } from '../lib/printPdf'
 import QuestionNav from '../components/QuestionNav'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
@@ -83,6 +86,8 @@ export default function ExamBuilder() {
 
   // 文档模式：内联试卷预览（A4/A3 切换，所见即所得，导出 = 预览）
   const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
+  // 文档模式富文本编辑内容（从 selectedQuestions 渲染，在 TipTapEditor 中编辑，不同步回 selectedQuestions）
+  const [examDocContent, setExamDocContent] = useState('')
 
 
   // 文档模式左侧面板折叠（与教案侧栏折叠一致）
@@ -160,6 +165,53 @@ export default function ExamBuilder() {
 
   const updateTypeCount = (typeId: string, value: number) => {
     setTypeCounts(prev => ({ ...prev, [typeId]: Math.max(0, value) }))
+  }
+
+  // ── 文档模式：试卷题面 → Word 富文本 ──
+  const renderQuestionsToHtml = (qs: any[]): string => {
+    if (!qs.length) return '<p style="color:#999;text-align:center;margin-top:60px;">暂无题目，请先在 AI 模式选题或生成题目。</p>'
+    return qs.map((q, i) => {
+      const stem = q.stem || q.content || ''
+      const score = q.score ? `<span style="color:#999;font-size:11px;float:right;">（${q.score} 分）</span>` : ''
+      const options = Array.isArray(q.options) ? q.options : (typeof q.options === 'string' ? q.options.split('\n') : [])
+      const optHtml = options.length > 0 ? options.map((o: string, j: number) => `${String.fromCharCode(65 + j)}. ${o}`).join('<br>') : ''
+      return `<div data-qid="${q.id}" style="margin-bottom:16px;">
+        <p><strong>${i + 1}. ${stem}</strong>${score}</p>
+        ${optHtml ? `<p style="margin-left:12px;">${optHtml}</p>` : ''}
+        <hr style="border:none;border-top:1px dashed #ddd;margin:12px 0;">
+      </div>`
+    }).join('\n')
+  }
+  // 切换进文档模式时初始化富文本（仅当 selectedQuestions 变化时重新渲染，不覆盖用户编辑）
+  useEffect(() => {
+    if (editMode === 'doc') {
+      setExamDocContent(renderQuestionsToHtml(selectedQuestions))
+    }
+  }, [editMode, selectedQuestions.length])
+
+  // ── 导出（保持与 ExamPreview 一致：用结构化数据导出，富文本仅做编辑展示） ──
+  const downloadBlob = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob); const a = document.createElement('a')
+    a.href = url; a.download = name; document.body.appendChild(a); a.click()
+    document.body.removeChild(a); URL.revokeObjectURL(url)
+  }
+  const handleExportWord = async () => {
+    if (!previewQuestions.length) return
+    try {
+      const { exportExamPaper } = await import('../lib/exportExamDocx')
+      const blob = await exportExamPaper(previewQuestions, previewMeta, 'A4')
+      downloadBlob(blob, `${examTitle || '试卷'}_学生卷.docx`)
+    } catch (e) { console.error('export word failed', e) }
+  }
+  const handleExportPdf = async () => {
+    if (!previewQuestions.length) return
+    try {
+      const { printExamPaper } = await import('../lib/printPdf')
+      printExamPaper(previewQuestions, {
+        subject: teaching.subject, grade: gradeName, title: examTitle || '试卷',
+        difficulty: '中等', teacherName: user.name || '教师',
+      }, 'A4')
+    } catch (e) { console.error('export pdf failed', e) }
   }
 
   // ============ Left Panel（P0-3 EditorInfoPanel + P0-4 框架小微） ============
@@ -379,9 +431,31 @@ export default function ExamBuilder() {
         primaryRight={rightPanel}
         secondaryLeft={leftPanel}
         secondaryRight={
-          <div className="flex-1 flex overflow-hidden relative">
-            <QuestionNav questions={previewQuestions} />
-            <ExamPreview embedded paperSize="A4" allowA3={false} questions={previewQuestions} meta={previewMeta} />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* 顶部导出栏（Word 导出保持与 ExamPreview 一致） */}
+            <div className="flex items-center justify-between px-5 py-2.5 bg-[#F6F7F8] border-b border-[#E7E7EB] shrink-0">
+              <span className="text-[12px] text-[#9A9A9A]">
+                {selectedQuestions.length} 题 · {totalScore} 分 · {previewMeta.title}
+              </span>
+              <div className="flex items-center gap-2">
+                <button onClick={handleExportWord} disabled={!selectedQuestions.length}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8] disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Download size={13} /> Word
+                </button>
+                <button onClick={handleExportPdf} disabled={!selectedQuestions.length}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8] disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Printer size={13} /> PDF
+                </button>
+              </div>
+            </div>
+            {/* Word 富文本编辑器（TipTapEditor，含完整工具栏） */}
+            <div className="flex-1 overflow-hidden">
+              <TipTapEditor
+                value={examDocContent}
+                onChange={setExamDocContent}
+                docTitle={examTitle || '未命名试卷'}
+              />
+            </div>
           </div>
         }
         mode={(editMode === 'ai' ? 'primary' : 'secondary')}
