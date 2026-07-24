@@ -4,7 +4,7 @@
  * - 「组卷」→ 新标签打开 /exams/new
  * 被 Exercises / ExamList 复用，避免两处重复实现分流逻辑。
  */
-import { Plus, Files, X } from 'lucide-react'
+import { Plus, Files, Send, X } from 'lucide-react'
 
 interface Props {
   open: boolean
@@ -36,31 +36,30 @@ export default function CreateNewModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => go('/exercises/new')}
-            className="group p-4 border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:shadow-md transition-all text-left"
-          >
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={() => go('/exercises/new')}
+            className="group p-4 border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:shadow-md transition-all text-left">
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="w-8 h-8 rounded bg-[#02A7F0]/10 text-[#02A7F0] flex items-center justify-center">
-                <Plus size={16} />
-              </span>
+              <span className="w-8 h-8 rounded bg-[#02A7F0]/10 text-[#02A7F0] flex items-center justify-center"><Plus size={16} /></span>
               <span className="text-[13px] font-semibold text-[#353535]">出题</span>
             </div>
-            <p className="text-[11px] text-[#9A9A9A]">AI 生成习题 · 文档模式可自由排版</p>
+            <p className="text-[11px] text-[#9A9A9A]">AI 生成习题 · 存题库</p>
           </button>
-
-          <button
-            onClick={() => go('/exams/new')}
-            className="group p-4 border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:shadow-md transition-all text-left"
-          >
+          <button onClick={() => go('/sheets/new')}
+            className="group p-4 border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:shadow-md transition-all text-left">
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="w-8 h-8 rounded bg-[#1A3A6B]/10 text-[#1A3A6B] flex items-center justify-center">
-                <Files size={16} />
-              </span>
+              <span className="w-8 h-8 rounded bg-[#059669]/10 text-[#059669] flex items-center justify-center"><Send size={16} /></span>
+              <span className="text-[13px] font-semibold text-[#353535]">题单</span>
+            </div>
+            <p className="text-[11px] text-[#9A9A9A]">AI 生成题单 · 布置到班级</p>
+          </button>
+          <button onClick={() => go('/exams/new')}
+            className="group p-4 border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:shadow-md transition-all text-left">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="w-8 h-8 rounded bg-[#1A3A6B]/10 text-[#1A3A6B] flex items-center justify-center"><Files size={16} /></span>
               <span className="text-[13px] font-semibold text-[#353535]">组卷</span>
             </div>
-            <p className="text-[11px] text-[#9A9A9A]">AI 组卷 · 文档模式可自由排版</p>
+            <p className="text-[11px] text-[#9A9A9A]">AI 组卷 · 可 A3 双栏排版</p>
           </button>
         </div>
       </div>

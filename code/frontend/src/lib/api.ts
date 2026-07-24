@@ -467,6 +467,14 @@ export const assignmentAPI = {
 export const api = request
 
 // 统一错误提示：console.error（可观测）+ 用户 toast（感知），替代散落的 .catch(() => {})
+/**
+ * 打开编辑器工作台（强制新标签页），适用于所有 EditorLayout 场景的入口。
+ * 列表页的"新建"、"编辑"、"查看"按钮/行点击统一走此函数。
+ */
+export const openWorkspace = (path: string) => {
+  window.open(path, '_blank')
+}
+
 export const notifyError = (msg: string, e?: unknown) => {
   if (e !== undefined) console.error(`[notifyError] ${msg}`, e)
   showToast(msg, 'error')
@@ -591,4 +599,60 @@ export const teacherPrefAPI = {
   }) => request<any>('/me/submit-textbook-version', { method: 'POST', body: JSON.stringify(data) }),
 }
 
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI }
+// ── 覆盖度分析（有据引擎 Phase 0）──
+
+export const coverageAPI = {
+  /** 获取知识点覆盖度（按学科/年级） */
+  get: (params: { subject: string; grade: string; version_id?: string }) =>
+    request<{ items: any[] }>(`/analytics/coverage?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade)}${params.version_id ? `&version_id=${params.version_id}` : ''}`),
+}
+
+// ── 训练坐标推断（有据引擎 Phase 0）──
+
+export const coordinateAPI = {
+  /** 根据题目信息推断训练坐标 V/R（Phase 0 启发式，后续 AI 精推） */
+  infer: (data: { type: string; difficulty?: string; subject: string; content?: string; knowledge_points?: string[] }) =>
+    request<{ scenario_variant: string; training_role: string; inference_mode: string }>('/exercises/infer-coordinate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+// ── 成长关爱接口（有据引擎 Phase 0）──
+
+export const careAPI = {
+  /** 获取当前教师全部关怀学生列表 */
+  list: () => request<{ items: any[] }>('/care/students'),
+
+  /** 获取单个关怀学生详情 */
+  get: (id: string) => request<any>(`/care/students/${id}`),
+
+  /** 添加学生到关怀组 */
+  add: (data: { student_id: string; focus_area?: string; observation?: string }) =>
+    request<any>('/care/students', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** 更新关怀学生信息（关注点、观察记录等） */
+  update: (id: string, data: { focus_area?: string; observation?: string; plan_status?: string }) =>
+    request<any>(`/care/students/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  /** 更新关怀方案（每周方案 JSON） */
+  updatePlan: (id: string, data: { weekly_plan?: any; plan_status?: string }) =>
+    request<any>(`/care/students/${id}/plan`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  /** 从关怀组移除（软删除） */
+  remove: (id: string) =>
+    request<any>(`/care/students/${id}`, { method: 'DELETE' }),
+}
+
+// 注意：default 导出必须放在所有具名 const（含 careAPI/coverageAPI/coordinateAPI）之后，
+// 否则对象字面量立即访问这些 const 会触发 TDZ（Cannot access 'careAPI' before initialization）。
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI }

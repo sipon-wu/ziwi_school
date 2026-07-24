@@ -641,7 +641,7 @@ Page: /grading/:id
 │   │   │       └── ScoreInput (可手动改分)
 │   │   └── [作文批阅模式]
 │   │       ├── ImageViewer (学生手写图片, 可缩放)
-│   │       ├── OcrTextViewer (AI识别文字, 可编辑)
+│   │       ├── 教材正文识别 (AI识别文字, 可编辑)
 │   │       ├── CompositionRadar (四维雷达图: 内容/结构/语言/书写)
 │   │       ├── HandwritingEval (卷面评估: 潦草度/涂改率)
 │   │       ├── AICommentEditor (AI评语, 可编辑)

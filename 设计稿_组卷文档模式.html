@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>组卷·文档模式 — 设计稿 V2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+body{background:#f0f0f0;display:flex;justify-content:center;padding:24px}
+.page{width:1280px;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.1);overflow:hidden}
+.header{height:48px;background:#212529;display:flex;align-items:center;padding:0 20px}
+.header .logo{color:#fff;font-size:14px;font-weight:700}
+.header .logo span{font-weight:400;margin-left:4px}
+.header-center{flex:1;display:flex;justify-content:center}
+.mode-toggle{display:inline-flex;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.2)}
+.mode-toggle button{padding:4px 16px;font-size:12px;color:rgba(255,255,255,.7);background:transparent;border:none;cursor:default}
+.mode-toggle button.active{background:#fff;color:#1a3a6b;font-weight:500}
+.main{display:flex;height:calc(100vh - 48px - 40px);min-height:500px}
+/* 左面板 (466px)：与教案一致 */
+.left-panel{width:466px;border-right:1px solid #e7e7eb;display:flex;flex-direction:column;flex-shrink:0;position:relative}
+.left-panel .close-bar{position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:20px;height:56px;background:rgba(255,255,255,.6);backdrop-filter:blur(4px);border:1px solid #e7e7eb;border-radius:0 4px 4px 0;display:flex;align-items:center;justify-content:center;color:#9a9a9a;font-size:12px;cursor:default;z-index:10}
+.scroll-area{flex:1;overflow-y:auto;padding:16px 20px}
+.title-input{width:100%;padding:8px 12px;font-size:13px;border:1px solid #e7e7eb;border-radius:4px;margin-bottom:10px;outline:0}
+.title-input:focus{border-color:#02a7f0}
+.meta-row{font-size:11px;color:#9a9a9a;background:#f6f7f8;border-radius:4px;padding:8px 12px;margin-bottom:10px}
+.section-label{font-size:11px;font-weight:600;color:#595959;margin-bottom:6px;margin-top:12px}
+.label-row{font-size:11px;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.label-row .chip{background:#f6f7f8;padding:3px 8px;border-radius:4px;color:#595959}
+.kp-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.kp-tag{font-size:10px;padding:3px 8px;background:#edf4ff;color:#02a7f0;border-radius:10px}
+.quality{border:1px solid rgba(2,167,240,.2);background:#f6fdff;border-radius:4px;padding:10px;margin-bottom:10px}
+.quality .title{font-size:11px;font-weight:600;color:#353535;margin-bottom:4px}
+.quality .row{font-size:10px;color:#9a9a9a;display:flex;gap:8px;flex-wrap:wrap}
+.quality .badge{font-size:9px;padding:1px 5px;border-radius:2px;display:inline-block}
+.quality .badge.green{background:#bbf7d0;color:#15803d}
+.chat-btn{width:100%;padding:10px 16px;background:#eaf0e8;border:none;border-radius:4px;color:#1a3a6b;font-size:12px;display:flex;align-items:center;gap:8px;cursor:default;margin-top:8px}
+.action-bar{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0}
+.action-bar button{padding:6px 14px;border-radius:4px;font-size:12px;border:1px solid #e7e7eb;background:#fff;color:#595959;cursor:default}
+.action-bar button.primary{background:#02a7f0;color:#fff;border-color:#02a7f0}
+
+/* 右面板：编辑区 */
+.right-panel{flex:1;background:#f3f4f6;display:flex;overflow:hidden}
+/* 题目导航 (180px) — 与教案章节导航同位置 */
+.nav-panel{width:180px;border-right:1px solid #e7e7eb;background:#fafbfc;display:flex;flex-direction:column;flex-shrink:0;position:relative}
+.nav-panel .nav-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:11px;font-weight:600;color:#9a9a9a;flex-shrink:0}
+.nav-panel .nav-header button{border:none;background:none;color:#c0c0c0;cursor:default;font-size:12px}
+.nav-list{flex:1;overflow-y:auto;padding:4px 0}
+.nav-item{display:flex;align-items:center;gap:6px;padding:6px 12px;cursor:pointer;font-size:11px;color:#595959}
+.nav-item:hover{background:#f0f2f5}
+.nav-item.active{background:#e3ecfa;color:#1a3a6b}
+.nav-item .num{font-weight:600;min-width:18px;font-size:10px;color:#1a3a6b}
+.nav-item .type{font-size:9px;padding:1px 4px;background:#f6f7f8;color:#9a9a9a;border-radius:2px}
+.nav-item .text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#9a9a9a;font-size:10px}
+/* 折叠恢复芯片 */
+.restore-btn{position:absolute;left:3px;top:50%;transform:translateY(-50%);width:28px;height:48px;background:rgba(55,65,81,.7);border:none;border-radius:0 6px 6px 0;color:#fff;font-size:14px;cursor:default;z-index:20;display:none;align-items:center;justify-content:center}
+/* A3 预览区 */
+.preview-area{flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;padding:24px 0}
+.a3-paper{width:1120px;min-height:842px;background:#fff;border:1px solid #e7e7eb;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;margin-bottom:8px}
+.a3-panel{flex:1;padding:16px 24px;position:relative}
+.a3-panel+.a3-panel{border-left:2px dashed #d9d9d9}
+.a3-fold{position:absolute;left:-10px;top:50%;transform:translateY(-50%);font-size:8px;color:#c0c0c0;writing-mode:vertical-rl}
+.qblock{margin-bottom:14px}
+.qheader{font-size:12px;font-weight:700;color:#1a3a6b;margin-bottom:2px}
+.qheader .tag{font-size:9px;color:#9a9a9a;background:#f6f7f8;padding:1px 4px;border-radius:2px;margin-left:4px;font-weight:400}
+.qtext{font-size:12px;color:#353535;margin-bottom:4px}
+.qopts{font-size:11px;color:#353535;display:flex;flex-wrap:wrap;gap:0 16px}
+.page-info{font-size:11px;color:#9a9a9a;display:flex;gap:12px;align-items:center}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="logo">知微<span> - 工作台</span></div>
+    <div class="header-center"><div class="mode-toggle"><button>AI 模式</button><button class="active">文档模式</button></div></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:rgba(255,255,255,.7);font-size:11px">Token 5%</span>
+      <span style="color:#fff;font-size:12px">李老师</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- 左面板 (466px)：元数据 + 质量评估 + 小微 + 保存发布（与教案一致） -->
+    <div class="left-panel">
+      <div class="close-bar">‹</div>
+      <div class="scroll-area">
+        <input class="title-input" value="四年级语文第一单元检测" placeholder="试卷标题" />
+
+        <div class="meta-row">学科 语文 ｜ 班级 四年级(1)班 ｜ 校区 树人实验小学</div>
+        <div class="meta-row">总分 100 分 ｜ 时长 40 分钟 ｜ 共 6 题</div>
+
+        <div class="section-label">题型配比</div>
+        <div class="label-row">
+          <span class="chip">选择 2题</span><span class="chip">填空 1题</span>
+          <span class="chip">阅读 1题</span><span class="chip">简答 1题</span><span class="chip">写作 1题</span>
+        </div>
+
+        <div class="section-label">知识点</div>
+        <div class="kp-tags">
+          <span class="kp-tag">阅读理解</span>
+          <span class="kp-tag">古诗文默写</span>
+          <span class="kp-tag">写作表达</span>
+          <span class="kp-tag">语病辨析</span>
+        </div>
+
+        <!-- 试卷质量评估（统计数据） -->
+        <div class="quality">
+          <div class="title">试卷质量评估</div>
+          <div class="row">
+            <span><span class="badge green">L1 20%</span></span>
+            <span><span class="badge" style="background:#bfdbfe;color:#1d4ed8">L2 60%</span></span>
+            <span><span class="badge" style="background:#fed7aa;color:#c2410c">L3 15%</span></span>
+            <span><span class="badge" style="background:#fecaca;color:#b91c1c">L4 5%</span></span>
+            <span style="margin-left:auto">预估平均分 <strong style="color:#f6920e">82</strong></span>
+          </div>
+          <div class="row" style="margin-top:4px">课标对齐 <span style="color:#16a34a;font-weight:600">92%</span></div>
+        </div>
+
+        <button class="chat-btn">💬 和小微对话，补充组卷需求</button>
+
+        <div class="action-bar">
+          <button>保存为草稿</button>
+          <button>预览</button>
+          <button class="primary" style="margin-left:auto">发布</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右面板：编辑区 -->
+    <div class="right-panel">
+      <!-- ★ 题目导航 (180px) — 与教案章节导航同一位置 -->
+      <div class="nav-panel">
+        <div class="nav-header">
+          <span>📋 题目导航 <span style="font-weight:400;color:#c0c0c0">6题</span></span>
+          <button>‹</button>
+        </div>
+        <div class="nav-list">
+          <div class="nav-item active"><span class="num">1</span><span class="type">选择</span><span class="text">下列句子中，没有语病的一项是</span></div>
+          <div class="nav-item"><span class="num">2</span><span class="type">选择</span><span class="text">对下列句子所用修辞手法判断正确的一项是</span></div>
+          <div class="nav-item"><span class="num">3</span><span class="type">填空</span><span class="text">补写出下列句子中的空缺部分</span></div>
+          <div class="nav-item"><span class="num">4</span><span class="type">阅读</span><span class="text">阅读下面的文字，完成下面小题</span></div>
+          <div class="nav-item"><span class="num">5</span><span class="type">简答</span><span class="text">请简要分析文中主人公的心理变化过程</span></div>
+          <div class="nav-item"><span class="num">6</span><span class="type">写作</span><span class="text">请以'我的成长故事'为题写一篇作文</span></div>
+        </div>
+      </div>
+
+      <!-- A3 横排双栏 -->
+      <div class="preview-area">
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:#9a9a9a;margin-bottom:8px">
+          <span style="background:#1a3a6b;color:#fff;padding:2px 8px;border-radius:3px">A3 双栏</span>
+          <span>学生卷</span>
+          <span>缩放 适应宽度</span>
+          <span>Word PDF</span>
+        </div>
+        <div class="a3-paper">
+          <div class="a3-panel">
+            <span class="a3-fold">· · 对折 · ·</span>
+            <div style="font-size:12px;font-weight:600;margin-bottom:10px">语文 · 四年级 | 第一单元检测</div>
+            <div class="qblock"><div class="qheader">1.<span class="tag">选择</span></div><div class="qtext">下列句子中，没有语病的一项是</div></div>
+            <div class="qblock"><div class="qheader">2.<span class="tag">选择</span></div><div class="qtext">对下列句子所用修辞手法判断正确的一项是</div></div>
+            <div class="qblock"><div class="qheader">3.<span class="tag">填空</span></div><div class="qtext">补写出下列句子中的空缺部分。</div></div>
+          </div>
+          <div class="a3-panel">
+            <span class="a3-fold" style="left:-10px">· · 对折 · ·</span>
+            <div class="qblock" style="margin-top:10px"><div class="qheader">4.<span class="tag">阅读</span></div><div class="qtext">阅读下面的文字，完成下面小题。</div></div>
+            <div class="qblock"><div class="qheader">5.<span class="tag">简答</span></div><div class="qtext">请简要分析文中主人公的心理变化过程。</div></div>
+            <div class="qblock"><div class="qheader">6.<span class="tag">写作</span></div><div class="qtext">请以"我的成长故事"为题，写一篇不少于400字的作文。</div></div>
+          </div>
+        </div>
+        <div class="page-info"><span>‹ 上一张</span><span>第 1 张 · 正面</span><span>下一张 ›</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

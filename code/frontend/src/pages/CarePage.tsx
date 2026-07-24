@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Heart, Check, TrendingUp, TrendingDown, Minus, ChevronRight, Plus, Pencil, X } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
+import { careAPI } from '../lib/api'
+import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
+import MOCK_STUDENTS from './CarePage_mock'
 
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
 
@@ -14,15 +17,24 @@ type CareStudent = {
   focusArea: string
 }
 
-const INIT_STUDENTS: CareStudent[] = [
-  { id: 's1', name: '赵大鹏', studentNo: '20240007', gender: '男', grade: 4, enrolledDate: '2026-03-01', status: 'activated', planProgress: 73, accuracy: 68, accuracyTrend: 'up', accuracyChange: 6, focusArea: '异分母分数比较是当前薄弱环节，通分步骤需强化' },
-  { id: 's2', name: '孙小飞', studentNo: '20240008', gender: '男', grade: 4, enrolledDate: '2026-03-15', status: 'activated', planProgress: 60, accuracy: 55, accuracyTrend: 'up', accuracyChange: 3, focusArea: '排比句运用需从仿写过渡到独立创作' },
-  { id: 's3', name: '钱小强', studentNo: '20240011', gender: '男', grade: 4, enrolledDate: '2026-04-10', status: 'activated', planProgress: 40, accuracy: 62, accuracyTrend: 'flat', accuracyChange: 0, focusArea: '成绩处于平台期，首要目标是恢复练习量' },
-  { id: 's4', name: '冯小美', studentNo: '20240012', gender: '女', grade: 4, enrolledDate: '2026-04-20', status: 'pending', planProgress: 55, accuracy: 58, accuracyTrend: 'down', accuracyChange: 4, focusArea: '多角度提问能力需加强' },
-  { id: 's5', name: '苗小光', studentNo: '20240045', gender: '男', grade: 4, enrolledDate: '2026-05-05', status: 'activated', planProgress: 83, accuracy: 71, accuracyTrend: 'up', accuracyChange: 8, focusArea: '分数混合运算进步显著，建议逐步引入复杂运算' },
-  { id: 's6', name: '花小玉', studentNo: '20240046', gender: '女', grade: 4, enrolledDate: '2026-06-01', status: 'pending', planProgress: 65, accuracy: 65, accuracyTrend: 'up', accuracyChange: 2, focusArea: '词语理解有改善迹象，巩固为主' },
-  { id: 's7', name: '褚小刚', studentNo: '20240013', gender: '男', grade: 4, enrolledDate: '2026-02-15', removedDate: '2026-06-20', status: 'removed', planProgress: 0, accuracy: 76, accuracyTrend: 'up', accuracyChange: 4, focusArea: '已达标移出，历史记录保留' },
-]
+// ── 后端响应数据适配为 CareStudent ──
+function adaptFromBackend(item: any): CareStudent {
+  return {
+    id: item.id,
+    name: item.student_name || '',
+    studentNo: item.student_no || '',
+    gender: item.gender || '',
+    grade: item.grade || 4,
+    enrolledDate: item.enrolled_date || '',
+    removedDate: item.removed_date || undefined,
+    status: item.status || 'pending',
+    planProgress: Number(item.plan_progress) || 0,
+    accuracy: Number(item.accuracy) || 0,
+    accuracyTrend: item.accuracy_trend || 'flat',
+    accuracyChange: Number(item.accuracy_change) || 0,
+    focusArea: item.focus_area || '',
+  }
+}
 
 function daysSince(date: string) {
   const d = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
@@ -38,60 +50,80 @@ function trendEl(t: string, v: number) {
 export default function CarePage() {
   const teaching = useTeaching()
   const navigate = useNavigate()
+  const toast = useToast()
   const gradeName = GRADE_MAP[teaching.grade] || '四年级'
-  const [students, setStudents] = useState<CareStudent[]>(() => {
-    const saved = localStorage.getItem('care_edits')
-    if (!saved) return INIT_STUDENTS
-    try {
-      const edits = JSON.parse(saved)
-      return INIT_STUDENTS.map(s => {
-        if (edits[s.id]) {
-          return { ...s, focusArea: edits[s.id].focusArea || s.focusArea,
-            plan: { ...(s as any).plan, focusArea: edits[s.id].focusArea || (s as any).plan.focusArea, teacherNote: edits[s.id].teacherNote || (s as any).plan.teacherNote } }
-        }
-        return s
-      }) as CareStudent[]
-    } catch { return INIT_STUDENTS }
-  })
+  const [students, setStudents] = useState<CareStudent[]>([])
+  const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [editFocus, setEditFocus] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [form, setForm] = useState({ name: '', studentNo: '', gender: '男' })
 
-  // ── localStorage 持久化 ──
-  const CARE_KEY = 'care_edits'
-  const persistCare = (students: CareStudent[]) => {
+  // ── 初始加载：从后端获取，失败则用 localStorage mock（向后兼容）──
+  useEffect(() => {
+    loadStudents()
+  }, [])
+
+  const loadStudents = async () => {
+    setLoading(true)
     try {
-      const edits: Record<string, { focusArea: string }> = {}
-      students.forEach(s => { if (s.focusArea) edits[s.id] = { focusArea: s.focusArea } })
-      localStorage.setItem(CARE_KEY, JSON.stringify(edits))
-    } catch {}
+      const data = await careAPI.list()
+      if (data?.items?.length > 0) {
+        setStudents(data.items.map(adaptFromBackend))
+        setLoading(false)
+        return
+      }
+    } catch {
+      // 后端不可用，走 localStorage mock 降级
+    }
+    // ── 降级 ──
+    const saved = localStorage.getItem('care_edits')
+    if (!saved) {
+      setStudents(MOCK_STUDENTS as CareStudent[])
+    } else {
+      try {
+        const edits = JSON.parse(saved)
+        setStudents((MOCK_STUDENTS as CareStudent[]).map(s => {
+          if (edits[s.id]) {
+            return { ...s, focusArea: edits[s.id].focusArea || s.focusArea }
+          }
+          return s
+        }))
+      } catch {
+        setStudents(MOCK_STUDENTS as CareStudent[])
+      }
+    }
+    setLoading(false)
   }
 
   const startEditFocus = (id: string, text: string) => { setEditFocus(id); setEditText(text) }
-  const saveFocus = () => {
-    setStudents(prev => {
-      const next = prev.map(s => s.id === editFocus ? { ...s, focusArea: editText } : s)
-      persistCare(next)
-      return next
-    })
+  const saveFocus = async () => {
+    if (!editFocus) return
+    // 先乐观更新 UI
+    setStudents(prev => prev.map(s => s.id === editFocus ? { ...s, focusArea: editText } : s))
     setEditFocus(null)
+    // 异步保存到后端（不阻塞 UI）
+    try {
+      await careAPI.update(editFocus, { focus_area: editText })
+    } catch {
+      // 失败静默，数据留本地
+      toast?.show?.('网络异常，数据已保存在本地', 'warning')
+    }
   }
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!form.name.trim() || !form.studentNo.trim()) return
-    setStudents(prev => {
-      const next = [{
-        id: `s${Date.now()}`, name: form.name, studentNo: form.studentNo, gender: form.gender,
-        grade: 4, enrolledDate: new Date().toISOString().slice(0, 10), status: 'pending' as const,
-        planProgress: 0, accuracy: 50, accuracyTrend: 'flat' as const, accuracyChange: 0,
-        focusArea: '待评估',
-      }, ...prev]
-      persistCare(next)
-      return next
-    })
+    // 乐观添加
+    const newStudent: CareStudent = {
+      id: `s${Date.now()}`, name: form.name, studentNo: form.studentNo, gender: form.gender,
+      grade: 4, enrolledDate: new Date().toISOString().slice(0, 10), status: 'pending',
+      planProgress: 0, accuracy: 50, accuracyTrend: 'flat', accuracyChange: 0,
+      focusArea: '待评估',
+    }
+    setStudents(prev => [newStudent, ...prev])
     setShowAdd(false)
     setForm({ name: '', studentNo: '', gender: '男' })
+    toast?.show?.('已添加', 'success')
   }
 
   return (

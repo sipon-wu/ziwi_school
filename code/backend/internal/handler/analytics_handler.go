@@ -57,6 +57,27 @@ func (h *AnalyticsHandler) GetTeacherDashboard(c *gin.Context) {
 	})
 }
 
+// GetCoverage 获取知识覆盖度
+// GET /api/analytics/coverage?subject=&grade=&version_id=
+func (h *AnalyticsHandler) GetCoverage(c *gin.Context) {
+	subject := c.Query("subject")
+	grade := c.Query("grade")
+	versionID := c.DefaultQuery("version_id", "")
+
+	if subject == "" || grade == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_PARAMS", "message": "请提供学科和年级"})
+		return
+	}
+
+	coverage, err := h.dashboardRepo.GetCoverage(subject, grade, versionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取覆盖度失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": coverage})
+}
+
 // GetAnalytics 获取学情分析数据
 // GET /api/analytics
 func (h *AnalyticsHandler) GetAnalytics(c *gin.Context) {

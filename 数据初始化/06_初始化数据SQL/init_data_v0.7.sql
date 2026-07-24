@@ -1,7 +1,7 @@
 -- =========================================================
 -- 知微教学平台 · 教学就绪 初始化 SQL (v0.7 骨架数据)
 -- 生成自 p_primary_all / p0_* / textbook_versions 等数据模块
--- 说明：课标叶子条款(tb_standard_clause) 待 PDF OCR 后回填
+-- 说明：课标叶子条款(tb_standard_clause) 待 PDF 识别 后回填
 -- =========================================================
 SET NAMES utf8mb4;
 DROP TABLE IF EXISTS tb_version_standard_map;
@@ -67,9 +67,9 @@ CREATE TABLE tb_standard_clause (
   xue_ke        VARCHAR(16)   NOT NULL,
   tiao_mu_lu_jing VARCHAR(255) NOT NULL COMMENT '课标条目官方结构路径',
   ye_zi_bian_hao VARCHAR(32)  COMMENT '叶子条款号 如 3.2.1',
-  zheng_wen      TEXT         COMMENT '条款正文(待PDF OCR回填)',
+  zheng_wen      TEXT         COMMENT '条款正文(待PDF 识别回填)',
   UNIQUE KEY uk_clause (xue_duan,xue_ke,tiao_mu_lu_jing,ye_zi_bian_hao)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课标条款(叶子级,待PDF OCR回填)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课标条款(叶子级,待PDF 识别回填)';
 
 CREATE TABLE school_textbook_binding (
   id            BIGINT        PRIMARY KEY AUTO_INCREMENT,
@@ -16999,4 +16999,4 @@ INSERT INTO tb_kg_edge (id,from_node_id,to_node_id,relation_type) VALUES
 -- 共 8767 条
 
 -- ============ tb_standard_clause ============
--- 待 PDF OCR / 文本抽取后回填，此处仅建表。
+-- 待 PDF 识别 / 文本抽取后回填，此处仅建表。

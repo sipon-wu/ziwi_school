@@ -972,7 +972,7 @@ ai-service: LessonPlanAgent.execute()
 ai-service: GradingAgent.execute_composition()
     │
     ├─ 1. 调用 qwen-vl-plus 识别手写内容
-    │    ├─ 逐行 OCR，输出文本 + 置信度
+    │    ├─ 逐行识别手写内容，输出文本 + 置信度
     │    └─ 卷面评估（置信度倒推潦草度、涂改率）
     │
     ├─ 2. AI 四维评分

@@ -1,6 +1,6 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-07-16T15:33:57.718Z",
+  "generatedAt": "2026-07-22T07:52:17.527Z",
   "summary": {
     "total": 43,
     "PASS": 42,
@@ -10,7 +10,9 @@
   "aiLeak": {
     "v1": false,
     "aiCalls": [
+      "/api/ai/chat",
       "/api/ai/exam/generate",
+      "/api/ai/chat",
       "/api/ai/lesson-plan/generate",
       "/api/ai/chat",
       "/api/ai/chat"
@@ -28,77 +30,77 @@
       "role": "教师(语文)",
       "journey": "渲染·首页",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=308",
+      "detail": "visible=true appErr=false redirect=false len=355",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题列表",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=357",
+      "detail": "visible=true appErr=false redirect=false len=747",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=547",
+      "detail": "visible=true appErr=false redirect=false len=585",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·教案新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=387",
+      "detail": "visible=true appErr=false redirect=false len=386",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·素材库",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=224",
+      "detail": "visible=true appErr=false redirect=false len=271",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=557",
+      "detail": "visible=true appErr=false redirect=false len=634",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·作业",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=522",
+      "detail": "visible=true appErr=false redirect=false len=548",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·班级切换",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=315",
+      "detail": "visible=true appErr=false redirect=false len=345",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·系统设置",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=274",
+      "detail": "visible=true appErr=false redirect=false len=328",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "出题·AI生成端到端",
       "status": "WARN",
-      "detail": "按钮可用、请求已发，35s 内未渲染题目(外部AI可能慢/限流)",
+      "detail": "入口可用、请求已发，40s 内未渲染题目(外部AI可能慢/限流)",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "教案·AI生成端到端",
       "status": "PASS",
-      "detail": "教案已生成并存入状态(命中 /api/ai/lesson-plan/generate; EditorLayout无内嵌预览,content供导出/保存)",
+      "detail": "新流程：展开面板→对话→应用→教案已生成并存入状态(命中 /api/ai/lesson-plan/generate)",
       "shot": ""
     },
     {
@@ -159,9 +161,9 @@
     },
     {
       "role": "教师(数学·多班)",
-      "journey": "出题·生成按钮态",
+      "journey": "出题·生成入口态",
       "status": "PASS",
-      "detail": "disabled=false（autoSelect兜底应对各学科）",
+      "detail": "disabled=false（autoSelect兜底应对各学科，新流程入口）",
       "shot": ""
     },
     {
@@ -182,7 +184,7 @@
       "role": "班主任",
       "journey": "我的班级·渲染",
       "status": "PASS",
-      "detail": "visible=true len=316",
+      "detail": "visible=true len=315",
       "shot": ""
     },
     {
@@ -203,7 +205,7 @@
       "role": "校长",
       "journey": "校长页·渲染",
       "status": "PASS",
-      "detail": "visible=true len=30",
+      "detail": "visible=true len=40",
       "shot": ""
     },
     {
@@ -224,21 +226,21 @@
       "role": "教务",
       "journey": "渲染·出题",
       "status": "PASS",
-      "detail": "visible=true len=357",
+      "detail": "visible=true len=429",
       "shot": ""
     },
     {
       "role": "教务",
       "journey": "渲染·教案",
       "status": "PASS",
-      "detail": "visible=true len=336",
+      "detail": "visible=true len=411",
       "shot": ""
     },
     {
       "role": "教务",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true len=585",
+      "detail": "visible=true len=690",
       "shot": ""
     },
     {
@@ -259,21 +261,21 @@
       "role": "教研",
       "journey": "渲染·出题",
       "status": "PASS",
-      "detail": "visible=true len=357",
+      "detail": "visible=true len=429",
       "shot": ""
     },
     {
       "role": "教研",
       "journey": "渲染·教案",
       "status": "PASS",
-      "detail": "visible=true len=336",
+      "detail": "visible=true len=411",
       "shot": ""
     },
     {
       "role": "教研",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true len=585",
+      "detail": "visible=true len=690",
       "shot": ""
     },
     {
@@ -301,7 +303,7 @@
       "role": "IT管理员",
       "journey": "设置·版本库维护",
       "status": "PASS",
-      "detail": "visible=true len=182",
+      "detail": "visible=true len=246",
       "shot": ""
     },
     {
@@ -315,7 +317,7 @@
       "role": "全局回归",
       "journey": "AI路径无/api/v1/ai泄漏",
       "status": "PASS",
-      "detail": "未检测到 v1 死路径; 命中正确路径: [\"/api/ai/exam/generate\",\"/api/ai/lesson-plan/generate\",\"/api/ai/chat\",\"/api/ai/chat\"]",
+      "detail": "未检测到 v1 死路径; 命中正确路径: [\"/api/ai/chat\",\"/api/ai/exam/generate\",\"/api/ai/chat\",\"/api/ai/lesson-plan/generate\",\"/api/ai/chat\",\"/api/ai/chat\"]",
       "shot": ""
     }
   ]

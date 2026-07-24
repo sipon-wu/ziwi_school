@@ -155,6 +155,52 @@ type SubjectStat struct {
 	QuestCount  int64  `json:"question_count"`
 }
 
+// CoverageItem 知识点覆盖度项
+type CoverageItem struct {
+	NodeID    int64   `json:"node_id"`
+	NodeKey   string  `json:"node_key"`
+	MingCheng string  `json:"ming_cheng"`
+	Level     int     `json:"level"`
+	ParentID  *int64  `json:"parent_id"`
+	TotalQ    int64   `json:"total_questions"`
+	CoveredQ  int64   `json:"covered_questions"`
+	Rate      float64 `json:"coverage_rate"`
+}
+
+// GetCoverage 获取某学科/年级的知识点覆盖度（按题目的 knowledge_points 标签统计）
+func (r *DashboardRepository) GetCoverage(subject, grade, versionID string) ([]CoverageItem, error) {
+	var items []CoverageItem
+	q := r.db.Table("tb_kg_node kn").
+		Select(`
+			kn.id AS node_id, kn.node_key, kn.ming_cheng, kn.level, kn.parent_id,
+			COALESCE(qstats.total_q, 0) AS total_questions,
+			COALESCE(qstats.covered_q, 0) AS covered_questions,
+			CASE WHEN COALESCE(qstats.total_q, 0) > 0
+			     THEN ROUND(COALESCE(qstats.covered_q, 0)::numeric / qstats.total_q * 100, 1)
+			     ELSE 0 END AS coverage_rate
+		`).
+		Joins(`LEFT JOIN (
+			SELECT kp_id, COUNT(*) AS covered_q, COUNT(*) OVER() AS total_q
+			FROM (
+				SELECT DISTINCT jsonb_array_elements_text(knowledge_points) AS kp_id
+				FROM questions
+				WHERE subject = ? AND grade = ?
+			) sub
+			GROUP BY kp_id
+		) qstats ON kn.node_key = qstats.kp_id`, subject, grade).
+		Where("kn.level <= 3")
+
+	if versionID != "" {
+		q = q.Where("kn.version_id = ?", versionID)
+	}
+
+	err := q.Order("kn.level, kn.id").Scan(&items).Error
+	if items == nil {
+		items = []CoverageItem{}
+	}
+	return items, err
+}
+
 func (r *DashboardRepository) GetAnalyticsData(teacherID string) (*AnalyticsData, error) {
 	d := &AnalyticsData{}
 	r.db.Table("lesson_plans").Where("teacher_id=? AND status!='archived'", teacherID).Count(&d.LessonPlanCount)

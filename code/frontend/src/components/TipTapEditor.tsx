@@ -892,7 +892,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
       </div>
 
       {/* ── 主编辑区（三栏) ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* 左侧：章节导航 */}
         {outlineVisible && (
           <div className="w-[180px] border-r border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden">
@@ -917,9 +917,9 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           </div>
         )}
 
-        {/* 中央：编辑器（A4 页面纸 + 页眉/页脚 + 版心四角直角标记·角向外，对齐 Word） */}
+        {/* 中央：编辑器（A4 固定宽 794px，不随窗口缩放；容器 overflow-auto 提供横向滚动条） */}
         <div ref={scrollRef} onScroll={handleDocScroll} className="flex-1 overflow-auto bg-[#F3F4F6] py-6">
-          <div className="relative max-w-[794px] w-full mx-auto aspect-[210/297] min-h-[1122px] bg-white border border-[#E7E7EB] shadow-sm flex flex-col">
+          <div className="relative w-[794px] mx-auto aspect-[210/297] min-h-[1122px] bg-white border border-[#E7E7EB] shadow-sm flex flex-col">
             {/* 版心：左右 3.18cm≈120px，上/下边距 2.54cm≈96px（严格锁版心顶/底到纸边） */}
             <div className="px-[120px] flex-1 relative pt-[96px] pb-[96px] min-h-0">
               <div className="relative h-full min-h-0">
@@ -1039,17 +1039,17 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           </div>
         )}
 
-        {/* 收起后的展开按钮 */}
+        {/* 收起后的展开按钮（深灰·半透；垂直居中；距编辑区左/右边各 12px 明显位于编辑区内） */}
         {!outlineVisible && (
           <button onClick={() => setOutlineVisible(true)} title="展开章节导航"
-            className="absolute left-0 top-1/3 w-5 h-12 bg-white border border-[#E7E7EB] rounded-r flex items-center justify-center hover:bg-[#F6F7F8] z-10">
-            <ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} />
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-12 bg-gray-700/70 hover:bg-gray-800 rounded-r-md flex items-center justify-center text-white z-20 transition-all shadow-md">
+            <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
           </button>
         )}
         {!historyVisible && (
-          <button onClick={() => setHistoryVisible(true)} title="展开版本历史"
-            className="absolute right-0 top-1/3 w-5 h-12 bg-white border border-[#E7E7EB] rounded-l flex items-center justify-center hover:bg-[#F6F7F8] z-10">
-            <ChevronLeft size={12} />
+          <button onClick={() => setHistoryVisible(true)} title="展开批注/版本历史"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-12 bg-gray-700/70 hover:bg-gray-800 rounded-l-md flex items-center justify-center text-white z-20 transition-all shadow-md">
+            <ChevronLeft size={14} />
           </button>
         )}
       </div>

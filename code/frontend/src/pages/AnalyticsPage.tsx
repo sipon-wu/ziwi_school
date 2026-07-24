@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, Target, AlertTriangle, Star, ArrowUp, ArrowDown } from 'lucide-react'
+import { TrendingUp, Target, AlertTriangle, Star, ArrowUp, ArrowDown, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
-import { api, notifyError } from '../lib/api'
+import { api, notifyError, coverageAPI } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
@@ -34,6 +34,17 @@ const MOCK_KNOWLEDGE_POINTS = [
   { name: '感受神话神奇想象', mastery: 82, avg_score: 86, trend: 6 },
 ]
 
+type CoverageItem = {
+  node_id: number
+  node_key: string
+  ming_cheng: string
+  level: number
+  parent_id: number | null
+  total_questions: number
+  covered_questions: number
+  coverage_rate: number
+}
+
 const MOCK_STUDENTS = [
   { id: 's1', name: '张小明', score: 96, trend: 5, mastery: 92, complete: 100 },
   { id: 's2', name: '李小红', score: 88, trend: -2, mastery: 84, complete: 100 },
@@ -51,6 +62,8 @@ export default function AnalyticsPage() {
   const gradeName = GRADE_MAP[teaching.grade] || '四年级'
 
   const [overview, setOverview] = useState(MOCK_OVERVIEW)
+  const [coverage, setCoverage] = useState<CoverageItem[]>([])
+  const [coverageOpen, setCoverageOpen] = useState(false)
 
   useEffect(() => {
     api<{ lesson_plan_count: number; question_count: number; exam_count: number; assignment_count: number; grading_rate: number; avg_score: number }>('/analytics').then(d => {
@@ -61,6 +74,13 @@ export default function AnalyticsPage() {
         below_threshold: 8, total_students: 42,
       })
     }).catch((e) => notifyError('学情数据加载失败', e))
+
+    // 加载覆盖度
+    const subjectName = teaching.subject || '语文'
+    const gradeStr = String(teaching.grade || 4)
+    coverageAPI.get({ subject: subjectName, grade: gradeStr }).then(d => {
+      if (d?.items) setCoverage(d.items)
+    }).catch(() => {})
   }, [])
 
   return (
@@ -201,6 +221,54 @@ export default function AnalyticsPage() {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* ── 知识点覆盖度（有据引擎 Phase 0）── */}
+        <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
+          <div className="px-5 py-3 bg-[#F6F7F8] border-b border-[#E7E7EB] flex items-center justify-between cursor-pointer"
+            onClick={() => setCoverageOpen(!coverageOpen)}>
+            <div className="flex items-center gap-2">
+              <h3 className="text-[13px] font-semibold text-[#353535]">知识点覆盖度</h3>
+              <span className="text-[10px] text-[#9A9A9A]">题库·试卷覆盖知识点占比</span>
+            </div>
+            <button className="flex items-center gap-1 text-[11px] text-[#02A7F0]">
+              {coverageOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {coverageOpen ? '收起' : '展开'}
+            </button>
+          </div>
+          {coverageOpen && (
+            <div className="p-4">
+              {coverage.length === 0 ? (
+                <div className="text-center py-6">
+                  <BookOpen size={24} className="mx-auto text-[#E7E7EB] mb-2" />
+                  <p className="text-[12px] text-[#9A9A9A]">暂无覆盖度数据，请先创建题目并标记知识点</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {coverage.filter(c => c.level <= 2).map(c => {
+                    const rate = c.coverage_rate
+                    const color = rate >= 80 ? '#52C41A' : rate >= 50 ? '#FA8C16' : '#F5222D'
+                    const indent = c.level * 16
+                    return (
+                      <div key={c.node_id} className="flex items-center gap-2 py-1">
+                        <div className="flex-1 min-w-0 flex items-center gap-2" style={{ paddingLeft: indent }}>
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${rate >= 80 ? 'bg-green-400' : rate >= 50 ? 'bg-orange-400' : 'bg-red-400'}`} />
+                          <span className="text-[12px] text-[#353535] truncate">{c.ming_cheng}</span>
+                        </div>
+                        <div className="flex items-center gap-2 w-48">
+                          <div className="flex-1 h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, background: color }} />
+                          </div>
+                          <span className="text-[11px] font-medium shrink-0" style={{ color }}>{rate}%</span>
+                        </div>
+                        <span className="text-[10px] text-[#9A9A9A] w-16 text-right shrink-0">{c.covered_questions}/{c.total_questions}题</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>

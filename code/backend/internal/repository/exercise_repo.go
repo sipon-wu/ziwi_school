@@ -28,6 +28,14 @@ type Question struct {
 	AvgRating    float64   `gorm:"column:avg_rating;default:0" json:"avg_rating"`
 	CorrectRate  float64   `gorm:"column:correct_rate" json:"correct_rate"`
 	AutoTags     datatypes.JSON `gorm:"column:auto_tags;type:jsonb" json:"auto_tags"`
+	// ── 有据引擎训练坐标扩展（Phase 0）──
+	ScenarioVariant string         `gorm:"column:scenario_variant;type:varchar(20);default:''" json:"scenario_variant"`
+	TrainingRole    string         `gorm:"column:training_role;type:varchar(20);default:''" json:"training_role"`
+	// ── 查重能力扩展（Phase 0）──
+	StemHash        string         `gorm:"column:stem_hash;type:varchar(64);default:'';index" json:"stem_hash"`
+	StemEmbedding   datatypes.JSON `gorm:"column:stem_embedding;type:jsonb" json:"stem_embedding,omitempty"`
+	DupClusterID    string         `gorm:"column:dup_cluster_id;type:varchar(50);default:'';index" json:"dup_cluster_id"`
+	DupStatus       string         `gorm:"column:dup_status;type:varchar(20);default:'unknown'" json:"dup_status"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	// 兼容旧字段（写入时使用）

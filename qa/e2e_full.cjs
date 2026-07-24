@@ -121,48 +121,66 @@ async function run() {
         `visible=${h.visible} appErr=${h.appError} redirect=${h.redirected} len=${h.len}`)
     }
 
-    // —— 出题 AI 生成链路（核心回归点：真实点击生成 + 等待题目渲染）——
+    // —— 出题 AI 生成链路（新流程：展开小微面板→对话一轮→应用到当前内容→等待题目渲染）——
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await sleep(8000)
-    const genBtn = page.locator('button', { hasText: 'AI 生成' })
-    let genDisabled = true
-    try { genDisabled = await genBtn.first().isDisabled() } catch {}
-    let exStatus = 'FAIL', exDetail = `按钮disabled=${genDisabled}`
-    if (!genDisabled) {
-      await genBtn.scrollIntoViewIfNeeded().catch(() => {})
-      await genBtn.click({ force: true })
-      await page.waitForFunction(() => /学生卷 Word|重新生成|出题失败|小微正在生成/.test(document.body.innerText), { timeout: 35000 }).catch(() => {})
-      const hasQ = await page.evaluate(() => /学生卷 Word|重新生成/.test(document.body.innerText))
-      const aiErr = await page.evaluate(() => /出题失败/.test(document.body.innerText))
-      if (hasQ) { exStatus = 'PASS'; exDetail = '已生成题目并渲染(命中 /api/ai/exam/generate)' }
-      else if (aiErr) { exStatus = 'WARN'; exDetail = '按钮可用、请求路径正确，但 AI 返回错误(外部服务可用性，非代码缺陷)' }
-      else { exStatus = 'WARN'; exDetail = '按钮可用、请求已发，35s 内未渲染题目(外部AI可能慢/限流)' }
+    const exEntry = page.locator('button', { hasText: '小微对话' })
+    let exDisabled = true
+    try { exDisabled = await exEntry.first().isDisabled() } catch {}
+    let exStatus = 'FAIL', exDetail = `入口disabled=${exDisabled}`
+    if (!exDisabled) {
+      await exEntry.first().click()
+      await sleep(1500)
+      const exInput = page.locator('input[placeholder="输入补充需求..."]')
+      await exInput.fill('请出几道基础选择题').catch(() => {})
+      await exInput.press('Enter').catch(() => {})
+      await sleep(13000)
+      const exApply = page.locator('button', { hasText: '应用到当前内容' })
+      if (await exApply.count() > 0) {
+        await exApply.first().click()
+        // 渲染成功判据：题目卡片(.bg-[#F6F7F8])出现；或命中重新生成/出题失败文案
+        await page.waitForFunction(() => /重新生成|出题失败/.test(document.body.innerText) || document.querySelectorAll('.bg-\\[#F6F7F8\\]').length > 0, { timeout: 40000 }).catch(() => {})
+        const hasQ = await page.evaluate(() => document.querySelectorAll('.bg-\\[#F6F7F8\\]').length > 0)
+        const aiErr = await page.evaluate(() => /出题失败/.test(document.body.innerText))
+        if (hasQ) { exStatus = 'PASS'; exDetail = '新流程：展开面板→对话→应用→题目已渲染(' + (await page.evaluate(() => document.querySelectorAll('.bg-\\[#F6F7F8\\]').length)) + '题, 命中 /api/ai/exam/generate)' }
+        else if (aiErr) { exStatus = 'WARN'; exDetail = '入口可用、路径正确，但 AI 返回错误(外部服务可用性，非代码缺陷)' }
+        else { exStatus = 'WARN'; exDetail = '入口可用、请求已发，40s 内未渲染题目(外部AI可能慢/限流)' }
+      } else { exStatus = 'WARN'; exDetail = '面板已展开但"应用到当前内容"未出现(对话未完成/AI回复慢)' }
     } else {
-      exDetail += '（autoSelect 兜底未生效→按钮仍灰，出题仍被阻断）'
+      exDetail += '（autoSelect 未生效→入口灰，出题被阻断）'
     }
     await page.screenshot({ path: path.join(SHOTS, 'teacher_exgen.png') }).catch(() => {})
     record('教师(语文)', '出题·AI生成端到端', exStatus, exDetail)
 
-    // —— 教案 AI 生成链路（真实点击 AI 生成教案）——
+    // —— 教案 AI 生成链路（新流程：展开小微面板→对话一轮→应用到当前内容→等待生成）——
     await page.goto(BASE + '/lesson-plans/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await sleep(6000)
     await page.fill('input[placeholder="请在这里输入标题"]', '单元测试示例教案').catch(() => {})
     await sleep(500)
-    const lpGen = page.locator('button', { hasText: 'AI 生成教案' })
+    const lpEntry = page.locator('button', { hasText: '小微对话' })
     let lpDisabled = true
-    try { lpDisabled = await lpGen.isDisabled() } catch {}
-    let lpStatus = 'FAIL', lpDetail = `按钮disabled=${lpDisabled}`
+    try { lpDisabled = await lpEntry.first().isDisabled() } catch {}
+    let lpStatus = 'FAIL', lpDetail = `入口disabled=${lpDisabled}`
     if (!lpDisabled) {
-      await lpGen.click()
-      // 等待生成中状态出现
-      await page.waitForFunction(() => /正在生成教案|AI 生成失败/.test(document.body.innerText), { timeout: 15000 }).catch(() => {})
-      // 等待生成完成（loading消失 或 错误出现；EditorLayout无内嵌预览区，content存入状态供导出/保存）
-      await page.waitForFunction(() => !/正在生成教案/.test(document.body.innerText) || /AI 生成失败/.test(document.body.innerText), { timeout: 35000 }).catch(() => {})
-      const lpErr = await page.evaluate(() => /AI 生成失败/.test(document.body.innerText))
-      if (!lpErr) { lpStatus = 'PASS'; lpDetail = '教案已生成并存入状态(命中 /api/ai/lesson-plan/generate; EditorLayout无内嵌预览,content供导出/保存)' }
-      else { lpStatus = 'WARN'; lpDetail = '按钮可用、路径正确，但 AI 返回错误(外部服务可用性)' }
+      await lpEntry.first().click()
+      await sleep(1500)
+      const lpInput = page.locator('input[placeholder="输入补充需求..."]')
+      await lpInput.fill('请生成一份含导入和课堂练习的教案').catch(() => {})
+      await lpInput.press('Enter').catch(() => {})
+      await sleep(13000)
+      const lpApply = page.locator('button', { hasText: '应用到当前内容' })
+      if (await lpApply.count() > 0) {
+        await lpApply.first().click()
+        // 等待生成中状态出现
+        await page.waitForFunction(() => /正在生成教案|AI 生成失败/.test(document.body.innerText), { timeout: 15000 }).catch(() => {})
+        // 等待生成完成（loading消失 或 错误出现；EditorLayout无内嵌预览区，content存入状态供导出/保存）
+        await page.waitForFunction(() => !/正在生成教案/.test(document.body.innerText) || /AI 生成失败/.test(document.body.innerText), { timeout: 35000 }).catch(() => {})
+        const lpErr = await page.evaluate(() => /AI 生成失败/.test(document.body.innerText))
+        if (!lpErr) { lpStatus = 'PASS'; lpDetail = '新流程：展开面板→对话→应用→教案已生成并存入状态(命中 /api/ai/lesson-plan/generate)' }
+        else { lpStatus = 'WARN'; lpDetail = '入口可用、路径正确，但 AI 返回错误(外部服务可用性)' }
+      } else { lpStatus = 'WARN'; lpDetail = '面板已展开但"应用到当前内容"未出现(对话未完成/AI回复慢)' }
     } else {
-      lpDetail += '（知识点未预选或按钮未接线）'
+      lpDetail += '（知识点未预选或入口未接线）'
     }
     await page.screenshot({ path: path.join(SHOTS, 'teacher_lpgen.png') }).catch(() => {})
     record('教师(语文)', '教案·AI生成端到端', lpStatus, lpDetail)
@@ -327,12 +345,12 @@ async function run() {
     record('教师(数学·多班)', '一课多班·头部切换', switched ? 'PASS' : 'WARN',
       `下拉项数≈${items} 成功切换=${switched}`)
 
-    // 出题新建（数学，验证 autoSelect 是否因学科不同而异）
+    // 出题新建（数学，验证 autoSelect 是否因学科不同而异 → 新流程入口"小微对话"按钮态）
     await page.goto(BASE + '/exercises/new', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await sleep(10000)
-    const genBtn = page.locator('button', { hasText: 'AI 生成' })
+    const genBtn = page.locator('button', { hasText: '小微对话' })
     let d = true; try { d = await genBtn.first().isDisabled() } catch {}
-    record('教师(数学·多班)', '出题·生成按钮态', d ? 'FAIL' : 'PASS', `disabled=${d}（autoSelect兜底应对各学科）`)
+    record('教师(数学·多班)', '出题·生成入口态', d ? 'FAIL' : 'PASS', `disabled=${d}（autoSelect兜底应对各学科，新流程入口）`)
     record('教师(数学·多班)', '运行期pageerror', pe.length === 0 ? 'PASS' : 'WARN', 'count=' + pe.length)
     await ctx.close()
     }

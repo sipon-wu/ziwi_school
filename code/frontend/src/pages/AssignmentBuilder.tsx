@@ -25,7 +25,7 @@ export default function AssignmentBuilder() {
 
   const picker = useKnowledgePicker({ autoSelect: true })
   const { setPicker: setKGPicker } = useKGContext()
-  useState(() => { setKGPicker(picker as any); return () => setKGPicker(null) })
+  useEffect(() => { setKGPicker(picker as any); return () => setKGPicker(null) }, [picker, setKGPicker])
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学' } } })()
 
@@ -316,7 +316,7 @@ export default function AssignmentBuilder() {
 
   return (
     <>
-      <EditorLayout left={leftPanel} right={rightPanel} subtitle="定向布置作业，支持定时发布与批阅反馈" />
+      <EditorLayout mode="primary" primaryLeft={leftPanel} primaryRight={rightPanel} subtitle="定向布置作业，支持定时发布与批阅反馈" />
       <ResourcePicker
         open={pickerOpen}
         mode="questions"

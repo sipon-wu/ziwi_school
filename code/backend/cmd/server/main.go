@@ -51,6 +51,7 @@ func main() {
 		&model.TextbookConfig{},
 		&model.TeacherTextbookPref{},
 		&model.UserSubmittedTextbookVersion{},
+		&model.Sheet{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
@@ -76,32 +77,18 @@ func main() {
 	materialRepo := repository.NewMaterialRepository(db)
 	examRepo := repository.NewExamRepository(db)
 	exerciseSheetRepo := repository.NewExerciseSheetRepository(db)
+	sheetRepo := repository.NewSheetRepo(db)
+	careRepo := repository.NewCareRepository(db)
+	attemptRepo := repository.NewAttemptEventRepository(db)
 
 	// 其余 GORM 托管的业务表随 model 演进自动同步（发布管线的一部分，幂等）
-	for _, m := range []func() error{researchRepo.AutoMigrate, deanRepo.AutoMigrate, opsRepo.AutoMigrate} {
+	for _, m := range []func() error{researchRepo.AutoMigrate, deanRepo.AutoMigrate, opsRepo.AutoMigrate, careRepo.AutoMigrate, attemptRepo.AutoMigrate} {
 		if err := m(); err != nil {
 			log.Printf("Warning: AutoMigrate failed: %v", err)
 		}
 	}
-	// 无 GORM model 但运行必需的表（幂等建表，对齐 seed/full）
-	db.Exec(`CREATE TABLE IF NOT EXISTS growth_care_records (
-		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-		student_id VARCHAR(30) REFERENCES users(id),
-		teacher_id VARCHAR(30) REFERENCES users(id),
-		school_id VARCHAR(30) REFERENCES schools(id),
-		current_status TEXT,
-		data_basis JSONB,
-		ai_assessment TEXT,
-		teacher_observation TEXT,
-		weekly_plan JSONB,
-		plan_status VARCHAR(20) DEFAULT 'draft',
-		kindness_reviewed BOOLEAN DEFAULT FALSE,
-		parent_notified BOOLEAN DEFAULT FALSE,
-		parent_confirmed BOOLEAN DEFAULT FALSE,
-		teacher_group VARCHAR(50),
-		created_at TIMESTAMPTZ DEFAULT NOW(),
-		updated_at TIMESTAMPTZ DEFAULT NOW()
-	)`)
+	// growth_care_records 现已由 CareRepository.AutoMigrate() 管理（GORM 幂等迁移），
+	// 原有裸 CREATE TABLE 已移除。若升级前表不存在，迁移会自动建表。
 	db.Exec(`CREATE TABLE IF NOT EXISTS parent_signatures (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		parent_id VARCHAR(30) REFERENCES users(id),
@@ -144,6 +131,7 @@ func main() {
 	materialHandler := handler.NewMaterialHandler(materialRepo)
 	examHandler := handler.NewExamHandler(examRepo)
 	exerciseSheetHandler := handler.NewExerciseSheetHandler(exerciseSheetRepo)
+	sheetHandler := handler.NewSheetHandler(sheetRepo)
 	deanHandler := handler.NewDeanHandler(deanRepo)
 	itHandler := handler.NewITHandler(itRepo, deanRepo)
 	importHandler := handler.NewImportHandler(importRepo)
@@ -153,6 +141,8 @@ func main() {
 	studentHandler := handler.NewStudentHandler()
 	principalHandler := handler.NewPrincipalHandler(db)
 	scHandler := handler.NewSchoolClassHandler(db)
+	careHandler := handler.NewCareHandler(careRepo)
+	gradingHandler := handler.NewGradingHandler(attemptRepo)
 
 	// 创建路由
 	r := gin.Default()
@@ -225,12 +215,18 @@ func main() {
 		teacher.GET("/exercises/:id", exerciseHandler.GetQuestion)
 		teacher.POST("/exercises", exerciseHandler.CreateQuestion)
 		teacher.PUT("/exercises/:id", exerciseHandler.UpdateQuestion)
+		teacher.POST("/exercises/infer-coordinate", exerciseHandler.InferTrainingCoordinate)
 		// 组卷
 		teacher.GET("/exams", examHandler.ListExams)
 		teacher.POST("/exams", examHandler.CreateExam)
 		teacher.GET("/exams/:id", examHandler.GetExam)
 		teacher.PUT("/exams/:id", examHandler.UpdateExam)
 		teacher.DELETE("/exams/:id", examHandler.DeleteExam)
+		// 题单（练习题集，紧凑 A4 排版，不留答题区）
+		teacher.GET("/sheets", sheetHandler.List)
+		teacher.POST("/sheets", sheetHandler.Create)
+		teacher.GET("/sheets/:id", sheetHandler.Get)
+		teacher.PUT("/sheets/:id", sheetHandler.Update)
 		// 习题库（工作单 / 简单卷面）：与试卷库同构，单题用快照
 		teacher.GET("/worksheets", exerciseSheetHandler.ListSheets)
 		teacher.POST("/worksheets", exerciseSheetHandler.CreateSheet)
@@ -242,14 +238,22 @@ func main() {
 		teacher.POST("/assignments", assignmentHandler.CreateAssignment)
 		teacher.PUT("/assignments/:id", assignmentHandler.UpdateAssignment)
 		teacher.DELETE("/assignments/:id", assignmentHandler.DeleteAssignment)
-		// 批阅
+		// 批阅 & 答题事件（Phase 0）
+		teacher.POST("/grading/batch", gradingHandler.SubmitGrade)
 		teacher.GET("/grading", placeholder("list grading"))
-		teacher.POST("/grading/:id", placeholder("submit grade"))
 		// 学情
 		teacher.GET("/analytics/teacher-dashboard", analyticsHandler.GetTeacherDashboard)
 		teacher.GET("/analytics", analyticsHandler.GetAnalytics)
+		teacher.GET("/analytics/coverage", analyticsHandler.GetCoverage)
 		// 家校
 		teacher.GET("/parent/signatures", placeholder("list signatures"))
+		// V2.6 成长关爱（有据引擎承载）
+		teacher.GET("/care/students", careHandler.ListCareStudents)
+		teacher.POST("/care/students", careHandler.AddCareStudent)
+		teacher.GET("/care/students/:id", careHandler.GetCareStudent)
+		teacher.PUT("/care/students/:id", careHandler.UpdateCareStudent)
+		teacher.PUT("/care/students/:id/plan", careHandler.UpdateCarePlan)
+		teacher.DELETE("/care/students/:id", careHandler.RemoveCareStudent)
 		// 素材
 	teacher.GET("/materials", materialHandler.ListMaterials)
 	teacher.GET("/materials/:id", materialHandler.GetMaterial)

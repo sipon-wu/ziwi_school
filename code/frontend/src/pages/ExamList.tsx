@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight, Files } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -7,7 +8,6 @@ import { useTeaching } from '../lib/TeachingContext'
 import { api, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
-import CreateNewModal from '../components/CreateNewModal'
 
 interface ExamItem {
   id: string
@@ -32,6 +32,7 @@ const MOCK_EXAMS: ExamItem[] = [
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
 
 export default function ExamList() {
+  const navigate = useNavigate()
   const teaching = useTeaching()
   const [exams, setExams] = useState<ExamItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -39,7 +40,6 @@ export default function ExamList() {
   const [filterType, setFilterType] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<{ questions: ExamQuestion[]; meta: ExamMeta } | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
     api<{ items: any[] }>('/exams').then(res => {
@@ -94,11 +94,7 @@ export default function ExamList() {
   }
 
   const handleRowClick = (e: ExamItem) => {
-    if (e.status === 'draft') {
-      window.open(`/exams/${e.id}`, '_blank')
-    } else {
-      handlePreview(e)
-    }
+    window.open(`/exams/${e.id}/edit`, '_blank')
   }
 
   return (
@@ -110,7 +106,7 @@ export default function ExamList() {
             <p className="text-[11px] text-[#9A9A9A] mt-0.5">从个人和校本题库中选题组卷，支持 AI 智能配题</p>
           </div>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => window.open('/exams/new', '_blank')}
             className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
           >
             <Plus size={16} /> 新建试卷
@@ -148,7 +144,7 @@ export default function ExamList() {
         </div>
 
         {filtered.length === 0 ? (
-          <EmptyState title="暂无匹配的试卷" description="尝试调整搜索条件或新建一份试卷" action={{ label: '新建试卷', onClick: () => setShowCreate(true) }} />
+          <EmptyState title="暂无匹配的试卷" description="尝试调整搜索条件或新建一份试卷" action={{ label: '新建试卷', onClick: () => window.open('/exams/new', '_blank') }} />
         ) : (
           <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
             <div className="overflow-x-auto">
@@ -190,7 +186,7 @@ export default function ExamList() {
                       <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{e.updated_at}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/exams/${e.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
+                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/exams/${e.id}/edit`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
                             <Edit size={14} />
                           </button>
                           <button onClick={(ev) => { ev.stopPropagation(); handlePreview(e) }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
@@ -228,8 +224,6 @@ export default function ExamList() {
           <ExamPreview questions={previewData.questions} meta={previewData.meta} onClose={() => setPreviewData(null)} />
         )}
       </div>
-
-      <CreateNewModal open={showCreate} onClose={() => setShowCreate(false)} />
     </AppLayout>
   )
 }

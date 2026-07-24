@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出题·文档模式 — 设计稿 V2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+body{background:#f0f0f0;display:flex;justify-content:center;padding:24px}
+.page{width:1280px;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.1);overflow:hidden}
+.header{height:48px;background:#212529;display:flex;align-items:center;padding:0 20px}
+.header .logo{color:#fff;font-size:14px;font-weight:700}
+.header .logo span{font-weight:400;margin-left:4px}
+.header-center{flex:1;display:flex;justify-content:center}
+.mode-toggle{display:inline-flex;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.2)}
+.mode-toggle button{padding:4px 16px;font-size:12px;color:rgba(255,255,255,.7);background:transparent;border:none;cursor:default}
+.mode-toggle button.active{background:#fff;color:#1a3a6b;font-weight:500}
+.main{display:flex;height:calc(100vh - 48px - 40px);min-height:500px}
+/* === 左面板 (466px) === 与教案一致：元数据+知识点+小微+保存发布 */
+.left-panel{width:466px;border-right:1px solid #e7e7eb;display:flex;flex-direction:column;flex-shrink:0;position:relative}
+.left-panel .close-bar{position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:20px;height:56px;background:rgba(255,255,255,.6);backdrop-filter:blur(4px);border:1px solid #e7e7eb;border-radius:0 4px 4px 0;display:flex;align-items:center;justify-content:center;color:#9a9a9a;font-size:12px;cursor:default;z-index:10}
+.scroll-area{flex:1;overflow-y:auto;padding:16px 20px}
+.title-input{width:100%;padding:8px 12px;font-size:13px;border:1px solid #e7e7eb;border-radius:4px;margin-bottom:10px;outline:0}
+.title-input:focus{border-color:#02a7f0}
+.meta-row{font-size:11px;color:#9a9a9a;background:#f6f7f8;border-radius:4px;padding:8px 12px;margin-bottom:10px}
+.section-label{font-size:11px;font-weight:600;color:#595959;margin-bottom:6px;margin-top:12px}
+.kp-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.kp-tag{font-size:10px;padding:3px 8px;background:#edf4ff;color:#02a7f0;border-radius:10px}
+.chat-btn{width:100%;padding:10px 16px;background:#eaf0e8;border:none;border-radius:4px;color:#1a3a6b;font-size:12px;display:flex;align-items:center;gap:8px;cursor:default;margin-top:8px}
+.action-bar{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0}
+.action-bar button{padding:6px 14px;border-radius:4px;font-size:12px;border:1px solid #e7e7eb;background:#fff;color:#595959;cursor:default}
+.action-bar button.primary{background:#02a7f0;color:#fff;border-color:#02a7f0}
+/* 文档精简元数据 */
+.doc-meta{font-size:11px;color:#9a9a9a;padding:8px 0}
+.doc-meta span{background:#f6f7f8;padding:4px 8px;border-radius:4px;margin-right:6px}
+
+/* === 右面板 === 编辑区 */
+.right-panel{flex:1;background:#f3f4f6;display:flex;overflow:hidden}
+/* 题目导航 (180px) — 与教案章节导航同位置、同行为 */
+.nav-panel{width:180px;border-right:1px solid #e7e7eb;background:#fafbfc;display:flex;flex-direction:column;flex-shrink:0;position:relative}
+.nav-panel .nav-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:11px;font-weight:600;color:#9a9a9a;flex-shrink:0}
+.nav-panel .nav-header button{border:none;background:none;color:#c0c0c0;cursor:default;font-size:12px}
+.nav-list{flex:1;overflow-y:auto;padding:4px 0}
+.nav-item{display:flex;align-items:center;gap:6px;padding:6px 12px;cursor:pointer;font-size:11px;color:#595959}
+.nav-item:hover{background:#f0f2f5}
+.nav-item.active{background:#e3ecfa;color:#1a3a6b}
+.nav-item .num{font-weight:600;min-width:18px;font-size:10px;color:#1a3a6b}
+.nav-item .type{font-size:9px;padding:1px 4px;background:#f6f7f8;color:#9a9a9a;border-radius:2px}
+.nav-item .text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#9a9a9a;font-size:10px}
+/* 折叠后的恢复按钮（与教案一致：深灰chip，left-3） */
+.restore-btn{position:absolute;left:3px;top:50%;transform:translateY(-50%);width:28px;height:48px;background:rgba(55,65,81,.7);border:none;border-radius:0 6px 6px 0;color:#fff;font-size:14px;cursor:default;z-index:20;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
+.nav-hidden .nav-panel{width:0;overflow:hidden;border-right:none}
+.nav-hidden .restore-btn{opacity:1;pointer-events:auto}
+/* 试卷预览区 */
+.preview-area{flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;padding:24px 0}
+.a4-paper{width:794px;min-height:1122px;background:#fff;border:1px solid #e7e7eb;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:96px 120px;position:relative}
+.a4-paper .page-num{position:absolute;bottom:40px;left:0;right:0;text-align:center;font-size:11px;color:#9a9a9a}
+.corner{position:absolute;width:12px;height:12px;border-color:#bfbfbf;border-style:solid}
+.corner.tl{left:120px;top:96px;border-width:0 2px 2px 0}
+.corner.tr{right:120px;top:96px;border-width:0 0 2px 2px}
+.corner.bl{left:120px;bottom:96px;border-width:2px 2px 0 0}
+.corner.br{right:120px;bottom:96px;border-width:2px 0 0 2px}
+.qlabel{font-size:12px;color:#353535;margin-bottom:12px;font-weight:600;text-align:center}
+.qblock{margin-bottom:14px}
+.qheader{font-size:13px;font-weight:700;color:#1a3a6b;margin-bottom:4px}
+.qheader .tag{font-size:10px;color:#9a9a9a;background:#f6f7f8;padding:1px 6px;border-radius:3px;margin-left:6px;font-weight:400}
+.qtext{font-size:13px;color:#353535;margin-bottom:4px}
+.qopts{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:12px;color:#353535}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="logo">知微<span> - 工作台</span></div>
+    <div class="header-center"><div class="mode-toggle"><button>AI 模式</button><button class="active">文档模式</button></div></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:rgba(255,255,255,.7);font-size:11px">Token 5%</span>
+      <span style="color:#fff;font-size:12px">李老师</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- 左面板 (466px)：元数据 + 小微 + 保存发布（与教案完全一致） -->
+    <div class="left-panel">
+      <div class="close-bar">‹</div>
+      <div class="scroll-area">
+        <div style="font-size:12px;font-weight:600;color:#353535;margin-bottom:4px">汉语拼音认读 · 课堂练习 <span style="font-size:10px;color:#9a9a9a;font-weight:400">| L2</span></div>
+        <div class="meta-row">学科 语文 ｜ 班级 四年级(1)班 ｜ 校区 树人实验小学</div>
+
+        <div class="section-label">每题分值</div>
+        <div class="meta-row" style="display:flex;gap:12px">
+          <span>基础题 <strong>3分</strong></span>
+          <span>中等题 <strong>5分</strong></span>
+          <span>难题 <strong>8分</strong></span>
+        </div>
+
+        <div class="section-label">题型配比</div>
+        <div class="meta-row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <span>✅ 选择 <strong>3</strong></span>
+          <span>✅ 填空 <strong>2</strong></span>
+          <span>✅ 简答 <strong>2</strong></span>
+        </div>
+
+        <div class="section-label">知识点</div>
+        <div class="kp-tags">
+          <span class="kp-tag">汉语拼音认读</span>
+          <span class="kp-tag">声母韵母拼读</span>
+          <span class="kp-tag">常用汉字认读</span>
+          <span class="kp-tag">汉字基本笔画</span>
+          <span class="kp-tag">课文朗读与背诵</span>
+          <span class="kp-tag">简单课文理解</span>
+          <span class="kp-tag" style="background:#f0f0f0;color:#353535">+6</span>
+        </div>
+
+        <button class="chat-btn">💬 和小微对话，补充出题需求（自动纳入生成）</button>
+
+        <div class="action-bar">
+          <button>保存为草稿</button>
+          <button>预览</button>
+          <button class="primary" style="margin-left:auto">发布</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右面板：编辑区 -->
+    <div class="right-panel">
+      <!-- ★ 题目导航 (180px) — 与教案章节导航同一位置、同一交互 -->
+      <div class="nav-panel">
+        <div class="nav-header">
+          <span>📋 题目导航 <span style="font-weight:400;color:#c0c0c0">7题</span></span>
+          <button>‹</button>
+        </div>
+        <div class="nav-list">
+          <div class="nav-item active"><span class="num">1</span><span class="type">选择</span><span class="text">下列词语中，哪一个是表示‘高兴’的近义词？</span></div>
+          <div class="nav-item"><span class="num">2</span><span class="type">选择</span><span class="text">下面哪个句子是比喻句？</span></div>
+          <div class="nav-item"><span class="num">3</span><span class="type">选择</span><span class="text">‘春江潮水连海平’出自哪位诗人？</span></div>
+          <div class="nav-item"><span class="num">4</span><span class="type">选择</span><span class="text">请选出下面词语中书写正确的一项</span></div>
+          <div class="nav-item"><span class="num">5</span><span class="type">填空</span><span class="text">请在下面句子中选择合适的词语填空</span></div>
+          <div class="nav-item"><span class="num">6</span><span class="type">填空</span><span class="text">根据课文内容，在横线上填写合适的词语</span></div>
+          <div class="nav-item"><span class="num">7</span><span class="type">选择</span><span class="text">下列句子中，标点符号使用正确的一项是</span></div>
+        </div>
+        <!-- 折叠恢复芯片（同教案样式，目前为可见状态） -->
+        <div class="restore-btn">›</div>
+      </div>
+
+      <!-- A4 纸面预览 -->
+      <div class="preview-area">
+        <div class="a4-paper">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="qlabel">语文 · 四年级 · 课堂练习</div>
+          <div class="qblock"><div class="qheader">1.<span class="tag">选择</span></div><div class="qtext">下列词语中，哪一个是表示"高兴"的近义词？</div><div class="qopts"><span>A. 悲伤</span><span>B. 快乐</span><span>C. 难过</span><span>D. 生气</span></div></div>
+          <div class="qblock"><div class="qheader">2.<span class="tag">选择</span></div><div class="qtext">下面哪个句子是比喻句？</div><div class="qopts"><span>A. 他跑得像兔子一样快。</span><span>B. 今天很早就起床了。</span><span>C. 他喜欢吃苹果。</span><span>D. 他昨天去学校了。</span></div></div>
+          <div class="qblock"><div class="qheader">3.<span class="tag">选择</span></div><div class="qtext">"春江潮水连海平"这句诗出自哪位诗人？</div><div class="qopts"><span>A. 李白</span><span>B. 杜甫</span><span>C. 白居易</span><span>D. 张若虚</span></div></div>
+          <div class="qblock"><div class="qheader">4.<span class="tag">选择</span></div><div class="qtext">请选出下面词语中书写正确的一项</div><div class="qopts"><span>A. 雨伞</span><span>B. 草帽</span><span>C. 书包</span><span>D. 铅笔</span></div></div>
+          <div class="page-num">第 1 页 / 共 2 页</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

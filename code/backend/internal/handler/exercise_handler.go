@@ -176,7 +176,7 @@ func (h *ExerciseHandler) UpdateQuestion(c *gin.Context) {
 	if req.Difficulty != "" {
 		q.Difficulty = req.Difficulty
 	}
-	q.UpdatedAt = time.Now()
+		q.UpdatedAt = time.Now()
 
 	if err := h.repo.Update(q); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPDATE_FAILED", "message": "更新题目失败"})
@@ -184,4 +184,72 @@ func (h *ExerciseHandler) UpdateQuestion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, q)
+}
+
+// ── 训练坐标推断 ──
+
+// InferTrainingCoordinateRequest 训练坐标推断请求
+type InferTrainingCoordinateRequest struct {
+	Type            string   `json:"type" binding:"required"`       // T: 题型
+	Difficulty      string   `json:"difficulty"`                    // D: 难度
+	Subject         string   `json:"subject" binding:"required"`
+	Content         string   `json:"content"`
+	KnowledgePoints []string `json:"knowledge_points"`
+}
+
+// InferTrainingCoordinate 训练坐标推断（Phase 0 启发式，后续移至 AI Service 做精确推断）
+// POST /api/exercises/infer-coordinate
+func (h *ExerciseHandler) InferTrainingCoordinate(c *gin.Context) {
+	var req InferTrainingCoordinateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "请提供题目信息"})
+		return
+	}
+
+	// ── V (scenario_variant) 按题型启发式推断 ──
+	vMap := map[string]string{
+		"single_choice":   "recognition",
+		"multiple_choice": "discrimination",
+		"fill_blank":      "recall",
+		"completion":      "recall",
+		"short_answer":    "application",
+		"essay":           "application",
+		"calculation":     "calculation",
+		"true_false":      "judgment",
+		"matching":        "matching",
+		"oral":            "production",
+	}
+	v := vMap[req.Type]
+	if v == "" {
+		v = "comprehension" // 兜底
+	}
+
+	// ── R (training_role) 按学科+题型+难度组合推断 ──
+	r := "practice"
+	difficulty := req.Difficulty
+	if difficulty == "" {
+		difficulty = "L2"
+	}
+	if len(difficulty) > 1 {
+		switch difficulty[1:] {
+		case "3", "4":
+			r = "challenge"
+		}
+	}
+	switch {
+	case req.Type == "calculation" && (req.Subject == "数学" || req.Subject == "math"):
+		r = "automation"
+	case (req.Type == "single_choice" || req.Type == "true_false") && (difficulty == "L1" || difficulty == "L2"):
+		r = "warmup"
+	case req.Type == "essay" || req.Type == "short_answer":
+		r = "expression"
+	case req.Type == "fill_blank" || req.Type == "completion":
+		r = "recall"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"scenario_variant": v,
+		"training_role":    r,
+		"inference_mode":   "heuristic", // Phase 0 启发式，后续由 AI Service 精确推断
+	})
 }

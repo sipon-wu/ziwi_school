@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowUp, ArrowDown, Clock, CheckCircle2, BookOpen, AlertCircle, ChevronDown, ChevronUp, Users, TrendingUp, Star, Target } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
+import { careAPI } from '../lib/api'
+import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
@@ -67,6 +69,7 @@ function ageFromBirthMonth(bm: string) { const [y, m] = bm.split('-').map(Number
 
 export default function GrowthPage() {
   const teaching = useTeaching()
+  const toast = useToast()
   const gradeName = GRADE_MAP[teaching.grade] || '四年级'
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAllStudents, setShowAllStudents] = useState(false)
@@ -84,7 +87,45 @@ export default function GrowthPage() {
   const compareNode = TIMELINE[compareIdx]
   const classSlice = CLASS_SLICES[classPeriodIdx]
 
-  const toggleWatch = (id: string) => setWatchlist(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  // ── 从后端加载成长关爱学生列表 ──
+  useEffect(() => {
+    careAPI.list().then(data => {
+      if (data?.items?.length > 0) {
+        setWatchlist(new Set(data.items.map((item: any) => item.student_id || item.id)))
+      }
+    }).catch(() => {
+      // 后端不可用时，watchlist 保持本地空状态
+    })
+  }, [])
+
+  const toggleWatch = async (id: string) => {
+    const inWatch = watchlist.has(id)
+    // 乐观更新
+    setWatchlist(prev => {
+      const next = new Set(prev)
+      if (inWatch) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+    // 异步同步后端
+    try {
+      if (inWatch) {
+        // 移除关怀——需要先查 student_id 对应的 care record id
+        const data = await careAPI.list()
+        const match = data?.items?.find((i: any) => i.student_id === id || i.id === id)
+        if (match) await careAPI.remove(match.id)
+      } else {
+        await careAPI.add({ student_id: id, focus_area: '待评估' })
+      }
+    } catch {
+      toast?.show?.('同步失败，请重试', 'warning')
+      // 回滚：恢复原状态
+      setWatchlist(prev => {
+        const next = new Set(prev)
+        if (inWatch) { next.add(id) } else { next.delete(id) }
+        return next
+      })
+    }
+  }
   const watchlistStudents = STUDENTS.filter(s => watchlist.has(s.id))
   const displayStudents = showWatchlist ? watchlistStudents : STUDENTS
 

@@ -1,13 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
-import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
+import { usePagination } from '../lib/useApi'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching, QUESTION_TYPE_LABELS } from '../lib/TeachingContext'
-import { api, notifyError } from '../lib/api'
+import { api, notifyError, openWorkspace } from '../lib/api'
 import AppLayout from '../components/AppLayout'
-import CreateNewModal from '../components/CreateNewModal'
 
 interface QuestionItem {
   id: string
@@ -60,7 +59,6 @@ const subjectColors: Record<string, string> = {
 export default function Exercises() {
   const navigate = useNavigate()
   const teaching = useTeaching()
-  const [showCreate, setShowCreate] = useState(false)
   const [questions, setQuestions] = useState<QuestionItem[]>([])
   useEffect(() => { api<{ items: any[] }>('/exercises?page_size=1000').then(res => { setQuestions(res.items || []) }).catch((e) => notifyError('习题加载失败', e)) }, [])
   const [searchTerm, setSearchTerm] = useState('')
@@ -89,9 +87,9 @@ export default function Exercises() {
 
   const handleRowClick = (q: QuestionItem) => {
     if (q.status === 'draft') {
-      navigate(`/exercises/${q.id}`)
+      window.open(`/exercises/${q.id}`, '_blank')
     } else {
-      navigate(`/exercises/${q.id}?preview=1`)
+      window.open(`/exercises/${q.id}?preview=1`, '_blank')
     }
   }
 
@@ -112,7 +110,7 @@ export default function Exercises() {
             <p className="text-[11px] text-[#9A9A9A] mt-0.5">管理个人题目，支持 AI 智能出题和手动编辑</p>
           </div>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => openWorkspace('/exercises/new')}
             className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
           >
             <Plus size={16} /> 出题
@@ -159,7 +157,7 @@ export default function Exercises() {
 
             {/* 题目表格 */}
             {filtered.length === 0 ? (
-              <EmptyState title="暂无匹配的题目" description="尝试调整搜索条件或点「出题」新建题目" action={{ label: '出题', onClick: () => setShowCreate(true) }} />
+              <EmptyState title="暂无匹配的题目" description="尝试调整搜索条件或点「出题」新建题目" action={{ label: '出题', onClick: () => window.open('/exercises/new', '_blank') }} />
             ) : (
               <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
                 <div className="overflow-x-auto">
@@ -220,10 +218,10 @@ export default function Exercises() {
                           <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{q.usage_count}</td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={(e) => { e.stopPropagation(); navigate(`/exercises/${q.id}`) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
+                              <button onClick={(e) => { e.stopPropagation(); window.open(`/exercises/${q.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑（新标签页打开）">
                                 <Edit size={14} />
                               </button>
-                              <button onClick={(e) => { e.stopPropagation(); navigate(`/exercises/${q.id}?preview=1`) }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
+                              <button onClick={(e) => { e.stopPropagation(); window.open(`/exercises/${q.id}?preview=1`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览（新标签页打开）">
                                 <Eye size={14} />
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(q.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">
@@ -270,8 +268,6 @@ export default function Exercises() {
             />
           </>
       </div>
-
-      <CreateNewModal open={showCreate} onClose={() => setShowCreate(false)} />
     </AppLayout>
   )
 }

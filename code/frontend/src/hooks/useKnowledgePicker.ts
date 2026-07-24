@@ -63,6 +63,11 @@ export interface UseKnowledgePickerReturn {
 export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): UseKnowledgePickerReturn {
   const { preSelectedNodes, autoSelect = true } = options
   const teaching = useTeaching()
+  // teaching 由 TeachingProvider 每渲染返回新对象引用，这里用 ref 持有最新值，
+  // 避免其引用不稳定污染下方 picker 对象的记忆化（否则每次渲染都返回新对象，
+  // 导致注册到 KGContext 的 useEffect([picker]) 无限重跑 = Maximum update depth）。
+  const teachingRef = useRef(teaching)
+  teachingRef.current = teaching
 
   // ── 数据加载 ──
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeNode[]>([])
@@ -158,7 +163,9 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
     [knowledgeData, selectedIds],
   )
 
-  return {
+  // 记忆化返回对象：依赖仅为本 hook 自身状态/记忆值（不含不稳定的 teaching 引用），
+  // 使 picker 引用在无关重渲染时保持稳定，根治注册到 KGContext 时的无限循环。
+  return useMemo(() => ({
     knowledgeData,
     loading,
     textbookData,
@@ -178,6 +185,11 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
     setGraphDimension,
     diffRange,
     setDiffRange,
-    teaching,
-  }
+    teaching: teachingRef.current,
+  }), [
+    knowledgeData, loading, textbookData, currentUnits, selectedUnit, handleUnitChange,
+    selectedIds, setSelectedIds, selectedNodes, showGraph, setShowGraph,
+    showGraphModal, setShowGraphModal, graphLayout, setGraphLayout,
+    graphDimension, setGraphDimension, diffRange, setDiffRange,
+  ])
 }

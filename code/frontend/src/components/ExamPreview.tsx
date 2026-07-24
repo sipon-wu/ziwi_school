@@ -54,6 +54,8 @@ interface Props {
   /** 内联模式：渲染进父容器而非全屏浮层 */
   embedded?: boolean
   onClose?: () => void
+  /** 排版用途：exam=试卷（预留答题区），practice=题单（紧凑，不留答题空白） */
+  layout?: 'exam' | 'practice'
 }
 
 /* ──────── 分栏分页算法（A3：1 张纸 = 正/背两面，每面 cols 栏）──────── */
@@ -120,16 +122,17 @@ function paginateA4(questions: ExamQuestion[]): ExamQuestion[][] {
 }
 
 /* ──────── 单栏题目渲染 ──────── */
-function QuestionItem({ q, index, showAnswer }: {
+function QuestionItem({ q, index, showAnswer, isPractice }: {
   q: ExamQuestion
   index: number
   showAnswer: boolean
+  isPractice?: boolean
 }) {
   const typeLabel = QUESTION_TYPE_LABELS[q.type] || q.type
   const options = q.options?.split('\n').filter(Boolean) || []
 
   return (
-    <div className="mb-4 break-inside-avoid">
+    <div className="mb-4 break-inside-avoid" data-qidx={index}>
       <div className="flex items-baseline gap-1.5 mb-1">
         <span className="text-sm font-bold text-[#1A3A6B]">{index}.</span>
         {typeLabel && (
@@ -152,7 +155,7 @@ function QuestionItem({ q, index, showAnswer }: {
         </div>
       )}
 
-      {['fill', 'calculation', 'short_answer'].includes(q.type) && !showAnswer && (
+      {!isPractice && ['fill', 'calculation', 'short_answer'].includes(q.type) && !showAnswer && (
         <div className="mt-2 border-b border-dotted border-[#D9D9D9] h-8" />
       )}
 
@@ -167,15 +170,16 @@ function QuestionItem({ q, index, showAnswer }: {
   )
 }
 
-function QuestionColumn({ questions, startNum, showAnswer }: {
+function QuestionColumn({ questions, startNum, showAnswer, isPractice }: {
   questions: ExamQuestion[]
   startNum: number
   showAnswer: boolean
+  isPractice?: boolean
 }) {
   return (
     <div className="flex-1 px-3">
       {questions.map((q, i) => (
-        <QuestionItem key={q.id || i} q={q} index={startNum + i} showAnswer={showAnswer} />
+        <QuestionItem key={q.id || i} q={q} index={startNum + i} showAnswer={showAnswer} isPractice={isPractice} />
       ))}
     </div>
   )
@@ -189,9 +193,11 @@ export default function ExamPreview({
   allowA3 = true,
   embedded = false,
   onClose,
+  layout = 'exam',
 }: Props) {
+  const isPractice = layout === 'practice'
   const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3_3'>(
-    !allowA3 ? 'A4' : (paperSizeProp ?? defaultPaperSizeForSubject(meta.subject))
+    isPractice ? 'A4' : (!allowA3 ? 'A4' : (paperSizeProp ?? defaultPaperSizeForSubject(meta.subject)))
   )
   const cols = paperSize === 'A4' ? 1 : paperSize === 'A3' ? 2 : 3
   const [side, setSide] = useState<'front' | 'back'>('front')
@@ -288,8 +294,8 @@ export default function ExamPreview({
         )}
       </div>
       <div className="flex items-center gap-3 text-xs">
-        {/* 纸型切换（仅组卷允许） */}
-        {allowA3 && (
+        {/* 纸型切换（仅组卷/试卷允许，题单锁定 A4） */}
+        {allowA3 && !isPractice && (
           <div className="inline-flex rounded-[4px] border border-white/20 overflow-hidden bg-white/10">
             <button onClick={() => setPaperSize('A4')}
               className={`px-2.5 py-1 ${paperSize === 'A4' ? 'bg-white text-[#1A3A6B] font-medium' : 'text-white/70 hover:text-white'}`}>A4</button>
@@ -347,7 +353,7 @@ export default function ExamPreview({
                   <Fragment key={ci}>
                     <div className="flex-1 overflow-hidden flex flex-col">
                       <div className="px-4 py-5 flex-1 overflow-hidden">
-                        <QuestionColumn questions={col} startNum={starts[ci]} showAnswer={showAnswer} />
+                        <QuestionColumn questions={col} startNum={starts[ci]} showAnswer={showAnswer} isPractice={isPractice} />
                       </div>
                     </div>
                     {ci < panels.length - 1 && (
@@ -367,12 +373,12 @@ export default function ExamPreview({
               <div key={`a4-${pi}`} className="relative">
                 <div className="absolute -top-6 left-0 text-[10px] text-gray-500">第 {pi + 1} 页 / 共 {a4Pages.length} 页</div>
                 <div
-                  className={zoom100 ? 'w-[794px]' : 'w-full max-w-[794px]'}
+                  className={zoom100 ? 'w-[794px]' : 'w-[794px]'}
                   style={{ height: 1122, background: 'white' }}
                 >
                   <div className="h-full overflow-hidden">
                     <div className="px-8 py-10">
-                      <QuestionColumn questions={page} startNum={startNum} showAnswer={showAnswer} />
+                      <QuestionColumn questions={page} startNum={startNum} showAnswer={showAnswer} isPractice={isPractice} />
                     </div>
                   </div>
                 </div>

@@ -15,7 +15,7 @@ const QUICK_CREATE = [
   { label: '教案', icon: <FileText size={24} />, to: '/lesson-plans/new', newTab: true },
   { label: '习题', icon: <PenTool size={24} />, to: '/exercises/new', newTab: true },
   { label: '试卷', icon: <Files size={24} />, to: '/exams/new', newTab: true },
-  { label: '作业', icon: <Send size={24} />, to: '/assignments/new', newTab: true },
+  { label: '题单', icon: <Send size={24} />, to: '/sheets/new', newTab: true },
   { label: '插图', icon: <ImgIcon size={24} />, to: '/materials' },
   { label: '音频', icon: <Music size={24} />, to: '/materials' },
   { label: '视频', icon: <Video size={24} />, to: '/materials' },
@@ -153,7 +153,7 @@ export default function TeacherDashboard() {
               <tr><td colSpan={5} className="py-6 text-center text-[13px] text-[#9A9A9A]">暂无草稿</td></tr>
             ) : recent.map((d) => (
               <tr key={d.id} className="border-b border-[#F0F0F0] hover:bg-[#F9FAFB]">
-                <td className="py-3 px-3"><a href={`/lesson-plans/${d.id}`} className="text-[#353535] hover:text-[#02A7F0]">{d.title}</a></td>
+                <td className="py-3 px-3"><a href={`/lesson-plans/${d.id}`} target="_blank" rel="noopener noreferrer" className="text-[#353535] hover:text-[#02A7F0]">{d.title}</a></td>
                 <td className="py-3 px-3 text-[#9A9A9A]">{d.grade}</td>
                 <td className="py-3 px-3">
                   <span className={`text-[11px] px-2 py-0.5 rounded-sm ${d.status === 'final' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>{d.status === 'final' ? '已定稿' : '草稿'}</span>

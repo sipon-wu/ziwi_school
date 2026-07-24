@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useToast } from '../components/Toast'
-import { useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Edit, Copy, Save, Eye } from 'lucide-react'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { ArrowLeft, Edit, Copy, Save, Eye, Sparkles } from 'lucide-react'
 import { api } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
@@ -102,10 +102,10 @@ export default function ExamEditor() {
           <div className="flex items-center gap-2">
             {isPreview && (
               <>
-                <button onClick={() => window.open(`/exams/${id}`, '_blank')}
+                <Link to={`/exams/${id}/edit`}
                   className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
-                  <Edit size={14} /> 编辑
-                </button>
+                  <Sparkles size={14} /> 进入编辑工作台
+                </Link>
                 <button onClick={() => setShowTemplate(true)}
                   className="flex items-center gap-1.5 px-4 py-2 text-[13px] border border-[#E7E7EB] text-[#353535] rounded-[4px] hover:bg-[#F6F7F8] transition-colors">
                   <Copy size={14} /> 存为模板
@@ -114,26 +114,14 @@ export default function ExamEditor() {
             )}
             {isEditMode && (
               <>
+                <Link to={`/exams/${id}/edit`}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
+                  <Sparkles size={14} /> 进入编辑工作台
+                </Link>
                 <button onClick={() => setPreviewOpen(true)}
                   className="flex items-center gap-1.5 px-4 py-2 text-[13px] border border-[#E7E7EB] text-[#353535] rounded-[4px] hover:bg-[#F6F7F8] transition-colors">
                   <Eye size={14} /> 预览
                 </button>
-                {/* 试卷质量评估 */}
-                <div className="mt-4 bg-[#F6FDFF] border border-[#02A7F0]/20 rounded-[4px] p-3">
-                  <div className="text-[12px] font-medium text-[#353535] mb-2">试卷质量评估</div>
-                  <div className="flex items-center gap-4 text-[11px]">
-                    <div><span className="text-[#9A9A9A]">难度分布: </span>
-                      <span className="inline-flex gap-0.5 ml-1">
-                        <span className="bg-green-200 text-green-700 px-1 rounded text-[9px]" title="L1基础">L1 30%</span>
-                        <span className="bg-blue-200 text-blue-700 px-1 rounded text-[9px]" title="L2中等">L2 40%</span>
-                        <span className="bg-orange-200 text-orange-700 px-1 rounded text-[9px]" title="L3较难">L3 20%</span>
-                        <span className="bg-red-200 text-red-700 px-1 rounded text-[9px]" title="L4困难">L4 10%</span>
-                      </span>
-                    </div>
-                    <div><span className="text-[#9A9A9A]">预估平均分: </span><span className="font-medium text-[#F6920E]">78</span></div>
-                    <div><span className="text-[#9A9A9A]">课标对齐: </span><span className="font-medium text-green-600">92%</span></div>
-                  </div>
-                </div>
                 <button onClick={handleSave} disabled={saving}
                   className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
                   {saving ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />} 保存

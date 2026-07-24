@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Heart, TrendingUp, TrendingDown, Minus, FileText, MessageCircle, AlertCircle, Clock, CheckCircle2, Brain, Eye, ChevronDown, ChevronUp, ArrowLeft, Send, Sparkles, Pencil, Check, X, Plus } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
+import { careAPI } from '../lib/api'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
+import MOCK_STUDENT_DATA from './CareDetail_mock'
 
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
 
@@ -188,7 +190,8 @@ export default function CareDetail() {
   const teaching = useTeaching()
   const gradeName = GRADE_MAP[teaching.grade] || '四年级'
 
-  const [detail, setDetail] = useState(id ? STUDENT_DATA[id] : undefined)
+  const [detail, setDetail] = useState<StudentDetail | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const [editFocus, setEditFocus] = useState(false)
   const [editNote, setEditNote] = useState(false)
@@ -197,20 +200,63 @@ export default function CareDetail() {
   const [showAddAssess, setShowAddAssess] = useState(false)
   const [newAssess, setNewAssess] = useState({ text: '', type: 'teacher' as const })
 
-  useEffect(() => { setDetail(id ? STUDENT_DATA[id] : undefined) }, [id])
+  // ── 从后端加载，失败降级 mock ──
+  useEffect(() => {
+    if (!id) { setLoading(false); return }
+    loadDetail(id)
+  }, [id])
+
+  const loadDetail = async (studentId: string) => {
+    setLoading(true)
+    try {
+      const data = await careAPI.get(studentId)
+      if (data?.id) {
+        setDetail(adaptFromBackend(data))
+        setLoading(false)
+        return
+      }
+    } catch {
+      // 降级 mock
+    }
+    const mock = (MOCK_STUDENT_DATA as any)[studentId]
+    setDetail(mock || undefined)
+    setLoading(false)
+  }
+
+  const adaptFromBackend = (data: any): StudentDetail => ({
+    id: data.id, name: data.student_name || '', studentNo: data.student_no || '',
+    gender: data.gender || '', grade: data.grade || 4,
+    enrolledDate: data.enrolled_date || data.created_at || '',
+    status: data.status === 'removed' ? 'removed' as any : data.plan_status === 'draft' ? 'pending' : 'activated',
+    accuracy: Number(data.accuracy) || 0, accuracyTrend: (data.accuracy_trend || 'flat') as any,
+    accuracyChange: Number(data.accuracy_change) || 0,
+    accuracyHistory: [],
+    assessments: [],
+    plan: data.focus_area ? {
+      focusArea: data.focus_area, generatedAt: '', nextGeneration: '',
+      status: 'executing', exercises: [], tasks: [], teacherNote: data.teacher_observation || '',
+    } : null,
+    timeline: [],
+    messages: [],
+  })
   const s = detail
   const [activeTab, setActiveTab] = useState<'overview' | 'messages'>('overview')
   const [msgText, setMsgText] = useState('')
   const [showKindnessReview, setShowKindnessReview] = useState(false)
 
   const startEditFocus = () => { if (!s) return; setEditFocusText((s as any).plan.focusArea); setEditFocus(true) }
-  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, focusArea: editFocusText } } as any); setEditFocus(false); 
+  const saveFocus = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, focusArea: editFocusText } } as any); setEditFocus(false)
     const blocked = ['最差','最笨','不行','没救','比所有人都']
     const hasBlocked = blocked.some(w => editFocusText.includes(w))
     if (hasBlocked) { toast('⚠️ 请避免绝对化或比较性表述，使用建设性建议', 'warning'); return }
-    toast('关注点已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { focusArea: editFocusText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
+    toast('关注点已更新', 'success')
+    // 异步同步后端
+    if (id) { careAPI.update(id, { focus_area: editFocusText }).catch(() => {}) }
+  }
   const startEditNote = () => { if (!s) return; setEditNoteText((s as any).plan.teacherNote || ''); setEditNote(true) }
-  const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, teacherNote: editNoteText } } as any); setEditNote(false); toast('备注已更新', 'success'); if (id) { const d = JSON.parse(localStorage.getItem('care_edits')||'{}'); d[id] = { teacherNote: editNoteText, ...d[id] }; localStorage.setItem('care_edits', JSON.stringify(d)) } }
+  const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, teacherNote: editNoteText } } as any); setEditNote(false); toast('备注已更新', 'success')
+    if (id) { careAPI.update(id, { observation: editNoteText }).catch(() => {}) }
+  }
   const addAssessment = () => {
     if (!s || !newAssess.text.trim()) return
     const today = new Date().toISOString().slice(0, 10)
@@ -219,6 +265,7 @@ export default function CareDetail() {
   }
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
 
+  if (loading) return <AppLayout><div className="p-8 text-center text-[#9A9A9A]">加载中…</div></AppLayout>
   if (!s) return <AppLayout><div className="p-8 text-center text-[#9A9A9A]">未找到该学生记录</div></AppLayout>
 
   const enrolledDays = Math.floor((Date.now() - new Date(s.enrolledDate).getTime()) / 86400000)
@@ -575,7 +622,7 @@ export default function CareDetail() {
               </div>
               <div className="px-5 py-3 border-t border-[#E7E7EB] flex items-center gap-2 justify-end">
                 <button onClick={() => setShowRemoveConfirm(false)} className="px-4 py-1.5 text-[12px] text-[#595959] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">取消</button>
-                <button onClick={() => { setShowRemoveConfirm(false); /* 实际移出操作 */ }} className="px-4 py-1.5 text-[12px] text-white bg-red-500 rounded-[4px] hover:bg-red-600">确认移出</button>
+                <button onClick={() => { setShowRemoveConfirm(false); if (id) { careAPI.remove(id).then(() => toast('已移出', 'success')).catch(() => toast('移出失败', 'error')) } }} className="px-4 py-1.5 text-[12px] text-white bg-red-500 rounded-[4px] hover:bg-red-600">确认移出</button>
               </div>
             </div>
           </div>
