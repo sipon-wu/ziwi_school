@@ -461,9 +461,11 @@ interface Props {
   readOnly?: boolean   // 只读渲染：保留完整布局（工具栏/章节导航/批注/版本），仅禁用编辑
   noPanels?: boolean    // 额外参数：readOnly 时强制隐藏工具栏与侧栏（仅用于预览弹窗）
   docTitle?: string     // 页眉展示的文档标题（不存储，仅视觉，对齐 Word/腾讯文档）
+  /** 工具栏尾部注入（如"导出教案/全屏"），与内置"导入 Word/保存版本"并列在最右 */
+  toolbarExtra?: ReactNode
 }
 
-export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, docTitle }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, docTitle, toolbarExtra }: Props) {
   const { toast } = useToast()
   const [outlineVisible, setOutlineVisible] = useState(true)
   const [historyVisible, setHistoryVisible] = useState(true)
@@ -889,6 +891,11 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           <Save size={11} /> 保存版本
         </button>
         </>)}
+        {toolbarExtra && (
+          <div className="flex items-center gap-1 ml-1 pl-2 border-l border-[#E7E7EB] mr-1">
+            {toolbarExtra}
+          </div>
+        )}
       </div>
 
       {/* ── 主编辑区（三栏) ── */}
@@ -917,9 +924,14 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           </div>
         )}
 
-        {/* 中央：编辑器（A4 固定宽 794px，不随窗口缩放；容器 overflow-auto 提供横向滚动条） */}
+        {/* 中央：编辑器（A4 比例 210/297；优先以可用宽度撑开，溢出方向走纵向滚动——
+            旧版 `height: 100%` 把高度锁死父容器，宽度被迫按比例压缩到 ~480px，
+            在 1440 视口扣掉左栏 466 + 章节导航 180 + 批注 220 后只剩 ~574，中间 203px 可写区，
+            导致逐字符断行。现改用 width: 100% 优先，A4 自然会按 (210/297) 比例变高，
+            超出父容器时 overflow-auto 出现纵向滚动条，与 Word/飞书文档一致。） */}
         <div ref={scrollRef} onScroll={handleDocScroll} className="flex-1 overflow-auto bg-[#F3F4F6] py-6">
-          <div className="relative w-[794px] mx-auto aspect-[210/297] min-h-[1122px] bg-white border border-[#E7E7EB] shadow-sm flex flex-col">
+          <div className="relative mx-auto bg-white border border-[#E7E7EB] shadow-sm flex flex-col"
+            style={{ aspectRatio: '210/297', width: '100%', maxWidth: '1122px' }}>
             {/* 版心：左右 3.18cm≈120px，上/下边距 2.54cm≈96px（严格锁版心顶/底到纸边） */}
             <div className="px-[120px] flex-1 relative pt-[96px] pb-[96px] min-h-0">
               <div className="relative h-full min-h-0">
