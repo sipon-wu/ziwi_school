@@ -165,7 +165,7 @@ export default function LessonPlanList() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F0F0]">
                   {paginated.map(plan => (
-                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}/view`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
+                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <BookOpen size={14} className="text-[#9A9A9A] shrink-0" />
@@ -198,7 +198,7 @@ export default function LessonPlanList() {
                           <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}/edit`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑（新标签页打开）">
                             <Edit size={14} />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}/view`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="查看（新标签页打开）">
+                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="查看（新标签页打开）">
                             <Eye size={14} />
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(plan.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">

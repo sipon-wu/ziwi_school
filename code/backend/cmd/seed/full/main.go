@@ -244,7 +244,33 @@ func main() {
 		{
 			TeacherID: teacherID, SchoolID: school.ID, Subject: "语文", Grade: "四年级",
 			Title: "《观潮》第一课时", Unit: "第一单元", LessonPeriod: 1, TemplateType: "core_literacy",
-			Content:     `{"objectives":{"knowledge":"理解按时间顺序的写法"},"process":[{"step":1,"phase":"导入","content":"播放钱塘江大潮视频"}]}`,
+			Content: `## 教学目标
+- **知识与技能**：理解课文按时间顺序（潮来前、潮来时、潮头过后）描写钱塘江大潮的写法
+- **过程与方法**：通过朗读与圈画，品味比喻、夸张等修辞的表达效果
+- **情感态度与价值观**：感受钱塘江大潮的壮观，激发对祖国山河的热爱
+
+## 教学重点
+理解按时间顺序描写景物的方法，积累描写潮水的词句
+
+## 教学难点
+体会"浪潮越来越近，犹如千万匹白色战马齐头并进"等句子的表达效果
+
+## 教学过程
+
+### 一、情境导入（5分钟）
+播放钱塘江大潮视频，引导学生说出观后感受，板书课题《观潮》
+
+### 二、初读感知（15分钟）
+自由朗读课文，圈画生字词，学习"盐、笼、罩、沸、震"等生字；理清"潮来前—潮来时—潮头过后"的写作顺序
+
+### 三、精读品悟（15分钟）
+重点品读第3、4自然段，抓住"白线—水墙—战马"的变化，体会作者由远及近的观察顺序与比喻的妙处
+
+### 四、总结布置（5分钟）
+总结写作顺序，布置作业：抄写生字词，背诵第3、4自然段
+
+## 作业布置
+抄写本课生字词；有感情朗读课文，背诵第3、4自然段`,
 			KnowledgeNodes: `["kn-1","kn-2"]`,
 			CurriculumAlign: `[{"code":"3.2.1","content":"联系上下文理解词句","aligned":true}]`,
 			AIGenerated: true, AIModelVersion: "qwen-plus", GenerationTimeMs: 1200, EditCount: 2,
@@ -253,7 +279,33 @@ func main() {
 		{
 			TeacherID: teacherID, SchoolID: school.ID, Subject: "语文", Grade: "四年级",
 			Title: "《桂花雨》精读", Unit: "第一单元", LessonPeriod: 1, TemplateType: "core_literacy",
-			Content:     `{"objectives":{"knowledge":"借物抒情手法"},"process":[{"step":1,"phase":"导入","content":"展示桂花图片"}]}`,
+			Content: `## 教学目标
+- **知识与技能**：理解课文内容，体会作者借桂花寄托的思乡之情
+- **过程与方法**：抓住"桂花香""摇花乐"等场景，学习借物抒情的写法
+- **情感态度与价值观**：感受童年生活的美好与浓浓的思乡情
+
+## 教学重点
+理解"摇花乐"场景中蕴含的快乐与怀念
+
+## 教学难点
+体会"这里的桂花再香，也比不上家乡院子里的桂花"一句中母亲的思乡情
+
+## 教学过程
+
+### 一、谈话导入（5分钟）
+展示桂花图片，请学生说说对桂花的印象，引出课题
+
+### 二、初读课文（12分钟）
+自由朗读，圈画生字词；说说课文围绕桂花写了哪几件事
+
+### 三、精读感悟（18分钟）
+聚焦"摇花乐"段落，想象画面，朗读体会快乐；对比母亲的话，感受思乡之情
+
+### 四、总结升华（5分钟）
+总结借物抒情写法，布置小练笔
+
+## 作业布置
+摘抄描写桂花香的句子；仿照课文写一种寄托感情的植物`,
 			KnowledgeNodes: `["kn-3"]`, CurriculumAlign: `[{"code":"3.2.2","content":"把握主要内容","aligned":true}]`,
 			AIGenerated: true, AIModelVersion: "qwen-plus", GenerationTimeMs: 980, EditCount: 1,
 			ReviewStatus: "none", Status: "final",
@@ -261,7 +313,30 @@ func main() {
 		{
 			TeacherID: teacherID, SchoolID: school.ID, Subject: "语文", Grade: "四年级",
 			Title: "《走月亮》赏析", Unit: "第一单元", LessonPeriod: 2, TemplateType: "core_literacy",
-			Content:     `{"objectives":{"knowledge":"体会景物描写"},"process":[{"step":1,"phase":"初读","content":"自由朗读"}]}`,
+			Content: `## 教学目标
+- **知识与技能**：正确流利有感情地朗读课文，体会月下景物描写的美
+- **过程与方法**：边读边想象画面，积累优美语句
+- **情感态度与价值观**：感受"我"和阿妈走月亮的温馨与幸福
+
+## 教学重点
+想象月下溪边、田埂的美好画面
+
+## 教学难点
+体会"我和阿妈走月亮"反复出现的表达效果
+
+## 教学过程
+
+### 一、初读课文（15分钟）
+自由朗读，读准字音，说说"走月亮"是什么意思
+
+### 二、品读想象（20分钟）
+默读课文，画出喜欢的句子，交流月光下的画面；重点品读溪边一段
+
+### 三、小结（5分钟）
+朗读积累，摘抄优美语句
+
+## 作业布置
+摘抄课文中描写月夜的优美句子，和家人一起"走月亮"并记录感受`,
 			KnowledgeNodes: `["kn-4"]`, CurriculumAlign: `[]`,
 			AIGenerated: false, GenerationTimeMs: 0, EditCount: 3,
 			ReviewStatus: "none", Status: "draft",
@@ -269,7 +344,33 @@ func main() {
 		{
 			TeacherID: teacherID, SchoolID: school.ID, Subject: "语文", Grade: "四年级",
 			Title: "《繁星》阅读", Unit: "第二单元", LessonPeriod: 1, TemplateType: "core_literacy",
-			Content:     `{"objectives":{"knowledge":"感受星空描写"},"process":[{"step":1,"phase":"导入","content":"观看星空图"}]}`,
+			Content: `## 教学目标
+- **知识与技能**：了解作者三次看繁星的不同感受
+- **过程与方法**：比较阅读，体会随时间地点变化情感的变化
+- **情感态度与价值观**：感受作者对星空、对大自然的热爱
+
+## 教学重点
+梳理三次看繁星的时间、地点与感受
+
+## 教学难点
+理解"我仿佛看见它们在对我霎眼，我仿佛听见它们在小声说话"的意境
+
+## 教学过程
+
+### 一、导入（5分钟）
+出示星空图片，请学生谈谈观星感受，引出课题
+
+### 二、初读梳理（15分钟）
+默读课文，完成表格：三次看繁星的时间、地点、感受
+
+### 三、品读感悟（15分钟）
+重点品读第三段，闭眼想象海上看星的画面，体会作者的陶醉
+
+### 四、拓展（5分钟）
+交流自己的观星经历，仿写一句"我仿佛……"
+
+## 作业布置
+背诵第三自然段；观察夜空，写一段观星的话`,
 			KnowledgeNodes: `["kn-5"]`, CurriculumAlign: `[]`,
 			AIGenerated: false, GenerationTimeMs: 0, EditCount: 1,
 			ReviewStatus: "none", Status: "draft",

@@ -95,7 +95,7 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
   const hasContent = messages.length > 1
 
   return (
-    <div className="flex flex-col bg-white border-t border-[#F0F0F0]">
+    <div className="flex flex-col bg-white border-t border-[#F0F0F0] h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#F0F0F0] shrink-0">
         <div className="flex items-center gap-1.5">
           <img src="/xiaowei.png" alt="小微" className="w-4 h-4 rounded-full shrink-0" />
@@ -105,7 +105,7 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
           <ChevronDown size={14} />
         </button>
       </div>
-      <div className="flex-1 overflow-auto px-3 py-2 space-y-2 max-h-[280px] min-h-[120px]">
+      <div className="flex-1 min-h-0 overflow-auto px-3 py-2 space-y-2">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[88%] px-2.5 py-1.5 text-[11px] leading-relaxed rounded-lg ${

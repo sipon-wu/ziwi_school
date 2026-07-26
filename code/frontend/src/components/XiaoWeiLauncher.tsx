@@ -29,10 +29,10 @@ export default function XiaoWeiLauncher({
 }: Props) {
   return (
     <>
-      {/* 展开面板：外发光（P0-4） */}
-      {open && (
+      {open ? (
+        /* 展开态：只显示面板（宽度收缩对齐入口按钮，mx-5 与入口按钮 px-5 等宽；不写 w-full 避免 flex 子元素 100%+margin 溢出右侧） */
         <div
-          className="absolute inset-x-0 bottom-0 top-0 z-20 bg-white"
+          className="max-h-[360px] z-20 bg-white flex flex-col shrink-0 rounded-t-[10px] overflow-hidden mx-5"
           style={{ boxShadow: '0 0 0 3px rgba(2,167,240,0.45), 0 0 24px 4px rgba(2,167,240,0.35)' }}
         >
           <EditXiaoWeiPanel
@@ -45,29 +45,27 @@ export default function XiaoWeiLauncher({
             onCollapse={onToggle}
           />
         </div>
-      )}
-
-      {/* 入口按钮：不发光（P0-4）；hideEntry 时由外部控制入口 */}
-      {!hideEntry && (
-      <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0">
-        <button
-          onClick={onToggle}
-          className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#353535] rounded-[4px] hover:bg-[#1A1A1A] transition-colors text-left"
-        >
-          {children || (
-            <>
-              <span className="flex-1 text-[12px] text-[#9A9A9A]">请补充要求，支持会话、附件上传、在线素材…</span>
-              <img
-                src="/xiaowei.png"
-                alt="小微"
-                className="w-5 h-5 rounded-full shrink-0"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
-            </>
-          )}
-        </button>
-      </div>
-      )}
+      ) : !hideEntry ? (
+        /* 收起态：只显示入口条 */
+        <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0">
+          <button
+            onClick={onToggle}
+            className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#353535] rounded-[4px] hover:bg-[#1A1A1A] transition-colors text-left"
+          >
+            {children || (
+              <>
+                <span className="flex-1 text-[12px] text-[#9A9A9A]">请补充要求，支持会话、附件上传、在线素材…</span>
+                <img
+                  src="/xiaowei.png"
+                  alt="小微"
+                  className="w-5 h-5 rounded-full shrink-0"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
     </>
   )
 }

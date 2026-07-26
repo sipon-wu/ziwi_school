@@ -1,24 +1,41 @@
-import { type ReactNode, useState } from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { type ReactNode, useState, createContext, useContext, useMemo } from 'react'
 import HeaderRight from './HeaderRight'
 import LogoText from './LogoText'
 import PreviewOverlay from './PreviewOverlay'
 import type { EditorStatus } from '../hooks/useEditorLifecycle'
 
+interface PreviewCtxValue { openPreview: () => void }
+const PreviewCtx = createContext<PreviewCtxValue>({ openPreview: () => {} })
+export const useOpenPreview = () => useContext(PreviewCtx)
+
+/**
+ * EditorLayout — P0 编辑器框架布局骨架
+ * 职责边界：只管布局骨架（左栏 / 右栏 / footer / 全屏预览 overlay / 模式切换）。
+ * 不持有任何版面 / 版心尺寸——版面版心是【场景层】属性，由场景组件各自持有：
+ *   文档场景（教案/出题/题单）= A4，在 TipTapEditor 的 DOC_PAGE 常量
+ *   试卷场景（组卷）= A4单列/A3双列/A3三列，在 ExamPreview
+ *   幻灯片场景（PPT）= 4:3 / 16:9，在 PPT 提纲编辑器
+ * 框架层不接收、不计算、不约束任何版心像素值。
+ *
+ * 框架一致性铁律（对标 XMIND「框架」标签，四场景必须完全一致）：
+ *   - 模式切换标签固定为 ['AI 模式', '文档模式']，框架内置，页面不可覆盖（防漂移）。
+ *   - 左栏固定宽 466px，不可收起（去除 collapse，四场景完全一致）。
+ *   - 顶栏 = logo(场景名) + 模式切换 + headerRight，四场景完全一致。
+ */
 interface Props {
   /**
    * 当前模式：'primary'=左标签激活，'secondary'=右标签激活。
    * 决定渲染 primaryLeft/primaryRight 还是 secondaryLeft/secondaryRight。
    */
   mode: 'primary' | 'secondary'
-  /** 标签文案，如 ['AI 模式', '文档模式'] 或 ['编辑模式', '预览模式'] */
-  modeLabels?: [string, string]
   /** 模式切换回调（调用方可在此做业务检查再切换） */
   onModeChange?: (mode: 'primary' | 'secondary') => void
   /** 锁定模式切换（只显示当前标签文字，按钮变灰） */
   modeLocked?: boolean
   /** 锁定模式下显示的文字（如"预览模式 · 只读"） */
   modeLockedLabel?: string
+  /** 自定义模式标签（默认 ['AI 模式', '文档模式']） */
+  modeLabels?: [string, string]
 
   /** 主模式（左标签）左栏内容 */
   primaryLeft?: ReactNode
@@ -29,14 +46,8 @@ interface Props {
   /** 辅模式（右标签）右栏内容 */
   secondaryRight?: ReactNode
 
-  /** 副标题 */
-  subtitle?: string
-  /** 左侧面板是否可收起 */
-  leftCollapsible?: boolean
-  /** 左侧面板收起状态（由父组件控制） */
-  leftCollapsed?: boolean
-  /** 折叠/展开切换回调 */
-  onToggleLeft?: () => void
+  /** 场景名（如"教案/习题/试卷/题单"），显示在 Header logo 位："知微教学 - 工作台 · 教案" */
+  sceneName?: string
 
   // ========== 统一底边栏 ==========
   /** 底边栏上方区域（如 小微入口条），框架不做额外包裹 */
@@ -49,6 +60,14 @@ interface Props {
   hidePreviewBtn?: boolean
   /** 页面自定义预览回调（旧行为 fallback）。不传 previewSlot 时生效：默认切到 secondary 模式 */
   onPreview?: () => void
+  /**
+   * 受控预览：传入即用「页面持有 open 状态」模式（查看态自动开全屏预览 / 进入编辑态需先关）。
+   * 不传则框架内部自管理（编辑态内点「预览」开 overlay 的默认行为）。
+   */
+  previewOpen?: boolean
+  onPreviewChange?: (open: boolean) => void
+  /** 预览 overlay 内「编辑」按钮的点击处理（如直接进入编辑态）。不传则用 onPreviewChange(false) */
+  onPreviewEdit?: () => void
 
   // ========== P0-2 全屏预览承载层（新） ==========
   /** 注入到全屏预览承载层内的产品预览内容（文字类=锁定版式 / PPT=放映态 / H5=运行态）。
@@ -71,22 +90,36 @@ interface Props {
   footerAlign?: 'full' | 'left'
 }
 
+/** 框架固定模式标签，四场景一致，页面不可覆盖（防漂移成"编辑/预览模式"） */
+const FRAME_MODE_LABELS: [string, string] = ['AI 模式', '文档模式']
+
 export default function EditorLayout({
-  mode, modeLabels, onModeChange, modeLocked, modeLockedLabel,
+  mode, onModeChange, modeLocked, modeLockedLabel, modeLabels,
   primaryLeft, primaryRight, secondaryLeft, secondaryRight,
-  subtitle, leftCollapsible, leftCollapsed, onToggleLeft,
+  sceneName,
   footerExtra, footerLeft, footerRight, hidePreviewBtn, onPreview,
-  previewSlot, previewTitle, footerLifecycle, footerAlign = 'full',
+  previewSlot, previewTitle, footerLifecycle, footerAlign,
+  previewOpen: previewOpenProp, onPreviewChange, onPreviewEdit,
 }: Props) {
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const canCollapse = leftCollapsible && typeof leftCollapsed === 'boolean' && onToggleLeft
+  // 受控预览：传了 previewOpen 则由页面持有状态，否则框架内部自管理
+  const previewControlled = previewOpenProp !== undefined
+  const [previewInner, setPreviewInner] = useState(false)
+  const previewOpen = previewControlled ? previewOpenProp : previewInner
+  const setPreviewOpen = (o: boolean) => {
+    if (previewControlled) onPreviewChange?.(o)
+    else setPreviewInner(o)
+  }
   const isPrimary = mode === 'primary'
   const currentLeft = isPrimary ? primaryLeft : secondaryLeft
   const currentRight = isPrimary ? primaryRight : secondaryRight
   const useNewPreview = !!previewSlot
 
-  // 顶栏内置模式切换
-  const headerCenter = modeLabels ? (
+  // 顶栏内置模式切换（框架固定标签，页面不可覆盖）
+  const headerCenter = modeLocked && modeLockedLabel ? (
+    <span className="px-4 py-1.5 text-[12px] text-white/80 bg-white/10 rounded-[4px] border border-white/20 font-medium">
+      {modeLockedLabel}
+    </span>
+  ) : (
     <div className="inline-flex rounded-[4px] border border-white/20 overflow-hidden bg-white/10">
       <button
         onClick={() => { if (!modeLocked) onModeChange?.('primary') }}
@@ -96,7 +129,7 @@ export default function EditorLayout({
             : 'text-white/70 hover:text-white'
         } ${modeLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        {modeLabels[0]}
+        {modeLabels?.[0] || FRAME_MODE_LABELS[0]}
       </button>
       <button
         onClick={() => { if (!modeLocked) onModeChange?.('secondary') }}
@@ -106,12 +139,10 @@ export default function EditorLayout({
             : 'text-white/70 hover:text-white'
         } ${modeLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        {modeLabels[1]}
+        {modeLabels?.[1] || FRAME_MODE_LABELS[1]}
       </button>
     </div>
-  ) : modeLocked ? (
-    <span className="text-[12px] text-[#9A9A9A]">{modeLockedLabel || ''}</span>
-  ) : null
+  )
 
   // 预览按钮点击：新行为开全屏 overlay；旧行为切文档模式（fallback）
   const handlePreviewClick = () => {
@@ -173,15 +204,17 @@ export default function EditorLayout({
     </>
   )
 
-  // footer 是否嵌在左栏底部（对齐='left' 且左栏未收起）；否则走底部全宽条（或左栏收起时回退）
-  const footerInLeft = footerAlign === 'left' && !leftCollapsed
+  // footer 是否嵌在左栏底部（对齐='left'）
+  const footerInLeft = (footerAlign ?? 'full') === 'left'
 
+  const previewCtx = useMemo(() => ({ openPreview: () => setPreviewOpen(true) }), [setPreviewOpen])
   return (
+    <PreviewCtx.Provider value={previewCtx}>
     <div className="flex flex-col h-screen bg-[#F6F7F8]">
       {/* Header */}
       <header className="h-12 bg-[#212529] flex items-center pl-3 pr-5 shrink-0">
         <LogoText>
-          <span className="font-normal ml-1"> - 工作台</span>
+          <span className="font-normal ml-1"> - 工作台{sceneName ? ` · ${sceneName}` : ''}</span>
         </LogoText>
         <div className="flex-1 flex justify-center">
           {headerCenter}
@@ -191,18 +224,11 @@ export default function EditorLayout({
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Left Panel */}
-        <div
-          className={[
-            'relative bg-white border-r border-[#E7E7EB] flex flex-col shrink-0 transition-all duration-200',
-            canCollapse && leftCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-[466px]',
-          ].join(' ')}
-        >
-          {(!canCollapse || !leftCollapsed) && (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {currentLeft}
-            </div>
-          )}
+        {/* Left Panel — 固定 466px，不可收起（四场景一致） */}
+        <div className="relative bg-white border-r border-[#E7E7EB] flex flex-col shrink-0 w-[466px]">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {currentLeft}
+          </div>
           {/* 左栏底部 footer（对齐='left' 时嵌在左栏底，与基本信息/小微入口同列） */}
           {footerInLeft && hasFooter && (
             <div className="shrink-0 border-t border-[#F0F0F0] bg-white px-5 py-3 flex gap-3">
@@ -210,28 +236,7 @@ export default function EditorLayout({
               {footerButtons}
             </div>
           )}
-          {/* 左侧面板内关闭按钮（展开时贴面板右缘） */}
-          {canCollapse && !leftCollapsed && (
-            <button
-              onClick={onToggleLeft}
-              title="收起左侧面板"
-              className="absolute right-0 top-1/2 -translate-y-1/2 w-5 h-12 bg-white hover:bg-gray-50 border-l border-[#E7E7EB] rounded-r-md flex items-center justify-center text-gray-500 hover:text-[#1A3A6B] z-10 transition-all shadow-sm"
-            >
-              <ChevronLeft size={16} />
-            </button>
-          )}
         </div>
-
-        {/* 左侧恢复按钮（左面板收起时显示，靠左屏边） */}
-        {canCollapse && leftCollapsed && (
-          <button
-            onClick={onToggleLeft}
-            title="展开左侧面板"
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-12 bg-gray-700/80 hover:bg-gray-800 rounded-r-md flex items-center justify-center text-white z-20 transition-all shadow-md"
-          >
-            <ChevronLeft size={16} style={{ transform: 'rotate(180deg)' }} />
-          </button>
-        )}
 
         {/* Right Panel */}
         <div className="flex-1 bg-white overflow-hidden flex flex-col">
@@ -239,10 +244,9 @@ export default function EditorLayout({
         </div>
       </div>
 
-      {/* Unified Footer — 底部全宽条：仅当 footer 不在左栏内时渲染
-          （对齐!='left' 的页面，或左栏被收起时回退到全宽以便仍可操作） */}
+      {/* Unified Footer — 底部全宽条：仅当 footer 不在左栏内时渲染 */}
       {hasFooter && !footerInLeft && (
-        <div className={`shrink-0 border-t border-[#F0F0F0] bg-white ${footerAlign === 'left' ? 'w-[466px]' : 'w-full'}`}>
+        <div className={`shrink-0 border-t border-[#F0F0F0] bg-white ${(footerAlign ?? 'full') === 'left' ? 'w-[466px]' : 'w-full'}`}>
           {footerExtra}
           <div className="px-5 py-3 flex gap-3">
             {footerButtons}
@@ -252,10 +256,11 @@ export default function EditorLayout({
 
       {/* P0-2 全屏预览承载层 */}
       {useNewPreview && (
-        <PreviewOverlay open={previewOpen} title={previewTitle} onClose={() => setPreviewOpen(false)}>
+        <PreviewOverlay open={previewOpen} title={previewTitle} onClose={() => setPreviewOpen(false)} onEdit={onPreviewEdit}>
           {previewSlot}
         </PreviewOverlay>
       )}
     </div>
+    </PreviewCtx.Provider>
   )
 }

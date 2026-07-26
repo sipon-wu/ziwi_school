@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTeaching } from '../lib/TeachingContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import EditorLayout from '../components/EditorLayout'
+import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
@@ -27,11 +28,10 @@ export default function AssignmentBuilder() {
   const { setPicker: setKGPicker } = useKGContext()
   useEffect(() => { setKGPicker(picker as any); return () => setKGPicker(null) }, [picker, setKGPicker])
 
-  const user = (() => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学' } } })()
-
   // 表单
   const [assignmentTitle, setAssignmentTitle] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
+  const selectedClassName = CLASSES.find(c => c.id === selectedClass)?.name || ''
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [assignmentDesc, setAssignmentDesc] = useState('')
@@ -86,224 +86,191 @@ export default function AssignmentBuilder() {
   })
 
   const leftPanel = (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto">
-        {/* 基本信息 */}
-        <div className="px-5 py-3">
-          <h3 className="text-[13px] font-semibold text-[#353535] mb-3">基本信息</h3>
-          <div className="flex gap-4">
-            <div className="space-y-2 text-[12px] flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[#9A9A9A] w-10">学科</span>
-                <span className="text-[#353535]">{teaching.subject}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[#9A9A9A] w-10">年级</span>
-                <span className="text-[#353535]">{gradeName}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[#9A9A9A] w-10">教师</span>
-                <span className="text-[#353535]">{user?.name || '张真真'}</span>
-              </div>
-            </div>
-            <div className="w-[80px] h-[100px] bg-[#F6F7F8] rounded-[4px] border border-[#E7E7EB] flex items-center justify-center text-[11px] text-[#9A9A9A] text-center">
-              {teaching.currentTextbook()}<br />{gradeName}{teaching.semester === '下' ? '下册' : '上册'}
-              {teaching.licenseStatus === 'active'
-                ? <span className="text-[#15A85F]"> · 学校统一配置</span>
-                : <span className="text-[#9A9A9A]"> · 个人试用</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* 标题 */}
-        <div className="px-5 py-3 border-t border-[#F0F0F0]">
-          <label className="block text-[12px] font-medium text-[#353535] mb-2">作业标题 <span className="text-red-500">*</span></label>
-          <input type="text" value={assignmentTitle} onChange={e => setAssignmentTitle(e.target.value)}
-            placeholder="如：《观潮》课后阅读练习"
-            className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
-        </div>
-
-        {/* 班级 */}
-        <div className="px-5 py-3">
-          <label className="block text-[12px] font-medium text-[#353535] mb-2">班级 <span className="text-red-500">*</span></label>
-          <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-            className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
-            <option value="">请选择班级</option>
-            {CLASSES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-
-        {/* 已选题目 */}
-        <div className="px-5 py-3 border-t border-[#F0F0F0]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-medium text-[#353535]">作业题目</span>
-            <button onClick={() => setPickerOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-[#02A7F0] border border-[#02A7F0]/30 rounded-[4px] hover:bg-[#02A7F0]/5">
-              <Plus size={12} />引用题目
-            </button>
-          </div>
-          {selectedQuestions.length === 0 ? (
-            <p className="text-[11px] text-[#9A9A9A]">点击「引用题目」从题库中选择题目</p>
-          ) : (
-            <div className="space-y-1 max-h-[160px] overflow-y-auto">
-              {selectedQuestions.map((q, i) => (
-                <div key={q.id} className="flex items-center justify-between text-[12px] py-1 px-2 bg-[#F6F7F8] rounded-[4px]">
-                  <span className="text-[#353535] truncate mr-2">{i + 1}. {q.content}</span>
-                  <button onClick={() => setSelectedQuestions(prev => prev.filter(x => x.id !== q.id))}
-                    className="text-[#9A9A9A] hover:text-[#FF4D4F] shrink-0">
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 作业说明 */}
-        <div className="px-5 py-3">
-          <label className="block text-[12px] text-[#9A9A9A] mb-2">作业说明（选填）</label>
-          <textarea value={assignmentDesc} onChange={e => setAssignmentDesc(e.target.value)}
-            rows={3} placeholder="如：请认真阅读文章后完成练习"
-            className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
-        </div>
-
-        {/* 分享到同年级 */}
-        <div className="px-5 py-3 border-t border-[#F0F0F0]">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={sharedToGrade} onChange={e => setSharedToGrade(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-[#E7E7EB] text-[#02A7F0] focus:ring-[#02A7F0]" />
-            <span className="text-[12px] text-[#353535]">其它班可用</span>
-            <span className="text-[10px] text-[#9A9A9A]">（仅自己任课班级可见，可随时取消）</span>
-          </label>
-        </div>
-
-        {/* 定时发布 */}
-        <div className="px-5 py-3 border-t border-[#F0F0F0]">
-          <label className="flex items-center gap-2 cursor-pointer mb-3">
-            <input type="checkbox" checked={enableSchedule} onChange={e => setEnableSchedule(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-[#E7E7EB] text-[#02A7F0] focus:ring-[#02A7F0]" />
-            <Clock size={14} className="text-[#9A9A9A]" />
-            <span className="text-[12px] font-medium text-[#353535]">定时发布</span>
-          </label>
-          {enableSchedule && (
-            <div className="p-3 bg-[#F6F7F8] rounded-[4px] space-y-3">
-              {/* 快速预设 + 时间 */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] text-[#9A9A9A] shrink-0">快捷：</span>
-                <button onClick={() => applyPreset('workday')}
-                  className="px-2 py-0.5 text-[10px] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:text-[#02A7F0] text-[#9A9A9A]">
-                  工作日晚间
-                </button>
-                <button onClick={() => applyPreset('weekend')}
-                  className="px-2 py-0.5 text-[10px] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:text-[#02A7F0] text-[#9A9A9A]">
-                  周末
-                </button>
-                <button onClick={() => applyPreset('all')}
-                  className="px-2 py-0.5 text-[10px] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:text-[#02A7F0] text-[#9A9A9A]">
-                  每天
-                </button>
-              </div>
-
-              {/* 星期选择 */}
-              <div className="flex gap-1">
-                {DAYS.map(d => (
-                  <button key={d.id} onClick={() => toggleDay(d.id)}
-                    className={`flex-1 py-1.5 text-[11px] rounded-[4px] border transition-colors ${
-                      scheduleDays.includes(d.id)
-                        ? 'bg-[#02A7F0] text-white border-[#02A7F0]'
-                        : 'bg-white text-[#9A9A9A] border-[#E7E7EB] hover:border-[#02A7F0] hover:text-[#02A7F0]'
-                    }`}>
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 时间 + 一次性日期 */}
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <label className="block text-[11px] text-[#9A9A9A] mb-1">发布时间</label>
-                  <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-[11px] text-[#9A9A9A] mb-1">截止日期（可选）</label>
-                  <select value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
-                    <option value="">不设置</option>
-                    {dateOptions.map(d => (
-                      <option key={d} value={d}>{d} {d === dateOptions[0] ? '(今天)' : d === dateOptions[1] ? '(明天)' : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-[#9A9A9A]">
-                {scheduleDays.length === 0 ? '请选择要自动发布的星期' :
-                  scheduleDays.length === 7 ? '每天' :
-                  scheduleDays.filter(d => d > 0 && d < 6).length === scheduleDays.length ? '工作日（周一至周五）' :
-                  scheduleDays.filter(d => d === 0 || d === 6).length === scheduleDays.length ? '周末（周六周日）' :
-                  `${scheduleDays.sort().map(d => DAYS.find(x => x.id === d)?.label).join('、')}`
-                } 在 {scheduleTime} 自动发布
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* 知识点 */}
-        <div className="px-5 py-3 border-t border-[#F0F0F0]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-medium text-[#353535] text-[#9A9A9A]">关联知识点（可选）</span>
-            <span className="text-[10px] text-[#9A9A9A]">({picker.selectedIds.length}/12)</span>
-          </div>
-          {picker.selectedNodes.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {picker.selectedNodes.map(n => (
-                <span key={n.id} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#F0F0F0] text-[#353535] rounded-full">
-                  {n.name}
-                  <button onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">✕</button>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-[#9A9A9A]">可在右侧知识图谱中选取</p>
-          )}
-        </div>
+    <EditorInfoPanel
+      showBasicInfo
+      classLabel={`${gradeName}${selectedClassName ? ' · ' + selectedClassName : ''}`}
+      xiaowei={{
+        contextType: 'assignment',
+        subject: teaching.subject,
+        grade: teaching.grade,
+        knowledgeNodeNames: [],
+        onApply: () => toast('题单由左侧表单填写，小微暂不直接生成', 'info'),
+      }}
+    >
+      {/* 标题 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">作业标题 <span className="text-red-500">*</span></label>
+        <input type="text" value={assignmentTitle} onChange={e => setAssignmentTitle(e.target.value)}
+          placeholder="如：《观潮》课后阅读练习"
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
       </div>
 
-      {/* Fixed Bottom Buttons */}
-      <div className="px-5 py-3 border-t border-[#F0F0F0] bg-white shrink-0 flex gap-3">
-        <button onClick={handleSaveDraft} disabled={saving}
-          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
-          {saving ? '保存中...' : '保存为草稿'}
-        </button>
-        <button onClick={() => toast('预览功能开发中', 'warning')}
-          className="flex-1 px-4 py-2.5 text-[13px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] transition-colors">
-          预览
-        </button>
-        <button onClick={async () => {
-          if (!selectedClass || !assignmentTitle.trim()) { toast('请先填写标题并选择班级', 'warning'); return }
-          try {
-            const tok = localStorage.getItem('zhiwei_token')
-            const res = await fetch('/api/assignments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
-              body: JSON.stringify({
-                class_id: selectedClass, subject: teaching.subject, title: assignmentTitle, type: 'homework',
-                content: assignmentDesc || undefined,
-                question_ids: selectedQuestions.map(q => q.id),
-                knowledge_node_ids: JSON.stringify(picker.selectedIds),
-              }),
-            })
-            if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || 'HTTP ' + res.status) }
-            toast('已发布', 'success')
-          } catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
-        }}
-          className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#15A85F] rounded-[4px] hover:bg-[#1B8C4F] transition-colors">
-          {enableSchedule ? '定时发布' : '立即发布'}
-        </button>
+      {/* 班级 */}
+      <div className="px-5 py-3">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">班级 <span className="text-red-500">*</span></label>
+        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
+          <option value="">请选择班级</option>
+          {CLASSES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
-    </div>
+
+      {/* 已选题目 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[12px] font-medium text-[#353535]">作业题目</span>
+          <button onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-[#02A7F0] border border-[#02A7F0]/30 rounded-[4px] hover:bg-[#02A7F0]/5">
+            <Plus size={12} />引用题目
+          </button>
+        </div>
+        {selectedQuestions.length === 0 ? (
+          <p className="text-[11px] text-[#9A9A9A]">点击「引用题目」从题库中选择题目</p>
+        ) : (
+          <div className="space-y-1 max-h-[160px] overflow-y-auto">
+            {selectedQuestions.map((q, i) => (
+              <div key={q.id} className="flex items-center justify-between text-[12px] py-1 px-2 bg-[#F6F7F8] rounded-[4px]">
+                <span className="text-[#353535] truncate mr-2">{i + 1}. {q.content}</span>
+                <button onClick={() => setSelectedQuestions(prev => prev.filter(x => x.id !== q.id))}
+                  className="text-[#9A9A9A] hover:text-[#FF4D4F] shrink-0">
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 作业说明 */}
+      <div className="px-5 py-3">
+        <label className="block text-[12px] text-[#9A9A9A] mb-2">作业说明（选填）</label>
+        <textarea value={assignmentDesc} onChange={e => setAssignmentDesc(e.target.value)}
+          rows={3} placeholder="如：请认真阅读文章后完成练习"
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
+      </div>
+
+      {/* 分享到同年级 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={sharedToGrade} onChange={e => setSharedToGrade(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-[#E7E7EB] text-[#02A7F0] focus:ring-[#02A7F0]" />
+          <span className="text-[12px] text-[#353535]">其它班可用</span>
+          <span className="text-[10px] text-[#9A9A9A]">（仅自己任课班级可见，可随时取消）</span>
+        </label>
+      </div>
+
+      {/* 定时发布 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="flex items-center gap-2 cursor-pointer mb-3">
+          <input type="checkbox" checked={enableSchedule} onChange={e => setEnableSchedule(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-[#E7E7EB] text-[#02A7F0] focus:ring-[#02A7F0]" />
+          <Clock size={14} className="text-[#9A9A9A]" />
+          <span className="text-[12px] font-medium text-[#353535]">定时发布</span>
+        </label>
+        {enableSchedule && (
+          <div className="p-3 bg-[#F6F7F8] rounded-[4px] space-y-3">
+            {/* 快速预设 + 时间 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-[#9A9A9A] shrink-0">快捷：</span>
+              <button onClick={() => applyPreset('workday')}
+                className="px-2 py-0.5 text-[10px] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:text-[#02A7F0] text-[#9A9A9A]">
+                工作日晚间
+              </button>
+              <button onClick={() => applyPreset('weekend')}
+                className="px-2 py-0.5 text-[10px] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:text-[#02A7F0] text-[#9A9A9A]">
+                周末
+              </button>
+              <button onClick={() => applyPreset('all')}
+                className="px-2 py-0.5 text-[10px] border border-[#E7E7EB] rounded-[4px] hover:border-[#02A7F0] hover:text-[#02A7F0] text-[#9A9A9A]">
+                每天
+              </button>
+            </div>
+
+            {/* 星期选择 */}
+            <div className="flex gap-1">
+              {DAYS.map(d => (
+                <button key={d.id} onClick={() => toggleDay(d.id)}
+                  className={`flex-1 py-1.5 text-[11px] rounded-[4px] border transition-colors ${
+                    scheduleDays.includes(d.id)
+                      ? 'bg-[#02A7F0] text-white border-[#02A7F0]'
+                      : 'bg-white text-[#9A9A9A] border-[#E7E7EB] hover:border-[#02A7F0] hover:text-[#02A7F0]'
+                  }`}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 时间 + 一次性日期 */}
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-[11px] text-[#9A9A9A] mb-1">发布时间</label>
+                <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-[11px] text-[#9A9A9A] mb-1">截止日期（可选）</label>
+                <select value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
+                  <option value="">不设置</option>
+                  {dateOptions.map(d => (
+                    <option key={d} value={d}>{d} {d === dateOptions[0] ? '(今天)' : d === dateOptions[1] ? '(明天)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-[#9A9A9A]">
+              {scheduleDays.length === 0 ? '请选择要自动发布的星期' :
+                scheduleDays.length === 7 ? '每天' :
+                scheduleDays.filter(d => d > 0 && d < 6).length === scheduleDays.length ? '工作日（周一至周五）' :
+                scheduleDays.filter(d => d === 0 || d === 6).length === scheduleDays.length ? '周末（周六周日）' :
+                `${scheduleDays.sort().map(d => DAYS.find(x => x.id === d)?.label).join('、')}`
+              } 在 {scheduleTime} 自动发布
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 知识点 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[12px] font-medium text-[#353535] text-[#9A9A9A]">关联知识点（可选）</span>
+          <span className="text-[10px] text-[#9A9A9A]">({picker.selectedIds.length}/12)</span>
+        </div>
+        {picker.selectedNodes.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {picker.selectedNodes.map(n => (
+              <span key={n.id} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#F0F0F0] text-[#353535] rounded-full">
+                {n.name}
+                <button onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">✕</button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-[#9A9A9A]">可在右侧知识图谱中选取</p>
+        )}
+      </div>
+    </EditorInfoPanel>
   )
+
+  const handlePublish = async () => {
+    if (!selectedClass || !assignmentTitle.trim()) { toast('请先填写标题并选择班级', 'warning'); return }
+    try {
+      const tok = localStorage.getItem('zhiwei_token')
+      const res = await fetch('/api/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        body: JSON.stringify({
+          class_id: selectedClass, subject: teaching.subject, title: assignmentTitle, type: 'homework',
+          content: assignmentDesc || undefined,
+          question_ids: selectedQuestions.map(q => q.id),
+          knowledge_node_ids: JSON.stringify(picker.selectedIds),
+        }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || 'HTTP ' + res.status) }
+      toast('已发布', 'success')
+    } catch (e: any) { toast('发布失败：' + (e.message || ''), 'error') }
+  }
 
   const rightPanel = (
     <KnowledgeGraphTool
@@ -314,9 +281,41 @@ export default function AssignmentBuilder() {
     />
   )
 
+  const assignmentPreview = (
+    <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
+      <div className="w-[794px] min-h-[1123px] bg-white shadow-sm p-12">
+        <h1 className="text-2xl font-bold text-center mb-1">{assignmentTitle || '作业'}</h1>
+        <p className="text-center text-[#9A9A9A] text-[13px] mb-6">{gradeName}{selectedClassName ? ' · ' + selectedClassName : ''}</p>
+        {assignmentDesc && <p className="mb-4 whitespace-pre-wrap text-[14px] leading-7">{assignmentDesc}</p>}
+        <ol className="list-decimal pl-6 space-y-3">
+          {selectedQuestions.map((q, i) => (
+            <li key={q.id} className="text-[13px] leading-6">
+              <span dangerouslySetInnerHTML={{ __html: q.content }} />
+            </li>
+          ))}
+        </ol>
+        {selectedQuestions.length === 0 && <p className="text-[#9A9A9A] text-center mt-8">（暂无题目）</p>}
+      </div>
+    </div>
+  )
+
   return (
     <>
-      <EditorLayout mode="primary" primaryLeft={leftPanel} primaryRight={rightPanel} subtitle="定向布置作业，支持定时发布与批阅反馈" />
+      <EditorLayout
+        mode="primary"
+        primaryLeft={leftPanel}
+        primaryRight={rightPanel}
+        footerAlign="left"
+        footerLifecycle={{
+          saveDraftLabel: '保存为草稿',
+          publishLabel: enableSchedule ? '定时发布' : '立即发布',
+          onSaveDraft: handleSaveDraft,
+          onPublish: handlePublish,
+          saving,
+        }}
+        previewTitle="作业预览"
+        previewSlot={assignmentPreview}
+      />
       <ResourcePicker
         open={pickerOpen}
         mode="questions"

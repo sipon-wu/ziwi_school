@@ -117,7 +117,7 @@ export default function GrowthPage() {
         await careAPI.add({ student_id: id, focus_area: '待评估' })
       }
     } catch {
-      toast?.show?.('同步失败，请重试', 'warning')
+      toast.toast('同步失败，请重试', 'warning')
       // 回滚：恢复原状态
       setWatchlist(prev => {
         const next = new Set(prev)

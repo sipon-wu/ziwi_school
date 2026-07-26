@@ -1,30 +1,17 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, TrendingUp, BookOpen, Monitor, Sparkles, X, Loader2 } from 'lucide-react'
+import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, TrendingUp, BookOpen, Monitor, Sparkles } from 'lucide-react'
 import type { JSX } from 'react'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import PresentationMode from '../components/PresentationMode'
-import PptxPreview from '../components/PptxPreview'
 import PreviewOverlay from '../components/PreviewOverlay'
-import { api, aiAPI, materialAPI, notifyError, type MaterialItem } from '../lib/api'
-import { useTeaching } from '../lib/TeachingContext'
-import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
-import { printLessonPlan } from '../lib/printPdf'
-import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline } from '../lib/exportPptx'
-import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
-import { getXiaoweiContext } from '../lib/xiaoweiContext'
-import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
-import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
-import { buildKnowledgeScope } from '../lib/knowledgeScope'
+import { api, materialAPI, notifyError, type MaterialItem } from '../lib/api'
 
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
-const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token') || ''; const p = JSON.parse(atob(t.split('.')[1])); return p.school_id || '' } catch { return '' } }
 
 /* ── 类型 ── */
 type MaterialType = 'all' | 'image' | 'doc' | 'audio' | 'video' | 'other' | 'courseware'
 
-const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
-const GRADES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 type ViewMode = 'grid' | 'list'
 
 interface Material {
@@ -70,9 +57,6 @@ const TYPE_COLORS: Record<string, string> = {
 }
 
 export default function Materials() {
-  const teaching = useTeaching()
-  // 课件生成用的知识图谱选择器（独立实例，按弹层所选学科/年级过滤）
-  const cwPicker = useKnowledgePicker({ autoSelect: false })
   const [search, setSearch] = useState('')
   const [activeType, setActiveType] = useState<MaterialType>('all')
   const [activeGroup, setActiveGroup] = useState('全部')
@@ -95,146 +79,9 @@ export default function Materials() {
     }).catch((e) => notifyError('素材库加载失败', e))
   }
 
-  // ── AI 生成课件（在素材库直接创作新课件并入库） ──
-  const [showGen, setShowGen] = useState(false)
-  const [genSubject, setGenSubject] = useState('')
-  const [genGrade, setGenGrade] = useState('')
-  const [genTitle, setGenTitle] = useState('')
-  const [cwExtra, setCwExtra] = useState('')
-  const [genBaseId, setGenBaseId] = useState('')
-  const [genLoading, setGenLoading] = useState(false)
-  const [cwMarkdown, setCwMarkdown] = useState('')
-  const [cwSimilar, setCwSimilar] = useState<any>(null)
-  const [cwDivergence, setCwDivergence] = useState<any[]>([])
-  const [removedDivergence, setRemovedDivergence] = useState<Record<string, boolean>>({})
-  const [trimming, setTrimming] = useState(false)
-  const [cwOutline, setCwOutline] = useState<OutlineSlide[]>([])
-  const [showPreview, setShowPreview] = useState(false)
-  const [savingCw, setSavingCw] = useState(false)
-  // 课件生成：发散度 + 边缘知识 + 课前问诊
-  const [divergenceLevel, setDivergenceLevel] = useState<'conservative' | 'standard' | 'expansive'>('standard')
-  const [edgeEnabled, setEdgeEnabled] = useState(false)
-  const [edgeCats, setEdgeCats] = useState<Record<string, boolean>>({
-    '科学探究精神/价值观': false, '合作与倾听（行为准则）': false, '文化认同与家国情怀': false,
-  })
-  const [consultQuestions, setConsultQuestions] = useState<any[]>([])
-  const [consultAnswers, setConsultAnswers] = useState<Record<string, string>>({})
-  const [consultLoading, setConsultLoading] = useState(false)
-  const [validateIssues, setValidateIssues] = useState<any[] | null>(null)
-  const [validating, setValidating] = useState(false)
-  const [showKg, setShowKg] = useState(false)
-  const gradeNum = (g: string) => Math.max(1, GRADES.indexOf(g) + 1)
+  // ── AI 生成课件已迁移至独立编辑器页 /courseware/new（P4 统一框架） ──
 
-  useEffect(() => {
-    if (showGen) {
-      if (!genSubject) setGenSubject(teaching?.subject || '语文')
-      if (!genGrade) setGenGrade(GRADES[(teaching?.grade || 4) - 1] || '四年级')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showGen])
-
-  const handleGenCourseware = async () => {
-    if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
-    setGenLoading(true)
-    try {
-      const base = genBaseId ? await materialAPI.get(genBaseId).catch(() => null) : null
-      const scope = buildKnowledgeScope(cwPicker)
-      const cats = Object.entries(edgeCats).filter(([, v]) => v).map(([k]) => k)
-      const consultText = consultQuestions.length
-        ? consultQuestions.map((q: any) => `· ${q.question} → ${consultAnswers[q.id] || '（未答）'}`).join('；')
-        : ''
-      const res = await aiAPI.generateCourseware({
-        subject: genSubject, grade: genGrade, lesson_title: genTitle.trim(),
-        content: base?.content || '', school_id: getSchoolId(),
-        textbook_version: teaching?.currentTextbook?.() || '',
-        extra_requirements: cwExtra || undefined,
-        chat_context: getXiaoweiContext() || undefined,
-        selected_knowledge_ids: cwPicker.selectedIds,
-        knowledge_points: scope.knowledge_points,
-        prerequisite_points: scope.prerequisite_points,
-        curriculum_codes: scope.curriculum_codes,
-        divergence_level: divergenceLevel,
-        consult_answers: consultText || undefined,
-        edge_enabled: edgeEnabled,
-        edge_categories: edgeEnabled ? cats : [],
-      })
-      setCwMarkdown(res.courseware_markdown || '')
-      setCwOutline(markdownToOutline(res.courseware_markdown || ''))
-      setCwDivergence(Array.isArray(res.divergence_map) ? res.divergence_map : [])
-      setRemovedDivergence({})
-      setCwSimilar(res.similar_material || null)
-      setValidateIssues(null)
-      setShowPreview(true)
-    } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
-    finally { setGenLoading(false) }
-  }
-
-  // D 组：剔除勾选的发散内容，回写课件并刷新发散地图
-  const handleTrimCw = async () => {
-    const toRemove = cwDivergence.filter(d => removedDivergence[d.content])
-    if (!toRemove.length) return
-    setTrimming(true)
-    try {
-      const r: any = await aiAPI.trimCourseware({ markdown: cwMarkdown, remove_items: toRemove })
-      setCwMarkdown(r.trimmed_markdown || cwMarkdown)
-      setCwOutline(markdownToOutline(r.trimmed_markdown || cwMarkdown))
-      setCwDivergence(Array.isArray(r.divergence_map) ? r.divergence_map : [])
-      setRemovedDivergence({})
-      setValidateIssues(null)
-      toast(`已剔除 ${toRemove.length} 处发散内容`, 'success')
-    } catch (e: any) { toast('剔除失败: ' + (e.message || '未知错误'), 'error') }
-    finally { setTrimming(false) }
-  }
-
-  // 打开生成弹层时拉取「课前问诊」问题
-  useEffect(() => {
-    if (showGen && consultQuestions.length === 0 && !consultLoading) {
-      setConsultLoading(true)
-      const scope = buildKnowledgeScope(cwPicker)
-      aiAPI.consultCourseware({
-        subject: genSubject, grade: genGrade, lesson_title: genTitle.trim(),
-        knowledge_points: scope.knowledge_points,
-      }).then((r: any) => setConsultQuestions(r.questions || []))
-        .catch(() => setConsultQuestions([]))
-        .finally(() => setConsultLoading(false))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showGen])
-
-  // 发布校验（平台红线锁）：指出问题并提醒修改，不过则不允许发布
-  const handleSaveCw = async () => {
-    if (!cwMarkdown) return
-    setValidating(true)
-    try {
-      const r: any = await aiAPI.validateCourseware({
-        markdown: cwMarkdown, subject: genSubject, grade: genGrade,
-      })
-      if (!r.pass) {
-        setValidateIssues(r.issues || [])
-        toast('发布校验未通过，请按提示修改后再发布', 'warning')
-        return
-      }
-      setValidateIssues(null)
-    } catch (e: any) {
-      toast('校验失败: ' + (e.message || '未知错误'), 'error')
-      return
-    } finally { setValidating(false) }
-    setSavingCw(true)
-    try {
-      await materialAPI.createJSON({
-        name: `${genTitle.trim()}_课件`,
-        type: 'courseware',
-        tag: `${genSubject}${genGrade}`,
-        content: outlineToMarkdown(cwOutline, cwOpts()),
-      })
-      toast('课件已保存到素材库', 'success')
-      setShowPreview(false); setShowGen(false)
-      refreshMaterials()
-    } catch (e: any) { toast('保存失败: ' + (e.message || ''), 'error') }
-    finally { setSavingCw(false) }
-  }
-
-  // 预览/播放（可编辑提纲 → 幻灯片）
+  // 预览/播放（素材库已有课件 → 幻灯片放映）
   const [player, setPlayer] = useState<{ content: string; title: string } | null>(null)
   const openPlay = async (m: Material) => {
     let content = (m as any).content || ''
@@ -244,52 +91,6 @@ export default function Materials() {
     if (!content) { toast('该课件暂无正文内容，无法播放', 'warning'); return }
     setPlayer({ content, title: m.name })
   }
-  const cwOpts = () => ({ subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
-
-  // 提纲编辑：标题/要点修改 + 页面排序调整 + 删除
-  const setSlideTitle = (i: number, v: string) => setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, title: v } : s))
-  const setSlideBullets = (i: number, v: string) => setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, bullets: v.split('\n') } : s))
-  const moveSlide = (i: number, dir: number) => setCwOutline(arr => {
-    const j = i + dir
-    if (j < 0 || j >= arr.length) return arr
-    const n = arr.slice()
-    ;[n[i], n[j]] = [n[j], n[i]]
-    return n
-  })
-  const removeSlide = (i: number) => setCwOutline(arr => arr.filter((_, k) => k !== i))
-
-  // PPT 提纲 AI 润色（可选）：用 render-ppt 生成精炼要点 + 讲稿
-  const [polishing, setPolishing] = useState(false)
-  const polishOutline = async () => {
-    if (!cwMarkdown) return
-    setPolishing(true)
-    try {
-      const r: any = await aiAPI.renderPptCourseware({ markdown: cwMarkdown, title: `${genTitle.trim()}_课件`, subject: genSubject, grade: genGrade })
-      const out = pptToOutline(r.ppt_slides || [])
-      if (out.length) { setCwOutline(out); toast('提纲已 AI 润色（含讲稿）', 'success') }
-      else toast('润色未返回内容', 'warning')
-    } catch (e: any) { toast('润色失败: ' + (e.message || '未知错误'), 'error') }
-    finally { setPolishing(false) }
-  }
-
-  const playOutline = () => {
-    if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    setPptxPreview(outlineToSlides(cwOutline, cwOpts()))
-  }
-  const exportCwPptx = async () => {
-    if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    try { await exportCoursewareToPptx(outlineToSlides(cwOutline, cwOpts()), cwOpts()) }
-    catch (e: any) { toast('PPT 导出失败: ' + (e.message || '未知错误'), 'error') }
-  }
-  const exportCwDocx = async () => {
-    const blob = await exportLessonPlanToDocx(outlineToMarkdown(cwOutline, cwOpts()), { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacher: safeGetUser().name || '教师', model: 'qwen-plus' })
-    downloadBlob(blob, `${genTitle.trim()}_${genSubject}${genGrade}.docx`)
-  }
-  const exportCwPdf = () => {
-    printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: genSubject, grade: genGrade, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
-  }
-
-  const [pptxPreview, setPptxPreview] = useState<CwSlide[] | null>(null)
 
   useEffect(() => { refreshMaterials() }, [])
 
@@ -364,9 +165,9 @@ export default function Materials() {
             >
               <BookOpen size={14} /> 教辅频道
             </button>
-            {/* AI 生成课件 */}
+            {/* AI 生成课件（P4：独立编辑器页，与教案/出题/组卷同框架） */}
             <button
-              onClick={() => setShowGen(true)}
+              onClick={() => window.open('/courseware/new', '_blank')}
               className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] transition-colors"
             >
               <Sparkles size={14} /> AI 生成课件
@@ -554,254 +355,6 @@ export default function Materials() {
           </div>
         )}
       </div>
-
-      {/* AI 生成课件 · 表单对话框 */}
-      {showGen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowGen(false)}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative bg-white rounded-[6px] shadow-xl w-[460px] max-w-[92vw] z-10" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-[#F0F0F0] flex items-center gap-2">
-              <Sparkles size={18} className="text-[#722ED1]" />
-              <span className="text-[14px] font-semibold text-[#353535]">AI 生成课件</span>
-              <button onClick={() => setShowGen(false)} className="ml-auto p-1 hover:bg-[#F6F7F8] rounded"><X size={16} className="text-[#9A9A9A]" /></button>
-            </div>
-            <div className="p-5 space-y-4 max-h-[78vh] overflow-y-auto">
-              <p className="text-[11px] text-[#9A9A9A] leading-relaxed">
-                AI 会根据课题生成 PPT 课件（可编辑提纲、调整页面顺序），支持导出 PPT / Word / PDF 与保存到素材库。H5 互动课件即将上线。
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-[12px] text-[#353535]">学科</span>
-                  <select value={genSubject} onChange={e => setGenSubject(e.target.value)}
-                    className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
-                    {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-[12px] text-[#353535]">年级</span>
-                  <select value={genGrade} onChange={e => setGenGrade(e.target.value)}
-                    className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
-                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </label>
-              </div>
-              <label className="block">
-                <span className="text-[12px] text-[#353535]">课题名称</span>
-                <input value={genTitle} onChange={e => setGenTitle(e.target.value)} placeholder="如：光的折射定律"
-                  className="mt-1 w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#722ED1]" />
-              </label>
-              <label className="block">
-                <span className="text-[12px] text-[#353535]">参照课件（可选）</span>
-                <select value={genBaseId} onChange={e => setGenBaseId(e.target.value)}
-                  className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
-                  <option value="">不参照（由 AI 自动匹配相近课件）</option>
-                  {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-[12px] text-[#353535]">附加要求 / 关键词（可选）</span>
-                <textarea value={cwExtra} onChange={e => setCwExtra(e.target.value)} rows={2}
-                  placeholder="如：多放实验图示、加入生活案例、风格活泼…（也可先在左下角小微对话提需求，自动带入）"
-                  className="mt-1 w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#722ED1] resize-none" />
-              </label>
-
-              {/* 知识面：知识图谱（可选） */}
-              <div className="border border-[#E7E7EB] rounded-[4px]">
-                <button type="button" onClick={() => setShowKg(v => !v)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-[12px] text-[#353535] hover:bg-[#F6F7F8]">
-                  <span>知识点（知识图谱，可选）· 已选 {cwPicker.selectedIds.length} 个</span>
-                  <span className="text-[#722ED1]">{showKg ? '收起' : '展开'}</span>
-                </button>
-                {showKg && (
-                  <div className="h-[240px] border-t border-[#F0F0F0]">
-                    <KnowledgeGraphTool
-                      data={cwPicker.knowledgeData}
-                      filter={{ subject: genSubject, grade: gradeNum(genGrade), semester: teaching.semester, difficultyRange: [1, 4] }}
-                      selectedIds={cwPicker.selectedIds}
-                      onSelect={cwPicker.setSelectedIds}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 发散度 */}
-              <label className="block">
-                <span className="text-[12px] text-[#353535]">发散度（受控启发）</span>
-                <select value={divergenceLevel} onChange={e => setDivergenceLevel(e.target.value as any)}
-                  className="mt-1 w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#722ED1]">
-                  <option value="conservative">保守（少量跨界）</option>
-                  <option value="standard">标准（适度启发）</option>
-                  <option value="expansive">发散（大开脑洞）</option>
-                </select>
-                <span className="text-[10px] text-[#9A9A9A] mt-1 block">轨道区可跨界 / 适度超纲，但受 ±1 年级档与课标对齐约束。</span>
-              </label>
-
-              {/* 边缘知识（价值观/行为/情感） */}
-              <div className="border border-[#E7E7EB] rounded-[4px] p-3 space-y-2">
-                <label className="flex items-center gap-2 text-[12px] text-[#353535]">
-                  <input type="checkbox" checked={edgeEnabled} onChange={e => setEdgeEnabled(e.target.checked)} />
-                  融入价值观 / 行为 / 情感（边缘知识，靠互动承载）
-                </label>
-                {edgeEnabled && (
-                  <div className="pl-5 space-y-1">
-                    {Object.keys(edgeCats).map(k => (
-                      <label key={k} className="flex items-center gap-2 text-[11px] text-[#353535]">
-                        <input type="checkbox" checked={edgeCats[k]} onChange={e => setEdgeCats(s => ({ ...s, [k]: e.target.checked }))} />
-                        {k}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* 课前问诊 */}
-              {consultQuestions.length > 0 && (
-                <div className="border border-[#E7E7EB] rounded-[4px] p-3 space-y-2">
-                  <p className="text-[12px] font-medium text-[#353535]">课前问诊（逐项确认方向）</p>
-                  {consultQuestions.map((q: any) => (
-                    <div key={q.id}>
-                      <p className="text-[11px] text-[#353535] mb-1">{q.question}</p>
-                      <select value={consultAnswers[q.id] || ''} onChange={e => setConsultAnswers(s => ({ ...s, [q.id]: e.target.value }))}
-                        className="w-full px-2 py-1.5 text-[11px] border border-[#E7E7EB] rounded-[3px] bg-white outline-none focus:border-[#722ED1]">
-                        <option value="">请选择…</option>
-                        {(q.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="px-5 py-3 border-t border-[#F0F0F0] flex justify-end gap-2">
-              <button onClick={() => setShowGen(false)} className="px-4 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F6F7F8]">取消</button>
-              <button onClick={handleGenCourseware} disabled={genLoading}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50">
-                {genLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                {genLoading ? 'AI 生成中...' : '生成课件'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI 课件预览 · 导出 / 保存 */}
-      {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowPreview(false)}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative bg-white rounded-[6px] shadow-xl w-[640px] max-w-[94vw] h-[82vh] flex flex-col z-10" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[#E7E7EB] shrink-0">
-              <div>
-                <h3 className="text-[14px] font-semibold text-[#353535]">AI 课件预览</h3>
-                {cwSimilar && (
-                  <p className="text-[11px] text-[#9A9A9A] mt-0.5">参照相近课件《{cwSimilar.name}》生成的新版本</p>
-                )}
-              </div>
-              <button onClick={() => setShowPreview(false)} className="p-1 hover:bg-[#F6F7F8] rounded"><X size={16} className="text-[#9A9A9A]" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 bg-[#FAFAFA]">
-              {/* PPT 课件提纲（可编辑：标题/要点可改，可调整页面顺序） */}
-              <p className="text-[12px] font-medium text-[#353535] mb-2 flex items-center gap-1">
-                <FileText size={13} className="text-[#722ED1]" /> PPT 课件提纲（可编辑：标题/要点可改，可调整页面顺序）
-              </p>
-              <div className="space-y-3">
-                {cwOutline.map((s, idx) => (
-                  <div key={idx} className="border border-[#E7E7EB] rounded-[4px] bg-white p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[11px] text-[#9A9A9A] w-6 shrink-0">P{idx + 1}</span>
-                      <input value={s.title} onChange={e => setSlideTitle(idx, e.target.value)}
-                        className="flex-1 px-2 py-1 text-[13px] font-medium border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#722ED1]" />
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => moveSlide(idx, -1)} disabled={idx === 0} title="上移"
-                          className="px-1.5 py-0.5 text-[11px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8] disabled:opacity-30">↑</button>
-                        <button onClick={() => moveSlide(idx, 1)} disabled={idx === cwOutline.length - 1} title="下移"
-                          className="px-1.5 py-0.5 text-[11px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8] disabled:opacity-30">↓</button>
-                        <button onClick={() => removeSlide(idx)} title="删除本页"
-                          className="px-1.5 py-0.5 text-[11px] text-[#F5222D] border border-[#E7E7EB] rounded hover:bg-[#FFF1F0]">✕</button>
-                      </div>
-                    </div>
-                    <textarea value={s.bullets.join('\n')} onChange={e => setSlideBullets(idx, e.target.value)}
-                      rows={Math.max(2, s.bullets.length)} placeholder="每条要点一行"
-                      className="w-full px-2 py-1 text-[12px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#722ED1] resize-y" />
-                  </div>
-                ))}
-                {cwOutline.length === 0 && (
-                  <p className="text-[12px] text-[#9A9A9A]">课件暂无可编辑提纲，请先生成课件或点击「✨ AI 润色提纲」。</p>
-                )}
-              </div>
-              {/* 发散地图：每条发散可溯源到锚点，可勾选保留/删除 */}
-              {cwDivergence.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-[#E7E7EB]">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[12px] font-medium text-[#353535]">🧭 发散地图（勾选要删除的项，可溯源到锚点）</p>
-                    <button onClick={handleTrimCw} disabled={trimming || !cwDivergence.some(d => removedDivergence[d.content])}
-                      className="px-2 py-1 text-[11px] text-white bg-[#FA8C16] rounded-[3px] hover:bg-[#E67E00] disabled:opacity-40">
-                      {trimming ? '剔除中...' : `应用剔除 (${cwDivergence.filter(d => removedDivergence[d.content]).length})`}
-                    </button>
-                  </div>
-                  <div className="space-y-1.5">
-                    {cwDivergence.map((d: any, i: number) => (
-                      <label key={i} className={`flex items-start gap-2 text-[11px] leading-snug rounded-[3px] px-1 py-1 ${removedDivergence[d.content] ? 'bg-[#FFF1E6]' : 'hover:bg-[#F6F7F8]'}`}>
-                        <input type="checkbox" className="mt-0.5 shrink-0" checked={!removedDivergence[d.content]}
-                          onChange={e => setRemovedDivergence(s => ({ ...s, [d.content]: !e.target.checked }))} />
-                        <span className={`px-1.5 py-0.5 rounded-[2px] text-white shrink-0 ${d.zone === 'edge' ? 'bg-[#722ED1]' : 'bg-[#02A7F0]'}`}>
-                          {d.zone === 'edge' ? '边缘' : '轨道'}
-                        </span>
-                        <span className="text-[#353535]">
-                          <b>{d.content}</b> → 锚点：{d.anchor}（{d.rationale}）
-                          {d.warn ? <span className="text-[#FA8C16]"> ⚠ 疑似超界</span> : ''}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {/* 发布校验未通过：指出问题并提醒修改 */}
-              {validateIssues && validateIssues.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-[#F5222D]">
-                  <p className="text-[12px] font-medium text-[#F5222D] mb-2">⛔ 发布校验未通过，请修改后重新发布：</p>
-                  <ul className="space-y-1.5">
-                    {validateIssues.map((iss: any, i: number) => (
-                      <li key={i} className="text-[11px] text-[#353535] leading-snug">
-                        · {iss.message} <span className="text-[#9A9A9A]">（建议：{iss.suggestion}）</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-between px-5 py-3 border-t border-[#E7E7EB] bg-[#F6F7F8] shrink-0">
-              <div className="flex gap-2 flex-wrap">
-                <button onClick={playOutline} className="px-3 py-1.5 text-[12px] text-white bg-[#1A3A6B] border border-[#1A3A6B] rounded-[4px] hover:bg-[#142C52]">播放 / 阅读</button>
-                <button onClick={exportCwPptx} className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#5B23A8]">导出 PPT</button>
-                <button onClick={polishOutline} disabled={polishing} className="px-3 py-1.5 text-[12px] text-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#F7F0FC] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色提纲'}</button>
-                <button onClick={() => toast('H5 互动课件即将上线，敬请期待', 'info')} disabled title="H5 互动课件即将上线"
-                  className="px-3 py-1.5 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">H5 互动课件 <span className="text-[10px] px-1 bg-[#FA8C16] text-white rounded">即将上线</span></button>
-                <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
-                <button onClick={exportCwPdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
-              </div>
-              <button onClick={handleSaveCw} disabled={savingCw || validating}
-                className="px-4 py-1.5 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50">
-                {validating ? '校验中...' : savingCw ? '保存中...' : '保存到素材库'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* PPT 在线预览（经 PreviewOverlay 统一全屏承载，与编辑器官方预览一致） */}
-      {pptxPreview && (
-        <PreviewOverlay
-          open
-          title={`${genTitle.trim()}_课件 · PPT 预览`}
-          onClose={() => setPptxPreview(null)}
-        >
-          <PptxPreview
-            slides={pptxPreview}
-            title={`${genTitle.trim()}_课件`}
-            onClose={() => setPptxPreview(null)}
-            embedded
-          />
-        </PreviewOverlay>
-      )}
 
       {/* 教辅频道弹层 */}
       {showChannel && (

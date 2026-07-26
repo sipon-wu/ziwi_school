@@ -26,7 +26,7 @@ interface Props {
   /** 是否在基本信息卡显示年级（出题页用；教案/组卷默认不显示） */
   showGrade?: boolean
   /** 框架级小微配置（P0-4） */
-  xiaowei: XiaoweiCfg
+  xiaowei?: XiaoweiCfg
   /** 产品特定表单主体（标题/单元课时/模板/知识点/标签/关联课件/附加要求 等） */
   children: ReactNode
 }
@@ -68,13 +68,14 @@ export default function EditorInfoPanel({ showBasicInfo = true, classLabel, show
   const [showXW, setShowXW] = useState(false)
   return (
     <div className="flex flex-col h-full">
-      {/* Scrollable form area — 小微展开时变半透明景版（P0-3/P0-4 合并处理） */}
-      <div className={`flex-1 overflow-y-auto ${showXW ? 'opacity-30 pointer-events-none select-none' : ''}`}>
+      {/* Scrollable form area — 小微展开时底层表单正常显示（不再降透明度景版） */}
+      <div className="flex-1 overflow-y-auto">
         {showBasicInfo && <BasicInfoCard classLabel={classLabel} showGrade={showGrade} />}
         {children}
       </div>
 
       {/* 底部框架级小微入口（P0-4） */}
+      {xiaowei && (
       <XiaoWeiLauncher
         open={showXW}
         onToggle={() => setShowXW(v => !v)}
@@ -85,6 +86,7 @@ export default function EditorInfoPanel({ showBasicInfo = true, classLabel, show
         extraRequirements={xiaowei.extraRequirements}
         onApply={xiaowei.onApply}
       />
+      )}
     </div>
   )
 }

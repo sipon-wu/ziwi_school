@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useToast } from '../components/Toast'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, Edit, Copy, Save } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 
@@ -23,8 +23,8 @@ const TYPE_LABELS: Record<string, string> = { choice: '选择', fill: '填空', 
 
 export default function AssignmentEditor() {
   const { id } = useParams()
-  const [searchParams] = useSearchParams()
-  const isPreview = searchParams.get('preview') === '1'
+  const { pathname } = useLocation()
+  const isPreview = !pathname.includes('/edit')
   const { toast } = useToast()
   const assignment = useMemo(() => (id ? MOCK_DATA[id] : null), [id])
 
@@ -59,7 +59,7 @@ export default function AssignmentEditor() {
           <div className="flex items-center gap-2">
             {isPreview && (
               <>
-                <button onClick={() => window.open(`/assignments/${id}`, '_blank')}
+                <button onClick={() => window.open(`/assignments/${id}/edit`, '_blank')}
                   className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors">
                   <Edit size={14} /> 编辑
                 </button>

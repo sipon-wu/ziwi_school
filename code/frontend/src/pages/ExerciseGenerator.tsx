@@ -1,7 +1,7 @@
 import { useToast } from "../components/Toast"
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Sparkles, Send, X, Save, Check, AlertTriangle, Download, FileText, Mic, MicOff, Share2, Plus, Image, MessageCircle, ArrowLeft, Code2 } from 'lucide-react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { Sparkles, Send, X, Save, Check, AlertTriangle, Download, Printer, FileText, Mic, MicOff, Share2, Plus, Image, MessageCircle, ArrowLeft, Code2, Pencil } from 'lucide-react'
 import { useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LABELS, isTypeAllowed } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
@@ -16,8 +16,12 @@ import { printExamPaper } from '../lib/printPdf'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
+import { useEditorController } from '../hooks/useEditorController'
 import ResourcePicker from '../components/ResourcePicker'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
+import TipTapEditor from '../components/TipTapEditor'
+import { marked } from 'marked'
+import DocEditorPanel from '../components/DocEditorPanel'
 import QuestionNav from '../components/QuestionNav'
 
 const PURPOSES = [
@@ -45,6 +49,8 @@ const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年
 export default function ExerciseGenerator() {
   const navigate = useNavigate()
   const teaching = useTeaching()
+  // eslint-disable-next-line prefer-const
+  let ctrl: any
   const { toast } = useToast()
   // 共享知识点选取器
   const picker = useKnowledgePicker({ autoSelect: true })
@@ -70,9 +76,10 @@ export default function ExerciseGenerator() {
   const [editKnowledge, setEditKnowledge] = useState('')
   const [editSaving, setEditSaving] = useState(false)
   const [editSaveMsg, setEditSaveMsg] = useState('')
-  const [searchParams] = useSearchParams()
-  const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
-  const [editUIMode, setEditUIMode] = useState<'edit' | 'preview'>(searchParams.get('preview') === '1' ? 'preview' : 'edit')
+  const { pathname } = useLocation()
+  // workMode 已收口到 useEditorController（仅 !isEditing 的 AI 生成器流使用）
+  const isEditRoute = pathname.includes('/edit')
+  const [editUIMode, setEditUIMode] = useState<'edit' | 'preview'>(isEditRoute ? 'edit' : 'preview')
 
   // 加载已有题目
   useEffect(() => {
@@ -93,6 +100,17 @@ export default function ExerciseGenerator() {
       }).catch(() => setEditLoading(false))
     })
   }, [id])
+
+  // 题目原文 → HTML（兼容纯文本/Markdown/HTML，支持公式分子式等富文本）
+  const stemToHtml = (s: string): string => {
+    if (!s) return '<p></p>'
+    if (s.startsWith('<')) return s
+    try {
+      return (marked.parse(s, { breaks: true }) as string) || `<p>${s}</p>`
+    } catch {
+      return `<p>${s}</p>`
+    }
+  }
 
   const handleEditSave = async () => {
     if (!id) return
@@ -157,8 +175,10 @@ export default function ExerciseGenerator() {
   const [classes, setClasses] = useState<any[]>([])
 
 
-  // 文档模式左侧面板折叠（与教案侧栏折叠一致）
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
+  // 文档模式富文本内容（渲染 generatedQuestions 为 Word 富文本）
+  const [docContent, setDocContent] = useState('')
+  // 查看态全屏预览受控态：进查看态自动开全屏预览，点「编辑」时关掉
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   // 口述作业
   const [voiceRecording, setVoiceRecording] = useState(false)
@@ -275,7 +295,7 @@ export default function ExerciseGenerator() {
   // 左侧小微会话"应用到当前内容"：携带对话上下文触发 AI 生成（面板关闭由 XiaoWeiLauncher 自动处理）
   const handleLeftApply = async (chatContext: string) => {
     await handleGenerate(chatContext)
-    if (editMode === 'ai') setEditMode('doc')
+    if (ctrl.workMode === 'ai') ctrl.setWorkMode('doc')
   }
 
   type AiQuestion = { type: string; content: string; answer?: string }
@@ -422,6 +442,39 @@ export default function ExerciseGenerator() {
       }).catch(() => { })
     })
   }, [])
+
+  // ── 文档模式：题面 → Word 富文本 ──
+  const renderQuestionsToHtml = (qs: any[]): string => {
+    if (!qs.length) return '<p style="color:#999;text-align:center;margin-top:60px;">暂无题目，请在 AI 模式生成题目。</p>'
+    return qs.map((q, i) => {
+      const stem = q.stem || q.content || ''
+      const score = q.score ? `<span style="color:#999;font-size:11px;float:right;">（${q.score} 分）</span>` : ''
+      const options = Array.isArray(q.options) ? q.options : (typeof q.options === 'string' ? q.options.split('\n') : [])
+      const optHtml = options.length > 0 ? options.map((o: string, j: number) => `${String.fromCharCode(65 + j)}. ${o}`).join('<br>') : ''
+      return `<div data-qid="${q.id || i}" style="margin-bottom:16px;">
+        <p><strong>${i + 1}. ${stem}</strong>${score}</p>
+        ${optHtml ? `<p style="margin-left:12px;">${optHtml}</p>` : ''}
+        <hr style="border:none;border-top:1px dashed #ddd;margin:12px 0;">
+      </div>`
+    }).join('\n')
+  }
+  useEffect(() => {
+    if (ctrl.workMode === 'doc') setDocContent(renderQuestionsToHtml(questions))
+  }, [ctrl?.workMode, questions.length])
+  const handleExportWord = async () => {
+    if (!previewQuestions.length) return
+    try {
+      const blob = await exportExamPaper(previewQuestions as any[], previewMeta as any, 'A4')
+      downloadBlob(blob, `${previewMeta.title || '习题'}_学生卷.docx`)
+    } catch (e) { console.error('export word failed', e) }
+  }
+  const handleExportPdf = async () => {
+    if (!previewQuestions.length) return
+    printExamPaper(previewQuestions as any[], {
+      subject: teaching.subject, grade: gradeName, title: previewMeta.title || '习题',
+      difficulty: '中等', teacherName: user.name || '教师',
+    }, 'A4')
+  }
 
   // ============ Left Panel（P0-3 EditorInfoPanel 统一容器 + P0-4 框架小微） ============
   const leftPanel = (
@@ -779,13 +832,22 @@ export default function ExerciseGenerator() {
   const exerciseFooterLifecycle = useMemo(() => ({
     saveDraftLabel: '保存为草稿',
     publishLabel: '发布到题库',
+    onSaveDraft: ctrl?.saveDraft ?? (() => {}),
+    onPublish: ctrl?.publish ?? (() => {}),
+    status: ctrl?.status,
+    saving: (ctrl?.saving ?? false) || publishing,
+  }), [ctrl?.saveDraft, ctrl?.publish, ctrl?.status, ctrl?.saving, publishing])
+
+  ctrl = useEditorController({
     onSaveDraft: handleSaveToBank,
-    onPublish: () => {
-      if (savedIds.length === 0) toast('请先保存题目', 'warning')
-      else handlePublish()
-    },
-    saving: publishing,
-  }), [handleSaveToBank, handlePublish, savedIds.length, publishing])
+    onPublish: () => { if (savedIds.length === 0) toast('请先保存题目', 'warning'); else handlePublish() },
+  })
+
+  // 查看态：进入查看态即自动打开全屏预览（按 id 重算，兼容同标签内切换不同题目）
+  useEffect(() => {
+    if (ctrl?.readOnly) setPreviewOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   // ============ AI 模式左侧：知识图谱选知识点（与教案一致） ============
   const aiLeftPanel = (
@@ -834,57 +896,82 @@ export default function ExerciseGenerator() {
   const [editShowRaw, setEditShowRaw] = useState({ content: false, answer: false })
 
   const editPrimaryLeft = (
-    <div className="flex flex-col h-full">
-      <div className="px-5 py-4 border-b border-[#E7E7EB] shrink-0">
-        <button onClick={() => navigate('/exercises')} className="flex items-center gap-1.5 text-[12px] text-[#9A9A9A] hover:text-[#353535] mb-2">
+    <EditorInfoPanel
+      showBasicInfo
+      showGrade
+      classLabel={classLabelEG}
+      xiaowei={{
+        contextType: 'exercise' as any,
+        subject: teaching.subject,
+        grade: gradeName,
+        knowledgeNodeNames: picker.selectedNodes.map((n: any) => n.name),
+        extraRequirements,
+        onApply: handleLeftApply,
+      }}
+    >
+      <div className="px-5 py-3 border-b border-[#E7E7EB] flex items-center justify-between">
+        <button onClick={() => navigate('/exercises')} className="flex items-center gap-1.5 text-[12px] text-[#9A9A9A] hover:text-[#353535]">
           <ArrowLeft size={14} /> 返回题库
         </button>
-        <div className="flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold text-[#353535]">题目</h2>
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium ${editQuestion?.status === 'published' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${editQuestion?.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-            {editQuestion?.status === 'published' ? '已发布' : '草稿'}
-          </span>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium ${editQuestion?.status === 'published' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${editQuestion?.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+          {editQuestion?.status === 'published' ? '已发布' : '草稿'}
+        </span>
+      </div>
+
+      {/* 题型 */}
+      <div className="px-5 py-3 border-b border-[#E7E7EB]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">题型</label>
+        <select value={editType} onChange={e => setEditType(e.target.value)} className={editSel}>
+          {Object.entries(editTypeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+
+      {/* 难度 */}
+      <div className="px-5 py-3 border-b border-[#E7E7EB]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">难度</label>
+        <select value={editDifficulty} onChange={e => setEditDifficulty(e.target.value)} className={editSel}>
+          {Object.entries(editDiffLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+
+      {/* 分值 */}
+      <div className="px-5 py-3 border-b border-[#E7E7EB]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">分值</label>
+        <input type="number" value={editScore || 0} onChange={e => setEditScore(Number(e.target.value))} min={0} className="w-20 px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
+      </div>
+
+      {/* 知识点 */}
+      <div className="px-5 py-3 border-b border-[#E7E7EB]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[12px] font-medium text-[#353535]">知识点 <span className="text-red-500">*</span></span>
+          <span className="text-[10px] text-[#9A9A9A]">({picker.selectedIds.length || 1}/5)</span>
         </div>
-        <p className="text-[11px] text-[#9A9A9A] mt-1">ID: {id}</p>
+        <div className="flex flex-wrap gap-1 min-h-[28px]">
+          {picker.selectedIds.length > 0 ? picker.selectedNodes.map((n: any) => (
+            <span key={n.id} className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[#02A7F0]/10 text-[#02A7F0] text-[11px] font-medium rounded-[3px]">
+              {n.name}
+              <X size={11} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => picker.removeNode(n.id)} />
+            </span>
+          )) : <span className="text-[11px] text-[#9A9A9A]">未选择 · 从右侧知识图谱点选</span>}
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
-        <section>
-          <h3 className="text-[12px] font-semibold text-[#353535] mb-3">基本信息</h3>
-          <div className="space-y-3">
-            <div><label className="block text-[12px] text-[#9A9A9A] mb-1.5">学科</label><div className="px-2.5 py-2 text-[13px] text-[#353535] bg-[#F6F7F8] rounded-[4px]">{teaching.subject}</div></div>
-            <div><label className="block text-[12px] text-[#9A9A9A] mb-1.5">年级</label><div className="px-2.5 py-2 text-[13px] text-[#353535] bg-[#F6F7F8] rounded-[4px]">{gradeName}</div></div>
-            <div><label className="block text-[12px] text-[#9A9A9A] mb-1.5">题型</label>
-              <select value={editType} onChange={e => setEditType(e.target.value)} className={editSel}>
-                {Object.entries(editTypeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-            <div><label className="block text-[12px] text-[#9A9A9A] mb-1.5">难度</label>
-              <select value={editDifficulty} onChange={e => setEditDifficulty(e.target.value)} className={editSel}>
-                {Object.entries(editDiffLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-          </div>
-        </section>
-        <section>
-          <h3 className="text-[12px] font-semibold text-[#353535] mb-3">关联知识点</h3>
-          {editKnowledge && <div className="flex flex-wrap gap-2 mb-3">
-            {editKnowledge.split(/[，,]/).filter(Boolean).map((kp, i) => (
-              <span key={i} className="px-2.5 py-1 text-[11px] bg-[#F6F7F8] text-[#353535] rounded-full">{kp}</span>
-            ))}
-          </div>}
-          <input value={editKnowledge} onChange={e => setEditKnowledge(e.target.value)} placeholder="多个知识点用逗号分隔"
-            className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
-        </section>
+
+      {/* 附加要求 */}
+      <div className="px-5 py-3 border-b border-[#E7E7EB]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">关键词 / 附加要求</label>
+        <input value={extraRequirements} onChange={e => setExtraRequirements(e.target.value)} placeholder="AI 上下文提示，如：适合期中复习" className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
       </div>
-      <div className="px-5 py-4 border-t border-[#E7E7EB] flex items-center gap-2 shrink-0">
+
+      {/* 保存按钮 */}
+      <div className="px-5 py-4 flex items-center gap-2">
         <button onClick={handleEditSave} disabled={editSaving}
           className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-50">
           {editSaving ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> 保存中...</> : <><Save size={14} /> 保存</>}
         </button>
         {editSaveMsg && <span className="text-[12px] text-green-600 ml-1">{editSaveMsg}</span>}
       </div>
-    </div>
+    </EditorInfoPanel>
   )
 
   const editPrimaryRight = (
@@ -951,9 +1038,10 @@ export default function ExerciseGenerator() {
   if (isEditing && editLoading) {
     return (
       <EditorLayout
+        sceneName="习题"
         primaryLeft={<div className="p-5 text-[13px] text-[#9A9A9A]">加载中…</div>}
         primaryRight={<div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">加载中…</div>}
-        mode="primary" modeLabels={['编辑模式', '预览模式']}
+        mode="primary" 
       />
     )
   }
@@ -961,6 +1049,7 @@ export default function ExerciseGenerator() {
   if (isEditing && !editQuestion) {
     return (
       <EditorLayout
+        sceneName="习题"
         primaryLeft={
           <div className="p-5">
             <button onClick={() => navigate('/exercises')} className="flex items-center gap-1.5 text-[12px] text-[#9A9A9A] hover:text-[#353535]">
@@ -969,7 +1058,73 @@ export default function ExerciseGenerator() {
           </div>
         }
         primaryRight={<div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">题目不存在或已删除</div>}
-        mode="primary" modeLabels={['编辑模式', '预览模式']}
+        mode="primary" 
+      />
+    )
+  }
+
+  // 查看模式（bare :id）：复用编辑器框架布局（与教案/组卷统一 EditorLayout），仅文档区只读居中，
+  // 顶栏带 Word/PDF/编辑 按钮；点「编辑」ctrl.forceEdit 原地解锁进入文档模式。
+  if (isEditing && ctrl.readOnly) {
+    const viewHtml = stemToHtml(editStem)
+    const editNow = () => { setPreviewOpen(false); ctrl.forceEdit(); ctrl.setWorkMode('doc'); window.history.replaceState(null, '', `/exercises/${id}/edit`) }
+    const centeredDocInline = (
+      <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
+        <div className="w-[794px] min-h-[1123px] bg-white shadow-sm">
+          <TipTapEditor value={viewHtml} readOnly noPanels onChange={() => {}} docTitle={editQuestion?.content?.substring(0, 40) || '题目'} />
+        </div>
+      </div>
+    )
+    const centeredDocFull = (
+      <TipTapEditor value={viewHtml} readOnly onChange={() => {}} docTitle={editQuestion?.content?.substring(0, 40) || '题目'} />
+    )
+    return (
+      <EditorLayout
+        sceneName="习题"
+        primaryLeft={editPrimaryLeft}
+        primaryRight={
+          <KnowledgeGraphTool
+            subject={teaching.subject}
+            grade={gradeName}
+            semester={teaching.semester}
+            textbookVersion={teaching.currentTextbook as string}
+          />
+        }
+        secondaryLeft={editPrimaryLeft}
+        secondaryRight={
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-2.5 bg-[#F6F7F8] border-b border-[#E7E7EB] shrink-0">
+              <span className="text-[12px] text-[#9A9A9A]">{teaching.subject} · {gradeName} · {editTypeLabels[editType] || editType} · {editDiffLabels[editDifficulty] || editDifficulty}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={handleExportWord} disabled={!previewQuestions.length}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8] disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Download size={13} /> Word</button>
+                <button onClick={handleExportPdf} disabled={!previewQuestions.length}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8] disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Printer size={13} /> PDF</button>
+                <button onClick={editNow}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-[#02A7F0] text-white rounded-[4px] hover:bg-[#0288D1]">
+                  <Pencil size={13} /> 编辑</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">{centeredDocInline}</div>
+          </div>
+        }
+        mode="secondary"
+        modeLocked
+        modeLockedLabel="只读查看"
+        footerAlign="left"
+        footerLifecycle={{
+          saveDraftLabel: '编辑',
+          publishLabel: '返回题库',
+          onSaveDraft: editNow,
+          onPublish: () => { window.location.href = '/exercises' },
+        }}
+        previewTitle="题目预览"
+        previewSlot={centeredDocFull}
+        previewOpen={previewOpen}
+        onPreviewChange={setPreviewOpen}
+        onPreviewEdit={editNow}
       />
     )
   }
@@ -978,51 +1133,68 @@ export default function ExerciseGenerator() {
     <>
       {isEditing ? (
         <EditorLayout
+          sceneName="习题"
+          /* AI 模式 */
           primaryLeft={editPrimaryLeft}
-          primaryRight={editPrimaryRight}
-          secondaryLeft={
-            <div className="p-5 text-[13px] text-[#353535]">
-              <button onClick={() => navigate('/exercises')} className="flex items-center gap-1.5 text-[12px] text-[#9A9A9A] hover:text-[#353535] mb-3">
-                <ArrowLeft size={14} /> 返回题库
-              </button>
-              <div className="text-[12px] text-[#9A9A9A] space-y-2">
-                <div>题型: <span className="text-[#353535]">{editTypeLabels[editType] || editType}</span></div>
-                <div>难度: <span className="text-[#353535]">{editDiffLabels[editDifficulty] || editDifficulty}</span></div>
-                {editKnowledge && <div>知识点: <span className="text-[#353535]">{editKnowledge}</span></div>}
+          primaryRight={
+            <KnowledgeGraphTool
+              subject={teaching.subject}
+              grade={gradeName}
+              semester={teaching.semester}
+              textbookVersion={teaching.currentTextbook as string}
+            />
+          }
+          /* DOC 模式：左侧与 AI 模式共用同一面板，右侧为编辑区 */
+          secondaryLeft={editPrimaryLeft}
+          secondaryRight={
+            <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
+              <div className="w-[794px] min-h-[1123px] bg-white shadow-sm">
+                <TipTapEditor value={stemToHtml(editStem)} onChange={(v) => { setEditStem(v || ''); ctrl.touch() }} />
               </div>
             </div>
           }
-          secondaryRight={
-            <div className="flex-1 flex overflow-hidden relative">
-              <ExamPreview embedded paperSize="A4" allowA3={false} questions={editPreviewQ} meta={editPreviewM} />
-            </div>
-          }
-          mode={(editUIMode === 'edit' ? 'primary' : 'secondary')}
-          modeLabels={['编辑模式', '预览模式']}
-          onModeChange={(m) => setEditUIMode(m === 'primary' ? 'edit' : 'preview')}
+          mode={(ctrl.workMode === 'ai' ? 'primary' : 'secondary')}
+          onModeChange={(m) => ctrl.setWorkMode(m === 'primary' ? 'ai' : 'doc')}
           footerAlign="left"
           footerLifecycle={exerciseFooterLifecycle}
+          previewTitle="题目预览"
+          previewSlot={
+            <TipTapEditor value={stemToHtml(editStem)} readOnly onChange={() => {}} />
+          }
         />
       ) : (
         <EditorLayout
+          sceneName="习题"
           primaryLeft={leftPanel}
           primaryRight={aiLeftPanel}
           secondaryLeft={leftPanel}
           secondaryRight={
-            <div className="flex-1 flex overflow-hidden relative">
-              <QuestionNav questions={previewQuestions} />
-              <ExamPreview embedded paperSize="A4" allowA3={false} questions={previewQuestions} meta={previewMeta} />
-            </div>
+            <DocEditorPanel
+              hint={<span>{previewQuestions.length} 题 · {previewMeta.totalScore} 分 · {previewMeta.title}</span>}
+              value={docContent}
+              onChange={(v) => setDocContent(v || '')}
+              docTitle={previewMeta.title || '习题'}
+              toolbarExtra={
+                <>
+                  <button onClick={handleExportWord} disabled={!previewQuestions.length}
+                    className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="导出 Word">Word</button>
+                  <button onClick={handleExportPdf} disabled={!previewQuestions.length}
+                    className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="导出 PDF">PDF</button>
+                </>
+              }
+            />
           }
-          mode={(editMode === 'ai' ? 'primary' : 'secondary')}
-          modeLabels={['AI 模式', '文档模式']}
-          onModeChange={(m) => setEditMode(m === 'primary' ? 'ai' : 'doc')}
-          subtitle="AI辅助智能出题，知识图谱驱动精准选题"
-          leftCollapsible={editMode === 'doc'}
-          leftCollapsed={leftPanelCollapsed}
-          onToggleLeft={() => setLeftPanelCollapsed(prev => !prev)}
+          mode={(ctrl.workMode === 'ai' ? 'primary' : 'secondary')}
+          
+          onModeChange={(m) => ctrl.setWorkMode(m === 'primary' ? 'ai' : 'doc')}
           footerAlign="left"
           footerLifecycle={exerciseFooterLifecycle}
+          previewTitle="习题预览"
+          previewSlot={
+            <TipTapEditor value={docContent} readOnly onChange={() => {}} docTitle={previewMeta.title || '习题'} />
+          }
         />
       )}
       {!isEditing && (

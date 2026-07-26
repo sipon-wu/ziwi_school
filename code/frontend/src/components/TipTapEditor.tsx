@@ -5,7 +5,7 @@
  * - 右侧：版本历史面板（保存快照 + 恢复）
  * - 公式/化学式：自定义节点，支持拖拽位移 + 缩放（调字号）+ 上下/四周环绕
  */
-import { useState, useCallback, useRef, useEffect, createContext, useContext, type JSX, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useCallback, useRef, useEffect, createContext, useContext, type JSX, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -28,6 +28,18 @@ import { useToast } from './Toast'
 import * as mammoth from 'mammoth/mammoth.browser'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
+
+/* ───── 文档场景版心（场景层，非框架 EditorLayout 职责）─────
+ * 教案 / 出题 / 题单 均属"文档编辑模式"，真实 A4 = 794×1123 @96dpi。
+ * 版面 / 版心跟随场景走：框架 EditorLayout 不持有任何版心尺寸；
+ * 试卷场景版心在 ExamPreview、幻灯片场景在 PPT 提纲编辑器各自持有。 */
+const DOC_PAGE = {
+  width: 794,
+  height: 1123,
+  marginX: 120, // 左右 3.18cm
+  marginTop: 96, // 上下 2.54cm
+  marginBottom: 96,
+}
 
 /* ──────── 自定义公式节点 ──────── */
 /* ──────── 自定义公式节点 ──────── */
@@ -459,16 +471,20 @@ interface Props {
   onChange: (html: string) => void
   placeholder?: string
   readOnly?: boolean   // 只读渲染：保留完整布局（工具栏/章节导航/批注/版本），仅禁用编辑
-  noPanels?: boolean    // 额外参数：readOnly 时强制隐藏工具栏与侧栏（仅用于预览弹窗）
+  noPanels?: boolean    // 额外参数：readOnly 时强制隐藏工具栏与侧栏（仅用于非全屏的内联预览）
+  fullscreen?: boolean  // 全屏承载（全屏编辑/全屏预览）：左右侧栏默认展开，且以绝对定位覆盖、不平移居中 A4 内容
   docTitle?: string     // 页眉展示的文档标题（不存储，仅视觉，对齐 Word/腾讯文档）
   /** 工具栏尾部注入（如"导出教案/全屏"），与内置"导入 Word/保存版本"并列在最右 */
   toolbarExtra?: ReactNode
 }
 
-export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, docTitle, toolbarExtra }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, fullscreen, docTitle, toolbarExtra }: Props) {
   const { toast } = useToast()
-  const [outlineVisible, setOutlineVisible] = useState(false)
-  const [historyVisible, setHistoryVisible] = useState(false)
+  // 预览态（readOnly）或全屏承载下，左右侧栏默认展开
+  const [outlineVisible, setOutlineVisible] = useState(fullscreen || readOnly ? true : false)
+  const [historyVisible, setHistoryVisible] = useState(fullscreen || readOnly ? true : false)
+  // 预览态（readOnly）隐藏编辑工具栏；编辑态（!readOnly）照常展示
+  const showToolbar = !noPanels && !readOnly
 
   // 版本快照
   const [snapshots, setSnapshots] = useState<Array<{ time: string; content: string; label?: string }>>([])
@@ -777,6 +793,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
     <FormulaEditContext.Provider value={editFormulaStable}>
     <div className="h-full flex flex-col bg-white">
       {/* ── Word 式工具栏 ── */}
+      {showToolbar && (
       <div className="border-b border-[#E7E7EB] bg-[#F9FAFB] px-2 py-1.5 flex items-center gap-0.5 flex-wrap select-none text-[#595959] shrink-0">
         {/* 正文类型 */}
         <div className="flex items-center gap-0.5 mr-2">
@@ -897,12 +914,15 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           </div>
         )}
       </div>
+      )}
 
       {/* ── 主编辑区（三栏) ── */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* 左侧：章节导航 */}
         {outlineVisible && (
-          <div className="w-[180px] border-r border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden">
+          <div className={fullscreen
+            ? "absolute left-0 top-0 bottom-0 w-[180px] border-r border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-10 overflow-hidden"
+            : "w-[180px] border-r border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden"}>
             <div className="px-3 py-2 text-[11px] font-semibold text-[#9A9A9A] flex items-center justify-between border-b border-[#F0F0F0] shrink-0">
               <span className="flex items-center gap-1"><ListTree size={12} />章节导航</span>
               <button onClick={() => setOutlineVisible(false)} className="text-[#C0C0C0] hover:text-[#9A9A9A]"><ChevronLeft size={12} /></button>
@@ -930,9 +950,18 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
         <div ref={scrollRef} onScroll={handleDocScroll} className="flex-1 overflow-auto bg-[#F3F4F6] py-6">
           <div className="w-fit mx-auto">
             <div className="relative bg-white border border-[#E7E7EB] shadow-sm flex flex-col"
-              style={{ width: '794px', minHeight: '1123px' }}>
-            {/* 版心：左右 3.18cm≈120px，上/下边距 2.54cm≈96px（严格锁版心顶/底到纸边） */}
-            <div className="px-[120px] flex-1 relative pt-[96px] pb-[96px] min-h-0">
+              style={{ width: DOC_PAGE.width, minHeight: DOC_PAGE.height, height: readOnly ? DOC_PAGE.height : undefined }}>
+            {/* 文档版心：左右/上下边距锁定版心到纸边（数值见顶部 DOC_PAGE，属文档场景，非框架） */}
+            <div
+              className="relative flex-1"
+              style={{
+                paddingLeft: DOC_PAGE.marginX,
+                paddingRight: DOC_PAGE.marginX,
+                paddingTop: DOC_PAGE.marginTop,
+                paddingBottom: DOC_PAGE.marginBottom,
+                minHeight: 0,
+              }}
+            >
               <div className="relative h-full min-h-0">
                 <span className="absolute left-0 top-0 w-3 h-3 border-r-2 border-b-2 border-[#BFBFBF]" />
                 <span className="absolute right-0 top-0 w-3 h-3 border-l-2 border-b-2 border-[#BFBFBF]" />
@@ -955,7 +984,9 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
 
         {/* 右侧：批注 / 版本历史（双 Tab） */}
         {historyVisible && (
-          <div className="w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden">
+          <div className={fullscreen
+            ? "absolute right-0 top-0 bottom-0 w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-10 overflow-hidden"
+            : "w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col shrink-0 overflow-hidden"}>
             {/* Tab 切换 */}
             <div className="flex border-b border-[#F0F0F0] shrink-0">
               <button onClick={() => setRightTab('annotations')}
@@ -1051,7 +1082,9 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
           </div>
         )}
 
-        {/* 收起后的展开按钮（深灰·半透；垂直居中；距编辑区左/右边各 12px 明显位于编辑区内） */}
+        {/* 收起后的展开按钮（深灰·半透；相对编辑区容器[第914行 relative]垂直居中；
+            用 absolute 而非 fixed——fixed 会脱离编辑区贴到整个视窗最左/右，分栏布局(左信息栏+右编辑区)时会压在左栏上；
+            absolute 相对编辑区容器自动适配"全屏(教案)/右栏内嵌(组卷)"两种布局，这是框架统一行为） */}
         {!outlineVisible && (
           <button onClick={() => setOutlineVisible(true)} title="展开章节导航"
             className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-12 bg-gray-700/70 hover:bg-gray-800 rounded-r-md flex items-center justify-center text-white z-20 transition-all shadow-md">

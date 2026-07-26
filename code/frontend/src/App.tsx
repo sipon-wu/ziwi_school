@@ -7,11 +7,11 @@ import RequireSchoolLicense from './components/RequireSchoolLicense'
 const LessonPlanList = lazy(() => import('./pages/LessonPlanList'))
 const LessonPlanEditor = lazy(() => import('./pages/LessonPlanEditor'))
 const Materials = lazy(() => import('./pages/Materials'))
+const CoursewareBuilder = lazy(() => import('./pages/CoursewareBuilder'))
 const Exercises = lazy(() => import('./pages/Exercises'))
 const ExerciseGenerator = lazy(() => import('./pages/ExerciseGenerator'))
 const ExamList = lazy(() => import('./pages/ExamList'))
 const ExamBuilder = lazy(() => import('./pages/ExamBuilder'))
-const ExamEditor = lazy(() => import('./pages/ExamEditor'))
 const SheetBuilder = lazy(() => import('./pages/SheetBuilder'))
 const AssignmentList = lazy(() => import('./pages/AssignmentList'))
 const AssignmentBuilder = lazy(() => import('./pages/AssignmentBuilder'))
@@ -43,17 +43,21 @@ export default function App() {
         <Route path="/lesson-plans/:id/edit" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
         <Route path="/lesson-plans/:id" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
         <Route path="/materials" element={<Suspense fallback={<Loading />}><Materials /></Suspense>} />
+        <Route path="/courseware/new" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
         <Route path="/exercises" element={<Suspense fallback={<Loading />}><Exercises /></Suspense>} />
         <Route path="/exercises/new" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
+        <Route path="/exercises/:id/edit" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
         <Route path="/exercises/:id" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
         <Route path="/exams" element={<Suspense fallback={<Loading />}><ExamList /></Suspense>} />
         <Route path="/exams/new" element={<Suspense fallback={<Loading />}><ExamBuilder /></Suspense>} />
         <Route path="/exams/:id/edit" element={<Suspense fallback={<Loading />}><ExamBuilder /></Suspense>} />
-        <Route path="/exams/:id" element={<Suspense fallback={<Loading />}><ExamEditor /></Suspense>} />
+        <Route path="/exams/:id" element={<Suspense fallback={<Loading />}><ExamBuilder /></Suspense>} />
         <Route path="/sheets/new" element={<Suspense fallback={<Loading />}><SheetBuilder /></Suspense>} />
+        <Route path="/sheets/:id/edit" element={<Suspense fallback={<Loading />}><SheetBuilder /></Suspense>} />
         <Route path="/sheets/:id" element={<Suspense fallback={<Loading />}><SheetBuilder /></Suspense>} />
         <Route path="/assignments" element={<Suspense fallback={<Loading />}><AssignmentList /></Suspense>} />
         <Route path="/assignments/new" element={<Suspense fallback={<Loading />}><AssignmentBuilder /></Suspense>} />
+        <Route path="/assignments/:id/edit" element={<Suspense fallback={<Loading />}><AssignmentEditor /></Suspense>} />
         <Route path="/assignments/:id" element={<Suspense fallback={<Loading />}><AssignmentEditor /></Suspense>} />
         <Route path="/analytics" element={<Suspense fallback={<Loading />}><AnalyticsPage /></Suspense>} />
         <Route path="/grading" element={<Suspense fallback={<Loading />}><GradingPage /></Suspense>} />

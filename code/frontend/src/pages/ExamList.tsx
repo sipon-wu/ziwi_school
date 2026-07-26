@@ -90,11 +90,12 @@ export default function ExamList() {
         })),
         meta: { title: res.title || e.title, subject: res.subject || e.subject, grade: res.grade || e.grade, totalScore: res.total_score || e.total_score, durationMinutes: res.duration_minutes },
       })
-    } catch { /* fallback: open editor */ window.open(`/exams/${e.id}`, '_blank') }
+    } catch { /* fallback: open editor */ window.open(`/exams/${e.id}/edit`, '_blank') }
   }
 
   const handleRowClick = (e: ExamItem) => {
-    window.open(`/exams/${e.id}/edit`, '_blank')
+    // 与教案列表一致：点行进 view 只读预览页（/exams/:id），编辑走行内「编辑」按钮
+    window.open(`/exams/${e.id}`, '_blank')
   }
 
   return (

@@ -107,7 +107,7 @@ export default function CarePage() {
       await careAPI.update(editFocus, { focus_area: editText })
     } catch {
       // 失败静默，数据留本地
-      toast?.show?.('网络异常，数据已保存在本地', 'warning')
+      toast.toast('网络异常，数据已保存在本地', 'warning')
     }
   }
 
@@ -123,7 +123,7 @@ export default function CarePage() {
     setStudents(prev => [newStudent, ...prev])
     setShowAdd(false)
     setForm({ name: '', studentNo: '', gender: '男' })
-    toast?.show?.('已添加', 'success')
+    toast.toast('已添加', 'success')
   }
 
   return (

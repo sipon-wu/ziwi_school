@@ -182,7 +182,7 @@ export default function PublishedLessons() {
                           <button onClick={(e) => { e.stopPropagation(); handleReference(plan) }} className="p-1.5 text-[#9A9A9A] hover:text-[#722ED1] hover:bg-purple-50 rounded-[3px]" title="引用创建新教案">
                             <Copy size={14} />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}/view`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="查看">
+                          <button onClick={(e) => { e.stopPropagation(); window.open(`/lesson-plans/${plan.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="查看">
                             <Eye size={14} />
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(plan.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">

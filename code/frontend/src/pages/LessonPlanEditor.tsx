@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type JSX, type ReactNode } from 'react'
-import { useNavigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2, Pencil, MessageCircle } from 'lucide-react'
 import { aiAPI, lessonPlanAPI, materialAPI, classAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -17,9 +17,10 @@ import { exportH5Courseware, downloadBlob as h5Download } from '../lib/exportH5'
 import ResourcePicker from '../components/ResourcePicker'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
-import { useEditorLifecycle } from '../hooks/useEditorLifecycle'
+import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
+import DocEditorPanel from '../components/DocEditorPanel'
 import { marked } from 'marked'
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 
@@ -98,15 +99,12 @@ export default function LessonPlanEditor() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { id } = useParams()
-  const [searchParams] = useSearchParams()
-  const { pathname } = useLocation()
   const isEditing = Boolean(id)
-  // 锁定查看态初始判定：/view 路由，或纯 /:id（无 /edit 子路径且非 /new）时进入只读查看
-  const initialLocked = pathname.includes('/view') || (/\/lesson-plans\/[^/]+$/.test(pathname) && !pathname.endsWith('/new'))
-  // forceEdit 让用户点「编辑」原地解锁：组件不卸载、不重新拉数据，地址栏用 replaceState 同步为 /edit
-  const [forceEdit, setForceEdit] = useState(false)
-  const locked = !forceEdit && initialLocked
   const teaching = useTeaching()
+
+  // ctrl 引用位前置声明（let 避免 TDZ），实际赋值在 silentSave/handleSaveDraft 之后
+  // eslint-disable-next-line prefer-const
+  let ctrl: any
 
   // 共享知识点选取器
   const picker = useKnowledgePicker({ autoSelect: true })
@@ -138,7 +136,11 @@ export default function LessonPlanEditor() {
   const [aiPreview, setAiPreview] = useState(false)
   const [aiConfirmed, setAiConfirmed] = useState(false)
   const [genTime, setGenTime] = useState(0)
-  const [loadingExisting, setLoadingExisting] = useState(false)
+  const [loadingExisting, setLoadingExisting] = useState(!!id) // 有 id=需加载数据，初始就转圈等 API 返回后再渲染
+  // 查看态全屏预览受控态：进查看态自动开全屏预览，点「编辑」时关掉
+  const [previewOpen, setPreviewOpen] = useState(false)
+  // 安全兜底：API 超时不阻塞 UI，8 秒后强制关闭加载态
+  useEffect(() => { if (!id || !loadingExisting) return; const t = setTimeout(() => setLoadingExisting(false), 8000); return () => clearTimeout(t) }, [id, loadingExisting])
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [_autoSaveTip, setAutoSaveTip] = useState('')
   const [customTags, setCustomTags] = useState<string[]>(['自定义标签1'])
@@ -163,15 +165,7 @@ export default function LessonPlanEditor() {
   useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
   const classLabel = myClasses.find(it => it.class_id === teaching.selectedClassId)?.class_name || grade
 
-  // 编辑模式切换：AI 模式（元数据+知识图谱+AI） / 文档模式（腾讯文档式自由排版）
-  // 编辑模式：优先以 URL ?mode=doc 进入文档模式；SPA 导航时首帧 searchParams 可能滞后，
-  // 故用 effect 跟随 searchParams 变化再同步一次，避免首帧误判为 AI 模式。
-  const [editMode, setEditMode] = useState<'ai' | 'doc'>(
-    () => (searchParams.get('mode') === 'doc' ? 'doc' : 'ai')
-  )
-  useEffect(() => {
-    setEditMode(searchParams.get('mode') === 'doc' ? 'doc' : 'ai')
-  }, [searchParams])
+  // workMode 已收口到 useEditorController（统一路由判定，ai/doc 单一套语义）
   // AI 润色覆盖确认（仅编辑已有且正文非空时提示，会话内可“不再提示”）
   const [showAiConfirm, setShowAiConfirm] = useState(false)
   const handleAiClick = () => {
@@ -183,7 +177,7 @@ export default function LessonPlanEditor() {
   // 左侧小微会话"应用到当前内容"：携带对话上下文触发 AI 生成 → 切换 DOC 模式展示结果（小微展开由 EditorInfoPanel 内部控制）
   const handleLeftApply = async (chatContext: string) => {
     await handleGenerate(chatContext)
-    if (editMode === 'ai') handleSwitchToDoc()
+    if (ctrl.workMode === 'ai') handleSwitchToDoc()
   }
 
   // 拉取素材库，建立 id -> 素材 映射（用于展示已挂载课件名称）
@@ -218,7 +212,8 @@ export default function LessonPlanEditor() {
   }, [content])
 
   // 浏览器关闭/刷新拦截（统一 hook）；锁定查看态为只读、无未保存概念，不拦截
-  const hasUnsavedChanges = !locked && content.length > 0 && !showFinalizeConfirm
+  // 注：ctrl 可能首帧未赋值（let 声明），用 optional chain 防崩
+  const hasUnsavedChanges = ctrl ? !ctrl.readOnly && content.length > 0 && !showFinalizeConfirm : false
   useUnsavedChanges(hasUnsavedChanges)
 
   // 应用内导航拦截（SideBar Link 点击）
@@ -227,7 +222,7 @@ export default function LessonPlanEditor() {
   const origPushRef = useRef<typeof window.history.pushState>(window.history.pushState)
 
   useEffect(() => {
-    if (locked || !hasUnsavedChanges) return
+    if (!ctrl || ctrl.readOnly || !hasUnsavedChanges) return
     const orig = window.history.pushState.bind(window.history)
     origPushRef.current = orig
     const handler = function (this: History, state: any, title: string, url?: string | URL | null) {
@@ -239,7 +234,7 @@ export default function LessonPlanEditor() {
       window.history.pushState = orig
       pendingNavRef.current = null
     }
-  }, [hasUnsavedChanges, locked])
+  }, [hasUnsavedChanges, ctrl?.readOnly])
 
   const confirmLeave = () => {
     setShowLeaveDialog(false)
@@ -356,7 +351,7 @@ export default function LessonPlanEditor() {
         setTimeout(() => setAutoSaveTip(''), 2000)
       } catch { /* 切换时保存失败静默，文档模式内仍可手动保存 */ }
     }
-    setEditMode('doc')
+    ctrl.setWorkMode('doc')
   }
 
   const handleFinalize = async () => {
@@ -495,8 +490,8 @@ export default function LessonPlanEditor() {
   const gradeNum = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'].indexOf(grade) + 1
 
   // ============ P0-6 生命周期（框架统一 footer + 自动保存状态机）============
-  // 注意：hooks 必须在所有条件 return（loadingExisting/locked）之前调用，
-  // 否则预览态(locked 提前 return)与解锁编辑态 hooks 数量不一致 → React #310 崩溃、编辑器空白。
+  // 注意：hooks 必须在所有条件 return（loadingExisting/ctrl.readOnly）之前调用，
+  // 否则预览态(ctrl.readOnly 提前 return)与解锁编辑态 hooks 数量不一致 → React #310 崩溃、编辑器空白。
   const silentSave = useCallback(async () => {
     const kIds = picker.selectedIds.length > 0 ? picker.selectedIds : savedKnowledgeIds
     const knowledgeNodeIds = JSON.stringify(kIds)
@@ -515,14 +510,20 @@ export default function LessonPlanEditor() {
     }
   }, [picker, savedKnowledgeIds, planId, subject, grade, lessonTitle, textbookUnit, period, content, template, curriculum, materialRefs])
 
-  const lifecycle = useEditorLifecycle({
+  ctrl = useEditorController({
     autoSaveDelay: 8000,
     onAutoSave: silentSave,
     onSaveDraft: handleSaveDraft,
     onPublish: () => setShowFinalizeConfirm(true),
   })
 
-  if (loadingExisting) {
+  // 查看态：进入查看态即自动打开全屏预览（按 id 重算，兼容同标签内切换不同教案）
+  useEffect(() => {
+    if (ctrl?.readOnly) setPreviewOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  if (loadingExisting || !ctrl) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#F6F7F8]">
         <div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" />
@@ -530,70 +531,26 @@ export default function LessonPlanEditor() {
     )
   }
 
-  // 锁定查看态：doc 只读所见即所得，复用全屏布局（通栏无白框），点「编辑」解锁
-  if (locked) {
-    return (
-      <div className="min-h-screen flex flex-col bg-white">
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 bg-[#1F2937] text-white shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-white/10 rounded transition-colors" title="返回">
-              <ArrowLeft size={18} />
-            </button>
-            <div className="min-w-0">
-              <div className="text-[14px] font-medium truncate">{lessonTitle || '未命名教案'}</div>
-              <div className="text-[11px] text-gray-300">{subject}{grade}{textbookUnit ? ' · ' + textbookUnit : ''}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={handleExportDocx} className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-white border border-white/30 rounded hover:bg-white/10 transition-colors">
-              <Download size={14} /> 导出
-            </button>
-            <button onClick={_handlePrintPdf} className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-white border border-white/30 rounded hover:bg-white/10 transition-colors">
-              <FileText size={14} /> 打印
-            </button>
-            <button onClick={() => { setForceEdit(true); setEditMode('doc'); window.history.replaceState(null, '', `/lesson-plans/${id}/edit`) }} className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-white text-[#1F2937] rounded font-medium hover:bg-gray-100 transition-colors">
-              <Pencil size={14} /> 编辑
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <TipTapEditor value={contentToHtml(content)} readOnly onChange={() => {}} />
-        </div>
-      </div>
-    )
-  }
-
-  // 文档模式右侧：TipTap 编辑器（"导出教案/全屏"通过 toolbarExtra 注入 TipTap 工具栏尾部，与内置"导入 Word/保存版本"并列在最右）
+  // 文档模式右侧：TipTap 编辑器（"导出教案"通过 toolbarExtra 注入；"全屏"由 DocEditorPanel 框架内置统一提供）
   const exportToolbarExtra: ReactNode = (
     <>
       <button onClick={handleExportDocx}
         className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors"
         title="导出教案正文为 Word（公式以图片嵌入）"
       >导出教案</button>
-      <button onClick={() => setShowFullscreenEditor(true)}
-        className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors"
-        title="全屏编辑（A4 纸面，文档模式）"
-      >
-        <Maximize2 size={12} /> 全屏
-      </button>
     </>
   )
 
   const docRightPanel = (
-    <div className="h-full flex flex-col">
-      <div className="px-4 py-2 border-b border-[#F0F0F0] shrink-0 bg-[#FAFBFC]">
-        <span className="text-[12px] text-[#9A9A9A]">教案正文 · 自由排版（支持 Markdown / 表格 / 列表 / 公式）</span>
-      </div>
-      <div className="flex-1 overflow-hidden">
-        <TipTapEditor
-          value={contentToHtml(content)}
-          onChange={(v) => setContent(v || '')}
-          docTitle={lessonTitle}
-          placeholder="开始编写教案正文..."
-          toolbarExtra={exportToolbarExtra}
-        />
-      </div>
-    </div>
+    <DocEditorPanel
+      hint="教案正文 · 自由排版（支持 Markdown / 表格 / 列表 / 公式）"
+      value={contentToHtml(content)}
+      onChange={(v) => setContent(v || '')}
+      docTitle={lessonTitle}
+      placeholder="开始编写教案正文..."
+      toolbarExtra={exportToolbarExtra}
+      onFullscreen={() => setShowFullscreenEditor(true)}
+    />
   )
 
   // 左栏内容（P0-3：EditorInfoPanel 统一容器 + 基本信息卡 + 框架级小微；产品特定表单作为 children）
@@ -660,9 +617,9 @@ export default function LessonPlanEditor() {
               {picker.selectedNodes.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {picker.selectedNodes.map(n => (
-                    <span key={n.id} className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full ${editMode === 'doc' ? 'bg-[#F6F7F8] text-[#353535]' : 'bg-[#F0F0F0] text-[#353535]'}`}>
+                    <span key={n.id} className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full ${ctrl.workMode === 'doc' ? 'bg-[#F6F7F8] text-[#353535]' : 'bg-[#F0F0F0] text-[#353535]'}`}>
                       {n.name}
-                      {editMode === 'ai' && (
+                      {ctrl.workMode === 'ai' && (
                         <button onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">
                           <X size={10} />
                         </button>
@@ -671,7 +628,7 @@ export default function LessonPlanEditor() {
                   ))}
                 </div>
               ) : (
-                <p className="text-[11px] text-[#9A9A9A]">请在右侧{editMode === 'ai' ? '知识图谱' : 'AI 模式'}中选取知识点</p>
+                <p className="text-[11px] text-[#9A9A9A]">请在右侧{ctrl.workMode === 'ai' ? '知识图谱' : 'AI 模式'}中选取知识点</p>
               )}
             </div>
 
@@ -710,14 +667,14 @@ export default function LessonPlanEditor() {
                 {customTags.map((tag, i) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-[#F0F0F0] text-[#353535] rounded-full">
                     {tag}
-                    {editMode === 'ai' && (
+                    {ctrl.workMode === 'ai' && (
                       <button onClick={() => setCustomTags(prev => prev.filter((_, idx) => idx !== i))} className="text-[#9A9A9A] hover:text-[#FF4D4F]">
                         <X size={10} />
                       </button>
                     )}
                   </span>
                 ))}
-                {editMode === 'ai' && customTags.length < 3 && (
+                {ctrl.workMode === 'ai' && customTags.length < 3 && (
                   <input
                     type="text"
                     value={newTagInput}
@@ -734,12 +691,12 @@ export default function LessonPlanEditor() {
             <div className="px-5 py-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[13px] font-medium text-[#353535]">关联素材</span>
-                {editMode === 'ai' && (
+                {ctrl.workMode === 'ai' && (
                   <button onClick={() => setShowMaterialPicker(true)} className="text-[11px] text-[#02A7F0] hover:underline">+ 从素材库指定</button>
                 )}
               </div>
               {materialRefs.length > 0 ? (
-                editMode === 'doc' ? (
+                ctrl.workMode === 'doc' ? (
                   <div className="space-y-2">
                     {materialRefs.map(mid => {
                       const m = materialMap[mid]
@@ -788,7 +745,7 @@ export default function LessonPlanEditor() {
               )}
             </div>
 
-            {editMode === 'ai' && showAiConfirm && (
+            {ctrl.workMode === 'ai' && showAiConfirm && (
               <div className="px-5 py-3 bg-[#FFFBE6] border border-[#FFE58F] rounded-[4px] mx-3">
                 <p className="text-[12px] text-[#8A6D00] mb-2">当前正文含文档模式或此前的手动编辑，AI 润色将基于现有内容重写并覆盖。确定继续？</p>
                 <div className="flex items-center gap-2">
@@ -805,18 +762,82 @@ export default function LessonPlanEditor() {
     </EditorInfoPanel>
   )
 
-  // P0-2 全屏预览承载层：锁定只读版式（文字类）— 加 noPanels 隐藏工具栏/章节导航/批注 Tab
+  // P0-2 全屏预览承载层：锁定只读版式（文字类）。全屏模式 fullscreen：左右侧栏默认展开，
+  // 且以绝对定位覆盖（不平移居中 A4 内容）
   const previewSlot = (
-    <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
-      <div className="w-[794px] min-h-[1123px] bg-white shadow-sm">
-        <TipTapEditor value={contentToHtml(content)} readOnly noPanels onChange={() => {}} />
-      </div>
-    </div>
+    <TipTapEditor value={contentToHtml(content)} readOnly onChange={() => {}} docTitle={lessonTitle || '未命名教案'} />
   )
+
+  // 锁定查看态：复用编辑器框架布局（与试卷/出题统一 EditorLayout），仅文档区只读居中，
+  // 顶栏带 导出教案/打印/编辑 按钮；点「编辑」ctrl.forceEdit 原地解锁进入文档模式。
+  if (ctrl.readOnly) {
+    const viewHtml = contentToHtml(content)
+    const editNow = () => { setPreviewOpen(false); ctrl.forceEdit(); ctrl.setWorkMode('doc'); window.history.replaceState(null, '', `/lesson-plans/${id}/edit`) }
+    const centeredDocInline = (
+      <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
+        <div className="w-[794px] min-h-[1123px] bg-white shadow-sm">
+          <TipTapEditor value={viewHtml} readOnly noPanels onChange={() => {}} docTitle={lessonTitle || '未命名教案'} />
+        </div>
+      </div>
+    )
+    const centeredDocFull = (
+      <TipTapEditor value={viewHtml} readOnly onChange={() => {}} docTitle={lessonTitle || '未命名教案'} />
+    )
+    return (
+      <EditorLayout
+        sceneName="教案"
+        primaryLeft={leftPanelContent}
+        primaryRight={
+          <KnowledgeGraphTool
+            data={picker.knowledgeData}
+            filter={{ subject, grade: gradeNum, semester: teaching.semester }}
+            selectedIds={picker.selectedIds}
+            onSelect={ids => picker.setSelectedIds(ids)}
+          />
+        }
+        secondaryLeft={leftPanelContent}
+        secondaryRight={
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-2.5 bg-[#F6F7F8] border-b border-[#E7E7EB] shrink-0">
+              <span className="text-[12px] text-[#9A9A9A]">{lessonTitle || '未命名教案'} · {subject}{grade}{textbookUnit ? ' · ' + textbookUnit : ''}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={handleExportDocx}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8]">
+                  <Download size={13} /> 导出教案</button>
+                <button onClick={_handlePrintPdf}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8]">
+                  <FileText size={13} /> 打印</button>
+                <button onClick={editNow}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-[#02A7F0] text-white rounded-[4px] hover:bg-[#0288D1]">
+                  <Pencil size={13} /> 编辑</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">{centeredDocInline}</div>
+          </div>
+        }
+        mode="secondary"
+        modeLocked
+        modeLockedLabel="只读查看"
+        footerAlign="left"
+        footerLifecycle={{
+          saveDraftLabel: '编辑',
+          publishLabel: '返回教案库',
+          onSaveDraft: editNow,
+          onPublish: () => { window.location.href = '/lesson-plans' },
+        }}
+        previewTitle="教案预览"
+        previewSlot={centeredDocFull}
+        previewOpen={previewOpen}
+        onPreviewChange={setPreviewOpen}
+        onPreviewEdit={editNow}
+      />
+    )
+  }
 
   return (
     <>
     <EditorLayout
+      sceneName="教案"
       primaryLeft={leftPanelContent}
       secondaryLeft={leftPanelContent}
       primaryRight={
@@ -828,17 +849,16 @@ export default function LessonPlanEditor() {
         />
       }
       secondaryRight={docRightPanel}
-      mode={(editMode === 'ai' ? 'primary' : 'secondary')}
-      modeLabels={['AI 模式', '文档模式']}
-      onModeChange={(m) => m === 'secondary' ? handleSwitchToDoc() : setEditMode('ai')}
+      mode={(ctrl.workMode === 'ai' ? 'primary' : 'secondary')}
+      onModeChange={(m) => m === 'secondary' ? handleSwitchToDoc() : ctrl.setWorkMode('ai')}
       footerAlign="left"
       footerLifecycle={{
         saveDraftLabel: '保存为草稿',
         publishLabel: '发布',
-        onSaveDraft: lifecycle.saveDraft,
-        onPublish: lifecycle.publish,
-        status: lifecycle.status,
-        saving: lifecycle.saving,
+        onSaveDraft: ctrl.saveDraft,
+        onPublish: ctrl.publish,
+        status: ctrl.status,
+        saving: ctrl.saving,
       }}
       previewTitle="教案预览"
       previewSlot={previewSlot}
@@ -866,7 +886,7 @@ export default function LessonPlanEditor() {
         <div className="flex-1 overflow-hidden">
           {/* 全屏编辑必须与文档模式一致：value 必须是 HTML（contentToHtml 把 Markdown 转 HTML），
               不能传原始 content（Markdown），否则编辑器会把 #/## 当成纯文本显示 */}
-          <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." />
+          <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." fullscreen />
         </div>
       </div>
     )}

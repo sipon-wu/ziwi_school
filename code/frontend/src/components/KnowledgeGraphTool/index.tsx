@@ -49,7 +49,7 @@ export default function KnowledgeGraphTool({
       </div>
 
       {/* Graph Area */}
-      <div className="flex-1 relative pb-[45px]">
+      <div className="flex-1 relative">
         <Suspense fallback={
           <div className="flex items-center justify-center h-full">
             <div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" />

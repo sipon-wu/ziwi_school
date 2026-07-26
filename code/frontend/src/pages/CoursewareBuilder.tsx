@@ -13,6 +13,7 @@ import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToO
 import type { OutlineSlide } from '../lib/exportPptx'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
+import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview from '../components/PptxPreview'
 
@@ -31,6 +32,9 @@ export default function CoursewareBuilder() {
   const teaching = useTeaching()
   const { toast } = useToast()
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
+
+  // eslint-disable-next-line prefer-const
+  let ctrl: any
 
   const picker = useKnowledgePicker({ autoSelect: false })
   const { setPicker: setKGPicker } = useKGContext()
@@ -61,8 +65,7 @@ export default function CoursewareBuilder() {
   const [validating, setValidating] = useState(false)
   const [savingCw, setSavingCw] = useState(false)
   const [polishing, setPolishing] = useState(false)
-  const [editMode, setEditMode] = useState<'ai' | 'doc'>('ai')
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
+  // workMode 已收口到 useEditorController
 
   // 参照课件下拉数据
   const [materials, setMaterials] = useState<Array<{ id: string; name: string }>>([])
@@ -83,7 +86,7 @@ export default function CoursewareBuilder() {
         setCwOutline(Array.isArray(d.outline) ? d.outline : [])
         setCwDivergence(Array.isArray(d.divergence) ? d.divergence : [])
         if (d.divergenceLevel) setDivergenceLevel(d.divergenceLevel)
-        if (d.outline?.length) setEditMode('doc')
+        if (d.outline?.length) ctrl.setWorkMode('doc')
         toast('已恢复上次未发布的课件草稿', 'info')
       }
     } catch { /* 忽略损坏草稿 */ }
@@ -138,7 +141,7 @@ export default function CoursewareBuilder() {
       setRemovedDivergence({})
       setCwSimilar(res.similar_material || null)
       setValidateIssues(null)
-      setEditMode('doc')
+      ctrl.setWorkMode('doc')
       toast('课件已生成，可在右侧编辑提纲', 'success')
     } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
     finally { setGenLoading(false) }
@@ -216,6 +219,8 @@ export default function CoursewareBuilder() {
     } catch { toast('草稿暂存失败', 'error') }
   }
 
+  ctrl = useEditorController({ onSaveDraft: handleSaveDraft, onPublish: handlePublish })
+
   const handlePublish = async () => {
     if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
     if (!cwOutline.length) { toast('课件内容为空，请先生成课件', 'warning'); return }
@@ -226,7 +231,7 @@ export default function CoursewareBuilder() {
       })
       if (!r.pass) {
         setValidateIssues(r.issues || [])
-        setEditMode('doc')
+        ctrl.setWorkMode('doc')
         toast('发布校验未通过，请按提示修改后再发布', 'warning')
         return
       }
@@ -474,20 +479,17 @@ export default function CoursewareBuilder() {
       primaryRight={rightPanelAi}
       secondaryLeft={leftPanel}
       secondaryRight={rightPanelDoc}
-      mode={editMode === 'ai' ? 'primary' : 'secondary'}
-      modeLabels={['AI 模式', '文档模式']}
-      onModeChange={m => setEditMode(m === 'primary' ? 'ai' : 'doc')}
-      subtitle="AI 生成 PPT 课件，提纲可编辑 · H5 互动课件即将上线"
-      leftCollapsible={editMode === 'doc'}
-      leftCollapsed={leftPanelCollapsed}
-      onToggleLeft={() => setLeftPanelCollapsed(prev => !prev)}
+      mode={ctrl.workMode === 'ai' ? 'primary' : 'secondary'}
+      onModeChange={m => ctrl.setWorkMode(m === 'primary' ? 'ai' : 'doc')}
+      sceneName="PPT 课件"
       footerAlign="left"
       footerLifecycle={{
         saveDraftLabel: '保存草稿',
         publishLabel: '发布到素材库',
-        onSaveDraft: handleSaveDraft,
-        onPublish: handlePublish,
-        saving: savingCw || validating,
+        onSaveDraft: ctrl.saveDraft,
+        onPublish: ctrl.publish,
+        status: ctrl.status,
+        saving: ctrl.saving || savingCw || validating,
       }}
       previewTitle={`${genTitle.trim() || '未命名'}_课件 · PPT 放映`}
       previewSlot={

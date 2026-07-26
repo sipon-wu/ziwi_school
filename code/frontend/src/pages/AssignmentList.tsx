@@ -200,10 +200,10 @@ export default function AssignmentList() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/assignments/${a.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
+                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/assignments/${a.id}/edit`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
                             <Edit size={14} />
                           </button>
-                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/assignments/${a.id}?preview=1`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
+                          <button onClick={(ev) => { ev.stopPropagation(); window.open(`/assignments/${a.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览">
                             <Eye size={14} />
                           </button>
                           <button onClick={(ev) => { ev.stopPropagation(); setDeleteTarget(a.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">

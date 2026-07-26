@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { EmptyState } from '../components/StateComponents'
 import { usePagination } from '../lib/useApi'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -19,6 +19,18 @@ interface QuestionItem {
   usage_count: number
   updated_at: string
   knowledge_points: string[]
+}
+
+interface SheetItem {
+  id: string
+  title: string
+  subject: string
+  grade: string
+  target_class: string
+  status: string
+  total_count: number
+  deadline: string
+  updated_at: string
 }
 
 const DIFFICULTY_LABELS: Record<string, string> = {
@@ -59,7 +71,9 @@ const subjectColors: Record<string, string> = {
 export default function Exercises() {
   const navigate = useNavigate()
   const teaching = useTeaching()
+  const [selectedTab, setSelectedTab] = useState<'questions' | 'sheets'>('questions')
   const [questions, setQuestions] = useState<QuestionItem[]>([])
+  const [sheets, setSheets] = useState<SheetItem[]>([])
   useEffect(() => { api<{ items: any[] }>('/exercises?page_size=1000').then(res => { setQuestions(res.items || []) }).catch((e) => notifyError('习题加载失败', e)) }, [])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
@@ -67,6 +81,14 @@ export default function Exercises() {
   const [filterDifficulty, setFilterDifficulty] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  // 加载题单列表
+  useEffect(() => {
+    if (selectedTab !== 'sheets') return
+    api<{ items: any[] }>('/sheets?page_size=500').then(res => {
+      setSheets((res.items || []).map((s: any) => ({ ...s, grade: s.grade ? GRADE_MAP[s.grade] || s.grade : (GRADE_MAP[teaching.grade] || '四年级'), subject: s.subject || teaching.subject })))
+    }).catch(() => {})
+  }, [selectedTab, teaching.grade, teaching.subject])
 
   // 按当前教学上下文过滤（学科+年级）
   const classFiltered = useMemo(() => {
@@ -87,9 +109,9 @@ export default function Exercises() {
 
   const handleRowClick = (q: QuestionItem) => {
     if (q.status === 'draft') {
-      window.open(`/exercises/${q.id}`, '_blank')
+      window.open(`/exercises/${q.id}/edit`, '_blank')
     } else {
-      window.open(`/exercises/${q.id}?preview=1`, '_blank')
+      window.open(`/exercises/${q.id}`, '_blank')
     }
   }
 
@@ -103,21 +125,34 @@ export default function Exercises() {
   return (
     <AppLayout>
       <div className="flex flex-col h-full space-y-4">
-        {/* 页面标题 */}
+        {/* 页面标题 + Tab 切换 */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-[#353535]">出题·题库</h1>
-            <p className="text-[11px] text-[#9A9A9A] mt-0.5">管理个人题目，支持 AI 智能出题和手动编辑</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-lg font-bold text-[#353535]">{selectedTab === 'questions' ? '出题·题库' : '练习·题单'}</h1>
+              <p className="text-[11px] text-[#9A9A9A] mt-0.5">{selectedTab === 'questions' ? '管理个人题目，支持 AI 智能出题和手动编辑' : '布置课后练习，按班级下发题单'}</p>
+            </div>
+            {/* 类型 Tab */}
+            <div className="flex bg-[#F3F3F5] rounded-[4px] p-0.5 ml-4">
+              <button onClick={() => setSelectedTab('questions')}
+                className={`px-3 py-1.5 text-[13px] rounded-[3px] transition-colors ${selectedTab === 'questions' ? 'bg-white text-[#353535] font-medium shadow-sm' : 'text-[#9A9A9A] hover:text-[#353535]'}`}>
+                题目
+              </button>
+              <button onClick={() => setSelectedTab('sheets')}
+                className={`px-3 py-1.5 text-[13px] rounded-[3px] transition-colors ${selectedTab === 'sheets' ? 'bg-white text-[#353535] font-medium shadow-sm' : 'text-[#9A9A9A] hover:text-[#353535]'}`}>
+                题单
+              </button>
+            </div>
           </div>
           <button
-            onClick={() => openWorkspace('/exercises/new')}
+            onClick={() => openWorkspace(selectedTab === 'questions' ? '/exercises/new' : '/sheets/new')}
             className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
           >
-            <Plus size={16} /> 出题
+            <Plus size={16} /> {selectedTab === 'questions' ? '出题' : '布置练习'}
           </button>
         </div>
 
-        <>
+        {selectedTab === 'questions' && (<>
             {/* 搜索 + 筛选 */}
             <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-3 flex flex-wrap items-center gap-3">
               <div className="flex-1 relative min-w-[140px] max-w-[280px]">
@@ -221,7 +256,7 @@ export default function Exercises() {
                               <button onClick={(e) => { e.stopPropagation(); window.open(`/exercises/${q.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑（新标签页打开）">
                                 <Edit size={14} />
                               </button>
-                              <button onClick={(e) => { e.stopPropagation(); window.open(`/exercises/${q.id}?preview=1`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览（新标签页打开）">
+                              <button onClick={(e) => { e.stopPropagation(); window.open(`/exercises/${q.id}`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#353535] hover:bg-gray-100 rounded-[3px]" title="预览（新标签页打开）">
                                 <Eye size={14} />
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(q.id) }} className="p-1.5 text-[#9A9A9A] hover:text-[#FF4D4F] hover:bg-red-50 rounded-[3px]" title="删除">
@@ -266,8 +301,68 @@ export default function Exercises() {
               onConfirm={handleDelete}
               onCancel={() => setDeleteTarget(null)}
             />
-          </>
-      </div>
+        </>)}
+        {selectedTab === 'sheets' && <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
+              {sheets.length === 0 ? (
+                <EmptyState title="暂无题单" description="还没有布置过练习，点「布置练习」开始" action={{ label: '布置练习', onClick: () => window.open('/sheets/new', '_blank') }} />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-[#F6F7F8] border-b border-[#E7E7EB]">
+                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9A9A9A] uppercase w-[35%]">题单标题</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9A9A9A] uppercase hidden lg:table-cell">班级</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9A9A9A] uppercase">题数</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9A9A9A] uppercase">状态</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9A9A9A] uppercase hidden lg:table-cell">截止日期</th>
+                        <th className="text-right px-4 py-3 text-[11px] font-semibold text-[#9A9A9A] uppercase">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F0F0F0]">
+                      {sheets.map(s => (
+                        <tr key={s.id} onClick={() => window.open(`/sheets/${s.id}`, '_blank')}
+                          className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <FileText size={14} className="text-[#722ED1] shrink-0" />
+                              <span className="text-[13px] text-[#353535] font-medium line-clamp-1">{s.title || '未命名题单'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[#353535] hidden lg:table-cell">{s.target_class || '-'}</td>
+                          <td className="px-4 py-3">
+                            <span className="text-[13px] text-[#353535] font-medium">{s.total_count || 0}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {s.status === 'published' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium bg-green-50 text-green-600">
+                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> 已布置
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium bg-yellow-50 text-yellow-600">
+                                <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" /> 草稿
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">
+                            {s.deadline ? new Date(s.deadline).toLocaleDateString('zh-CN') : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={(e) => { e.stopPropagation(); window.open(`/sheets/${s.id}/edit`, '_blank') }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑">
+                                <Edit size={14} />
+                              </button>
+                              <Eye size={14} className="p-0.5 text-[#9A9A9A] hover:text-[#353535] cursor-pointer" onClick={(e) => { e.stopPropagation(); window.open(`/sheets/${s.id}`, '_blank') }} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          }
+          </div>
     </AppLayout>
   )
 }

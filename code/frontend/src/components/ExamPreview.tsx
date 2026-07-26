@@ -327,7 +327,7 @@ export default function ExamPreview({
 
   /* ── 画布区域 ── */
   const canvasArea = (
-    <div className={`flex-1 overflow-auto ${zoom100 ? 'p-2' : 'p-4'}`}>
+    <div className={`flex-1 overflow-auto flex flex-col ${zoom100 ? 'p-2' : 'p-4'}`}>
       {isEmpty ? (
         <div className="h-full flex items-center justify-center text-center text-white/70">
           <div>
@@ -336,7 +336,7 @@ export default function ExamPreview({
           </div>
         </div>
       ) : (
-      <div className="flex flex-col items-center gap-6">
+      <div className="flex-1 flex flex-col items-center gap-6 min-h-0">
         {paperSize !== 'A4' ? (
           <div key={`a3-${sheet}-${side}`} className="relative">
             <div className="absolute -top-6 left-0 text-[10px] text-gray-500">
@@ -370,11 +370,10 @@ export default function ExamPreview({
           a4Pages.map((page, pi) => {
             const startNum = a4Pages.slice(0, pi).reduce((a, p) => a + p.length, 0) + 1
             return (
-              <div key={`a4-${pi}`} className="relative">
+              <div key={`a4-${pi}`} className="relative w-full max-w-[794px] flex-1 flex flex-col items-center" style={{ aspectRatio: '210/297' }}>
                 <div className="absolute -top-6 left-0 text-[10px] text-gray-500">第 {pi + 1} 页 / 共 {a4Pages.length} 页</div>
                 <div
-                  className={zoom100 ? 'w-[794px]' : 'w-[794px]'}
-                  style={{ height: 1122, background: 'white' }}
+                  className="bg-white border border-[#E7E7EB] shadow-sm flex-1 w-full"
                 >
                   <div className="h-full overflow-hidden">
                     <div className="px-8 py-10">

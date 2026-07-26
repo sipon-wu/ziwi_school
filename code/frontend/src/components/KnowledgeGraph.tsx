@@ -269,7 +269,15 @@ export default function KnowledgeGraph({
       window.addEventListener('resize', onResize)
       return () => { window.removeEventListener('resize', onResize); graphRef.current?.destroy(); graphRef.current = null }
     }
-    return () => { graphRef.current?.destroy(); graphRef.current = null }
+    // inline 模式：监听 containerRef 大小变化，setSize + fitView 保持画布填满不底部留白
+    const ro = new ResizeObserver(() => {
+      if (graphRef.current && containerRef.current) {
+        graphRef.current.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
+        graphRef.current.fitView()
+      }
+    })
+    ro.observe(containerRef.current)
+    return () => { ro.disconnect(); graphRef.current?.destroy(); graphRef.current = null }
   }, [visibleNodes, layout, dimension, getColor, graphHeight, inline])
 
   // 选中状态更新：只改节点样式，不销毁重建图谱
