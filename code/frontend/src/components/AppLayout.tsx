@@ -192,7 +192,6 @@ export default function AppLayout({ children }: Props) {
                     {exp && (
                       <div className="flex flex-col gap-[1px] mt-[2px]">
                         {g.children.map((c) => {
-                          if (c.requireSchool && teaching.licenseStatus !== 'active') return null
                           const childActive = path.startsWith(c.to)
                           return (
                             <a key={c.to} href={c.to}

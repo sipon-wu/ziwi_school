@@ -89,15 +89,15 @@ export default function HeaderRight({ variant = 'light' }: Props) {
       </div>
 
       {/* Bell */}
-      <div ref={notifyRef} className="relative">
+      <div ref={notifyRef} className="relative mr-[10px] translate-y-[3px]">
         <button
           onClick={() => setShowNotify(!showNotify)}
           className={`relative transition-colors ${bellColor}`}
         >
-          <Bell size={16} />
+          <Bell size={18} />
         </button>
         {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-3.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-[#FF4D4F] text-white text-[9px] font-bold rounded-full leading-none">
+          <span className="absolute -top-1 -right-2 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center bg-[#FF4D4F] text-white text-[8px] font-medium rounded-full leading-none">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -140,19 +140,20 @@ export default function HeaderRight({ variant = 'light' }: Props) {
       </div>
 
       {/* Avatar + Dropdown */}
-      <div className="relative flex items-center gap-1" ref={menuRef}>
+      <div className="relative" ref={menuRef}>
         <button
           onClick={() => setShowMenu(!showMenu)}
-          className={`w-7 h-7 rounded-full overflow-hidden border hover:opacity-90 transition-opacity flex items-center justify-center ${avatarBorder} ${initialsBg}`}
+          className="flex items-center gap-1.5 hover:opacity-90 transition-opacity focus:outline-none"
         >
-          <img src="/avatar.jpg?v=3" alt="" className="w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <span className={`w-7 h-7 rounded-full overflow-hidden border flex items-center justify-center shrink-0 ${avatarBorder} ${initialsBg}`}>
+            <img src="/avatar.jpg?v=3" alt="" className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          </span>
+          {/* Username */}
+          <span className={`text-[13px] hidden sm:inline whitespace-nowrap shrink-0 ${nameColor}`}>
+            {user?.name || '张真真'}
+          </span>
         </button>
-
-        {/* Username */}
-        <span className={`text-[13px] hidden sm:inline whitespace-nowrap shrink-0 ${nameColor}`}>
-          {user?.name || '张真真'}
-        </span>
 
         {/* Dropdown */}
         {showMenu && (

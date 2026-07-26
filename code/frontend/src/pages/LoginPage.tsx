@@ -61,8 +61,8 @@ export default function LoginPage() {
         <img src="/ziwiAI.jpg" alt="知微" className="w-20 h-20 rounded-2xl mb-6 border-2 border-white/30" />
         <h1 className="text-3xl font-bold mb-3 tracking-wide">知微教学</h1>
         <p className="text-sm opacity-80 mb-8">AI 驱动的智能教学助手</p>
-        <div className="w-full max-w-[380px] aspect-[4/3] rounded-[10px] border border-white/20 overflow-hidden bg-white/5 flex items-center justify-center">
-          <span className="text-white/30 text-sm">校园图占位</span>
+        <div className="w-full max-w-[380px] aspect-[4/3] rounded-[10px] border border-white/20 overflow-hidden bg-white/5">
+          <img src="/cover.png" alt="知微教学" className="w-full h-full object-cover" />
         </div>
       </div>
 
