@@ -11,6 +11,9 @@ type Config struct {
 	JWTSecret   string
 	CloudJWKSURL string // cloud IdP 的 JWKS 公钥端点，供 school 独立验签 RS256 token
 	AIBaseURL   string
+	// 心跳上报（P2 私有部署心跳对齐 heartbeat.ziwi.cn）
+	HeartbeatEnabled bool
+	HeartbeatURL     string
 	OSS         OSSConfig
 }
 
@@ -29,6 +32,8 @@ func Load() (*Config, error) {
 		JWTSecret:   getEnv("JWT_SECRET", "zhiwei-dev-secret-change-in-production"),
 		CloudJWKSURL: getEnv("CLOUD_JWKS_URL", "https://cloud.ziwi.cn/api/v1/auth/public-key"),
 		AIBaseURL:   getEnv("AI_BASE_URL", "http://localhost:8000"),
+		HeartbeatEnabled: getEnv("HEARTBEAT_ENABLED", "") == "true",
+		HeartbeatURL:     getEnv("HEARTBEAT_URL", "https://heartbeat.ziwi.cn/api/v1/heartbeat"),
 		OSS: OSSConfig{
 			Endpoint:  getEnv("OSS_ENDPOINT", ""),
 			Bucket:    getEnv("OSS_BUCKET", ""),

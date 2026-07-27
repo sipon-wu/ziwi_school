@@ -30,6 +30,9 @@ type School struct {
 	LicenseExpiresAt *time.Time `json:"license_expires_at"`
 	TokenQuota       int64     `gorm:"default:0" json:"token_quota"`
 	TokenUsed        int64     `gorm:"default:0" json:"token_used"`
+	// 心跳上报（P2 私有部署心跳对齐）
+	LastHeartbeatAt   *time.Time `json:"last_heartbeat_at"`
+	HeartbeatFailCount int       `gorm:"default:0" json:"heartbeat_fail_count"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
