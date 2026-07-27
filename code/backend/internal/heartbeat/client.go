@@ -28,6 +28,7 @@ type Payload struct {
 type Client struct {
 	db      *gorm.DB
 	url     string
+	apiKey  string
 	enabled bool
 	source  string // 部署形态标识：saas / onprem
 
@@ -36,10 +37,11 @@ type Client struct {
 }
 
 // New 创建心跳客户端。enabled=false 时不启动定时器。
-func New(db *gorm.DB, url string, enabled bool, source string) *Client {
+func New(db *gorm.DB, url, apiKey string, enabled bool, source string) *Client {
 	return &Client{
 		db:      db,
 		url:     url,
+		apiKey:  apiKey,
 		enabled: enabled,
 		source:  source,
 		stopCh:  make(chan struct{}),
@@ -105,7 +107,12 @@ func (c *Client) send() {
 	}
 
 	body, _ := json.Marshal(payload)
-	resp, err := http.Post(c.url, "application/json", bytes.NewReader(body))
+	req, _ := http.NewRequest("POST", c.url, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil || (resp != nil && resp.StatusCode >= 500) {
 		errMsg := "network error"
 		if err != nil {

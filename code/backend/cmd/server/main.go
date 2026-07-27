@@ -146,7 +146,7 @@ func main() {
 	gradingHandler := handler.NewGradingHandler(attemptRepo)
 
 	// P2 心跳上报：每天一次向 heartbeat.ziwi.cn 上报 License 状态 + 活跃席位
-	heartbeatClient := heartbeat.New(db, cfg.HeartbeatURL, cfg.HeartbeatEnabled, "saas")
+	heartbeatClient := heartbeat.New(db, cfg.HeartbeatURL, cfg.HeartbeatAPIKey, cfg.HeartbeatEnabled, "saas")
 	heartbeatClient.Start()
 
 	// 创建路由

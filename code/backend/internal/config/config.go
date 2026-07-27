@@ -14,6 +14,7 @@ type Config struct {
 	// 心跳上报（P2 私有部署心跳对齐 heartbeat.ziwi.cn）
 	HeartbeatEnabled bool
 	HeartbeatURL     string
+	HeartbeatAPIKey  string
 	OSS         OSSConfig
 }
 
@@ -34,6 +35,7 @@ func Load() (*Config, error) {
 		AIBaseURL:   getEnv("AI_BASE_URL", "http://localhost:8000"),
 		HeartbeatEnabled: getEnv("HEARTBEAT_ENABLED", "") == "true",
 		HeartbeatURL:     getEnv("HEARTBEAT_URL", "https://heartbeat.ziwi.cn/api/v1/heartbeat"),
+		HeartbeatAPIKey:  getEnv("HEARTBEAT_API_KEY", ""),
 		OSS: OSSConfig{
 			Endpoint:  getEnv("OSS_ENDPOINT", ""),
 			Bucket:    getEnv("OSS_BUCKET", ""),
