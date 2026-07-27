@@ -122,10 +122,29 @@ func (c *Client) send() {
 		}
 		log.Printf("[heartbeat] send FAIL: %s", errMsg)
 		c.incFailCount(school.ID)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		return
 	}
+	// Phase 2 预留：解析服务端响应中的 license 更新指令
+	var respBody struct {
+		LicenseUpdate *struct {
+			Status    string     `json:"status"`
+			ExpiresAt *time.Time `json:"expires_at"`
+		} `json:"license_update"`
+	}
 	if resp != nil {
+		json.NewDecoder(resp.Body).Decode(&respBody)
 		resp.Body.Close()
+	}
+	if respBody.LicenseUpdate != nil {
+		updates := map[string]interface{}{"license_status": respBody.LicenseUpdate.Status}
+		if respBody.LicenseUpdate.ExpiresAt != nil {
+			updates["license_expires_at"] = respBody.LicenseUpdate.ExpiresAt
+		}
+		c.db.Model(&model.School{}).Where("id = ?", school.ID).Updates(updates)
+		log.Printf("[heartbeat] license updated from server: status=%s", respBody.LicenseUpdate.Status)
 	}
 
 	now := time.Now()
