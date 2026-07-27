@@ -56,7 +56,7 @@ export default function XiaoWeiLauncher({
               <>
                 <span className="flex-1 text-[12px] text-[#9A9A9A]">请补充要求，支持会话、附件上传、在线素材…</span>
                 <img
-                  src="/xiaowei.png"
+                  src="/xiaowei.png?v=5"
                   alt="小微"
                   className="w-5 h-5 rounded-full shrink-0"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}

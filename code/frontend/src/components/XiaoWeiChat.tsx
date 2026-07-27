@@ -52,7 +52,7 @@ const QUICK_COMMANDS = [
   { label: '教学反思', type: 'outline' as const, prompt: '帮我做一次教学反思总结', navigateTo: null },
 ]
 
-const AVATAR_SRC = '/xiaowei.png'
+const AVATAR_SRC = '/xiaowei.png?v=5'
 
 function getTimeString(): string {
   const now = new Date()

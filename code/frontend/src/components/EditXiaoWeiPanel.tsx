@@ -98,7 +98,7 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
     <div className="flex flex-col bg-white border-t border-[#F0F0F0] h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#F0F0F0] shrink-0">
         <div className="flex items-center gap-1.5">
-          <img src="/xiaowei.png" alt="小微" className="w-4 h-4 rounded-full shrink-0" />
+          <img src="/xiaowei.png?v=5" alt="小微" className="w-4 h-4 rounded-full shrink-0" />
           <span className="text-[12px] font-medium text-[#353535]">小微 · 补充需求</span>
         </div>
         <button onClick={onCollapse} className="text-[#9A9A9A] hover:text-[#353535] p-0.5" title="收起">

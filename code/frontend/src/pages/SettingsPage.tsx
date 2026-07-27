@@ -1357,7 +1357,7 @@ function TrainXiaoWeiTab() {
             <div className="flex flex-col max-w-[700px] mx-auto">
               <div>
                 <div className="w-[63px] h-[63px] rounded-full overflow-hidden border border-[#E7E7EB] shrink-0">
-                  <img src="/xiaowei.png" alt="小微" className="w-full h-full object-cover"
+                  <img src="/xiaowei.png?v=5" alt="小微" className="w-full h-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjMiIGhlaWdodD0iNjMiIHZpZXdCb3g9IjAgMCA2MyA2MyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIzMS41IiBjeT0iMzEuNSIgcj0iMzEuNSIgZmlsbD0iI0VDRUNFQyIvPjxwYXRoIGQ9Ik0zMS41IDMzLjVDMzYuMSAzMy41IDM5LjggMjkuOCAzOS44IDI1LjIgMzkuOCAyMC42IDM2LjEgMTYuOCAzMS41IDE2LjggMjYuOSAxNi44IDIzLjIgMjAuNiAyMy4yIDI1LjIgMjMuMiAyOS44IDI2LjkgMzMuNSAzMS41IDMzLjVaIiBmaWxsPSIjOUE5QTlBIi8+PHBhdGggZD0iTTQ2LjcgNDYuN0M0Ni43IDM5LjUgMzkuNyAzMy43IDMxLjUgMzMuNyAyMy4zIDMzLjcgMTYuMyAzOS41IDE2LjMgNDYuN1Y0OC4zSDQ2LjdWNDYuN1oiIGZpbGw9IiM5QTlBOUEiLz48L3N2Zz4=' }} />
                 </div>
               </div>
@@ -1381,7 +1381,7 @@ function TrainXiaoWeiTab() {
             <div className="space-y-3 max-w-[700px] mx-auto">
               <div className="flex items-start gap-2.5">
                 <div className="w-7 h-7 rounded-full bg-[#F0F0F0] flex items-center justify-center shrink-0 overflow-hidden border border-[#E7E7EB] mt-0.5">
-                  <img src="/xiaowei.png" alt="" className="w-full h-full object-cover rounded-full"
+                  <img src="/xiaowei.png?v=5" alt="" className="w-full h-full object-cover rounded-full"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                 </div>
                 <div className="inline-block max-w-[85%] rounded-[6px] px-3.5 py-2.5 bg-white border border-[#E7E7EB] text-[12px] text-[#353535] leading-relaxed whitespace-pre-line">
@@ -1392,7 +1392,7 @@ function TrainXiaoWeiTab() {
                 <div key={i} className={`flex items-start gap-2.5 ${m.from === 'teacher' ? 'flex-row-reverse' : ''}`}>
                   {m.from === 'xw' && (
                     <div className="w-7 h-7 rounded-full bg-[#F0F0F0] flex items-center justify-center shrink-0 overflow-hidden border border-[#E7E7EB] mt-0.5">
-                      <img src="/xiaowei.png" alt="" className="w-full h-full object-cover rounded-full"
+                      <img src="/xiaowei.png?v=5" alt="" className="w-full h-full object-cover rounded-full"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                     </div>
                   )}

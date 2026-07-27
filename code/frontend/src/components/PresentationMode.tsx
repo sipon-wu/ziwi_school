@@ -60,7 +60,7 @@ export default function PresentationMode({ content, title, subject, grade, teach
       {!embedded && (
       <div className="flex items-center justify-between px-6 py-3 bg-gray-800/80 text-white">
         <div className="flex items-center gap-3">
-          <img src="/xiaowei.png" alt="知微" className="w-6 h-6 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <img src="/xiaowei.png?v=5" alt="知微" className="w-6 h-6 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           <span className="text-xs text-gray-400">{title} · {subject}{grade}</span>
         </div>
         <div className="flex items-center gap-4 text-xs text-gray-400">
