@@ -12,7 +12,6 @@ export default function SettingsPage() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} } })()
   const licenseStatus = (user.license_status as string) || 'none'
   const isITAdmin = user.role === 'it_admin'
-  const isPrincipal = user.role === 'principal'
 
   // 系统设置子页签（V2.5 教材版本配置规格书 §4）：
   //  - 学校版 License 已开通(active) 且非 IT 管理员 → 教师继承学校配置，隐藏教材配置入口
@@ -22,7 +21,7 @@ export default function SettingsPage() {
     { id: 'account', label: '帐号设置' },
     { id: 'school', label: '学校 · 班级' },
     ...(licenseStatus === 'active' && !isITAdmin ? [] : [{ id: 'textbook' as SubTab, label: '教材版本' }]),
-    ...((isITAdmin || isPrincipal) ? [{ id: 'library' as SubTab, label: '版本库维护' }, { id: 'campus' as SubTab, label: '校区管理' }] : []),
+    ...(isITAdmin ? [{ id: 'library' as SubTab, label: '版本库维护' }, { id: 'campus' as SubTab, label: '校区管理' }] : []),
     { id: 'semester', label: '学期配置' },
     { id: 'train', label: '训练小微' },
     { id: 'log', label: '日志 · 反馈' },

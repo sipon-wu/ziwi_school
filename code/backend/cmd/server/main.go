@@ -323,7 +323,6 @@ func main() {
 		itAdmin.GET("/admin/import/history", importHandler.History)
 		// 注意：与上方 :type 同前缀，rollback 必须用静态段避免通配符冲突
 		itAdmin.POST("/admin/import/rollback/:batchId", importHandler.Rollback)
-		// ── 校区管理已下放校长端（见下方 campusGrp：it_admin + principal 均可）──
 		// ── V2.6 全学科教材版本库维护（数据团队提供数据，IT 管理员导入/维护）──
 		itAdmin.GET("/admin/textbook-versions", itHandler.ListTextbookVersionLibrary)
 		itAdmin.POST("/admin/textbook-versions", itHandler.CreateTextbookVersion)
@@ -336,9 +335,9 @@ func main() {
 		itAdmin.PUT("/admin/textbook-versions/pending/:id/reject", itHandler.RejectSubmittedVersion)
 	}
 
-	// 校区管理：IT 管理员与校长均可维护（学校级配置，A1 一校多区）
+	// 校区管理：IT 管理员专属维护（学校级配置，A1 一校多区），与规划角色边界一致，不向 principal 放权
 	campusGrp := api.Group("")
-	campusGrp.Use(middleware.RequireRole("it_admin", "principal"))
+	campusGrp.Use(middleware.RequireRole("it_admin"))
 	{
 		campusGrp.GET("/admin/campuses", itHandler.ListCampuses)
 		campusGrp.POST("/admin/campuses", itHandler.CreateCampus)

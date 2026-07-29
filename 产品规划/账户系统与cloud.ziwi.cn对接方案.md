@@ -1,7 +1,8 @@
 # 知微教学（school.ziwi.cn）账户系统对接 cloud.ziwi.cn 方案
 
-> 版本：v0.5（新增短信验证码通道 + 微信登录规划）｜日期：2026-07-16
-> 变更：v0.4 完成 cloud IdP 对接（公钥验签 + CloudLogin 邮箱登录）后，手机号短信验证码通道、微信登录两项正式纳入统一认证路线图，见 §9、§10；改造清单 §4、待拍板 §5 同步更新。2026-07-16 方案定稿：短信服务商定腾讯云、微信登录定范围（仅 Web 扫码）、身份归属定 school 自管，三项均仅规划不实现；§12 新增 mfg 跨产品线统一认证决策（租户管理员/财务/SaaS 用户纳入 cloud 认证，同构 school 策略）。
+> 版本：v0.6（对齐 mfg v0.3 契约基线：license_exp 不进 JWT、products 为字符串数组、roles 走本地）｜日期：2026-07-27
+> **v0.6 变更（2026-07-27 用户拍板）**：以 `ziwi-integration-contracts/contracts/mfg接入cloud接口契约.md` v0.3（2026-07-10 已闭环）+ cloud 源码实况（`jwt_service.py`）为权威基线，修正本文档残留的 v0.1 旧写法：① cloud JWT claims = `sub/email/tenant_id/products[]/iat/exp`，**不含 `license_exp`**；② `products[]` 是**字符串数组**（如 `["school","mfg"]`），**无 `products[].roles/license_exp` 对象结构**；③ 角色走各产品本地体系；④ License 权威源 = cloud **License 服务/DB**（Phase 2 待建），本地 `LicenseStatus/LicenseExpiresAt` 为运行时判据 + 私有部署/断网兜底。受影响段落：§1.4、§3.3、§3.4、§3.5、§12。
+> 历史变更：v0.4 完成 cloud IdP 对接（公钥验签 + CloudLogin 邮箱登录）后，手机号短信验证码通道、微信登录两项正式纳入统一认证路线图，见 §9、§10；改造清单 §4、待拍板 §5 同步更新。2026-07-16 方案定稿：短信服务商定腾讯云、微信登录定范围（仅 Web 扫码）、身份归属定 school 自管，三项均仅规划不实现；§12 新增 mfg 跨产品线统一认证决策（租户管理员/财务/SaaS 用户纳入 cloud 认证，同构 school 策略）。v0.5.1：§8.1 补入「注册·租户·计费」专题文档双向引用。
 > 依据：
 > - `cloud运营与运维/multi-product-platform-integration.md` v0.1（cloud 统一 IdP 总体说明）
 > - ziwi_school 代码现状（models.go / auth_handler.go / middleware/auth.go / rbac.go / frontend api.ts）
@@ -47,10 +48,10 @@ cloud.ziwi.cn 已定位为**统一身份与授权平台（IdP）**：统一登�
 | 维度 | 现状 | 与 cloud 的差异 |
 |------|------|----------------|
 | 签名算法 | HS256（对称） | cloud 用 RS256（非对称，公钥可分发） |
-| Token 语义 | `school_id` + `role` | cloud 用 `tenant_id` + `products[].roles` + `license_exp` |
+| Token 语义 | `school_id` + `role` | cloud 用 `tenant_id` + `products[]`（字符串数组，如 `["school"]`；roles 不进 JWT，走各产品本地体系） |
 | 用户标识 | `sub`=zw_ ID，`phone` 主键 | cloud 用 `sub`=UUID，`email` 匹配键 |
-| 平台角色 | school 自建 `platform_ops/devops` | cloud 统管，JWT 携带 |
-| License | School 本地字段 + 过期只读中间件 | cloud 权威，JWT 带 `license_exp` |
+| 平台角色 | school 自建 `platform_ops/devops` | cloud 统管（识别机制见 §3.4 待拍板，不经 `products[].roles`） |
+| License | School 本地字段 + 过期只读中间件 | cloud License 服务/DB 权威（Phase 2 待建）；**不进 JWT**，本地字段作运行时判据 + 兜底 |
 | 多租户 | School = 租户（每校一行） | cloud `tenant_id` 对应 |
 
 ---
@@ -82,17 +83,18 @@ cloud.ziwi.cn 已定位为**统一身份与授权平台（IdP）**：统一登�
 
 ### 3.3 租户隔离映射
 - cloud JWT `tenant_id` → school 的 `School` 实体。
-- **[待拍板]** School 与 cloud 租户键：复用 `School.ID` 作为 cloud `tenant_id`，还是新增 `School.CloudTenantID` 映射字段？
-- 多校区（A1）：`tenant_id` 对应 School 级；校区级 License 由 cloud `products[].license_exp` + Campus 维度承载 [待拍板具体粒度]。
+- ✅ 已落地：新增 `School.CloudTenantID` 映射字段（P0 已交付 d3b4518），不复用 `School.ID`。
+- 多校区（A1）：`tenant_id` 对应 School 级；校区级 License 粒度由 cloud **License 服务/DB** 的 license 记录（tenant + product + campus 维度）承载 [待拍板具体粒度]——**不经 JWT**（v0.6 修正：JWT 无 license 信息）。
 
-### 3.4 角色映射
-- cloud `products[].roles` → school RoleMatrix 角色（teacher/head_teacher/...）。
-- **[待拍板]** `platform_ops` / `platform_devops`：建议改由 cloud 签发 JWT 携带，school 端识别即放行，**不再在 school 用户表建平台账号**（避免平台角色双重管理）。
+### 3.4 角色映射（v0.6 修正）
+- **roles 不进 cloud JWT**（v0.3 基线）：cloud JWT 只表达「是谁 + 属哪个租户 + 订阅了哪些产品」；校内角色（teacher/head_teacher/...）由 school 本地 `User.Role` + RoleMatrix 判定，cloud 登录绑定后沿用绑定用户的本地角色。
+- **[待拍板]** `platform_ops` / `platform_devops`：仍建议从 school 用户表剥离、由 cloud 侧统管，但识别机制需与 v0.3 对齐——不走 `products[].roles`（该结构不存在），候选：cloud JWT 独立 claim（需 cloud 侧扩展）或平台运营走 cloud 管理端独立入口。
 
-### 3.5 License 校验
-- 现状：`School.LicenseExpiresAt` + 过期只读中间件（拦截写操作）。
-- 对接后：**优先信任 cloud JWT 的 `products[].license_exp`**；保留本地字段作私有部署/网络中断兜底。
-- **[待拍板]** cloud 侧 License 变更（签发/续费/撤销）如何同步到 school：webhook 推送 vs 学校端定时心跳拉取（域名规划已有 `heartbeat.ziwi.cn`，倾向心跳）。
+### 3.5 License 校验（v0.6 修正：License 不进 JWT）
+- 现状：`School.LicenseStatus/LicenseExpiresAt` + 过期只读中间件（拦截写操作）——**这就是运行时判据，长期保留**。
+- 权威源：cloud **License 服务/DB**（Phase 2 待建，mfg v0.3 契约 §A.2/H2 已闭环此决策；cloud `jwt_service.py` 实测不签 `license_exp`）。选择理由：License 变更（续费/停用）须即时生效，签进 JWT 会被 token 生命周期（30min）拖慢；且 JWT 保持精瘦、身份与计费职责分离（2026-07-27 用户拍板）。
+- 同步机制：cloud License 服务就绪后，通过定时/事件同步刷新 school 本地字段；私有部署/断网时本地字段独立兜底（License 文件 + 心跳，见 §3.7）。就绪前，本地字段由运营开通/续费动作直接写入。
+- **[待拍板]** 同步通道：webhook 推送 vs 学校端定时心跳拉取（域名规划已有 `heartbeat.ziwi.cn`，倾向心跳）。
 
 ### 3.6 Token 配额对账
 - 现有 `tokenQuotaAPI` + `School.TokenQuota/TokenUsed` 已就绪（前端 `api.ts:239-252`）。
@@ -169,8 +171,8 @@ cloud.ziwi.cn 已定位为**统一身份与授权平台（IdP）**：统一登�
 
 ## 5. 关键待拍板决策点
 
-1. **School↔cloud 租户映射**：复用 `School.ID` 还是新增 `CloudTenantID`？
-2. **License 同步机制**：webhook 推送 vs 心跳拉取（倾向心跳，域名已规划）？
+1. **School↔cloud 租户映射**：✅ 已定并落地——新增 `School.CloudTenantID`（P0 已交付 d3b4518）。
+2. **License 同步机制**：webhook 推送 vs 心跳拉取（倾向心跳，域名已规划）？前提已定（2026-07-27）：License 权威源 = cloud License 服务/DB，**不进 JWT**（见 §3.5）。
 3. **B2C 个人版账户归属**：由 cloud 独立库管，还是 school `User` 表加"无 SchoolID 的个人版标记"？
 4. **平台角色**：`platform_ops/devops` 是否从 school 用户表剥离，纯靠 cloud JWT 识别？
 5. **迁移节奏**：并行期持续多久？是否有强制切换时间窗？
@@ -283,6 +285,17 @@ cloudLogin: async (email, password) => {
 
 另：`blazing-pulse-turing.md` 是针对早期 V2.0（`nqpf` 命名）域名策略的可执行性评估（7/10），其 4 处断裂中，断裂 1（admin 入口对等）、断裂 2（`nqpf`→`mfg` 改名）、断裂 4（`ai.ziwi.cn` 延后）已被 `域名规划` v2.1-Final 吸收。遗留的“优化 1：cloud 角色变更后全量文档同步”提示——**school 项目内若有旧文档仍把 `cloud.ziwi.cn` 当作“制造门户”，需同步修正**。本方案以 v2.1-Final（cloud = 租户服务中心）为准，不引用 `nqpf` 旧命名。
 
+### 8.1 注册·租户·计费专题文档（2026-07-27 新增，与本方案配套）
+
+本方案 §5 待拍板 #3（B2C 个人版账户归属）、§3.3（租户映射）、§3.5–§3.6（License/Token 计费对账）在以下两份专题文档中被展开为完整业务规则与落地技术方案，构成对本方案的补充，三者互为引用：
+
+| 文档 | 定位 | 与本方案的衔接点 |
+|------|------|------------------|
+| `产品规划/产品规格补充_注册租户与计费模型.md` | **业务规则**：双漏斗注册状态机（学校自主申请 / 教师个体认领）、Rule 1/2/3、双轨计费（免费额度 / 个人 Pro / 租户 License） | 展开本方案 §5 #3；「系统设置用户 vs 自主注册」对应 §3.7/§3.8 账户边界 |
+| `产品规划/账户权限计费联动技术方案_cloud+license.md` | **落地技术方案**：以 cloud JWT `tenant_id + products[]`（字符串数组）为身份/授权锚点、cloud License 服务/DB 为 License 权威源（不进 JWT），串起账户/权限/License/计费；补中心层三表（`schools_registry` / `user_school_claims` / `usage_meters`）+ `User.AccountType` | 复用本方案已交付锚点（`School.CloudTenantID/LicenseStatus/TokenQuota/TokenUsed`、`User.CloudUserID`、402 门禁）；回答 §5 #1/#3；端点映射含运营端账号/改密 |
+
+**关系说明**：本方案（v0.5）是 school↔cloud 的**对接契约底座**；上述两文档是在此底座上、针对「自主注册 + 个体计费」这一具体业务场景的规则与技术展开。修改任一文档中的租户/计费锚点定义时，须同步核对另两份，避免锚点漂移。
+
 ---
 
 ## 9. 手机号短信验证码通道（SMS OTP）
@@ -386,7 +399,7 @@ cloudLogin: async (email, password) => {
 ## 12. 跨产品线统一认证一致性（mfg 侧）
 
 ### 12.1 决策（2026-07-16）
-**mfg 产品线（mfg.ziwi.cn，智能制造）的「租户管理员 / 财务人员 / SaaS 用户」三类角色，同样纳入 cloud 用户认证，采用与 school 一致的統一认证策略**——以 cloud 为统一 IdP，三类角色皆为 cloud 认证用户，由 cloud JWT 的 `tenant_id + products[] + roles` claims 区分归属与权限。
+**mfg 产品线（mfg.ziwi.cn，智能制造）的「租户管理员 / 财务人员 / SaaS 用户」三类角色，同样纳入 cloud 用户认证，采用与 school 一致的統一认证策略**——以 cloud 为统一 IdP，三类角色皆为 cloud 认证用户，由 cloud JWT 的 `tenant_id + products[]` claims 区分归属与产品授权；**角色细分走 mfg 本地体系**（v0.6 修正：roles 不进 cloud JWT，与 v0.3 契约一致）。
 
 ### 12.2 与 school 策略的对齐点（同构）
 | 维度 | school 侧 | mfg 侧（本决策） |
@@ -394,13 +407,13 @@ cloudLogin: async (email, password) => {
 | 信任锚 | cloud RS256 JWT（邮箱登录）+ school 本地 HS256（phone/SMS/微信） | cloud RS256 JWT 为主；mfg 三类角色均走 cloud 认证 |
 | 用户收敛 | `User`（phone + cloud_user_id + WeChatUnionID） | mfg `User`（cloud_user_id 为主键映射，phone/微信同信任域） |
 | 登录并行 | 密码/cloud邮箱/短信/微信 长期共存，单通道失败不阻断 | 同：多通道并行，单通道失败不阻断 |
-| 角色区分 | school 内 `Role` + cloud `products[].roles` | mfg 内 `tenant_admin` / `finance` / `saas_user` 映射为 cloud `products:["mfg"]` 下的 role |
+| 角色区分 | school 内 `Role`（本地 RoleMatrix；JWT 仅表达 products 授权） | mfg 内 `tenant_admin` / `finance` / `saas_user`（mfg 本地角色表；JWT 仅表达 `products:["mfg"]` 授权） |
 | 外部身份键 | cloud_user_id / WeChatUnionID / phone | 同，三键收敛到 mfg `User` |
 
-### 12.3 mfg 三类角色的 cloud 映射建议
-- **租户管理员（tenant_admin）**：cloud `tenant_id` 的 owner，products=["mfg"]、roles=["tenant_admin"]；对应 mfg 内"企业租户最高权限"（管成员、看账单、配 License）。
-- **财务人员（finance）**：products=["mfg"]、roles=["finance"]；仅能访问账单/发票/Token 用量等财务视图，不碰业务数据。
-- **SaaS 用户（saas_user）**：多租户下的普通业务用户，products=["mfg"]、roles=["member"（或细分岗位角色）]；按 `tenant_id` 隔离数据。
+### 12.3 mfg 三类角色的映射建议（v0.6 修正：角色在 mfg 本地，JWT 只带 products）
+- **租户管理员（tenant_admin）**：cloud `tenant_id` 的 owner；JWT 带 `products:["mfg"]`，mfg 本地用户表标记 `tenant_admin`；对应 mfg 内"企业租户最高权限"（管成员、看账单、配 License）。cloud 侧自身的租户管理/账单操作权限属 cloud 应用内角色（cloud 自有 DB），不经 JWT 下发给产品线。
+- **财务人员（finance）**：JWT 带 `products:["mfg"]`，mfg 本地标记 `finance`；仅能访问账单/发票/Token 用量等财务视图，不碰业务数据。
+- **SaaS 用户（saas_user）**：多租户下的普通业务用户；JWT 带 `products:["mfg"]`，mfg 本地标记 `member`（或细分岗位角色）；按 `tenant_id` 隔离数据。
 
 ### 12.4 落点边界（重要）
 - mfg 的详细接入实现以 mfg 团队 `cloud-jwt-integration-guide.md` v1.0（姊妹方案）为准，本 §12 为**产品级决策备忘**，要求该 guide 显式覆盖上述三类角色的映射与登录入口，与 school §9/§10 保持同构。
