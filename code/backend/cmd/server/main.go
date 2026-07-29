@@ -42,7 +42,7 @@ func main() {
 
 	// 自动迁移（开发阶段）→ 现作为发布管线的一部分：每次部署后端重启即同步全表结构与运行时代码 model 一致
 	if err := db.AutoMigrate(
-		&model.School{}, &model.User{}, &model.Class{},
+		&model.School{}, &model.Campus{}, &model.User{}, &model.Class{},
 		&model.TeacherClass{}, &model.StudentClass{}, &model.LessonPlan{},
 		&model.Exam{}, &model.Material{}, &model.ImportBatch{},
 		&repository.Question{}, &repository.Assignment{},
@@ -323,6 +323,11 @@ func main() {
 		itAdmin.GET("/admin/import/history", importHandler.History)
 		// 注意：与上方 :type 同前缀，rollback 必须用静态段避免通配符冲突
 		itAdmin.POST("/admin/import/rollback/:batchId", importHandler.Rollback)
+		// ── 校区管理（A1 一校多区，正式 campus 字典表）──
+		itAdmin.GET("/admin/campuses", itHandler.ListCampuses)
+		itAdmin.POST("/admin/campuses", itHandler.CreateCampus)
+		itAdmin.PUT("/admin/campuses/:id", itHandler.UpdateCampus)
+		itAdmin.DELETE("/admin/campuses/:id", itHandler.DeleteCampus)
 		// ── V2.6 全学科教材版本库维护（数据团队提供数据，IT 管理员导入/维护）──
 		itAdmin.GET("/admin/textbook-versions", itHandler.ListTextbookVersionLibrary)
 		itAdmin.POST("/admin/textbook-versions", itHandler.CreateTextbookVersion)

@@ -5,7 +5,7 @@ import AppLayout from '../components/AppLayout'
 import SubmitTextbookModal from '../components/SubmitTextbookModal'
 import { useTeaching } from '../lib/TeachingContext'
 
-type SubTab = 'account' | 'school' | 'textbook' | 'semester' | 'train' | 'log' | 'library'
+type SubTab = 'account' | 'school' | 'textbook' | 'semester' | 'train' | 'log' | 'library' | 'campus'
 
 export default function SettingsPage() {
   const [subTab, setSubTab] = useState<SubTab>('account')
@@ -21,7 +21,7 @@ export default function SettingsPage() {
     { id: 'account', label: '帐号设置' },
     { id: 'school', label: '学校 · 班级' },
     ...(licenseStatus === 'active' && !isITAdmin ? [] : [{ id: 'textbook' as SubTab, label: '教材版本' }]),
-    ...(isITAdmin ? [{ id: 'library' as SubTab, label: '版本库维护' }] : []),
+    ...(isITAdmin ? [{ id: 'library' as SubTab, label: '版本库维护' }, { id: 'campus' as SubTab, label: '校区管理' }] : []),
     { id: 'semester', label: '学期配置' },
     { id: 'train', label: '训练小微' },
     { id: 'log', label: '日志 · 反馈' },
@@ -46,6 +46,7 @@ export default function SettingsPage() {
           {subTab === 'school' && <SchoolClassTab />}
           {subTab === 'textbook' && <TextbookTab />}
           {subTab === 'library' && <TextbookLibraryAdmin />}
+          {subTab === 'campus' && <CampusAdmin />}
           {subTab === 'semester' && <SemesterTab />}
           {subTab === 'train' && <div className="flex-1 min-h-0 relative overflow-hidden"><TrainXiaoWeiTab /></div>}
           {subTab === 'log' && <LogFeedbackTab />}
@@ -778,6 +779,161 @@ function PendingApprovalList({ items, onRefresh }: { items: any[]; onRefresh: ()
     </div>
   )
 }
+/** 校区管理（IT 管理员专属，A1 一校多区：正式 campus 字典表，users/classes.campus_id 引用其 ID） */
+function CampusAdmin() {
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editTarget, setEditTarget] = useState<any>(null)
+  const [form, setForm] = useState({ id: '', name: '', address: '', sort_order: 0 })
+  const [confirmDel, setConfirmDel] = useState<any>(null)
+  const [err, setErr] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await adminAPI.listCampuses()
+      setItems(res.items || [])
+    } catch (e: any) { notifyError(e?.message || '获取校区列表失败') }
+    setLoading(false)
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const openAdd = () => { setEditTarget(null); setForm({ id: '', name: '', address: '', sort_order: items.length }); setErr(''); setShowForm(true) }
+  const openEdit = (c: any) => { setEditTarget(c); setForm({ id: c.id, name: c.name, address: c.address || '', sort_order: c.sort_order || 0 }); setErr(''); setShowForm(true) }
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setErr('校区名称必填'); return }
+    try {
+      if (editTarget) {
+        await adminAPI.updateCampus(editTarget.id, { name: form.name.trim(), address: form.address.trim(), sort_order: Number(form.sort_order) || 0 })
+      } else {
+        await adminAPI.createCampus({ ...(form.id.trim() ? { id: form.id.trim() } : {}), name: form.name.trim(), address: form.address.trim(), sort_order: Number(form.sort_order) || 0 })
+      }
+      setShowForm(false); load()
+    } catch (e: any) { setErr(e?.message || '保存失败') }
+  }
+
+  const handleDelete = async () => {
+    if (!confirmDel) return
+    try {
+      await adminAPI.deleteCampus(confirmDel.id)
+      setConfirmDel(null); load()
+    } catch (e: any) {
+      setConfirmDel(null)
+      notifyError(e?.message || '删除失败（校区可能仍被用户/班级引用）')
+    }
+  }
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-[15px] font-medium text-[#353535]">校区管理</h3>
+          <p className="text-[11px] text-[#9A9A9A] mt-0.5">一校多区：维护本校校区字典，教师/班级归属校区时引用（被引用的校区不可删除）</p>
+        </div>
+        <button onClick={openAdd} className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] flex items-center gap-1">
+          <Plus size={12} />新增校区
+        </button>
+      </div>
+
+      {loading ? <p className="text-[12px] text-[#9A9A9A] py-8 text-center">加载中...</p> : (
+        <table className="w-full text-[12px]">
+          <thead>
+            <tr className="text-left text-[#9A9A9A] border-b border-[#F0F0F0]">
+              <th className="py-2 pr-3 font-normal">校区 ID</th>
+              <th className="py-2 pr-3 font-normal">名称</th>
+              <th className="py-2 pr-3 font-normal">地址</th>
+              <th className="py-2 pr-3 font-normal">排序</th>
+              <th className="py-2 pr-3 font-normal">状态</th>
+              <th className="py-2 pr-3 font-normal">引用（用户/班级）</th>
+              <th className="py-2 font-normal">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((c) => (
+              <tr key={c.id} className="border-b border-[#F7F7F7] hover:bg-[#FAFAFA]">
+                <td className="py-2 pr-3 text-[#9A9A9A] font-mono text-[11px]">{c.id}</td>
+                <td className="py-2 pr-3 text-[#353535]">{c.name}</td>
+                <td className="py-2 pr-3 text-[#7F7F7F]">{c.address || '—'}</td>
+                <td className="py-2 pr-3">{c.sort_order}</td>
+                <td className="py-2 pr-3">
+                  <span className={`px-1.5 py-0.5 rounded-[2px] text-[10px] ${c.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                    {c.status === 'active' ? '启用' : '停用'}
+                  </span>
+                </td>
+                <td className="py-2 pr-3 text-[#7F7F7F]">{c.user_count} / {c.class_count}</td>
+                <td className="py-2">
+                  <button onClick={() => openEdit(c)} className="p-1 text-[#9A9A9A] hover:text-[#02A7F0]" title="编辑"><Pencil size={12} /></button>
+                  <button onClick={() => setConfirmDel(c)} className="p-1 text-[#9A9A9A] hover:text-red-500 ml-1" title="删除"
+                    disabled={c.user_count > 0 || c.class_count > 0}><Trash2 size={12} /></button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr><td colSpan={7} className="py-8 text-center text-[#B0B0B0]">暂无校区，点击右上角「新增校区」添加</td></tr>
+            )}
+          </tbody>
+        </table>
+      )}
+
+      {/* 新增/编辑弹窗 */}
+      {showForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={() => setShowForm(false)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-[6px] shadow-xl w-[420px] z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-[#F0F0F0] text-[14px] font-medium text-[#353535]">
+              {editTarget ? '编辑校区' : '新增校区'}
+            </div>
+            <div className="p-5 flex flex-col gap-3 text-[12px]">
+              {!editTarget && (
+                <Field label="校区 ID（可选，如 yixiao-main；留空自动生成）">
+                  <input value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })}
+                    className="border border-[#E7E7EB] rounded px-2 py-1.5 w-full outline-none focus:border-[#02A7F0]" placeholder="留空自动生成" />
+                </Field>
+              )}
+              <Field label="校区名称 *">
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="border border-[#E7E7EB] rounded px-2 py-1.5 w-full outline-none focus:border-[#02A7F0]" placeholder="如：本部校区" />
+              </Field>
+              <Field label="地址">
+                <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  className="border border-[#E7E7EB] rounded px-2 py-1.5 w-full outline-none focus:border-[#02A7F0]" placeholder="选填" />
+              </Field>
+              <Field label="排序">
+                <input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
+                  className="border border-[#E7E7EB] rounded px-2 py-1.5 w-[100px] outline-none focus:border-[#02A7F0]" />
+              </Field>
+              {err && <p className="text-[11px] text-red-500">{err}</p>}
+            </div>
+            <div className="px-5 py-3 border-t border-[#F0F0F0] flex justify-end gap-2">
+              <button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-[12px] border rounded-[4px]">取消</button>
+              <button onClick={handleSave} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px]">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除确认 */}
+      {confirmDel && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={() => setConfirmDel(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-[6px] shadow-xl w-[380px] z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5">
+              <p className="text-[13px] text-[#353535] mb-1">确认删除校区「{confirmDel.name}」？</p>
+              <p className="text-[11px] text-[#9A9A9A]">仅未被用户/班级引用的校区可删除；删除后不可恢复。</p>
+            </div>
+            <div className="px-5 py-3 border-t border-[#F0F0F0] flex justify-end gap-2">
+              <button onClick={() => setConfirmDel(null)} className="px-4 py-1.5 text-[12px] border rounded-[4px]">取消</button>
+              <button onClick={handleDelete} className="px-4 py-1.5 text-[12px] text-white bg-red-500 rounded-[4px]">确认删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (<div><div className="text-[#9A9A9A] mb-1">{label}</div>{children}</div>)
 }

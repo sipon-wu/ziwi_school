@@ -55,6 +55,102 @@ func (h *ITHandler) ListContacts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": contacts})
 }
 
+// ── 校区管理（A1 一校多区，正式 campus 字典表）──
+
+// ListCampuses GET /admin/campuses
+func (h *ITHandler) ListCampuses(c *gin.Context) {
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+	items, err := h.repo.ListCampuses(schoolIDStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取校区列表失败"})
+		return
+	}
+	if items == nil {
+		items = []repository.CampusView{}
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// CreateCampus POST /admin/campuses
+func (h *ITHandler) CreateCampus(c *gin.Context) {
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+	var req struct {
+		ID        string `json:"id"` // 可选：允许显式指定（如 yixiao-main），为空自动生成
+		Name      string `json:"name"`
+		Address   string `json:"address"`
+		SortOrder int    `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "校区名称必填"})
+		return
+	}
+	id := req.ID
+	if id == "" {
+		id = fmt.Sprintf("cam-%s", strconv.FormatInt(time.Now().UnixNano(), 36))
+	}
+	campus := &model.Campus{ID: id, SchoolID: schoolIDStr, Name: req.Name, Address: req.Address, SortOrder: req.SortOrder, Status: "active"}
+	if err := h.repo.CreateCampus(campus); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"code": "CAMPUS_CONFLICT", "message": "校区已存在（同校同名或 ID 重复）"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "校区已创建", "campus": campus})
+}
+
+// UpdateCampus PUT /admin/campuses/:id
+func (h *ITHandler) UpdateCampus(c *gin.Context) {
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+	id := c.Param("id")
+	var req struct {
+		Name      string `json:"name"`
+		Address   string `json:"address"`
+		SortOrder int    `json:"sort_order"`
+		Status    string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "校区名称必填"})
+		return
+	}
+	status := req.Status
+	if status == "" {
+		status = "active"
+	}
+	updates := map[string]interface{}{"name": req.Name, "address": req.Address, "sort_order": req.SortOrder, "status": status}
+	if err := h.repo.UpdateCampus(schoolIDStr, id, updates); err != nil {
+		if err.Error() == "campus not found" {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CAMPUS_NOT_FOUND", "message": "校区不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPDATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "校区已更新"})
+}
+
+// DeleteCampus DELETE /admin/campuses/:id
+func (h *ITHandler) DeleteCampus(c *gin.Context) {
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+	id := c.Param("id")
+	userCount, classCount, err := h.repo.DeleteCampus(schoolIDStr, id)
+	if err != nil {
+		switch err.Error() {
+		case "campus in use":
+			c.JSON(http.StatusConflict, gin.H{"code": "CAMPUS_IN_USE",
+				"message": fmt.Sprintf("校区仍被引用（用户 %d 个、班级 %d 个），请先迁移后再删除", userCount, classCount),
+				"user_count": userCount, "class_count": classCount})
+		case "campus not found":
+			c.JSON(http.StatusNotFound, gin.H{"code": "CAMPUS_NOT_FOUND", "message": "校区不存在"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "DELETE_FAILED", "message": err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "校区已删除"})
+}
+
 // ListTextbookVersions 教材版本
 // GET /api/admin/textbooks
 func (h *ITHandler) ListTextbookVersions(c *gin.Context) {

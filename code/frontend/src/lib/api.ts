@@ -571,6 +571,17 @@ export const adminAPI = {
   /** 批量导入版本库（数据团队交付 JSON 数组） */
   importTextbookVersions: (rows: any[]) =>
     request<any>('/admin/textbook-versions/import', { method: 'POST', body: JSON.stringify({ rows }) }),
+  // ── 校区管理（A1 一校多区，正式 campus 字典表，IT 管理员）──
+  /** 本校校区列表（含用户/班级引用计数） */
+  listCampuses: () => request<any>('/admin/campuses'),
+  /** 新建校区（id 可选，如 yixiao-main；为空自动生成） */
+  createCampus: (data: { id?: string; name: string; address?: string; sort_order?: number }) =>
+    request<any>('/admin/campuses', { method: 'POST', body: JSON.stringify(data) }),
+  /** 更新校区 */
+  updateCampus: (id: string, data: { name: string; address?: string; sort_order?: number; status?: string }) =>
+    request<any>(`/admin/campuses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  /** 删除校区（被引用时返回 409 CAMPUS_IN_USE） */
+  deleteCampus: (id: string) => request<any>(`/admin/campuses/${id}`, { method: 'DELETE' }),
   /** V2.6 用户贡献版本审核 */
   listPendingSubmittedVersions: () => request<any>('/admin/textbook-versions/pending'),
   approveSubmittedVersion: (id: number) =>

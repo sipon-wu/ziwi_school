@@ -134,6 +134,63 @@ func (r *ITRepository) ListRawTextbookVersions() ([]model.TextbookVersion, error
 	return vs, nil
 }
 
+// ── 校区字典（A1 一校多区，正式 campus 表）──
+
+// CampusView 校区视图（含引用计数，供前端展示与删除守卫提示）
+type CampusView struct {
+	model.Campus
+	UserCount  int64 `json:"user_count"`
+	ClassCount int64 `json:"class_count"`
+}
+
+// ListCampuses 本校校区列表（含 users/classes 引用计数）
+func (r *ITRepository) ListCampuses(schoolID string) ([]CampusView, error) {
+	var items []CampusView
+	err := r.db.Raw(`
+		SELECT c.*,
+			(SELECT count(*) FROM users u WHERE u.campus_id = c.id) AS user_count,
+			(SELECT count(*) FROM classes cl WHERE cl.campus_id = c.id) AS class_count
+		FROM campuses c
+		WHERE c.school_id = ?
+		ORDER BY c.sort_order, c.created_at
+	`, schoolID).Scan(&items).Error
+	return items, err
+}
+
+// CreateCampus 新建校区（同校同名唯一由 uk_campus_school_name 保证）
+func (r *ITRepository) CreateCampus(campus *model.Campus) error {
+	return r.db.Create(campus).Error
+}
+
+// UpdateCampus 更新校区（限本校）
+func (r *ITRepository) UpdateCampus(schoolID, id string, updates map[string]interface{}) error {
+	res := r.db.Model(&model.Campus{}).Where("id = ? AND school_id = ?", id, schoolID).Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("campus not found")
+	}
+	return nil
+}
+
+// DeleteCampus 删除校区（限本校；有 users/classes 引用则拒删，返回引用计数）
+func (r *ITRepository) DeleteCampus(schoolID, id string) (userCount, classCount int64, err error) {
+	r.db.Model(&model.User{}).Where("campus_id = ?", id).Count(&userCount)
+	r.db.Table("classes").Where("campus_id = ?", id).Count(&classCount)
+	if userCount > 0 || classCount > 0 {
+		return userCount, classCount, fmt.Errorf("campus in use")
+	}
+	res := r.db.Where("id = ? AND school_id = ?", id, schoolID).Delete(&model.Campus{})
+	if res.Error != nil {
+		return 0, 0, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return 0, 0, fmt.Errorf("campus not found")
+	}
+	return 0, 0, nil
+}
+
 // UpsertTextbookVersion 按 version_key 写入/更新一条版本库记录
 func (r *ITRepository) UpsertTextbookVersion(v *model.TextbookVersion) error {
 	return r.db.Exec(`

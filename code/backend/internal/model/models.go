@@ -37,6 +37,20 @@ type School struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+// Campus 校区字典（A1 一校多区：同 School 下的正式校区，users/classes.campus_id 引用其 ID）
+type Campus struct {
+	ID        string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	SchoolID  string    `gorm:"type:varchar(50);not null;uniqueIndex:uk_campus_school_name" json:"school_id"`
+	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex:uk_campus_school_name" json:"name"`
+	Address   string    `gorm:"type:varchar(300)" json:"address"`
+	SortOrder int       `gorm:"default:0" json:"sort_order"`
+	Status    string    `gorm:"type:varchar(20);default:active" json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (Campus) TableName() string { return "campuses" }
+
 // LicenseStatus constants
 const (
 	LicenseActive = "active" // 学校版已开通

@@ -53,7 +53,7 @@ func main() {
 
 	// ── 1. 全量 AutoMigrate（保证表结构与运行时代码 model 一致）──
 	must(db.AutoMigrate(
-		&model.School{}, &model.User{}, &model.Class{},
+		&model.School{}, &model.Campus{}, &model.User{}, &model.Class{},
 		&model.TeacherClass{}, &model.StudentClass{}, &model.LessonPlan{},
 		&model.Exam{}, &model.Material{}, &model.ImportBatch{},
 		&repository.Question{}, &repository.Assignment{},
