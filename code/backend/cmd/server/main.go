@@ -323,11 +323,7 @@ func main() {
 		itAdmin.GET("/admin/import/history", importHandler.History)
 		// 注意：与上方 :type 同前缀，rollback 必须用静态段避免通配符冲突
 		itAdmin.POST("/admin/import/rollback/:batchId", importHandler.Rollback)
-		// ── 校区管理（A1 一校多区，正式 campus 字典表）──
-		itAdmin.GET("/admin/campuses", itHandler.ListCampuses)
-		itAdmin.POST("/admin/campuses", itHandler.CreateCampus)
-		itAdmin.PUT("/admin/campuses/:id", itHandler.UpdateCampus)
-		itAdmin.DELETE("/admin/campuses/:id", itHandler.DeleteCampus)
+		// ── 校区管理已下放校长端（见下方 campusGrp：it_admin + principal 均可）──
 		// ── V2.6 全学科教材版本库维护（数据团队提供数据，IT 管理员导入/维护）──
 		itAdmin.GET("/admin/textbook-versions", itHandler.ListTextbookVersionLibrary)
 		itAdmin.POST("/admin/textbook-versions", itHandler.CreateTextbookVersion)
@@ -338,6 +334,16 @@ func main() {
 		itAdmin.GET("/admin/textbook-versions/pending", itHandler.ListPendingSubmittedVersions)
 		itAdmin.PUT("/admin/textbook-versions/pending/:id/approve", itHandler.ApproveSubmittedVersion)
 		itAdmin.PUT("/admin/textbook-versions/pending/:id/reject", itHandler.RejectSubmittedVersion)
+	}
+
+	// 校区管理：IT 管理员与校长均可维护（学校级配置，A1 一校多区）
+	campusGrp := api.Group("")
+	campusGrp.Use(middleware.RequireRole("it_admin", "principal"))
+	{
+		campusGrp.GET("/admin/campuses", itHandler.ListCampuses)
+		campusGrp.POST("/admin/campuses", itHandler.CreateCampus)
+		campusGrp.PUT("/admin/campuses/:id", itHandler.UpdateCampus)
+		campusGrp.DELETE("/admin/campuses/:id", itHandler.DeleteCampus)
 	}
 
 	// 教材版本：教师/班主任/IT 管理员均可读写本校覆盖层（学校级配置，任课教师是直接使用人）
