@@ -94,6 +94,15 @@ func main() {
 	}
 	// growth_care_records 现已由 CareRepository.AutoMigrate() 管理（GORM 幂等迁移），
 	// 原有裸 CREATE TABLE 已移除。若升级前表不存在，迁移会自动建表。
+	// 家长-学生关联（没有学生端，由家长端代理；家长账号经此表绑定花名册学生）
+	db.Exec(`CREATE TABLE IF NOT EXISTS parent_students (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		parent_id VARCHAR(30) REFERENCES users(id) NOT NULL,
+		student_id VARCHAR(30) REFERENCES users(id) NOT NULL,
+		relationship VARCHAR(20) DEFAULT 'parent',
+		is_primary BOOLEAN DEFAULT TRUE,
+		UNIQUE (parent_id, student_id)
+	)`)
 	db.Exec(`CREATE TABLE IF NOT EXISTS parent_signatures (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		parent_id VARCHAR(30) REFERENCES users(id),
@@ -144,7 +153,6 @@ func main() {
 	opsHandler := handler.NewOpsHandler(opsRepo)
 	researchHandler := handler.NewResearchHandler(researchRepo)
 	devopsHandler := handler.NewDevOpsHandler()
-	studentHandler := handler.NewStudentHandler()
 	principalHandler := handler.NewPrincipalHandler(db)
 	scHandler := handler.NewSchoolClassHandler(db)
 	careHandler := handler.NewCareHandler(careRepo)
@@ -393,13 +401,10 @@ func main() {
 		platformDevOps.GET("/devops/monitor", devopsHandler.GetMonitor)
 	}
 
-	// 学生端（需JWT认证）
-	student := api.Group("")
-	student.Use(middleware.RequireRole("student"))
-	{
-		student.GET("/student/assignments", studentHandler.ListAssignments)
-		student.GET("/student/error-book", studentHandler.GetErrorBook)
-	}
+	// 没有学生端，由家长端代理。
+	// 学生在系统中仅以「花名册记录」存在（role='student'，无登录凭据），
+	// 其作业/错题/签字等能力全部通过家长端（role='parent'）代理访问。
+	// 此处原有的 /student/* 登录路由组已于 2026-07-30 移除，严禁再次误建学生登录端点。
 
 	// 启动服务器
 	addr := fmt.Sprintf(":%s", cfg.Port)

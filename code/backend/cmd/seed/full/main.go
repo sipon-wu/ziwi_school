@@ -171,37 +171,59 @@ func main() {
 	}
 
 	// 学生（固定 ID，便于家长签字/成长关爱引用）
+	// 没有学生端，由家长端代理：学生仅为花名册记录（姓名+学号+班级），
+	// 无手机号（占位哨兵）、无密码（空哈希不可登录）。严禁再给学生写登录凭据。
 	for i := 1; i <= 15; i++ {
 		id := fmt.Sprintf("s-%04d", i)
-		phone := fmt.Sprintf("1390101%03d", i)
-		hash, _ := bcrypt.GenerateFromPassword([]byte("student123"), bcrypt.DefaultCost)
+		sno := fmt.Sprintf("%03d", i)
 		user := model.User{
-			ID:           id,
-			SchoolID:     &school.ID,
-			Phone:        phone,
-			PasswordHash: string(hash),
-			Role:         "student",
-			Name:         fmt.Sprintf("学生%02d", i),
-			StyleProfile: "{}",
-			Status:       "active",
+			ID:            id,
+			SchoolID:      &school.ID,
+			Phone:         "stu_demo_" + sno, // 占位哨兵，非真实手机号（varchar(20) 内）
+			PasswordHash:  "",                             // 空哈希 = 不可登录
+			Role:          "student",
+			Name:          fmt.Sprintf("学生%02d", i),
+			StudentNumber: &sno,
+			StyleProfile:  "{}",
+			Status:        "active",
 		}
 		must(db.Create(&user).Error, "create student "+id)
 	}
 
-	// 家长（2 名，用于签字）
-	for i, p := range []string{"13902010001", "13902010002"} {
-		hash, _ := bcrypt.GenerateFromPassword([]byte("parent123"), bcrypt.DefaultCost)
-		user := model.User{
-			ID:           fmt.Sprintf("p-%d", i+1),
-			SchoolID:     &school.ID,
-			Phone:        p,
-			PasswordHash: string(hash),
-			Role:         "parent",
-			Name:         fmt.Sprintf("家长%d", i+1),
-			StyleProfile: "{}",
-			Status:       "active",
+	// 家长（登录入口；每名花名册学生预留一名家长账号。家长端未开通的先占位：空密码不可登录，status=pending）
+	// 前 2 名为已开通的演示家长（用于签字），phone 沿用旧学生登录号段 1390101xxx。
+	for i := 1; i <= 15; i++ {
+		pid := fmt.Sprintf("p-%04d", i)
+		phone := fmt.Sprintf("1390101%03d", i)
+		ph, st := "", "pending" // 预留：不可登录
+		if i <= 2 {
+			hash, _ := bcrypt.GenerateFromPassword([]byte("parent123"), bcrypt.DefaultCost)
+			ph, st = string(hash), "active"
 		}
-		must(db.Create(&user).Error, "create parent")
+		user := model.User{
+			ID:           pid,
+			SchoolID:     &school.ID,
+			Phone:        phone,
+			PasswordHash: ph,
+			Role:         "parent",
+			Name:         fmt.Sprintf("学生%02d家长", i),
+			StyleProfile: "{}",
+			Status:       st,
+		}
+		must(db.Create(&user).Error, "create parent "+pid)
+	}
+	// 家长-学生绑定（parent_students）
+	db.Exec(`CREATE TABLE IF NOT EXISTS parent_students (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		parent_id VARCHAR(30) REFERENCES users(id) NOT NULL,
+		student_id VARCHAR(30) REFERENCES users(id) NOT NULL,
+		relationship VARCHAR(20) DEFAULT 'parent',
+		is_primary BOOLEAN DEFAULT TRUE,
+		UNIQUE (parent_id, student_id)
+	)`)
+	for i := 1; i <= 15; i++ {
+		must(db.Exec(`INSERT INTO parent_students (parent_id, student_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+			fmt.Sprintf("p-%04d", i), fmt.Sprintf("s-%04d", i)).Error, "bind parent_student")
 	}
 
 	// ── 5. 班级 ──

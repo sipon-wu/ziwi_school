@@ -80,7 +80,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 2. 验证密码
+	// 2. 学生禁止登录：没有学生端，由家长端代理。
+	// 学生仅为花名册记录（无登录凭据），任何学生记录即使被误配了密码也不得放行。
+	if user.Role == "student" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code":    "STUDENT_LOGIN_FORBIDDEN",
+			"message": "学生不提供登录，请使用家长账号（家长端代理）",
+		})
+		return
+	}
+
+	// 3. 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    "INVALID_CREDENTIALS",
