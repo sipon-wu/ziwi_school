@@ -129,6 +129,7 @@ sql.append(f"DELETE FROM student_classes WHERE class_id IN (SELECT id FROM class
 sql.append(f"DELETE FROM parent_students WHERE parent_id IN (SELECT id FROM users WHERE school_id={esc(SCHOOL)});")
 sql.append(f"DELETE FROM teacher_classes WHERE teacher_id IN (SELECT id FROM users WHERE school_id={esc(SCHOOL)}) OR class_id IN (SELECT id FROM classes WHERE school_id={esc(SCHOOL)});")
 sql.append(f"DELETE FROM teacher_textbook_pref WHERE school_id={esc(SCHOOL)};")
+sql.append(f"DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE school_id={esc(SCHOOL)});")
 sql.append(f"DELETE FROM lesson_plans WHERE school_id={esc(SCHOOL)};")
 sql.append(f"DELETE FROM questions WHERE school_id={esc(SCHOOL)};")
 sql.append(f"DELETE FROM assignments WHERE school_id={esc(SCHOOL)};")
