@@ -1,6 +1,6 @@
 {
-  "base": "http://school1.ziwi.cn",
-  "generated": "2026-07-29T15:31:06.504Z",
+  "base": "https://school1.ziwi.cn",
+  "generated": "2026-07-30T09:38:58.745Z",
   "total": 66,
   "pass": 66,
   "fail": 0,
@@ -470,13 +470,13 @@
       "id": "W-EX-D",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/exercises/1701b577-fc2e-4f27-a6b5-79a2e34e9d76",
+      "path": "/api/exercises/f5dfe3c8-7b58-41f2-8088-bd8f5bc1c6b9",
       "expected": [
-        404
+        200
       ],
-      "actual": 404,
+      "actual": 200,
       "pass": true,
-      "note": "后端无DELETE /exercises/:id，测试题残留staging需人工清理"
+      "note": "软删除测试题(2026-07-30 端点已实现，测试题自动清理不再残留)"
     },
     {
       "id": "S1",
@@ -505,7 +505,7 @@
       "id": "S3",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/lesson-plans/lp_25ea051afe7d",
+      "path": "/api/lesson-plans/lp_1fc746be3aba",
       "expected": [
         200,
         204

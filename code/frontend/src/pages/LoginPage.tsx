@@ -42,6 +42,7 @@ export default function LoginPage() {
         setGrade(gi >= 0 ? gi + 1 : 4)
       }
       const role = res.user?.role
+      localStorage.setItem('demo_role', role || 'teacher')
       let target = '/teacher'
       if (role === 'principal') target = '/principal'
       else if (role === 'it_admin') target = '/it-admin'

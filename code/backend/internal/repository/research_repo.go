@@ -27,13 +27,13 @@ type ResearchStats struct {
 
 // Methodology 方法论
 type Methodology struct {
-	ID          string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	SchoolID    string    `gorm:"type:varchar(50);not null" json:"school_id"`
-	Subject     string    `gorm:"type:varchar(20);not null" json:"subject"`
-	Title       string    `gorm:"type:varchar(200);not null" json:"title"`
-	Description string    `gorm:"type:text" json:"description"`
-	ReviewStatus string   `gorm:"type:varchar(20);default:pending" json:"review_status"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID     string    `gorm:"type:varchar(50);not null" json:"school_id"`
+	Subject      string    `gorm:"type:varchar(20);not null" json:"subject"`
+	Title        string    `gorm:"type:varchar(200);not null" json:"title"`
+	Description  string    `gorm:"type:text" json:"description"`
+	ReviewStatus string    `gorm:"type:varchar(20);default:pending" json:"review_status"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 func (Methodology) TableName() string { return "methodologies" }

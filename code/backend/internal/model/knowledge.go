@@ -11,17 +11,17 @@ import "time"
 type TextbookVersion struct {
 	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	VersionKey    string    `gorm:"type:varchar(200);uniqueIndex;not null" json:"version_key"`
-	XueDuan      string    `gorm:"type:varchar(20)" json:"xue_duan"`
-	NianJi       string    `gorm:"type:varchar(20)" json:"nian_ji"`
-	XueKe        string    `gorm:"type:varchar(20)" json:"xue_ke"`
-	JiaoCaiMing  string    `gorm:"type:varchar(300)" json:"jiao_cai_ming"`
-	ChuBanShe    string    `gorm:"type:varchar(100)" json:"chu_ban_she"`
-	BanBenBiaoShi string   `gorm:"type:varchar(50)" json:"ban_ben_biao_shi"`
-	CeBie        string    `gorm:"type:varchar(20)" json:"ce_bie"`
-	MuLuURL      string    `gorm:"type:varchar(500)" json:"mu_lu_url"`
-	Inferred     bool      `gorm:"type:boolean;default:false" json:"inferred"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	XueDuan       string    `gorm:"type:varchar(20)" json:"xue_duan"`
+	NianJi        string    `gorm:"type:varchar(20)" json:"nian_ji"`
+	XueKe         string    `gorm:"type:varchar(20)" json:"xue_ke"`
+	JiaoCaiMing   string    `gorm:"type:varchar(300)" json:"jiao_cai_ming"`
+	ChuBanShe     string    `gorm:"type:varchar(100)" json:"chu_ban_she"`
+	BanBenBiaoShi string    `gorm:"type:varchar(50)" json:"ban_ben_biao_shi"`
+	CeBie         string    `gorm:"type:varchar(20)" json:"ce_bie"`
+	MuLuURL       string    `gorm:"type:varchar(500)" json:"mu_lu_url"`
+	Inferred      bool      `gorm:"type:boolean;default:false" json:"inferred"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 func (TextbookVersion) TableName() string { return "tb_textbook_version" }
@@ -42,32 +42,32 @@ func (StandardClause) TableName() string { return "tb_standard_clause" }
 
 // VersionStandardMap 教材版本↔课标映射
 type VersionStandardMap struct {
-	ID              int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	VersionID       int64     `gorm:"type:bigint;not null;index" json:"version_id"`
-	DanYuan         string    `gorm:"type:varchar(200)" json:"dan_yuan"`
-	StandardClauseID int64    `gorm:"type:bigint;index" json:"standard_clause_id"`
-	PiPeiDu         string    `gorm:"type:varchar(20)" json:"pi_pei_du"`
-	ZhiShiDian      string    `gorm:"type:varchar(200)" json:"zhi_shi_dian"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID               int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	VersionID        int64     `gorm:"type:bigint;not null;index" json:"version_id"`
+	DanYuan          string    `gorm:"type:varchar(200)" json:"dan_yuan"`
+	StandardClauseID int64     `gorm:"type:bigint;index" json:"standard_clause_id"`
+	PiPeiDu          string    `gorm:"type:varchar(20)" json:"pi_pei_du"`
+	ZhiShiDian       string    `gorm:"type:varchar(200)" json:"zhi_shi_dian"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 func (VersionStandardMap) TableName() string { return "tb_version_standard_map" }
 
 // KGNode 知识图谱节点（单元→知识点→子知识点，自引用 parent_id）
 type KGNode struct {
-	ID           int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	NodeKey      string    `gorm:"type:varchar(400);uniqueIndex;not null" json:"node_key"`
-	VersionID    int64     `gorm:"type:bigint;not null;index" json:"version_id"`
-	DanYuan      string    `gorm:"type:varchar(200)" json:"dan_yuan"`
-	ParentID     *int64    `gorm:"type:bigint;index" json:"parent_id"`
-	MingCheng    string    `gorm:"type:varchar(300)" json:"ming_cheng"`
-	Level        int       `gorm:"type:int" json:"level"`
-	QianZhi      string    `gorm:"type:jsonb" json:"qian_zhi"` // 前置知识点名称数组
-	NanDu        string    `gorm:"type:varchar(10)" json:"nan_du"`
-	NengLiWeiDu  string    `gorm:"type:varchar(100)" json:"neng_li_wei_du"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	NodeKey     string    `gorm:"type:varchar(400);uniqueIndex;not null" json:"node_key"`
+	VersionID   int64     `gorm:"type:bigint;not null;index" json:"version_id"`
+	DanYuan     string    `gorm:"type:varchar(200)" json:"dan_yuan"`
+	ParentID    *int64    `gorm:"type:bigint;index" json:"parent_id"`
+	MingCheng   string    `gorm:"type:varchar(300)" json:"ming_cheng"`
+	Level       int       `gorm:"type:int" json:"level"`
+	QianZhi     string    `gorm:"type:jsonb" json:"qian_zhi"` // 前置知识点名称数组
+	NanDu       string    `gorm:"type:varchar(10)" json:"nan_du"`
+	NengLiWeiDu string    `gorm:"type:varchar(100)" json:"neng_li_wei_du"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (KGNode) TableName() string { return "tb_kg_node" }
@@ -165,25 +165,25 @@ const (
 // UserSubmittedTextbookVersion 用户贡献的教材版本
 // 字段与 tb_textbook_version 对齐，外加提交/审核信息
 type UserSubmittedTextbookVersion struct {
-	ID              int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	VersionKey      string     `gorm:"type:varchar(200);not null" json:"version_key"`
-	XueDuan        string     `gorm:"type:varchar(20)" json:"xue_duan"`
-	NianJi         string     `gorm:"type:varchar(20)" json:"nian_ji"`
-	XueKe          string     `gorm:"type:varchar(20)" json:"xue_ke"`
-	JiaoCaiMing    string     `gorm:"type:varchar(300)" json:"jiao_cai_ming"`
-	ChuBanShe      string     `gorm:"type:varchar(100)" json:"chu_ban_she"`
-	BanBenBiaoShi  string     `gorm:"type:varchar(50)" json:"ban_ben_biao_shi"`
-	CeBie          string     `gorm:"type:varchar(20)" json:"ce_bie"`
+	ID             int64        `gorm:"primaryKey;autoIncrement" json:"id"`
+	VersionKey     string       `gorm:"type:varchar(200);not null" json:"version_key"`
+	XueDuan        string       `gorm:"type:varchar(20)" json:"xue_duan"`
+	NianJi         string       `gorm:"type:varchar(20)" json:"nian_ji"`
+	XueKe          string       `gorm:"type:varchar(20)" json:"xue_ke"`
+	JiaoCaiMing    string       `gorm:"type:varchar(300)" json:"jiao_cai_ming"`
+	ChuBanShe      string       `gorm:"type:varchar(100)" json:"chu_ban_she"`
+	BanBenBiaoShi  string       `gorm:"type:varchar(50)" json:"ban_ben_biao_shi"`
+	CeBie          string       `gorm:"type:varchar(20)" json:"ce_bie"`
 	Status         SubmitStatus `gorm:"type:varchar(20);not null;default:pending;index" json:"status"`
-	SubmittedBy    string     `gorm:"type:varchar(50);not null;index" json:"submitted_by"` // 提交者 teacher_id
-	SchoolID       string     `gorm:"type:varchar(50);not null;index" json:"school_id"`    // 所属学校
-	SubmittedAt    time.Time  `json:"submitted_at"`
-	ReviewedBy     *string    `gorm:"type:varchar(50)" json:"reviewed_by"`          // 审核者 admin_id
-	ReviewedAt     *time.Time `json:"reviewed_at"`
-	ReviewNote     *string    `gorm:"type:varchar(500)" json:"review_note"`          // 驳回原因
-	AttachmentURLs *string    `gorm:"type:jsonb" json:"attachment_urls"`            // 封面/目录照片 URL 数组
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	SubmittedBy    string       `gorm:"type:varchar(50);not null;index" json:"submitted_by"` // 提交者 teacher_id
+	SchoolID       string       `gorm:"type:varchar(50);not null;index" json:"school_id"`    // 所属学校
+	SubmittedAt    time.Time    `json:"submitted_at"`
+	ReviewedBy     *string      `gorm:"type:varchar(50)" json:"reviewed_by"` // 审核者 admin_id
+	ReviewedAt     *time.Time   `json:"reviewed_at"`
+	ReviewNote     *string      `gorm:"type:varchar(500)" json:"review_note"` // 驳回原因
+	AttachmentURLs *string      `gorm:"type:jsonb" json:"attachment_urls"`    // 封面/目录照片 URL 数组
+	CreatedAt      time.Time    `json:"created_at"`
+	UpdatedAt      time.Time    `json:"updated_at"`
 }
 
 func (UserSubmittedTextbookVersion) TableName() string { return "user_submitted_textbook_version" }

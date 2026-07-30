@@ -398,12 +398,12 @@ CREATE TABLE announcements (
 
 -- ── 审计日志 ──
 CREATE TABLE audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id),
-    school_id UUID REFERENCES schools(id),
+    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id VARCHAR REFERENCES users(id),
+    school_id VARCHAR REFERENCES schools(id),
     action VARCHAR(50) NOT NULL,
     resource_type VARCHAR(50) NOT NULL,
-    resource_id UUID,
+    resource_id VARCHAR,
     details JSONB,
     ip_address VARCHAR(45),
     user_agent TEXT,

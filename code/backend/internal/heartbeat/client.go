@@ -150,7 +150,7 @@ func (c *Client) send() {
 	now := time.Now()
 	c.db.Model(&model.School{}).Where("id = ?", school.ID).
 		Updates(map[string]interface{}{
-			"last_heartbeat_at":  &now,
+			"last_heartbeat_at":    &now,
 			"heartbeat_fail_count": 0,
 		})
 	log.Printf("[heartbeat] sent OK at %s", now.Format(time.RFC3339))

@@ -113,7 +113,7 @@ function rec(id, group, method, path, expected, actual, note) {
   const mkEx = await req('POST', '/api/exercises', { token: T, body: { title: '回归出题', subject: '数学', grade: '四年级', question_type: 'choice', stem: '1+1=?', answer: '2' } });
   rec('W-EX', 'flow', 'POST', '/api/exercises', [200, 201], mkEx.status, '创建出题');
   const exId = mkEx.body && (mkEx.body.id || (mkEx.body.data && mkEx.body.data.id));
-  if (exId) { const delEx = await req('DELETE', '/api/exercises/' + exId, { token: T }); rec('W-EX-D', 'flow', 'DELETE', '/api/exercises/' + exId, [404], delEx.status, '后端无DELETE /exercises/:id，测试题残留staging需人工清理'); }
+  if (exId) { const delEx = await req('DELETE', '/api/exercises/' + exId, { token: T }); rec('W-EX-D', 'flow', 'DELETE', '/api/exercises/' + exId, [200], delEx.status, '软删除测试题(2026-07-30 端点已实现，测试题自动清理不再残留)'); }
 
   const mk = await req('POST', '/api/lesson-plans', { token: T, body: { title: '回归自建教案', subject: '语文', grade: '四年级', content: '自动化回归探测内容' } });
   rec('S1', 'flow', 'POST', '/api/lesson-plans', [200, 201], mk.status, '建教案');

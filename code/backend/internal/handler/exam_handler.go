@@ -44,17 +44,17 @@ func (h *ExamHandler) GetExam(c *gin.Context) {
 
 func (h *ExamHandler) CreateExam(c *gin.Context) {
 	var req struct {
-		Title               string `json:"title" binding:"required"`
-		Subject             string `json:"subject" binding:"required"`
-		Grade               string `json:"grade" binding:"required"`
-		Questions           string `json:"questions"`
-		CurriculumAlign     string `json:"curriculum_alignments"`
-		TotalScore          float64 `json:"total_score"`
-		DurationMinutes     int    `json:"duration_minutes"`
-		Difficulty          string `json:"difficulty"`
-		DocContent          string `json:"doc_content"`
-		EditMode            string `json:"edit_mode"`
-		PaperSize           string `json:"paper_size"`
+		Title           string  `json:"title" binding:"required"`
+		Subject         string  `json:"subject" binding:"required"`
+		Grade           string  `json:"grade" binding:"required"`
+		Questions       string  `json:"questions"`
+		CurriculumAlign string  `json:"curriculum_alignments"`
+		TotalScore      float64 `json:"total_score"`
+		DurationMinutes int     `json:"duration_minutes"`
+		Difficulty      string  `json:"difficulty"`
+		DocContent      string  `json:"doc_content"`
+		EditMode        string  `json:"edit_mode"`
+		PaperSize       string  `json:"paper_size"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -114,16 +114,36 @@ func (h *ExamHandler) UpdateExam(c *gin.Context) {
 		return
 	}
 
-	if v, ok := req["title"]; ok { existing.Title = v.(string) }
-	if v, ok := req["questions"]; ok { existing.Questions = v.(string) }
-	if v, ok := req["curriculum_alignments"]; ok { existing.CurriculumAlign = v.(string) }
-	if v, ok := req["total_score"]; ok { existing.TotalScore = v.(float64) }
-	if v, ok := req["duration_minutes"]; ok { existing.DurationMinutes = int(v.(float64)) }
-	if v, ok := req["difficulty"]; ok { existing.Difficulty = v.(string) }
-	if v, ok := req["status"]; ok { existing.Status = v.(string) }
-	if v, ok := req["doc_content"]; ok { existing.DocContent = v.(string) }
-	if v, ok := req["edit_mode"]; ok { existing.EditMode = v.(string) }
-	if v, ok := req["paper_size"]; ok { existing.PaperSize = v.(string) }
+	if v, ok := req["title"]; ok {
+		existing.Title = v.(string)
+	}
+	if v, ok := req["questions"]; ok {
+		existing.Questions = v.(string)
+	}
+	if v, ok := req["curriculum_alignments"]; ok {
+		existing.CurriculumAlign = v.(string)
+	}
+	if v, ok := req["total_score"]; ok {
+		existing.TotalScore = v.(float64)
+	}
+	if v, ok := req["duration_minutes"]; ok {
+		existing.DurationMinutes = int(v.(float64))
+	}
+	if v, ok := req["difficulty"]; ok {
+		existing.Difficulty = v.(string)
+	}
+	if v, ok := req["status"]; ok {
+		existing.Status = v.(string)
+	}
+	if v, ok := req["doc_content"]; ok {
+		existing.DocContent = v.(string)
+	}
+	if v, ok := req["edit_mode"]; ok {
+		existing.EditMode = v.(string)
+	}
+	if v, ok := req["paper_size"]; ok {
+		existing.PaperSize = v.(string)
+	}
 	existing.UpdatedAt = time.Now()
 
 	if err := h.repo.Update(existing); err != nil {

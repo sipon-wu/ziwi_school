@@ -59,7 +59,7 @@ func NewCloudJWKS(url string) *CloudJWKS {
 		url:       url,
 		keys:      make(map[string]*rsa.PublicKey),
 		cacheFile: "/tmp/cloud_jwks_cache.json", // 本地文件降级（见指南 §2.3）
-		client: &http.Client{Timeout: 10 * time.Second},
+		client:    &http.Client{Timeout: 10 * time.Second},
 	}
 }
 

@@ -20,13 +20,13 @@ func NewAssignmentHandler(repo *repository.AssignmentRepository) *AssignmentHand
 
 // CreateAssignmentRequest 创建作业请求
 type CreateAssignmentRequest struct {
-	Title          string  `json:"title" binding:"required"`
-	Subject        string  `json:"subject" binding:"required"`
-	ClassID        string  `json:"class_id" binding:"required"`
-	AssignmentType string  `json:"assignment_type"`
+	Title          string         `json:"title" binding:"required"`
+	Subject        string         `json:"subject" binding:"required"`
+	ClassID        string         `json:"class_id" binding:"required"`
+	AssignmentType string         `json:"assignment_type"`
 	Questions      []QuestionItem `json:"questions"`
-	TotalScore     float64 `json:"total_score"`
-	DueHours       int     `json:"due_hours"`
+	TotalScore     float64        `json:"total_score"`
+	DueHours       int            `json:"due_hours"`
 }
 
 // QuestionItem 作业中的题目项

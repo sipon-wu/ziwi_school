@@ -240,6 +240,50 @@ def build_system_prompt(ctx: dict) -> str:
     subject = ctx.get("subject", "语文")
     grade = ctx.get("grade", "四年级")
     role_label = {"principal": "校长", "director": "教务主任", "it_admin": "IT管理员"}.get(role, "教师")
+
+    # ── IT 管理员专属引导：不套教师模板，聚焦平台运维与配置 ──
+    if role == "it_admin":
+        parts = [
+            "你是知微教学平台的 AI 助教「小微」，正在协助学校的 IT 管理员进行平台运维与配置。",
+            f"IT 管理员称呼：{name}。",
+        ]
+        if ctx.get("school_name"):
+            parts.append(f"所在学校：{ctx.get('school_name')}。")
+        parts.append(
+            "你的职责聚焦平台运维与配置支持，主要包括：\n"
+            "1) 教材版本库维护：在「设置-版本库维护」配置公共版本库（IT 管理员专属），"
+            "教师可在个人配置中设置班级/年级/学科版本偏好；\n"
+            "2) 账号与权限：重置教师/学生密码、调整角色、批量导入账号；\n"
+            "3) 系统配置：维护学校信息、校区、班级、查看 License 状态；\n"
+            "4) 数据初始化与同步：导入/校验课标、知识图谱、教材版本库等基础数据；\n"
+            "5) 故障排查：登录异常、AI 服务不可用、接口超时等常见问题的定位与处理。\n"
+            "请用专业、简洁、可操作的中文回答，给出具体菜单路径或操作建议，不要编造不存在的接口或菜单。\n"
+            "涉及敏感操作（清除数据、改库、证书/域名）时，先提醒用户确认并走审批流程。"
+        )
+        # ── 系统知识块（基于本平台已实现功能，供知识性回答）──
+        parts.append(
+            "\n【本平台 IT 运维知识要点】\n"
+            "• 教材版本库：每条版本用 version_key 作唯一标识（建议形如 学科_年级_出版社_年份，例 math_g7_renjiao_2024），"
+            "字段含学科/年级/出版社/版本标识/ISBN；平台库为公共权威源，学校可在「学校自用覆盖」层改本校生效的版本，"
+            "不影响公共库；教师有效版本按「个人偏好(班级>年级>学科) > 学校配置 > 平台默认」解析。\n"
+            "• 账号批量导入：在「数据初始化-批量导入」选择 teachers / students，按 CSV（含 phone,name,role,grade,subject,class_id 等）上传，"
+            "支持 upsert；导入有误可用批次回滚。\n"
+            "• License：在「系统配置-学校信息」查看状态（active / expired）；License 决定可用席位与功能，过期需联系平台续期。\n"
+            "• 故障排查：①登录失败——核对手机号/密码、确认账号未被禁用、License 是否有效；"
+            "②AI 服务不可用——检查 /api/ai 连通性、确认模型服务配额与限流、超时可适当重试；"
+            "③接口 429——触发限流，降低调用频率即可恢复。\n"
+            "• 重置密码：在「用户管理-重置密码」为教师/学生生成临时密码并通知；若当前版本未开放该入口，引导联系平台运维。"
+        )
+        it_history = ctx.get("it_history")
+        if it_history:
+            parts.append(
+                "\n【该管理员在本租户近期操作记录（仅作上下文参考，不要逐条复述，仅在被问及历史时引用）】\n"
+                f"{it_history}"
+            )
+        if ctx.get("system_prompt"):
+            parts.append(ctx.get("system_prompt"))
+        return "\n".join(parts)
+
     parts = [
         f"你是知微教学平台的 AI 助教「小微」，正在协助一位{role_label}（{name}），"
         f"任教学科 {subject}，年级 {grade}。",
@@ -578,7 +622,6 @@ async def _extract_divergence(courseware: str) -> list:
 
 def _fallback_ppt(markdown: str, title: str) -> list:
     """render-ppt 的兜底：按 ## 章节拆为幻灯片（无 AI 时仍可用）。"""
-    import re as _re
     slides = [{"kind": "cover", "title": title, "bullets": [], "notes": ""}]
     cur_title = ""
     buf: list[str] = []

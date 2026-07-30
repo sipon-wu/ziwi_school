@@ -104,7 +104,7 @@ type knSeed struct {
 	DanYuan     string   `json:"dan_yuan"`
 	ParentKey   string   `json:"parent_key"`
 	MingCheng   string   `json:"ming_cheng"`
-	Level        int      `json:"level"`
+	Level       int      `json:"level"`
 	QianZhi     []string `json:"qian_zhi"`
 	NanDu       string   `json:"nan_du"`
 	NengLiWeiDu string   `json:"neng_li_wei_du"`

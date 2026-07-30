@@ -14,16 +14,16 @@ import (
 // P0 仅做：验签通过 → 把云端身份注入 gin context；不做本地用户绑定（绑定属 P1）。
 //
 // 避坑（来自 cloud-jwt-integration-guide.md §3.4）：
-//  - token 过期 → 返回 401 + "token 已过期，请刷新"
-//  - 签名无效 → 返回 401（指南说"重新拉取 JWKS 后重试"——这在 jwks.Verify() 内部已处理）
-//  - cloud 不可达且无本地缓存 → 返回 503（不是 401！指南 §3.4 JWKS_UNAVAILABLE）
+//   - token 过期 → 返回 401 + "token 已过期，请刷新"
+//   - 签名无效 → 返回 401（指南说"重新拉取 JWKS 后重试"——这在 jwks.Verify() 内部已处理）
+//   - cloud 不可达且无本地缓存 → 返回 503（不是 401！指南 §3.4 JWKS_UNAVAILABLE）
 func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			log.Printf("[cloud-auth] 拒绝: 缺少 Authorization header (path=%s)", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"code":   "MISSING_TOKEN",
+				"code":    "MISSING_TOKEN",
 				"message": "缺少认证信息",
 			})
 			return
@@ -33,7 +33,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			log.Printf("[cloud-auth] 拒绝: 非 Bearer 格式 header=%s", authHeader[:min(len(authHeader), 20)])
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"code":   "INVALID_AUTH_FORMAT",
+				"code":    "INVALID_AUTH_FORMAT",
 				"message": "认证格式错误，请使用 Bearer Token",
 			})
 			return
@@ -43,7 +43,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 		if tokenStr == "" {
 			log.Printf("[cloud-auth] 拒绝: 空 token")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"code":   "EMPTY_TOKEN",
+				"code":    "EMPTY_TOKEN",
 				"message": "认证凭证为空",
 			})
 			return
@@ -56,7 +56,7 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 			if strings.Contains(errStr, "token is expired") || strings.Contains(errStr, "expired") {
 				log.Printf("[cloud-auth] 拒绝: token 过期")
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"code":   "TOKEN_EXPIRED",
+					"code":    "TOKEN_EXPIRED",
 					"message": "云端令牌已过期，请刷新",
 				})
 				return
@@ -65,14 +65,14 @@ func CloudTokenAuth(jwks *cloud.CloudJWKS) gin.HandlerFunc {
 			if strings.Contains(errStr, "JWKS") || strings.Contains(errStr, "unreachable") || strings.Contains(errStr, "unavailable") {
 				log.Printf("[cloud-auth] 拒绝: JWKS 不可达 - %v", err)
 				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-					"code":   "JWKS_UNAVAILABLE",
+					"code":    "JWKS_UNAVAILABLE",
 					"message": "认证服务暂不可用，请稍后重试",
 				})
 				return
 			}
 			log.Printf("[cloud-auth] 拒绝: 验签失败 - %v", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"code":   "INVALID_TOKEN",
+				"code":    "INVALID_TOKEN",
 				"message": "无效的云认证凭证",
 			})
 			return

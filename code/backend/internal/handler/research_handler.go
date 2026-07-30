@@ -25,7 +25,9 @@ func (h *ResearchHandler) ListReviews(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取失败"})
 		return
 	}
-	if items == nil { items = []repository.ReviewItem{} }
+	if items == nil {
+		items = []repository.ReviewItem{}
+	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
@@ -50,6 +52,8 @@ func (h *ResearchHandler) ListMethodologies(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取失败"})
 		return
 	}
-	if items == nil { items = []repository.Methodology{} }
+	if items == nil {
+		items = []repository.Methodology{}
+	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }

@@ -266,12 +266,12 @@ func (r *ITRepository) ImportTextbookVersions(rows []model.TextbookVersion) (int
 
 // validSchoolRoles 学校 IT 后台可分配的校内角色（不含平台角色/学生）
 var validSchoolRoles = map[string]bool{
-	"teacher":      true,
-	"head_teacher": true,
+	"teacher":       true,
+	"head_teacher":  true,
 	"research_lead": true,
-	"registrar":    true,
-	"principal":    true,
-	"it_admin":     true,
+	"registrar":     true,
+	"principal":     true,
+	"it_admin":      true,
 }
 
 // UpdateUserRole 单用户改角色（角色分配/一键初始化的原子操作）
@@ -576,4 +576,3 @@ func (r *ITRepository) RejectSubmittedVersion(id int64, adminID string, note str
 		"review_note": note,
 	}).Error
 }
-

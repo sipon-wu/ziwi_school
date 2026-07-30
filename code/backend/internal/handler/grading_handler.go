@@ -20,17 +20,17 @@ func NewGradingHandler(attemptRepo *repository.AttemptEventRepository) *GradingH
 
 // SubmitGradeRequest 提交批阅请求
 type SubmitGradeRequest struct {
-	StudentID    string           `json:"student_id" binding:"required"`
-	AssignmentID string           `json:"assignment_id" binding:"required"`
-	Results      []GradeItem      `json:"results" binding:"required"`
+	StudentID    string      `json:"student_id" binding:"required"`
+	AssignmentID string      `json:"assignment_id" binding:"required"`
+	Results      []GradeItem `json:"results" binding:"required"`
 }
 
 type GradeItem struct {
-	QuestionID string `json:"question_id" binding:"required"`
-	Correct    bool   `json:"correct"`
+	QuestionID string  `json:"question_id" binding:"required"`
+	Correct    bool    `json:"correct"`
 	Score      float64 `json:"score"`
-	ErrorCause string `json:"error_cause"`
-	TimeSpent  int    `json:"time_spent"`
+	ErrorCause string  `json:"error_cause"`
+	TimeSpent  int     `json:"time_spent"`
 }
 
 // SubmitGrade 提交批阅结果并写入答题事件（AttemptEvents 写入 hook）
@@ -63,7 +63,7 @@ func (h *GradingHandler) SubmitGrade(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":          "批阅结果已提交",
-		"events_created":   len(events),
+		"message":        "批阅结果已提交",
+		"events_created": len(events),
 	})
 }

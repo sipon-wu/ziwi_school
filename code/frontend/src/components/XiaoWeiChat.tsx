@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   X, Sparkles, Mic, MicOff, Camera, Image as ImageIcon,
   FileText, BookOpen, Target, BarChart3,
-  Minimize2, ArrowUp, Send
+  Minimize2, ArrowUp, Send,
+  Settings, KeyRound, ServerCog, Wrench
 } from 'lucide-react'
 import { aiAPI } from '@/lib/api'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -52,6 +53,39 @@ const QUICK_COMMANDS = [
   { label: '教学反思', type: 'outline' as const, prompt: '帮我做一次教学反思总结', navigateTo: null },
 ]
 
+// IT 管理员专属功能卡片（不套教师模板）
+const IT_FEATURE_CARDS = [
+  {
+    icon: Settings, iconClass: 'text-[#1A3A6B]', bgClass: 'bg-brand/5',
+    title: '版本库维护', desc: '配置教材版本',
+    navigateTo: '/settings?tab=textbook', prompt: '怎么维护教材版本库？',
+  },
+  {
+    icon: KeyRound, iconClass: 'text-[#2B5DA8]', bgClass: 'bg-[#F0EDE8]',
+    title: '重置密码', desc: '教师/学生账号',
+    navigateTo: null, prompt: '怎么重置教师密码？',
+  },
+  {
+    icon: ServerCog, iconClass: 'text-[#1A3A6B]', bgClass: 'bg-[#EAF0E8]',
+    title: '系统配置', desc: '学校/校区/班级',
+    navigateTo: '/settings', prompt: '怎么配置校区和班级？',
+  },
+  {
+    icon: Wrench, iconClass: 'text-[#2B5DA8]', bgClass: 'bg-[#E8E8F0]',
+    title: '故障排查', desc: '登录/AI/接口',
+    navigateTo: null, prompt: '老师登录失败怎么排查？',
+  },
+]
+
+// IT 管理员专属快捷指令
+const IT_QUICK_COMMANDS = [
+  { label: '版本库维护', type: 'primary' as const, prompt: '怎么配置和维护教材版本库？', navigateTo: '/settings?tab=textbook' },
+  { label: '账号导入', type: 'outline' as const, prompt: '怎么批量导入教师和学生账号？', navigateTo: null },
+  { label: '重置密码', type: 'outline' as const, prompt: '怎么重置一个教师的登录密码？', navigateTo: null },
+  { label: 'License 状态', type: 'outline' as const, prompt: '怎么查看学校 License 状态？', navigateTo: null },
+  { label: '故障排查', type: 'outline' as const, prompt: 'AI 服务不可用怎么排查？', navigateTo: null },
+]
+
 const AVATAR_SRC = '/xiaowei.png?v=5'
 
 function getTimeString(): string {
@@ -87,11 +121,38 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const role = localStorage.getItem('demo_role') || 'teacher'
+  // IT 管理员：本租户操作历史（异步拉取后注入小微上下文）
+  const itHistoryRef = useRef<string>('')
 
   // 自动滚动
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // IT 管理员：进入时拉取本租户操作历史，缓存到 ref 供小微上下文使用
+  useEffect(() => {
+    if (role !== 'it_admin') return
+    const token = localStorage.getItem('zhiwei_token')
+    if (!token) return
+    fetch('/api/ops/it-history', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (!data?.items?.length) { itHistoryRef.current = ''; return }
+        const lines = data.items.map((it: any) => {
+          const d = it.details || {}
+          const when = (it.created_at || '').slice(0, 10)
+          const what = it.resource_type === 'textbook_version'
+            ? `教材版本库·${it.action}${d.version_key ? '(' + d.version_key + ')' : ''}`
+            : it.resource_type === 'accounts'
+              ? `账号导入·${d.type || ''}(${d.count ?? ''}条)`
+              : `${it.resource_type}·${it.action}`
+          return `- ${when} ${what}`
+        })
+        itHistoryRef.current = lines.join('\n')
+      })
+      .catch(() => { itHistoryRef.current = '' })
+  }, [role])
 
   // 获取上下文（知识边界跟随 TeachingContext，切换学科/年级后重新对齐课标锚点）
   const getContext = () => {
@@ -101,6 +162,22 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       const role = localStorage.getItem('demo_role') || 'teacher'
       const teacherName = user.name || '老师'
       const roleLabel = role === 'principal' ? '校长' : role === 'director' ? '教务主任' : role === 'it_admin' ? 'IT管理员' : '教师'
+
+    // ── IT 管理员专属上下文：不套教师模板，无学科边界 ──
+    if (role === 'it_admin') {
+      return {
+        teacher_name: teacherName,
+        subject: '',
+        grade: '',
+        role,
+        school_name: user.school_name || '达州市通川区第一小学（仿真）',
+        knowledge_boundary: 'IT 管理员视角：聚焦平台运维与配置，无学科边界限制。',
+        it_history: itHistoryRef.current,
+        system_prompt: `你是 IT管理员助教，正在与${teacherName}沟通。请始终用"${teacherName}"或直接用"您"来称呼用户。
+你的职责是平台运维与配置引导，包括教材版本库维护、账号与权限（重置密码/批量导入/角色）、系统配置（学校/校区/班级/License）、数据初始化与同步、常见故障排查（登录异常/AI 服务不可用/接口超时）。
+请给具体菜单路径与可操作步骤，不要编造不存在的接口或菜单。涉及清除数据、改库、证书/域名等敏感操作，先提醒确认并走审批流程。${itHistoryRef.current ? `\n\n你已知悉该管理员在本租户近期操作记录（用于上下文参考，不要逐条复述）：\n${itHistoryRef.current}` : ''}`,
+      }
+    }
       // 知识边界跟随 TeachingContext 实时取值（切换学科/年级后上下文同步更新）
       const subject = teaching.subject
       const gradeName = (['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级'])[teaching.grade - 1] || '四年级'
@@ -336,7 +413,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
               功能推荐
             </div>
             <div className="flex gap-2">
-              {FEATURE_CARDS.map((card, i) => (
+              {(role === 'it_admin' ? IT_FEATURE_CARDS : FEATURE_CARDS).map((card, i) => (
                 <button key={i}
                   onClick={() => { if (card.navigateTo) { setOpen(false); navigate(card.navigateTo) } else { sendMessage(card.prompt) } }}
                   className={`flex-1 rounded-[10px] px-2 py-2.5 flex flex-col items-center gap-1 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95 ${card.bgClass}`}
@@ -351,7 +428,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
           <div className="bg-[#F5F6F9] px-4 pb-3 shrink-0">
             <div className="text-xs font-bold text-[#495677] mb-1.5">⚡ 快捷指令</div>
             <div className="flex gap-1.5 flex-wrap">
-              {QUICK_COMMANDS.map((cmd, i) => (
+              {(role === 'it_admin' ? IT_QUICK_COMMANDS : QUICK_COMMANDS).map((cmd, i) => (
                 <button key={i}
                   onClick={() => { if (cmd.navigateTo) { setOpen(false); navigate(cmd.navigateTo) } else { sendMessage(cmd.prompt) } }}
                   className={`h-[44px] w-[88px] rounded-[10px] text-xs flex items-center justify-center whitespace-nowrap transition-all hover:opacity-85 hover:scale-[1.02] active:scale-95 ${

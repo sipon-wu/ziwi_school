@@ -5,17 +5,17 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	RedisURL    string
-	JWTSecret   string
+	Port         string
+	DatabaseURL  string
+	RedisURL     string
+	JWTSecret    string
 	CloudJWKSURL string // cloud IdP 的 JWKS 公钥端点，供 school 独立验签 RS256 token
-	AIBaseURL   string
+	AIBaseURL    string
 	// 心跳上报（P2 私有部署心跳对齐 heartbeat.ziwi.cn）
 	HeartbeatEnabled bool
 	HeartbeatURL     string
 	HeartbeatAPIKey  string
-	OSS         OSSConfig
+	OSS              OSSConfig
 }
 
 type OSSConfig struct {
@@ -27,12 +27,12 @@ type OSSConfig struct {
 
 func Load() (*Config, error) {
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: getEnv("DATABASE_URL", buildDatabaseURL()),
-		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379/0"),
-		JWTSecret:   getEnv("JWT_SECRET", "zhiwei-dev-secret-change-in-production"),
-		CloudJWKSURL: getEnv("CLOUD_JWKS_URL", "https://cloud.ziwi.cn/api/v1/auth/public-key"),
-		AIBaseURL:   getEnv("AI_BASE_URL", "http://localhost:8000"),
+		Port:             getEnv("PORT", "8080"),
+		DatabaseURL:      getEnv("DATABASE_URL", buildDatabaseURL()),
+		RedisURL:         getEnv("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecret:        getEnv("JWT_SECRET", "zhiwei-dev-secret-change-in-production"),
+		CloudJWKSURL:     getEnv("CLOUD_JWKS_URL", "https://cloud.ziwi.cn/api/v1/auth/public-key"),
+		AIBaseURL:        getEnv("AI_BASE_URL", "http://localhost:8000"),
 		HeartbeatEnabled: getEnv("HEARTBEAT_ENABLED", "") == "true",
 		HeartbeatURL:     getEnv("HEARTBEAT_URL", "https://heartbeat.ziwi.cn/api/v1/heartbeat"),
 		HeartbeatAPIKey:  getEnv("HEARTBEAT_API_KEY", ""),

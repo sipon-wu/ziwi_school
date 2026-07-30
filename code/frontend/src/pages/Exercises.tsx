@@ -116,10 +116,13 @@ export default function Exercises() {
   }
 
   const handleDelete = () => {
-    if (deleteTarget) {
-      setQuestions(prev => prev.filter(q => q.id !== deleteTarget))
-      setDeleteTarget(null)
-    }
+    if (!deleteTarget) return
+    const id = deleteTarget
+    setDeleteTarget(null)
+    // 真删除：调后端软删端点，成功后再移出列表（此前只删本地 state，刷新即复活）
+    api(`/exercises/${id}`, { method: 'DELETE' })
+      .then(() => setQuestions(prev => prev.filter(q => q.id !== id)))
+      .catch((e) => notifyError('删除失败', e))
   }
 
   return (

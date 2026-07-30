@@ -16,12 +16,12 @@ func NewDevOpsHandler() *DevOpsHandler {
 func (h *DevOpsHandler) GetMonitor(c *gin.Context) {
 	// TODO: 对接真实监控指标（Prometheus/Grafana）
 	c.JSON(http.StatusOK, gin.H{
-		"api_status":   "healthy",
-		"db_status":    "healthy",
-		"redis_status": "healthy",
-		"uptime_hours": 168,
-		"active_users": 42,
-		"requests_24h": 15830,
+		"api_status":     "healthy",
+		"db_status":      "healthy",
+		"redis_status":   "healthy",
+		"uptime_hours":   168,
+		"active_users":   42,
+		"requests_24h":   15830,
 		"avg_latency_ms": 45,
 	})
 }

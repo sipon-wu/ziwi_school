@@ -505,14 +505,14 @@ func (r *ImportRepository) saveBatch(tx *gorm.DB, schoolID, createdBy, typ strin
 	}
 	raw, _ := json.Marshal(sum)
 	batch := model.ImportBatch{
-		SchoolID:     schoolID,
-		Type:         typ,
-		CreatedBy:    createdBy,
-		Status:       "committed",
-		TotalRows:    res.Total,
-		CreatedRows:  res.Valid,
-		SkippedRows:  res.Warnings + res.Invalid,
-		Summary:      string(raw),
+		SchoolID:    schoolID,
+		Type:        typ,
+		CreatedBy:   createdBy,
+		Status:      "committed",
+		TotalRows:   res.Total,
+		CreatedRows: res.Valid,
+		SkippedRows: res.Warnings + res.Invalid,
+		Summary:     string(raw),
 	}
 	if err := tx.Create(&batch).Error; err != nil {
 		return err

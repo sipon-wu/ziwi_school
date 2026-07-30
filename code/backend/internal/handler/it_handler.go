@@ -13,12 +13,34 @@ import (
 )
 
 type ITHandler struct {
-	repo     *repository.ITRepository
-	deanRepo *repository.DeanRepository
+	repo      *repository.ITRepository
+	deanRepo  *repository.DeanRepository
+	auditRepo *repository.AuditRepository
 }
 
-func NewITHandler(repo *repository.ITRepository, deanRepo *repository.DeanRepository) *ITHandler {
-	return &ITHandler{repo: repo, deanRepo: deanRepo}
+func NewITHandler(repo *repository.ITRepository, deanRepo *repository.DeanRepository, auditRepo *repository.AuditRepository) *ITHandler {
+	return &ITHandler{repo: repo, deanRepo: deanRepo, auditRepo: auditRepo}
+}
+
+// ITHistory GET /api/ops/it-history —— 本租户 IT 管理员最近操作记录（供小微上下文注入）
+func (h *ITHandler) ITHistory(c *gin.Context) {
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+	logs, err := h.auditRepo.ListRecentIT(schoolIDStr, 30)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "QUERY_FAILED", "message": "获取操作历史失败"})
+		return
+	}
+	items := make([]gin.H, 0, len(logs))
+	for _, l := range logs {
+		items = append(items, gin.H{
+			"action":        l.Action,
+			"resource_type": l.ResourceType,
+			"details":       l.Details,
+			"created_at":    l.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 // ListUsers 用户列表
@@ -139,7 +161,7 @@ func (h *ITHandler) DeleteCampus(c *gin.Context) {
 		switch err.Error() {
 		case "campus in use":
 			c.JSON(http.StatusConflict, gin.H{"code": "CAMPUS_IN_USE",
-				"message": fmt.Sprintf("校区仍被引用（用户 %d 个、班级 %d 个），请先迁移后再删除", userCount, classCount),
+				"message":    fmt.Sprintf("校区仍被引用（用户 %d 个、班级 %d 个），请先迁移后再删除", userCount, classCount),
 				"user_count": userCount, "class_count": classCount})
 		case "campus not found":
 			c.JSON(http.StatusNotFound, gin.H{"code": "CAMPUS_NOT_FOUND", "message": "校区不存在"})
@@ -449,6 +471,15 @@ func (h *ITHandler) CreateTextbookVersion(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPSERT_FAILED", "message": err.Error()})
 		return
 	}
+	if uid, ok := c.Get("user_id"); ok {
+		if sid, ok2 := c.Get("school_id"); ok2 {
+			_ = h.auditRepo.Write(&repository.AuditLog{
+				UserID: uid.(string), SchoolID: sid.(string),
+				Action: "create", ResourceType: "textbook_version",
+				Details: map[string]interface{}{"version_key": v.VersionKey, "subject": v.XueKe, "grade": v.NianJi},
+			})
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "教材版本已保存", "version_key": v.VersionKey})
 }
 
@@ -473,6 +504,15 @@ func (h *ITHandler) UpdateTextbookVersion(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPDATE_FAILED", "message": err.Error()})
 		return
 	}
+	if uid, ok := c.Get("user_id"); ok {
+		if sid, ok2 := c.Get("school_id"); ok2 {
+			_ = h.auditRepo.Write(&repository.AuditLog{
+				UserID: uid.(string), SchoolID: sid.(string),
+				Action: "update", ResourceType: "textbook_version",
+				ResourceID: &id, Details: map[string]interface{}{"version_key": v.VersionKey},
+			})
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "教材版本已更新"})
 }
 
@@ -491,6 +531,15 @@ func (h *ITHandler) DeleteTextbookVersion(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DELETE_FAILED", "message": err.Error()})
 		return
+	}
+	if uid, ok := c.Get("user_id"); ok {
+		if sid, ok2 := c.Get("school_id"); ok2 {
+			_ = h.auditRepo.Write(&repository.AuditLog{
+				UserID: uid.(string), SchoolID: sid.(string),
+				Action: "delete", ResourceType: "textbook_version",
+				ResourceID: &id, Details: map[string]interface{}{},
+			})
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "教材版本已删除"})
 }
@@ -514,6 +563,15 @@ func (h *ITHandler) ImportTextbookVersions(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "IMPORT_FAILED", "message": err.Error()})
 		return
+	}
+	if uid, ok := c.Get("user_id"); ok {
+		if sid, ok2 := c.Get("school_id"); ok2 {
+			_ = h.auditRepo.Write(&repository.AuditLog{
+				UserID: uid.(string), SchoolID: sid.(string),
+				Action: "import", ResourceType: "textbook_version",
+				Details: map[string]interface{}{"count": n},
+			})
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "教材版本库已导入", "count": n})
 }
@@ -560,13 +618,13 @@ func (h *ITHandler) SubmitTextbookVersion(c *gin.Context) {
 	schoolIDStr, _ := schoolID.(string)
 
 	var req struct {
-		XueDuan       string `json:"xue_duan"`
-		NianJi        string `json:"nian_ji"`
-		XueKe         string `json:"xue_ke"`
-		JiaoCaiMing   string `json:"jiao_cai_ming"`
-		ChuBanShe     string `json:"chu_ban_she"`
-		BanBenBiaoShi string `json:"ban_ben_biao_shi"`
-		CeBie         string `json:"ce_bie"`
+		XueDuan        string  `json:"xue_duan"`
+		NianJi         string  `json:"nian_ji"`
+		XueKe          string  `json:"xue_ke"`
+		JiaoCaiMing    string  `json:"jiao_cai_ming"`
+		ChuBanShe      string  `json:"chu_ban_she"`
+		BanBenBiaoShi  string  `json:"ban_ben_biao_shi"`
+		CeBie          string  `json:"ce_bie"`
 		AttachmentURLs *string `json:"attachment_urls"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {

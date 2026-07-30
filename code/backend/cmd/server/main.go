@@ -57,6 +57,10 @@ func main() {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
 
+	// questions 软删列：模型 Status 是 gorm:"-" 展示态(由 audit_status 派生)，AutoMigrate 不会建列；
+	// DELETE /exercises/:id 软删依赖真实 status 列，此处幂等补列（001_init_schema.up.sql 有定义但历史库未跑）。
+	db.Exec(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active'`)
+
 	// 教材版本个人偏好支持 年级/班级 维度（V2.6）：新增列 + 复合唯一索引 (teacher_id, grade, class_id, subject)。
 	// AutoMigrate 已加列（default ''），此处补齐唯一索引并下线旧索引，幂等。
 	db.Exec(`ALTER TABLE teacher_textbook_pref ADD COLUMN IF NOT EXISTS grade VARCHAR(20) NOT NULL DEFAULT ''`)
@@ -134,7 +138,8 @@ func main() {
 	exerciseSheetHandler := handler.NewExerciseSheetHandler(exerciseSheetRepo)
 	sheetHandler := handler.NewSheetHandler(sheetRepo)
 	deanHandler := handler.NewDeanHandler(deanRepo)
-	itHandler := handler.NewITHandler(itRepo, deanRepo)
+	auditRepo := repository.NewAuditRepository(db)
+	itHandler := handler.NewITHandler(itRepo, deanRepo, auditRepo)
 	importHandler := handler.NewImportHandler(importRepo)
 	opsHandler := handler.NewOpsHandler(opsRepo)
 	researchHandler := handler.NewResearchHandler(researchRepo)
@@ -220,6 +225,7 @@ func main() {
 		teacher.GET("/exercises/:id", exerciseHandler.GetQuestion)
 		teacher.POST("/exercises", exerciseHandler.CreateQuestion)
 		teacher.PUT("/exercises/:id", exerciseHandler.UpdateQuestion)
+		teacher.DELETE("/exercises/:id", exerciseHandler.DeleteQuestion)
 		teacher.POST("/exercises/infer-coordinate", exerciseHandler.InferTrainingCoordinate)
 		// 组卷
 		teacher.GET("/exams", examHandler.ListExams)
@@ -260,10 +266,10 @@ func main() {
 		teacher.PUT("/care/students/:id/plan", careHandler.UpdateCarePlan)
 		teacher.DELETE("/care/students/:id", careHandler.RemoveCareStudent)
 		// 素材
-	teacher.GET("/materials", materialHandler.ListMaterials)
-	teacher.GET("/materials/:id", materialHandler.GetMaterial)
-	teacher.POST("/materials", materialHandler.UploadMaterial)
-	teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
+		teacher.GET("/materials", materialHandler.ListMaterials)
+		teacher.GET("/materials/:id", materialHandler.GetMaterial)
+		teacher.POST("/materials", materialHandler.UploadMaterial)
+		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		// 学校/班级归档
 		teacher.PUT("/schools/:id/archive", scHandler.ArchiveSchool)
 		teacher.PUT("/schools/:id/restore", scHandler.RestoreSchool)
@@ -333,6 +339,8 @@ func main() {
 		itAdmin.GET("/admin/textbook-versions/pending", itHandler.ListPendingSubmittedVersions)
 		itAdmin.PUT("/admin/textbook-versions/pending/:id/approve", itHandler.ApproveSubmittedVersion)
 		itAdmin.PUT("/admin/textbook-versions/pending/:id/reject", itHandler.RejectSubmittedVersion)
+		// IT 操作历史（供小微上下文注入，仅 it_admin 可见本租户记录）
+		itAdmin.GET("/ops/it-history", itHandler.ITHistory)
 	}
 
 	// 校区管理：IT 管理员专属维护（学校级配置，A1 一校多区），与规划角色边界一致，不向 principal 放权

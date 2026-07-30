@@ -176,7 +176,7 @@ func (h *ExerciseHandler) UpdateQuestion(c *gin.Context) {
 	if req.Difficulty != "" {
 		q.Difficulty = req.Difficulty
 	}
-		q.UpdatedAt = time.Now()
+	q.UpdatedAt = time.Now()
 
 	if err := h.repo.Update(q); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "UPDATE_FAILED", "message": "更新题目失败"})
@@ -186,12 +186,33 @@ func (h *ExerciseHandler) UpdateQuestion(c *gin.Context) {
 	c.JSON(http.StatusOK, q)
 }
 
+// DeleteQuestion 删除题目（软删除：status='deleted'，列表/详情不再返回）
+// DELETE /api/exercises/:id
+func (h *ExerciseHandler) DeleteQuestion(c *gin.Context) {
+	teacherID, _ := c.Get("user_id")
+	teacherIDStr, _ := teacherID.(string)
+	id := c.Param("id")
+
+	// 先确认归属（防越权删除他人题目）
+	if _, err := h.repo.FindByID(id, teacherIDStr); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "题目不存在或已删除"})
+		return
+	}
+
+	if err := h.repo.Delete(id, teacherIDStr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DELETE_FAILED", "message": "删除题目失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "已删除"})
+}
+
 // ── 训练坐标推断 ──
 
 // InferTrainingCoordinateRequest 训练坐标推断请求
 type InferTrainingCoordinateRequest struct {
-	Type            string   `json:"type" binding:"required"`       // T: 题型
-	Difficulty      string   `json:"difficulty"`                    // D: 难度
+	Type            string   `json:"type" binding:"required"` // T: 题型
+	Difficulty      string   `json:"difficulty"`              // D: 难度
 	Subject         string   `json:"subject" binding:"required"`
 	Content         string   `json:"content"`
 	KnowledgePoints []string `json:"knowledge_points"`

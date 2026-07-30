@@ -39,11 +39,11 @@ func main() {
 
 	// ── 1. 创建演示学校 ──
 	school := model.School{
-		FullName:  "知微实验小学",
-		ShortName: "知微实验",
+		FullName:   "知微实验小学",
+		ShortName:  "知微实验",
 		SystemType: "六三制",
-		Region:    "四川省成都市",
-		Status:    "active",
+		Region:     "四川省成都市",
+		Status:     "active",
 	}
 	db.Where("full_name = ?", "知微实验小学").FirstOrCreate(&school)
 	fmt.Printf("School: %s (%s)\n", school.FullName, school.ID)
@@ -105,8 +105,8 @@ func main() {
 
 	// ── 3. 创建班级 ──
 	classes := []struct {
-		Name          string
-		Grade         string
+		Name             string
+		Grade            string
 		HeadTeacherPhone string
 	}{
 		{"四(1)班", "四年级", "13800000008"},

@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/postgres"
 	"gorm.io/datatypes"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"github.com/zhiwei/backend/internal/model"
@@ -129,7 +129,7 @@ func main() {
 	school := model.School{
 		ID:         "sch-0001",
 		FullName:   "树人实验小学",
-		ShortName: "树人实验",
+		ShortName:  "树人实验",
 		SystemType: "六三制",
 		Region:     "北京市海淀区",
 		Status:     "active",
@@ -271,9 +271,9 @@ func main() {
 
 ## 作业布置
 抄写本课生字词；有感情朗读课文，背诵第3、4自然段`,
-			KnowledgeNodes: `["kn-1","kn-2"]`,
+			KnowledgeNodes:  `["kn-1","kn-2"]`,
 			CurriculumAlign: `[{"code":"3.2.1","content":"联系上下文理解词句","aligned":true}]`,
-			AIGenerated: true, AIModelVersion: "qwen-plus", GenerationTimeMs: 1200, EditCount: 2,
+			AIGenerated:     true, AIModelVersion: "qwen-plus", GenerationTimeMs: 1200, EditCount: 2,
 			ReviewStatus: "none", Status: "final",
 		},
 		{
@@ -416,26 +416,26 @@ func main() {
 	}
 	for i, q := range qdata {
 		rec := repository.Question{
-			TeacherID:      teacherID,
-			SchoolID:       school.ID,
-			Subject:        "语文",
-			Grade:          "四年级",
-			Content:        q.content,
-			Type:           q.qtype,
-			Difficulty:     q.diff,
-			Options:        datatypes.JSON(q.options),
-			Answer:         q.answer,
-			AnswerDetail:   "参考答案：" + q.answer,
-			Source:         "original",
-			IsPublic:       true,
-			AuditStatus:    "approved",
+			TeacherID:       teacherID,
+			SchoolID:        school.ID,
+			Subject:         "语文",
+			Grade:           "四年级",
+			Content:         q.content,
+			Type:            q.qtype,
+			Difficulty:      q.diff,
+			Options:         datatypes.JSON(q.options),
+			Answer:          q.answer,
+			AnswerDetail:    "参考答案：" + q.answer,
+			Source:          "original",
+			IsPublic:        true,
+			AuditStatus:     "approved",
 			KnowledgePoints: datatypes.JSON(`[]`),
-			UsageCount:     i % 5,
-			AvgRating:      4.2,
-			CorrectRate:    0.78,
-			AutoTags:       datatypes.JSON(`["语文","四年级"]`),
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			UsageCount:      i % 5,
+			AvgRating:       4.2,
+			CorrectRate:     0.78,
+			AutoTags:        datatypes.JSON(`["语文","四年级"]`),
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		must(db.Create(&rec).Error, "create question")
 	}

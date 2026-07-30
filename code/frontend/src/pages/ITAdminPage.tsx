@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { importAPI, adminAPI } from '../lib/api'
+import XiaoWeiChat from '../components/XiaoWeiChat'
 
 interface RowResult {
   line: number
@@ -431,6 +432,7 @@ export default function ITAdminPage() {
             </div>
           )}
         </main>
+        <XiaoWeiChat />
       </div>
     </div>
   )

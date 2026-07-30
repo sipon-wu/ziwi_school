@@ -8,15 +8,15 @@ import (
 
 // DeanClass 教务班级视图
 type DeanClass struct {
-	ID            string    `gorm:"type:varchar(50)" json:"id"`
-	SchoolID      string    `gorm:"type:varchar(50)" json:"school_id"`
-	Name          string    `gorm:"type:varchar(100)" json:"name"`
-	Grade         string    `gorm:"type:varchar(20)" json:"grade"`
-	ClassType     string    `gorm:"type:varchar(20)" json:"class_type"`
-	HeadTeacherID *string   `gorm:"type:varchar(50)" json:"head_teacher_id"`
-	HeadTeacherName string  `gorm:"->" json:"head_teacher_name"`
-	StudentCount  int64     `gorm:"->" json:"student_count"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID              string    `gorm:"type:varchar(50)" json:"id"`
+	SchoolID        string    `gorm:"type:varchar(50)" json:"school_id"`
+	Name            string    `gorm:"type:varchar(100)" json:"name"`
+	Grade           string    `gorm:"type:varchar(20)" json:"grade"`
+	ClassType       string    `gorm:"type:varchar(20)" json:"class_type"`
+	HeadTeacherID   *string   `gorm:"type:varchar(50)" json:"head_teacher_id"`
+	HeadTeacherName string    `gorm:"->" json:"head_teacher_name"`
+	StudentCount    int64     `gorm:"->" json:"student_count"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // DeanTeacher 教务教师视图
@@ -46,16 +46,16 @@ func (Semester) TableName() string {
 
 // CourseSchedule 课程安排
 type CourseSchedule struct {
-	ID        string `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	SchoolID  string `gorm:"type:varchar(50);not null;index" json:"school_id"`
-	ClassID   string `gorm:"type:varchar(50);not null;index" json:"class_id"`
-	ClassName string `gorm:"->" json:"class_name"`
-	Subject   string `gorm:"type:varchar(20);not null" json:"subject"`
-	TeacherID string `gorm:"type:varchar(50)" json:"teacher_id"`
-	TeacherName string `gorm:"->" json:"teacher_name"`
-	DayOfWeek int    `json:"day_of_week"` // 1-5 周一至周五
-	Period    int    `json:"period"`       // 1-8 节次
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID    string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	ClassID     string    `gorm:"type:varchar(50);not null;index" json:"class_id"`
+	ClassName   string    `gorm:"->" json:"class_name"`
+	Subject     string    `gorm:"type:varchar(20);not null" json:"subject"`
+	TeacherID   string    `gorm:"type:varchar(50)" json:"teacher_id"`
+	TeacherName string    `gorm:"->" json:"teacher_name"`
+	DayOfWeek   int       `json:"day_of_week"` // 1-5 周一至周五
+	Period      int       `json:"period"`      // 1-8 节次
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (CourseSchedule) TableName() string {
@@ -78,8 +78,8 @@ func (r *DeanRepository) AutoMigrate() error {
 func (r *DeanRepository) ListClasses(schoolID string) ([]DeanClass, error) {
 	var classes []DeanClass
 	err := r.db.Raw(`
-		SELECT c.id, c.school_id, c.name, c.grade, c.status AS class_type,
-			NULL::uuid AS head_teacher_id, '' AS head_teacher_name,
+		SELECT c.id, c.school_id, c.name, c.grade, c.class_type,
+			c.head_teacher_id, '' AS head_teacher_name,
 			0 AS student_count, c.created_at
 		FROM classes c
 		WHERE c.school_id = ?

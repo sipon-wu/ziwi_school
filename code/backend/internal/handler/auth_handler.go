@@ -64,7 +64,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"code":   "INVALID_REQUEST",
+			"code":    "INVALID_REQUEST",
 			"message": "请输入正确的11位手机号和密码",
 		})
 		return
@@ -74,7 +74,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, err := h.userRepo.FindByPhone(req.Phone)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":   "INVALID_CREDENTIALS",
+			"code":    "INVALID_CREDENTIALS",
 			"message": "手机号或密码错误",
 		})
 		return
@@ -83,7 +83,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// 2. 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":   "INVALID_CREDENTIALS",
+			"code":    "INVALID_CREDENTIALS",
 			"message": "手机号或密码错误",
 		})
 		return
@@ -106,7 +106,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	token, err := h.generateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":   "TOKEN_GENERATION_FAILED",
+			"code":    "TOKEN_GENERATION_FAILED",
 			"message": "登录失败，请重试",
 		})
 		return
@@ -202,12 +202,24 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 	updates := map[string]interface{}{}
-	if req.Name != "" { updates["name"] = req.Name }
-	if req.Phone != "" { updates["phone"] = req.Phone }
-	if req.Email != "" { updates["email"] = req.Email }
-	if req.Gender != "" { updates["gender"] = req.Gender }
-	if req.Region != "" { updates["region"] = req.Region }
-	if req.Avatar != "" { updates["avatar"] = req.Avatar }
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	if req.Phone != "" {
+		updates["phone"] = req.Phone
+	}
+	if req.Email != "" {
+		updates["email"] = req.Email
+	}
+	if req.Gender != "" {
+		updates["gender"] = req.Gender
+	}
+	if req.Region != "" {
+		updates["region"] = req.Region
+	}
+	if req.Avatar != "" {
+		updates["avatar"] = req.Avatar
+	}
 	if len(updates) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "no fields to update"})
 		return

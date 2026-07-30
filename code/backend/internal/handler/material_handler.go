@@ -13,7 +13,9 @@ import (
 	"github.com/zhiwei/backend/internal/repository"
 )
 
-type MaterialHandler struct{ repo *repository.MaterialRepository }
+type MaterialHandler struct {
+	repo *repository.MaterialRepository
+}
 
 func NewMaterialHandler(repo *repository.MaterialRepository) *MaterialHandler {
 	return &MaterialHandler{repo}

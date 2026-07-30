@@ -29,12 +29,14 @@ interface EditorControllerOptions<T = any> {
   resourceType?: string
 
   // ─── 生命周期回调（由页面注入，框架统一调度） ───
+  // 注意：类型与 useEditorLifecycle 实现保持一致（允许返回 Promise<unknown> 或 void），
+  // 否则各页面传入 handleSaveDraft 等返回非 Promise<void> 的回调时会触发类型冲突。
   /** 自动保存（debounce 8s + 失焦 flush），不传则关闭 */
-  onAutoSave?: () => Promise<void>
+  onAutoSave?: () => Promise<unknown> | void
   /** 显式保存草稿 */
-  onSaveDraft?: () => Promise<void>
+  onSaveDraft?: () => Promise<unknown> | void
   /** 发布 */
-  onPublish?: () => Promise<void>
+  onPublish?: () => Promise<unknown> | void
   /** debounce 毫秒，默认 8000 */
   autoSaveDelay?: number
 

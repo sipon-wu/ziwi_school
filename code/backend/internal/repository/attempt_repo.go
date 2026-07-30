@@ -10,22 +10,22 @@ import (
 // AttemptEvent 答题事件（有据引擎原子数据源）
 // 每次学生提交一道题的结果即为一条事件，支撑双轴画像与学生级飞轮
 type AttemptEvent struct {
-	ID            string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	StudentID     string         `gorm:"column:student_id;type:varchar(30);not null;index:idx_attempt_student" json:"student_id"`
-	QuestionID    string         `gorm:"column:question_id;type:varchar(50);not null;index" json:"question_id"`
-	AssignmentID  string         `gorm:"column:assignment_id;type:varchar(50);index" json:"assignment_id"`
-	Subject       string         `gorm:"type:varchar(20);not null;index" json:"subject"`
-	Grade         string         `gorm:"type:varchar(20);not null" json:"grade"`
+	ID              string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	StudentID       string         `gorm:"column:student_id;type:varchar(30);not null;index:idx_attempt_student" json:"student_id"`
+	QuestionID      string         `gorm:"column:question_id;type:varchar(50);not null;index" json:"question_id"`
+	AssignmentID    string         `gorm:"column:assignment_id;type:varchar(50);index" json:"assignment_id"`
+	Subject         string         `gorm:"type:varchar(20);not null;index" json:"subject"`
+	Grade           string         `gorm:"type:varchar(20);not null" json:"grade"`
 	KnowledgePoints datatypes.JSON `gorm:"column:knowledge_points;type:jsonb" json:"knowledge_points"`
-	Type          string         `gorm:"column:type;type:varchar(20)" json:"type"`               // T: 题型
-	Difficulty    string         `gorm:"column:difficulty;type:varchar(10)" json:"difficulty"`  // D: 难度
-	ScenarioVariant string      `gorm:"column:scenario_variant;type:varchar(20);default:''" json:"scenario_variant"` // V
-	TrainingRole    string      `gorm:"column:training_role;type:varchar(20);default:''" json:"training_role"`       // R
-	Correct       bool           `gorm:"column:correct;default:false" json:"correct"`
-	ErrorCause    string         `gorm:"column:error_cause;type:varchar(50)" json:"error_cause"` // 错因标签
-	TimeSpent     int            `gorm:"column:time_spent;default:0" json:"time_spent"`         // 耗时(秒)
-	Timestamp     time.Time      `gorm:"column:timestamp;not null;index" json:"timestamp"`
-	CreatedAt     time.Time      `json:"created_at"`
+	Type            string         `gorm:"column:type;type:varchar(20)" json:"type"`                                    // T: 题型
+	Difficulty      string         `gorm:"column:difficulty;type:varchar(10)" json:"difficulty"`                        // D: 难度
+	ScenarioVariant string         `gorm:"column:scenario_variant;type:varchar(20);default:''" json:"scenario_variant"` // V
+	TrainingRole    string         `gorm:"column:training_role;type:varchar(20);default:''" json:"training_role"`       // R
+	Correct         bool           `gorm:"column:correct;default:false" json:"correct"`
+	ErrorCause      string         `gorm:"column:error_cause;type:varchar(50)" json:"error_cause"` // 错因标签
+	TimeSpent       int            `gorm:"column:time_spent;default:0" json:"time_spent"`          // 耗时(秒)
+	Timestamp       time.Time      `gorm:"column:timestamp;not null;index" json:"timestamp"`
+	CreatedAt       time.Time      `json:"created_at"`
 }
 
 func (AttemptEvent) TableName() string {

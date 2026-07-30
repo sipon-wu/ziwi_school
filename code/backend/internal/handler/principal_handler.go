@@ -36,18 +36,20 @@ func (h *PrincipalHandler) Analytics(c *gin.Context) {
 	sid := schoolID.(string)
 
 	var grades []struct {
-		Grade     string `json:"grade"`
+		Grade     string  `json:"grade"`
 		AvgScore  float64 `json:"avg_score"`
-		ExamCount int64  `json:"exam_count"`
+		ExamCount int64   `json:"exam_count"`
 	}
 	h.db.Table("exam_scores").Select("es.grade, COALESCE(AVG(es.score*100.0/NULLIF(es.full_score,0)),0) as avg_score, COUNT(*) as exam_count").
 		Joins("JOIN users u ON u.id = es.student_id").
 		Where("u.school_id=?", sid).
 		Group("es.grade").Find(&grades)
-	if grades == nil { grades = []struct {
-		Grade string `json:"grade"`
-		AvgScore float64 `json:"avg_score"`
-		ExamCount int64 `json:"exam_count"`
-	}{} }
+	if grades == nil {
+		grades = []struct {
+			Grade     string  `json:"grade"`
+			AvgScore  float64 `json:"avg_score"`
+			ExamCount int64   `json:"exam_count"`
+		}{}
+	}
 	c.JSON(http.StatusOK, gin.H{"grades": grades})
 }

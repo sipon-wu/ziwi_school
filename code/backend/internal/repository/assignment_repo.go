@@ -8,22 +8,22 @@ import (
 
 // Assignment 作业模型
 type Assignment struct {
-	ID            string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	TeacherID     string    `gorm:"type:varchar(50);not null;index" json:"teacher_id"`
-	SchoolID      string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
-	ClassID       string    `gorm:"type:varchar(50);not null" json:"class_id"`
-	Subject       string    `gorm:"type:varchar(20);not null" json:"subject"`
-	Title         string    `gorm:"type:varchar(300);not null" json:"title"`
-	AssignmentType string   `gorm:"type:varchar(20);default:regular" json:"assignment_type"`
-	Questions     string    `gorm:"type:jsonb" json:"questions"`
-	TotalScore    float64   `gorm:"type:decimal(6,2)" json:"total_score"`
-	DueType       string    `gorm:"type:varchar(10);default:relative" json:"due_type"`
-	DueHours      int       `json:"due_hours"`
-	DueAt         *time.Time `json:"due_at"`
-	PublishedAt   *time.Time `json:"published_at"`
-	GradingStatus string    `gorm:"type:varchar(20);default:pending" json:"grading_status"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID             string     `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	TeacherID      string     `gorm:"type:varchar(50);not null;index" json:"teacher_id"`
+	SchoolID       string     `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	ClassID        string     `gorm:"type:varchar(50);not null" json:"class_id"`
+	Subject        string     `gorm:"type:varchar(20);not null" json:"subject"`
+	Title          string     `gorm:"type:varchar(300);not null" json:"title"`
+	AssignmentType string     `gorm:"type:varchar(20);default:regular" json:"assignment_type"`
+	Questions      string     `gorm:"type:jsonb" json:"questions"`
+	TotalScore     float64    `gorm:"type:decimal(6,2)" json:"total_score"`
+	DueType        string     `gorm:"type:varchar(10);default:relative" json:"due_type"`
+	DueHours       int        `json:"due_hours"`
+	DueAt          *time.Time `json:"due_at"`
+	PublishedAt    *time.Time `json:"published_at"`
+	GradingStatus  string     `gorm:"type:varchar(20);default:pending" json:"grading_status"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 func (Assignment) TableName() string {

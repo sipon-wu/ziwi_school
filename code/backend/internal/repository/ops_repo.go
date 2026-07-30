@@ -16,11 +16,11 @@ type TokenUsageView struct {
 
 // LicenseView License视图
 type LicenseView struct {
-	ID        string     `gorm:"type:varchar(50)" json:"id"`
+	ID         string    `gorm:"type:varchar(50)" json:"id"`
 	SchoolName string    `gorm:"->" json:"school_name"`
-	Plan      string     `gorm:"type:varchar(30)" json:"plan"`
-	Status    string     `gorm:"type:varchar(20)" json:"status"`
-	ExpiresAt time.Time  `json:"expires_at"`
+	Plan       string    `gorm:"type:varchar(30)" json:"plan"`
+	Status     string    `gorm:"type:varchar(20)" json:"status"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 // Announcement 公告
@@ -39,8 +39,8 @@ func (Announcement) TableName() string {
 
 // FinanceSummary 财务摘要
 type FinanceSummary struct {
-	TotalRevenue  float64 `json:"total_revenue"`
-	ActiveSchools int64   `json:"active_schools"`
+	TotalRevenue   float64 `json:"total_revenue"`
+	ActiveSchools  int64   `json:"active_schools"`
 	MonthlyRevenue float64 `json:"monthly_revenue"`
 }
 
@@ -56,11 +56,11 @@ type Invoice struct {
 
 // SupportTicket 客服工单
 type SupportTicket struct {
-	ID        string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	SchoolName string   `gorm:"->" json:"school_name"`
-	Title     string    `gorm:"type:varchar(200);not null" json:"title"`
-	Status    string    `gorm:"type:varchar(20);default:open" json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolName string    `gorm:"->" json:"school_name"`
+	Title      string    `gorm:"type:varchar(200);not null" json:"title"`
+	Status     string    `gorm:"type:varchar(20);default:open" json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type OpsRepository struct {

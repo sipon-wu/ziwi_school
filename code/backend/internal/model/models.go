@@ -19,22 +19,22 @@ func randomHex(n int) string {
 }
 
 type School struct {
-	ID               string    `gorm:"type:varchar(30);primaryKey" json:"id"`
-	FullName         string    `gorm:"type:varchar(200);not null" json:"full_name"`
-	ShortName        string    `gorm:"type:varchar(100)" json:"short_name"`
-	CloudTenantID    *string   `gorm:"type:varchar(50);index" json:"cloud_tenant_id"` // 对应 cloud IdP 的 tenant_id（统一登录 P0）
-	SystemType       string    `gorm:"type:varchar(10);default:六三制" json:"system_type"`
-	Region           string    `gorm:"type:varchar(100)" json:"region"`
-	Status           string    `gorm:"type:varchar(20);default:active" json:"status"`
-	LicenseStatus    string    `gorm:"type:varchar(20);default:none;index" json:"license_status"` // active/trial/none（V2.5 教材版本配置 P0）
+	ID               string     `gorm:"type:varchar(30);primaryKey" json:"id"`
+	FullName         string     `gorm:"type:varchar(200);not null" json:"full_name"`
+	ShortName        string     `gorm:"type:varchar(100)" json:"short_name"`
+	CloudTenantID    *string    `gorm:"type:varchar(50);index" json:"cloud_tenant_id"` // 对应 cloud IdP 的 tenant_id（统一登录 P0）
+	SystemType       string     `gorm:"type:varchar(10);default:六三制" json:"system_type"`
+	Region           string     `gorm:"type:varchar(100)" json:"region"`
+	Status           string     `gorm:"type:varchar(20);default:active" json:"status"`
+	LicenseStatus    string     `gorm:"type:varchar(20);default:none;index" json:"license_status"` // active/trial/none（V2.5 教材版本配置 P0）
 	LicenseExpiresAt *time.Time `json:"license_expires_at"`
-	TokenQuota       int64     `gorm:"default:0" json:"token_quota"`
-	TokenUsed        int64     `gorm:"default:0" json:"token_used"`
+	TokenQuota       int64      `gorm:"default:0" json:"token_quota"`
+	TokenUsed        int64      `gorm:"default:0" json:"token_used"`
 	// 心跳上报（P2 私有部署心跳对齐）
-	LastHeartbeatAt   *time.Time `json:"last_heartbeat_at"`
-	HeartbeatFailCount int       `gorm:"default:0" json:"heartbeat_fail_count"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	LastHeartbeatAt    *time.Time `json:"last_heartbeat_at"`
+	HeartbeatFailCount int        `gorm:"default:0" json:"heartbeat_fail_count"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // Campus 校区字典（A1 一校多区：同 School 下的正式校区，users/classes.campus_id 引用其 ID）
@@ -108,24 +108,24 @@ type TeacherClass struct {
 
 // StudentClass 学生-班级关联
 type StudentClass struct {
-	ID        string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	StudentID string    `gorm:"type:varchar(50);not null;index" json:"student_id"`
-	ClassID   string    `gorm:"type:varchar(50);not null;index" json:"class_id"`
+	ID         string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	StudentID  string    `gorm:"type:varchar(50);not null;index" json:"student_id"`
+	ClassID    string    `gorm:"type:varchar(50);not null;index" json:"class_id"`
 	EnrolledAt time.Time `json:"enrolled_at"`
 }
 
 // ImportBatch 导入批次记录（支持按 batch_id 全回滚）
 type ImportBatch struct {
-	ID           string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	SchoolID     string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
-	Type         string    `gorm:"type:varchar(20);not null" json:"type"` // classes/teachers/students/relations
-	CreatedBy    string    `gorm:"type:varchar(50)" json:"created_by"`
-	Status       string    `gorm:"type:varchar(20);default:committed" json:"status"` // committed/rolled_back
-	TotalRows    int       `json:"total_rows"`
-	CreatedRows  int       `json:"created_rows"`
-	SkippedRows  int       `json:"skipped_rows"`
-	Summary      string    `gorm:"type:jsonb" json:"summary"` // ImportBatchSummary 的 JSON
-	CreatedAt    time.Time `json:"created_at"`
+	ID          string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	SchoolID    string    `gorm:"type:varchar(50);not null;index" json:"school_id"`
+	Type        string    `gorm:"type:varchar(20);not null" json:"type"` // classes/teachers/students/relations
+	CreatedBy   string    `gorm:"type:varchar(50)" json:"created_by"`
+	Status      string    `gorm:"type:varchar(20);default:committed" json:"status"` // committed/rolled_back
+	TotalRows   int       `json:"total_rows"`
+	CreatedRows int       `json:"created_rows"`
+	SkippedRows int       `json:"skipped_rows"`
+	Summary     string    `gorm:"type:jsonb" json:"summary"` // ImportBatchSummary 的 JSON
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // ImportBatchSummary 记录本批次新建的实体 ID，供回滚时按逆序删除
@@ -140,26 +140,26 @@ type ImportBatchSummary struct {
 
 // LessonPlan 教案
 type LessonPlan struct {
-	ID                string     `gorm:"type:varchar(50);primaryKey" json:"id"`
-	TeacherID         string     `gorm:"column:teacher_id;type:varchar(50);not null;index" json:"teacher_id"`
-	SchoolID          string     `gorm:"column:school_id;type:varchar(50);not null;index" json:"school_id"`
-	Subject           string     `gorm:"type:varchar(20);not null" json:"subject"`
-	Grade             string     `gorm:"type:varchar(20);not null" json:"grade"`
-	Title             string     `gorm:"column:title;type:varchar(200)" json:"title"`
-	Unit              string     `gorm:"column:textbook_unit;type:varchar(100)" json:"unit"`
-	LessonPeriod      int        `gorm:"column:period;default:1" json:"lesson_period"`
-	TemplateType      string     `gorm:"column:format_template;type:varchar(50)" json:"template_type"`
-	Content           string     `gorm:"type:text;not null" json:"content"`
-	KnowledgeNodes    string     `gorm:"column:knowledge_node_ids;type:text" json:"knowledge_nodes"`
-	CurriculumAlign   string     `gorm:"column:curriculum_alignments;type:text" json:"curriculum_alignments"`
-	AIGenerated       bool       `gorm:"default:false" json:"ai_generated"`
-	AIModelVersion    string     `gorm:"type:varchar(50)" json:"ai_model_version"`
-	GenerationTimeMs  int        `json:"generation_time_ms"`
-	EditCount         int        `gorm:"default:0" json:"edit_count"`
-	ReviewStatus      string     `gorm:"type:varchar(20);default:none" json:"review_status"`
-	Status            string     `gorm:"type:varchar(20);default:draft" json:"status"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID               string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	TeacherID        string    `gorm:"column:teacher_id;type:varchar(50);not null;index" json:"teacher_id"`
+	SchoolID         string    `gorm:"column:school_id;type:varchar(50);not null;index" json:"school_id"`
+	Subject          string    `gorm:"type:varchar(20);not null" json:"subject"`
+	Grade            string    `gorm:"type:varchar(20);not null" json:"grade"`
+	Title            string    `gorm:"column:title;type:varchar(200)" json:"title"`
+	Unit             string    `gorm:"column:textbook_unit;type:varchar(100)" json:"unit"`
+	LessonPeriod     int       `gorm:"column:period;default:1" json:"lesson_period"`
+	TemplateType     string    `gorm:"column:format_template;type:varchar(50)" json:"template_type"`
+	Content          string    `gorm:"type:text;not null" json:"content"`
+	KnowledgeNodes   string    `gorm:"column:knowledge_node_ids;type:text" json:"knowledge_nodes"`
+	CurriculumAlign  string    `gorm:"column:curriculum_alignments;type:text" json:"curriculum_alignments"`
+	AIGenerated      bool      `gorm:"default:false" json:"ai_generated"`
+	AIModelVersion   string    `gorm:"type:varchar(50)" json:"ai_model_version"`
+	GenerationTimeMs int       `json:"generation_time_ms"`
+	EditCount        int       `gorm:"default:0" json:"edit_count"`
+	ReviewStatus     string    `gorm:"type:varchar(20);default:none" json:"review_status"`
+	Status           string    `gorm:"type:varchar(20);default:draft" json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 	// 模型中定义但DB暂无的字段
 	ClassID           *string    `gorm:"-" json:"class_id,omitempty"`
 	TextbookVersionID *string    `gorm:"-" json:"textbook_version_id,omitempty"`
@@ -173,7 +173,6 @@ type LessonPlan struct {
 	ReviewedAt        *time.Time `gorm:"-" json:"reviewed_at,omitempty"`
 	PublishedAt       *time.Time `json:"published_at"`
 }
-
 
 // ReviewAssignment 教案审核分配
 type ReviewAssignment struct {

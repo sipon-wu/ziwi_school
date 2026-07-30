@@ -20,15 +20,15 @@ func NewCareHandler(careRepo *repository.CareRepository) *CareHandler {
 }
 
 type AddCareStudentRequest struct {
-	StudentID  string `json:"student_id" binding:"required"`
-	FocusArea  string `json:"focus_area"`
+	StudentID   string `json:"student_id" binding:"required"`
+	FocusArea   string `json:"focus_area"`
 	Observation string `json:"observation"`
 }
 
 type UpdateCareRequest struct {
-	FocusArea  string `json:"focus_area"`
+	FocusArea   string `json:"focus_area"`
 	Observation string `json:"observation"`
-	PlanStatus string `json:"plan_status"`
+	PlanStatus  string `json:"plan_status"`
 }
 
 type UpdatePlanRequest struct {

@@ -9,42 +9,42 @@ import (
 
 // Question 题目模型（用于仓库）
 type Question struct {
-	ID           string    `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
-	TeacherID    string    `gorm:"column:teacher_id;type:varchar(50);not null;index" json:"teacher_id"`
-	SchoolID     string    `gorm:"column:school_id;type:varchar(50);not null;index" json:"school_id"`
-	Subject      string    `gorm:"type:varchar(20);not null" json:"subject"`
-	Grade        string    `gorm:"type:varchar(20);not null" json:"grade"`
-	Content      string    `gorm:"column:content;type:text" json:"content"`
-	Type         string    `gorm:"column:type;type:varchar(20)" json:"type"`
-	Difficulty   string    `gorm:"column:difficulty;type:varchar(10)" json:"difficulty"`
-	Options      datatypes.JSON `gorm:"column:options;type:jsonb" json:"options"`
-	Answer       string    `gorm:"column:answer;type:text" json:"answer"`
-	AnswerDetail string    `gorm:"column:answer_detail;type:text" json:"answer_detail"`
-	Source       string    `gorm:"column:source;type:varchar(50)" json:"source"`
-	IsPublic     bool      `gorm:"column:is_public" json:"is_public"`
-	AuditStatus  string    `gorm:"column:audit_status;type:varchar(20)" json:"audit_status"`
+	ID              string         `gorm:"type:varchar(50);primaryKey;default:gen_random_uuid()" json:"id"`
+	TeacherID       string         `gorm:"column:teacher_id;type:varchar(50);not null;index" json:"teacher_id"`
+	SchoolID        string         `gorm:"column:school_id;type:varchar(50);not null;index" json:"school_id"`
+	Subject         string         `gorm:"type:varchar(20);not null" json:"subject"`
+	Grade           string         `gorm:"type:varchar(20);not null" json:"grade"`
+	Content         string         `gorm:"column:content;type:text" json:"content"`
+	Type            string         `gorm:"column:type;type:varchar(20)" json:"type"`
+	Difficulty      string         `gorm:"column:difficulty;type:varchar(10)" json:"difficulty"`
+	Options         datatypes.JSON `gorm:"column:options;type:jsonb" json:"options"`
+	Answer          string         `gorm:"column:answer;type:text" json:"answer"`
+	AnswerDetail    string         `gorm:"column:answer_detail;type:text" json:"answer_detail"`
+	Source          string         `gorm:"column:source;type:varchar(50)" json:"source"`
+	IsPublic        bool           `gorm:"column:is_public" json:"is_public"`
+	AuditStatus     string         `gorm:"column:audit_status;type:varchar(20)" json:"audit_status"`
 	KnowledgePoints datatypes.JSON `gorm:"column:knowledge_points;type:jsonb" json:"knowledge_points"`
-	UsageCount   int       `gorm:"column:usage_count;default:0" json:"usage_count"`
-	AvgRating    float64   `gorm:"column:avg_rating;default:0" json:"avg_rating"`
-	CorrectRate  float64   `gorm:"column:correct_rate" json:"correct_rate"`
-	AutoTags     datatypes.JSON `gorm:"column:auto_tags;type:jsonb" json:"auto_tags"`
+	UsageCount      int            `gorm:"column:usage_count;default:0" json:"usage_count"`
+	AvgRating       float64        `gorm:"column:avg_rating;default:0" json:"avg_rating"`
+	CorrectRate     float64        `gorm:"column:correct_rate" json:"correct_rate"`
+	AutoTags        datatypes.JSON `gorm:"column:auto_tags;type:jsonb" json:"auto_tags"`
 	// ── 有据引擎训练坐标扩展（Phase 0）──
-	ScenarioVariant string         `gorm:"column:scenario_variant;type:varchar(20);default:''" json:"scenario_variant"`
-	TrainingRole    string         `gorm:"column:training_role;type:varchar(20);default:''" json:"training_role"`
+	ScenarioVariant string `gorm:"column:scenario_variant;type:varchar(20);default:''" json:"scenario_variant"`
+	TrainingRole    string `gorm:"column:training_role;type:varchar(20);default:''" json:"training_role"`
 	// ── 查重能力扩展（Phase 0）──
-	StemHash        string         `gorm:"column:stem_hash;type:varchar(64);default:'';index" json:"stem_hash"`
-	StemEmbedding   datatypes.JSON `gorm:"column:stem_embedding;type:jsonb" json:"stem_embedding,omitempty"`
-	DupClusterID    string         `gorm:"column:dup_cluster_id;type:varchar(50);default:'';index" json:"dup_cluster_id"`
-	DupStatus       string         `gorm:"column:dup_status;type:varchar(20);default:'unknown'" json:"dup_status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	StemHash      string         `gorm:"column:stem_hash;type:varchar(64);default:'';index" json:"stem_hash"`
+	StemEmbedding datatypes.JSON `gorm:"column:stem_embedding;type:jsonb" json:"stem_embedding,omitempty"`
+	DupClusterID  string         `gorm:"column:dup_cluster_id;type:varchar(50);default:'';index" json:"dup_cluster_id"`
+	DupStatus     string         `gorm:"column:dup_status;type:varchar(20);default:'unknown'" json:"dup_status"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 	// 兼容旧字段（写入时使用）
-	Stem         string    `gorm:"-" json:"stem,omitempty"`
-	Analysis     string    `gorm:"-" json:"analysis,omitempty"`
-	QuestionType string    `gorm:"-" json:"question_type,omitempty"`
-	UseCount     int       `gorm:"-" json:"use_count,omitempty"`
-	Score        float64   `gorm:"-" json:"score,omitempty"`
-	Status       string    `gorm:"-" json:"status"`
+	Stem         string  `gorm:"-" json:"stem,omitempty"`
+	Analysis     string  `gorm:"-" json:"analysis,omitempty"`
+	QuestionType string  `gorm:"-" json:"question_type,omitempty"`
+	UseCount     int     `gorm:"-" json:"use_count,omitempty"`
+	Score        float64 `gorm:"-" json:"score,omitempty"`
+	Status       string  `gorm:"-" json:"status"`
 }
 
 // AfterFind hook to derive status from audit_status
@@ -82,7 +82,7 @@ func (r *ExerciseRepository) Create(q *Question) error {
 // FindByID 按 ID 查询题目
 func (r *ExerciseRepository) FindByID(id string, teacherID string) (*Question, error) {
 	var q Question
-	err := r.db.Where("id = ? AND teacher_id = ?", id, teacherID).First(&q).Error
+	err := r.db.Where("id = ? AND teacher_id = ? AND status <> 'deleted'", id, teacherID).First(&q).Error
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (r *ExerciseRepository) ListByTeacher(teacherID string, page, pageSize int)
 	var questions []Question
 	var total int64
 
-	query := r.db.Where("teacher_id = ?", teacherID)
+	query := r.db.Where("teacher_id = ? AND status <> 'deleted'", teacherID)
 
 	if err := query.Model(&Question{}).Count(&total).Error; err != nil {
 		return nil, 0, err

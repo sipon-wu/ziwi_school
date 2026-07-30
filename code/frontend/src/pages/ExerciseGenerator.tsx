@@ -951,7 +951,7 @@ export default function ExerciseGenerator() {
           {picker.selectedIds.length > 0 ? picker.selectedNodes.map((n: any) => (
             <span key={n.id} className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[#02A7F0]/10 text-[#02A7F0] text-[11px] font-medium rounded-[3px]">
               {n.name}
-              <X size={11} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => picker.removeNode(n.id)} />
+              <X size={11} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => picker.setSelectedIds(prev => prev.filter(id => id !== n.id))} />
             </span>
           )) : <span className="text-[11px] text-[#9A9A9A]">未选择 · 从右侧知识图谱点选</span>}
         </div>
@@ -1084,10 +1084,10 @@ export default function ExerciseGenerator() {
         primaryLeft={editPrimaryLeft}
         primaryRight={
           <KnowledgeGraphTool
-            subject={teaching.subject}
-            grade={gradeName}
-            semester={teaching.semester}
-            textbookVersion={teaching.currentTextbook as string}
+            data={picker.knowledgeData}
+            filter={{ subject: teaching.subject, grade: teaching.grade, semester: teaching.semester }}
+            selectedIds={picker.selectedIds}
+            onSelect={ids => picker.setSelectedIds(ids)}
           />
         }
         secondaryLeft={editPrimaryLeft}
@@ -1138,10 +1138,10 @@ export default function ExerciseGenerator() {
           primaryLeft={editPrimaryLeft}
           primaryRight={
             <KnowledgeGraphTool
-              subject={teaching.subject}
-              grade={gradeName}
-              semester={teaching.semester}
-              textbookVersion={teaching.currentTextbook as string}
+              data={picker.knowledgeData}
+              filter={{ subject: teaching.subject, grade: teaching.grade, semester: teaching.semester }}
+              selectedIds={picker.selectedIds}
+              onSelect={ids => picker.setSelectedIds(ids)}
             />
           }
           /* DOC 模式：左侧与 AI 模式共用同一面板，右侧为编辑区 */

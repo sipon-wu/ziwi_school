@@ -59,8 +59,12 @@ const routes = [
       })
     } catch {}
     const pe = pageErrors.slice(beforePE), ce = consoleErrors.slice(beforeCE)
+    // 教师账号访问权限管控页时，后端 RBAC 返回 403 属预期拒绝（非缺陷），不记 WARN
+    const RBAC_ROUTES = ['/it-admin', '/principal']
+    const only403 = ce.length > 0 && ce.every(t => /403|Forbidden/i.test(t))
     if (status !== 'FAIL' && (pe.length > 0 || appError)) status = 'FAIL'
-    else if (ce.length > 0) status = 'WARN'
+    else if (ce.length > 0 && !(RBAC_ROUTES.includes(r) && only403)) status = 'WARN'
+    else if (ce.length > 0) note = 'RBAC 403 预期拒绝(教师访问管控页)'
     results.push({ route: r, status, pe: pe.length, ce: ce.length, ceText: ce.slice(0, 3).join(' || ').slice(0, 300), note: note || (pe.length ? pe[0].slice(0, 120) : '') })
     console.log(`[${status}] ${r}  pe=${pe.length} ce=${ce.length}${pe.length ? '  ' + pe[0].slice(0, 100) : ''}`)
   }

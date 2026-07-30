@@ -24,9 +24,9 @@ type TeacherStats struct {
 	ParentSignTotal  int64 `json:"parent_sign_total"`  // 家长需签字总数
 	ParentSignSigned int64 `json:"parent_sign_signed"` // 已签字数
 	// 右侧 - 时间段内新增
-	PeriodNewPlans    int64 `json:"period_new_plans"`    // 新增教案（篇）
+	PeriodNewPlans     int64 `json:"period_new_plans"`     // 新增教案（篇）
 	PeriodNewQuestions int64 `json:"period_new_questions"` // 新增题型（道）
-	PeriodNewExams    int64 `json:"period_new_exams"`    // 新增试卷（张）
+	PeriodNewExams     int64 `json:"period_new_exams"`     // 新增试卷（张）
 }
 
 // RecentLessonPlan 最近教案摘要
@@ -40,10 +40,10 @@ type RecentLessonPlan struct {
 }
 
 // GetTeacherStats 获取教师统计数据
-//  - teacherID: 教师
-//  - days: 右侧时间窗口（7/30）
-//  - classID: 作业/签字按班级过滤（空=教师全部）
-//  - subject/grade: 教案/题型/试卷按学科年级过滤（空=教师全部）
+//   - teacherID: 教师
+//   - days: 右侧时间窗口（7/30）
+//   - classID: 作业/签字按班级过滤（空=教师全部）
+//   - subject/grade: 教案/题型/试卷按学科年级过滤（空=教师全部）
 func (r *DashboardRepository) GetTeacherStats(teacherID string, days int, classID, subject, grade string) (*TeacherStats, error) {
 	stats := &TeacherStats{}
 	since := time.Now().AddDate(0, 0, -days)
@@ -217,6 +217,8 @@ func (r *DashboardRepository) GetAnalyticsData(teacherID string) (*AnalyticsData
 		r.db.Table("questions").Where("teacher_id=? AND subject=?", teacherID, sb[i].Subject).Count(&sb[i].QuestCount)
 	}
 	d.SubjectBreakdown = sb
-	if d.SubjectBreakdown == nil { d.SubjectBreakdown = []SubjectStat{} }
+	if d.SubjectBreakdown == nil {
+		d.SubjectBreakdown = []SubjectStat{}
+	}
 	return d, nil
 }

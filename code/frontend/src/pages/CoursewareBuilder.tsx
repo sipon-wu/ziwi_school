@@ -219,8 +219,7 @@ export default function CoursewareBuilder() {
     } catch { toast('草稿暂存失败', 'error') }
   }
 
-  ctrl = useEditorController({ onSaveDraft: handleSaveDraft, onPublish: handlePublish })
-
+  // 必须在 ctrl = useEditorController(...) 之前声明，避免 const 的 TDZ 类型报错
   const handlePublish = async () => {
     if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
     if (!cwOutline.length) { toast('课件内容为空，请先生成课件', 'warning'); return }
@@ -250,9 +249,11 @@ export default function CoursewareBuilder() {
       })
       try { localStorage.removeItem(DRAFT_KEY) } catch { /* noop */ }
       toast('课件已发布到素材库', 'success')
-    } catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
+    }     catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
     finally { setSavingCw(false) }
   }
+
+  ctrl = useEditorController({ onSaveDraft: handleSaveDraft, onPublish: handlePublish })
 
   // ── 左栏（AI/DOC 共用，同教案/出题/组卷） ──
   const leftPanel = (
