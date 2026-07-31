@@ -8,6 +8,8 @@
  */
 import pptxgen from 'pptxgenjs'
 import { parseSections } from './parseSections'
+import type { CwTheme } from './pptThemes'
+import { DEFAULT_THEME } from './pptThemes'
 
 const NAVY = '1A3A6B'
 const INK = '333333'
@@ -19,6 +21,8 @@ export interface CwOptions {
   grade: string
   title: string
   teacherName?: string
+  /** 课件风格主题（官方模板库），缺省用经典深蓝 */
+  theme?: CwTheme
 }
 
 /** 单行富文本（与 pptxgenjs addText 的 text 对象结构一致） */
@@ -34,6 +38,37 @@ export interface CwRichLine {
   }
 }
 
+/**
+ * 自由编辑态元素（绝对定位层）。坐标用百分比（0-100），与 16:9 预览和 PPTX 一致。
+ * 标题色带由主题固定渲染，elements 是「可拖拽的自由内容层」（文本框/图片/形状）。
+ */
+export interface CwElement {
+  id: string
+  type: 'text' | 'image' | 'shape'
+  x: number
+  y: number
+  w: number
+  h: number
+  /** 旋转角度（度），仅形状/图片支持 */
+  rotation?: number
+  // ── 文本 ──
+  text?: string
+  /** px 基准字号（960 宽画布），导出时约等于 pt */
+  fontSize?: number
+  /** hex 不带 # */
+  color?: string
+  bold?: boolean
+  align?: 'left' | 'center' | 'right'
+  /** 多行文本是否按条目渲染为项目符号 */
+  bullet?: boolean
+  // ── 形状 ──
+  shape?: 'rect' | 'ellipse' | 'line' | 'triangle'
+  /** hex 不带 # */
+  fill?: string
+  // ── 图片 ──
+  src?: string
+}
+
 export interface CwSlide {
   kind: 'cover' | 'content'
   title: string
@@ -43,6 +78,10 @@ export interface CwSlide {
   notes?: string
   pageNo?: number
   total?: number
+  /** 版式：title-body（默认）| title-only | two-col | blank */
+  layout?: string
+  /** 自由编辑态存在的绝对定位元素；非空时预览/导出优先按此渲染 */
+  elements?: CwElement[]
 }
 
 /** AI 渲染返回的 PPT 幻灯片（render-ppt 端点输出） */
@@ -58,8 +97,9 @@ function clean(t: string): string {
 }
 
 /** 将课件正文按行解析为 pptxgenjs 富文本块（段落 / 列表 / 表格行 / 代码块） */
-function bodyToRichLines(body: string): CwRichLine[] {
+function bodyToRichLines(body: string, theme: CwTheme = DEFAULT_THEME): CwRichLine[] {
   const out: CwRichLine[] = []
+  const font = theme.font || FONT
   const lines = body.split('\n')
   let inCode = false
   let codeBuf: string[] = []
@@ -85,23 +125,23 @@ function bodyToRichLines(body: string): CwRichLine[] {
 
     // 表格行（保留为纯文本行）
     if (t.startsWith('|')) {
-      out.push({ text: clean(t.replace(/\|/g, ' ')), options: { fontFace: FONT, fontSize: 14, color: GRAY, breakLine: true, paraSpaceAfter: 6 } })
+      out.push({ text: clean(t.replace(/\|/g, ' ')), options: { fontFace: font, fontSize: 14, color: theme.subtle, breakLine: true, paraSpaceAfter: 6 } })
       continue
     }
     // 无序列表
     const ul = t.match(/^[-*]\s+(.+)/)
     if (ul) {
-      out.push({ text: clean(ul[1]), options: { bullet: { indent: 18 }, fontFace: FONT, fontSize: 16, color: INK, breakLine: true, paraSpaceAfter: 9 } })
+      out.push({ text: clean(ul[1]), options: { bullet: { indent: 18 }, fontFace: font, fontSize: 16, color: theme.body, breakLine: true, paraSpaceAfter: 9 } })
       continue
     }
     // 有序列表
     const ol = t.match(/^\d+[\.)]\s+(.+)/)
     if (ol) {
-      out.push({ text: clean(ol[1]), options: { bullet: { type: 'number', indent: 26 }, fontFace: FONT, fontSize: 16, color: INK, breakLine: true, paraSpaceAfter: 9 } })
+      out.push({ text: clean(ol[1]), options: { bullet: { type: 'number', indent: 26 }, fontFace: font, fontSize: 16, color: theme.body, breakLine: true, paraSpaceAfter: 9 } })
       continue
     }
     // 普通段落
-    out.push({ text: clean(t), options: { fontFace: FONT, fontSize: 16, color: INK, breakLine: true, paraSpaceAfter: 11 } })
+    out.push({ text: clean(t), options: { fontFace: font, fontSize: 16, color: theme.body, breakLine: true, paraSpaceAfter: 11 } })
   }
   flushCode()
   return out
@@ -109,6 +149,7 @@ function bodyToRichLines(body: string): CwRichLine[] {
 
 /** 构建与 PPT 完全一致的幻灯片数据模型（供导出与在线预览共用） */
 export function buildCoursewareSlides(content: string, opts: CwOptions): CwSlide[] {
+  const theme = opts.theme || DEFAULT_THEME
   const sections = parseSections(content).filter(s => s.title.trim() || s.body.trim())
   const slides: CwSlide[] = []
 
@@ -130,7 +171,7 @@ export function buildCoursewareSlides(content: string, opts: CwOptions): CwSlide
     slides.push({
       kind: 'content',
       title: sec.title || `第 ${idx + 1} 节`,
-      rich: bodyToRichLines(sec.body),
+      rich: bodyToRichLines(sec.body, theme),
       pageNo: idx + 1,
       total,
       footer: `${opts.title}  ·  ${idx + 1}`,
@@ -142,6 +183,7 @@ export function buildCoursewareSlides(content: string, opts: CwOptions): CwSlide
 
 /** 将 AI 渲染的 PptSlide[] 转为与导出/预览一致的 CwSlide[]（支持教师备注） */
 export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
+  const theme = opts.theme || DEFAULT_THEME
   const slides: CwSlide[] = []
   const content = ppt.filter(s => (s.kind || 'content') !== 'cover')
   const total = content.length || 1
@@ -160,8 +202,8 @@ export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
       kind: 'content',
       title: s.title,
       notes: s.notes || '',
-      rich: (s.bullets && s.bullets.length ? s.bullets : [s.title]).map(b => ({
-        text: b, options: { bullet: { indent: 18 }, fontFace: FONT, fontSize: 18, color: INK, breakLine: true, paraSpaceAfter: 12 },
+        rich: (s.bullets && s.bullets.length ? s.bullets : [s.title]).map(b => ({
+        text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),
       pageNo: slides.filter(x => x.kind === 'content').length,
       total,
@@ -176,6 +218,10 @@ export interface OutlineSlide {
   title: string
   bullets: string[]
   notes?: string
+  /** 版式：title-body（默认）| title-only | two-col | blank */
+  layout?: string
+  /** 自由编辑态元素层；为空时按 title+bullets 默认布局 */
+  elements?: CwElement[]
 }
 
 /** 从课件 Markdown 解析为可编辑提纲（按 ## 分节，每段作为一条要点） */
@@ -207,6 +253,7 @@ export function pptToOutline(ppt: PptSlide[]): OutlineSlide[] {
 
 /** 将可编辑提纲转为与导出/预览一致的 CwSlide[] */
 export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSlide[] {
+  const theme = opts.theme || DEFAULT_THEME
   const total = outline.length || 1
   const slides: CwSlide[] = [{
     kind: 'cover', title: opts.title,
@@ -217,8 +264,9 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
     slides.push({
       kind: 'content', title: s.title, notes: s.notes || '',
       rich: (s.bullets.length ? s.bullets : [s.title]).map(b => ({
-        text: b, options: { bullet: { indent: 18 }, fontFace: FONT, fontSize: 18, color: INK, breakLine: true, paraSpaceAfter: 12 },
+        text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),
+      elements: s.elements,
       pageNo: i + 1, total, footer: `${opts.title}  ·  ${i + 1}`,
     })
   })
@@ -230,11 +278,87 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
   const lines: string[] = [`# ${opts.title}`, '', `> ${opts.subject} · ${opts.grade}`, '']
   outline.forEach(s => {
     lines.push(`## ${s.title}`)
-    s.bullets.forEach(b => lines.push(`- ${b}`))
+    const bs = s.elements && s.elements.length ? extractBullets(s.elements) : s.bullets
+    bs.forEach(b => lines.push(`- ${b}`))
     if (s.notes) lines.push('', `> 教师备注：${s.notes}`)
     lines.push('')
   })
   return lines.join('\n')
+}
+
+// ───────────────────────────────────────────────────────────
+// 自由编辑态：物化（outline → elements）与回提（elements → bullets）
+// ───────────────────────────────────────────────────────────
+let _cwElSeq = 0
+function uid(prefix = 'el'): string {
+  _cwElSeq += 1
+  return `${prefix}_${Date.now().toString(36)}_${_cwElSeq}`
+}
+
+/** 按版式生成默认自由元素（标题色带由主题固定渲染，不在此层） */
+export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[] {
+  const parts = slide.bullets.length ? slide.bullets : []
+  switch (layout) {
+    case 'title-only':
+      return []
+    case 'two-col': {
+      const mid = Math.ceil(parts.length / 2)
+      return [
+        { id: uid(), type: 'text', x: 6, y: 23, w: 42, h: 64, text: parts.slice(0, mid).join('\n'), fontSize: 18, bullet: true },
+        { id: uid(), type: 'text', x: 52, y: 23, w: 42, h: 64, text: parts.slice(mid).join('\n'), fontSize: 18, bullet: true },
+      ]
+    }
+    case 'blank':
+      return []
+    case 'title-body':
+    default:
+      return parts.length ? [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }] : []
+  }
+}
+
+/** 进入自由编辑时调用：给尚无 elements 的页物化默认元素（保留 AI 提纲内容） */
+export function materializeOutline(outline: OutlineSlide[]): OutlineSlide[] {
+  return outline.map((s) => {
+    if (s.elements && s.elements.length) return s
+    return { ...s, elements: layoutElements(s, s.layout || 'title-body') }
+  })
+}
+
+/** 从 elements 回提纯文本条目（用于发布/导出 doc/pdf 时写入 bullets） */
+export function extractBullets(elements?: CwElement[]): string[] {
+  if (!elements || !elements.length) return []
+  const out: string[] = []
+  elements.forEach((e) => {
+    if (e.type !== 'text' || !e.text) return
+    if (e.bullet) {
+      e.text.split('\n').forEach((line) => { if (line.trim()) out.push(line.trim()) })
+    } else {
+      const t = e.text.trim()
+      if (t) out.push(t)
+    }
+  })
+  return out
+}
+
+const CW_W = 13.3
+const CW_H = 7.5
+function renderElement(slide: any, e: CwElement) {
+  const x = (e.x / 100) * CW_W
+  const y = (e.y / 100) * CW_H
+  const w = (e.w / 100) * CW_W
+  const h = (e.h / 100) * CW_H
+  if (e.type === 'image' && e.src) {
+    slide.addImage({ data: e.src, x, y, w, h, rotation: e.rotation })
+  } else if (e.type === 'shape') {
+    const shapeMap: any = { rect: 'rect', ellipse: 'ellipse', line: 'line', triangle: 'triangle' }
+    slide.addShape(shapeMap[e.shape || 'rect'], { x, y, w, h, fill: { color: '#' + (e.fill || 'CCCCCC') }, line: { color: '#' + (e.fill || 'CCCCCC') }, rotation: e.rotation })
+  } else {
+    slide.addText(e.text || '', {
+      x, y, w, h,
+      fontFace: FONT, fontSize: e.fontSize || 18, color: '#' + (e.color || '222222'),
+      bold: e.bold, align: e.align || 'left', bullet: e.bullet || false, valign: 'top',
+    })
+  }
 }
 
 /** 将幻灯片数据模型写入 PPTX 并触发下载 */
@@ -245,6 +369,8 @@ export async function exportCoursewareToPptx(
   const slides: CwSlide[] = typeof input === 'string'
     ? buildCoursewareSlides(input, opts)
     : input
+  const theme = opts.theme || DEFAULT_THEME
+  const font = theme.font || FONT
   const pres: any = new pptxgen()
   pres.layout = 'LAYOUT_WIDE' // 13.3" × 7.5"
   pres.author = '知微教学'
@@ -253,15 +379,15 @@ export async function exportCoursewareToPptx(
   slides.forEach((s) => {
     if (s.kind === 'cover') {
       const cover = pres.addSlide()
-      cover.background = { color: NAVY }
+      cover.background = { color: theme.coverBg }
       cover.addText(s.title, {
-        x: 0.9, y: 2.5, w: 11.5, h: 1.5, fontFace: FONT, fontSize: 40, bold: true, color: 'FFFFFF', align: 'center',
+        x: 0.9, y: 2.5, w: 11.5, h: 1.5, fontFace: font, fontSize: 40, bold: true, color: theme.onPrimary, align: 'center',
       })
       cover.addText(s.subtitle || '', {
-        x: 0.9, y: 4.2, w: 11.5, h: 0.6, fontFace: FONT, fontSize: 18, color: 'CADCFC', align: 'center',
+        x: 0.9, y: 4.2, w: 11.5, h: 0.6, fontFace: font, fontSize: 18, color: theme.lightText, align: 'center',
       })
       cover.addText(s.footer || '', {
-        x: 0.9, y: 6.7, w: 11.5, h: 0.4, fontFace: FONT, fontSize: 12, color: '8FA8D6', align: 'center',
+        x: 0.9, y: 6.7, w: 11.5, h: 0.4, fontFace: font, fontSize: 12, color: theme.footer, align: 'center',
       })
       if (s.notes) cover.addNotes(s.notes)
       return
@@ -269,23 +395,25 @@ export async function exportCoursewareToPptx(
 
     const slide = pres.addSlide()
     // 顶部标题色带
-    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 13.3, h: 1.15, fill: { color: NAVY } })
+    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 13.3, h: 1.15, fill: { color: theme.primary } })
     slide.addText(s.title, {
-      x: 0.7, y: 0, w: 11.9, h: 1.15, fontFace: FONT, fontSize: 24, bold: true, color: 'FFFFFF', valign: 'middle',
+      x: 0.7, y: 0, w: 11.9, h: 1.15, fontFace: font, fontSize: 24, bold: true, color: theme.onPrimary, valign: 'middle',
     })
 
-    if (s.rich && s.rich.length) {
+    if (s.elements && s.elements.length) {
+      s.elements.forEach((e) => renderElement(slide, e))
+    } else if (s.rich && s.rich.length) {
       slide.addText(s.rich, {
-        x: 0.7, y: 1.45, w: 11.9, h: 5.7, fontFace: FONT, valign: 'top', align: 'left', color: INK, fontSize: 16, fit: 'shrink',
+        x: 0.7, y: 1.45, w: 11.9, h: 5.7, fontFace: font, valign: 'top', align: 'left', color: theme.body, fontSize: 16, fit: 'shrink',
       })
     } else {
       slide.addText('（本节无正文）', {
-        x: 0.7, y: 1.45, w: 11.9, h: 1, fontFace: FONT, fontSize: 14, color: GRAY,
+        x: 0.7, y: 1.45, w: 11.9, h: 1, fontFace: font, fontSize: 14, color: theme.subtle,
       })
     }
 
     slide.addText(s.footer || '', {
-      x: 10.3, y: 7.0, w: 2.6, h: 0.4, fontFace: FONT, fontSize: 10, color: 'B0B8C4', align: 'right',
+      x: 10.3, y: 7.0, w: 2.6, h: 0.4, fontFace: font, fontSize: 10, color: theme.footer, align: 'right',
     })
     if (s.notes) slide.addNotes(s.notes)
   })

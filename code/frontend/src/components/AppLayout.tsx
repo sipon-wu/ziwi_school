@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import {
   LayoutGrid, BookOpen, FileText, PenTool, Files, Send, Image as ImgIcon,
   ListChecks, BarChart3, Footprints, MessageCircle, PenLine, Heart,
-  Repeat, Settings, GitPullRequest, ChevronDown, ChevronRight, PanelLeft, Check
+  Repeat, Settings, GitPullRequest, ChevronDown, ChevronRight, PanelLeft, Check,
+  MonitorPlay, Smartphone, Video
 } from 'lucide-react'
 import HeaderRight from './HeaderRight'
 import XiaoWeiChat from './XiaoWeiChat'
@@ -21,6 +22,11 @@ const SIDEBAR: SidebarGroup[] = [
     { label: '教案互审', icon: <GitPullRequest size={14} />, to: '/review-pool' },
   ]},
   { id: '素材', label: '素材库', icon: <ImgIcon size={16} />, to: '/materials' },
+  { id: '课件', label: '教学课件', icon: <MonitorPlay size={16} />, children: [
+    { label: 'PPT 课件', icon: <MonitorPlay size={14} />, to: '/courseware/new' },
+    { label: 'H5 互动课件', icon: <Smartphone size={14} />, to: '/courseware/h5' },
+    { label: '视频课件', icon: <Video size={14} />, to: '/courseware/video' },
+  ]},
   { id: '练习', label: '作业练习', icon: <ListChecks size={16} />, children: [
     { label: '出题·题库', icon: <PenTool size={14} />, to: '/exercises' },
     { label: '组卷·试卷库', icon: <Files size={14} />, to: '/exams' },
@@ -115,7 +121,7 @@ export default function AppLayout({ children }: Props) {
       const saved = JSON.parse(localStorage.getItem('ziwi_sidebar_expanded') || 'null')
       if (Array.isArray(saved)) return new Set(saved)
     } catch {}
-    return new Set(['备课', '练习', '数据', '沟通', '个人'])
+    return new Set(['备课', '练习', '数据', '沟通', '个人', '课件'])
   })
 
   // 路径变化时同步展开对应分组

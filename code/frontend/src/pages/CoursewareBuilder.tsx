@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, FileText } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
@@ -9,19 +10,51 @@ import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
-import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline } from '../lib/exportPptx'
-import type { OutlineSlide } from '../lib/exportPptx'
+import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets } from '../lib/exportPptx'
+import { exportH5Courseware } from '../lib/exportH5'
+import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
+import { getTheme, recommendTheme } from '../lib/pptThemes'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview from '../components/PptxPreview'
+import ThemePicker from '../components/ThemePicker'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token') || ''; const p = JSON.parse(atob(t.split('.')[1])); return p.school_id || '' } catch { return '' } }
 
+// 教学课件频道：PPT / H5 / 视频 共用同一编辑器与同一份内容来源（一次创作、多格式交付）
+type CwFormat = 'ppt' | 'h5' | 'video'
+const CW_CHANNEL: Record<CwFormat, { name: string; chip: string; color: string; scene: string; previewSuffix: string }> = {
+  ppt:   { name: 'PPT 课件',    chip: 'PPT',  color: '#02A7F0', scene: 'PPT 课件',    previewSuffix: 'PPT 放映' },
+  h5:    { name: 'H5 互动课件', chip: 'H5',   color: '#FA8C16', scene: 'H5 互动课件', previewSuffix: 'H5 预览' },
+  video: { name: '视频课件',    chip: '视频', color: '#52C41A', scene: '视频课件',    previewSuffix: '分镜预览' },
+}
+
+// 视频课件配置（数据位）：本期仅定义与选择，不接入生成/持久化；token 平权后再做深
+export interface CwVideoConfig {
+  presenter: 'none' | 'avatar' | 'cartoon' | 'real' | 'custom'   // 出镜形象
+  style: 'knowledge' | 'experiment' | 'story' | 'sprint' | 'wrong' // 讲解风格
+}
+const CW_PRESENTERS: { id: CwVideoConfig['presenter']; label: string }[] = [
+  { id: 'none', label: '无出镜·纯录屏' },
+  { id: 'avatar', label: '平台数字人' },
+  { id: 'cartoon', label: '学科卡通' },
+  { id: 'real', label: '真人出镜' },
+  { id: 'custom', label: '自定义形象' },
+]
+const CW_STYLES: { id: CwVideoConfig['style']; label: string }[] = [
+  { id: 'knowledge', label: '知识科普' },
+  { id: 'experiment', label: '实验演示' },
+  { id: 'story', label: '故事化情境' },
+  { id: 'sprint', label: '考点冲刺' },
+  { id: 'wrong', label: '错题精讲' },
+]
+
 const DRAFT_KEY = 'zhiwei_cw_draft'
+const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2))
 
 /**
  * P4 课件编辑器页（PPT 课件 · H5 预留）：与教案/出题/组卷同一套 EditorLayout 四件套。
@@ -32,6 +65,11 @@ export default function CoursewareBuilder() {
   const teaching = useTeaching()
   const { toast } = useToast()
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
+  const { format } = useParams<{ format?: string }>()
+  const navigate = useNavigate()
+  const cwFormat: CwFormat = format === 'h5' ? 'h5' : format === 'video' ? 'video' : 'ppt'
+  const channel = CW_CHANNEL[cwFormat]
+  const [videoConfig, setVideoConfig] = useState<CwVideoConfig>({ presenter: 'none', style: 'knowledge' })
 
   // eslint-disable-next-line prefer-const
   let ctrl: any
@@ -65,6 +103,9 @@ export default function CoursewareBuilder() {
   const [validating, setValidating] = useState(false)
   const [savingCw, setSavingCw] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [docSlide, setDocSlide] = useState(0)
+  // 新建课件默认套用「按学科+年级」推荐主题（仅默认，不强制；教师可随时手改，恢复草稿时以草稿为准）
+  const [themeId, setThemeId] = useState<string>(() => recommendTheme(teaching.subject, teaching.grade).themeId)
   // workMode 已收口到 useEditorController
 
   // 参照课件下拉数据
@@ -83,9 +124,11 @@ export default function CoursewareBuilder() {
         setGenTitle(d.title || '')
         setCwExtra(d.extra || '')
         setCwMarkdown(d.markdown || '')
-        setCwOutline(Array.isArray(d.outline) ? d.outline : [])
+        setCwOutline(materializeOutline(Array.isArray(d.outline) ? d.outline : []))
         setCwDivergence(Array.isArray(d.divergence) ? d.divergence : [])
         if (d.divergenceLevel) setDivergenceLevel(d.divergenceLevel)
+        if (d.themeId) setThemeId(d.themeId)
+        if (d.videoConfig) setVideoConfig(d.videoConfig)
         if (d.outline?.length) ctrl.setWorkMode('doc')
         toast('已恢复上次未发布的课件草稿', 'info')
       }
@@ -107,7 +150,10 @@ export default function CoursewareBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
+  // 进入任一课件频道默认文档模式：视频频道需文档模式才显示配置面板，PPT/H5 也围绕提纲；用户仍可手动切 AI 选知识点
+  useEffect(() => { if (ctrl.workMode !== 'doc') ctrl.setWorkMode('doc') }, [cwFormat, ctrl])
+
+  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师', theme: getTheme(themeId) })
 
   // ── AI 生成课件 ──
   const handleGenCourseware = async (leftChatContext?: string) => {
@@ -136,7 +182,7 @@ export default function CoursewareBuilder() {
         edge_categories: edgeEnabled ? cats : [],
       })
       setCwMarkdown(res.courseware_markdown || '')
-      setCwOutline(markdownToOutline(res.courseware_markdown || ''))
+      setCwOutline(materializeOutline(markdownToOutline(res.courseware_markdown || '')))
       setCwDivergence(Array.isArray(res.divergence_map) ? res.divergence_map : [])
       setRemovedDivergence({})
       setCwSimilar(res.similar_material || null)
@@ -158,7 +204,7 @@ export default function CoursewareBuilder() {
     try {
       const r: any = await aiAPI.trimCourseware({ markdown: cwMarkdown, remove_items: toRemove })
       setCwMarkdown(r.trimmed_markdown || cwMarkdown)
-      setCwOutline(markdownToOutline(r.trimmed_markdown || cwMarkdown))
+      setCwOutline(materializeOutline(markdownToOutline(r.trimmed_markdown || cwMarkdown)))
       setCwDivergence(Array.isArray(r.divergence_map) ? r.divergence_map : [])
       setRemovedDivergence({})
       setValidateIssues(null)
@@ -179,14 +225,33 @@ export default function CoursewareBuilder() {
   })
   const removeSlide = (i: number) => setCwOutline(arr => arr.filter((_, k) => k !== i))
 
+  // 自由编辑态：页面管理与元素回写
+  const addCwPage = () => setCwOutline(arr => [...arr, {
+    title: '新页面', bullets: [],
+    elements: [{ id: genId(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: '', fontSize: 18, bullet: true }],
+  }])
+  const deleteCwPage = (i: number) => setCwOutline(arr => (arr.length > 1 ? arr.filter((_, k) => k !== i) : arr))
+  const moveCwPage = (i: number, dir: number) => {
+    const j = i + dir
+    setCwOutline(arr => {
+      if (j < 0 || j >= arr.length) return arr
+      const n = arr.slice()
+      ;[n[i], n[j]] = [n[j], n[i]]
+      return n
+    })
+  }
+  const handleDocSlideChange = (index: number, slide: CwSlide) =>
+    setCwOutline(arr => arr.map((s, k) => (k === index ? { ...s, title: slide.title, elements: slide.elements } : s)))
+
   // AI 润色提纲（render-ppt：精炼要点 + 讲稿）
   const polishOutline = async () => {
-    if (!cwMarkdown) return
+    if (!cwOutline.length) { toast('请先生成课件', 'warning'); return }
     setPolishing(true)
     try {
-      const r: any = await aiAPI.renderPptCourseware({ markdown: cwMarkdown, title: `${genTitle.trim()}_课件`, subject: teaching.subject, grade: gradeName })
-      const out = pptToOutline(r.ppt_slides || [])
-      if (out.length) { setCwOutline(out); toast('提纲已 AI 润色（含讲稿）', 'success') }
+      const md = outlineToMarkdown(cwOutline, cwOpts())
+      const r: any = await aiAPI.renderPptCourseware({ markdown: md, title: `${genTitle.trim()}_课件`, subject: teaching.subject, grade: gradeName })
+      const out = materializeOutline(pptToOutline(r.ppt_slides || []))
+      if (out.length) { setCwOutline(out); setCwMarkdown(md); toast('提纲已 AI 润色（含讲稿）', 'success') }
       else toast('润色未返回内容', 'warning')
     } catch (e: any) { toast('润色失败: ' + (e.message || '未知错误'), 'error') }
     finally { setPolishing(false) }
@@ -207,13 +272,41 @@ export default function CoursewareBuilder() {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
     printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
   }
+  // H5 互动课件：用与 PPT 同源的内容构建专用 markdown（首段作封面、其余为内容页），导出为自包含 HTML
+  const buildH5Markdown = () => {
+    const lines: string[] = [
+      `## ${genTitle.trim()}_课件`,
+      `> ${teaching.subject} · ${gradeName}${safeGetUser().name ? ' · ' + safeGetUser().name : ''}`,
+      '',
+    ]
+    cwOutline.forEach(s => {
+      lines.push(`## ${s.title}`)
+      const bs = s.elements && s.elements.length ? extractBullets(s.elements) : s.bullets
+      bs.forEach(b => lines.push(`- ${b}`))
+      if (s.notes) lines.push('', `> 教师备注：${s.notes}`)
+      lines.push('')
+    })
+    return lines.join('\n')
+  }
+  const exportCwH5 = () => {
+    if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
+    try {
+      const blob = exportH5Courseware(buildH5Markdown(), {
+        subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+        teacherName: safeGetUser().name || '教师',
+      })
+      downloadBlob(blob, `${genTitle.trim()}_${teaching.subject}${gradeName}.html`)
+      toast('H5 互动课件已生成并下载', 'success')
+    } catch (e: any) { toast('H5 导出失败: ' + (e.message || '未知错误'), 'error') }
+  }
 
   // ── footer：保存草稿(本地暂存) / 发布到素材库(红线校验闸) ──
   const handleSaveDraft = () => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
         title: genTitle, extra: cwExtra, markdown: cwMarkdown,
-        outline: cwOutline, divergence: cwDivergence, divergenceLevel,
+        outline: cwOutline, divergence: cwDivergence, divergenceLevel, themeId,
+        videoConfig,
       }))
       toast('草稿已暂存本地（发布后自动清除）', 'success')
     } catch { toast('草稿暂存失败', 'error') }
@@ -270,6 +363,18 @@ export default function CoursewareBuilder() {
         onApply: handleLeftApply,
       }}
     >
+      {/* 频道切换段：PPT / H5 / 视频 三频道互切（共享同一编辑器与内容，切换不丢草稿） */}
+      <div className="px-5 pt-3">
+        <div className="inline-flex rounded-full border border-[#E7E7EB] overflow-hidden w-full">
+          {(['ppt', 'h5', 'video'] as CwFormat[]).map(f => (
+            <button key={f} type="button" onClick={() => navigate('/courseware/' + (f === 'ppt' ? 'new' : f))}
+              className={`flex-1 px-2 py-1 text-[12px] transition-colors ${cwFormat === f ? 'text-white' : 'text-[#595959] hover:bg-[#F6F7F8]'}`}
+              style={cwFormat === f ? { background: CW_CHANNEL[f].color } : undefined}>
+              {CW_CHANNEL[f].name}
+            </button>
+          ))}
+        </div>
+      </div>
       {/* 课题名称 */}
       <div className="px-5 py-3">
         <label className="block text-[12px] font-medium text-[#353535] mb-2">课题名称 <span className="text-red-500">*</span></label>
@@ -384,93 +489,131 @@ export default function CoursewareBuilder() {
     />
   )
 
-  // ── 右栏 文档模式：可编辑提纲 + 发散地图 + 校验面板 ──
+  // ── 右栏 文档模式：可拖拽编辑画布 + 缩略图页管理 + 发散地图 + 校验面板 ──
   const rightPanelDoc = (
-    <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAFA]">
-      {/* 工具栏 */}
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <button onClick={exportCwPptx} className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#5B23A8]">导出 PPT</button>
-        <button onClick={polishOutline} disabled={polishing} className="px-3 py-1.5 text-[12px] text-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#F7F0FC] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色提纲'}</button>
-        <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
-        <button onClick={exportCwPdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
-        <button disabled title="H5 互动课件即将上线"
-          className="px-3 py-1.5 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">H5 互动课件 <span className="text-[10px] px-1 bg-[#FA8C16] text-white rounded">即将上线</span></button>
-      </div>
-
-      <p className="text-[12px] font-medium text-[#353535] mb-2 flex items-center gap-1">
-        <FileText size={13} className="text-[#722ED1]" /> PPT 课件提纲（可编辑：标题/要点可改，可调整页面顺序）
-      </p>
-      <div className="space-y-3">
+    <div className="flex-1 flex overflow-hidden bg-[#FAFAFA]">
+      {/* 缩略图页管理 */}
+      <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
+        <div className="flex items-center justify-between px-1 pb-1">
+          <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
+          <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#722ED1] border border-[#722ED1] rounded hover:bg-[#F7F0FC]">+ 页</button>
+        </div>
         {cwOutline.map((s, idx) => (
-          <div key={idx} className="border border-[#E7E7EB] rounded-[4px] bg-white p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] text-[#9A9A9A] w-6 shrink-0">P{idx + 1}</span>
-              <input value={s.title} onChange={e => setSlideTitle(idx, e.target.value)}
-                className="flex-1 px-2 py-1 text-[13px] font-medium border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#722ED1]" />
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => moveSlide(idx, -1)} disabled={idx === 0} title="上移"
-                  className="px-1.5 py-0.5 text-[11px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8] disabled:opacity-30">↑</button>
-                <button onClick={() => moveSlide(idx, 1)} disabled={idx === cwOutline.length - 1} title="下移"
-                  className="px-1.5 py-0.5 text-[11px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8] disabled:opacity-30">↓</button>
-                <button onClick={() => removeSlide(idx)} title="删除本页"
-                  className="px-1.5 py-0.5 text-[11px] text-[#F5222D] border border-[#E7E7EB] rounded hover:bg-[#FFF1F0]">✕</button>
+          <div key={idx} onClick={() => setDocSlide(idx)}
+            className={`group cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#722ED1] bg-[#F7F0FC]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 text-[10px] text-[#353535] hover:text-[#722ED1] disabled:opacity-30">↑</button>
+                <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 text-[10px] text-[#353535] hover:text-[#722ED1] disabled:opacity-30">↓</button>
+                <button onClick={(e) => { e.stopPropagation(); deleteCwPage(idx) }} className="px-1 text-[10px] text-[#F5222D] hover:bg-[#FFF1F0]">✕</button>
               </div>
             </div>
-            <textarea value={s.bullets.join('\n')} onChange={e => setSlideBullets(idx, e.target.value)}
-              rows={Math.max(2, s.bullets.length)} placeholder="每条要点一行"
-              className="w-full px-2 py-1 text-[12px] border border-[#E7E7EB] rounded-[3px] outline-none focus:border-[#722ED1] resize-y" />
+            <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
           </div>
         ))}
-        {cwOutline.length === 0 && (
+      </div>
+
+      {/* 可编辑画布 */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <button onClick={exportCwPptx} className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#5B23A8]">导出 PPT</button>
+          <button onClick={polishOutline} disabled={polishing} className="px-3 py-1.5 text-[12px] text-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#F7F0FC] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色'}</button>
+          <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
+          <button onClick={exportCwPdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
+          <button onClick={exportCwH5} className={`px-3 py-1.5 text-[12px] border rounded-[4px] ${cwFormat === 'h5' ? 'text-white bg-[#FA8C16] border-[#FA8C16] hover:bg-[#E67E00]' : 'text-[#FA8C16] border-[#FA8C16] hover:bg-[#FFF7E6]'}`}>导出 H5</button>
+          {cwFormat === 'video' && (
+            <button disabled title="AI 自动生成讲解视频即将上线"
+              className="px-3 py-1.5 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">🎬 AI 生成视频 <span className="text-[10px] px-1 bg-[#52C41A] text-white rounded">即将上线</span></button>
+          )}
+          <ThemePicker value={themeId} onChange={setThemeId} />
+        </div>
+        {cwFormat === 'video' && (
+          <div className="mb-3 rounded-[6px] border border-[#B7EB8F] bg-[#F6FFED] p-3">
+            <div className="text-[12px] font-medium text-[#389E0D] mb-2">🎬 视频课件配置（AI 生成视频即将上线，先选好参数）</div>
+            <div className="mb-2">
+              <div className="text-[11px] text-[#595959] mb-1">出镜形象</div>
+              <div className="flex flex-wrap gap-2">
+                {CW_PRESENTERS.map(p => (
+                  <button key={p.id} type="button" onClick={() => { setVideoConfig(v => ({ ...v, presenter: p.id })); ctrl.touch() }}
+                    className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${videoConfig.presenter === p.id ? 'border-[#52C41A] bg-[#52C41A] text-white' : 'border-[#D9D9D9] text-[#595959] hover:border-[#52C41A]'}`}>{p.label}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-[#595959] mb-1">讲解风格</div>
+              <div className="flex flex-wrap gap-2">
+                {CW_STYLES.map(s => (
+                  <button key={s.id} type="button" onClick={() => { setVideoConfig(v => ({ ...v, style: s.id })); ctrl.touch() }}
+                    className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${videoConfig.style === s.id ? 'border-[#52C41A] bg-[#52C41A] text-white' : 'border-[#D9D9D9] text-[#595959] hover:border-[#52C41A]'}`}>{s.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-2 text-[11px] text-[#389E0D]">
+              左侧画布即 AI 讲解视频的 <b>分镜脚本</b>，可先以 PPT / H5 形式交付；生成视频待 token 平权后开放。
+            </div>
+          </div>
+        )}
+
+        {cwOutline.length > 0 ? (
+          <PptxPreview
+            slides={outlineToSlides(cwOutline, cwOpts())}
+            theme={getTheme(themeId)}
+            editable
+            index={docSlide}
+            onIndexChange={setDocSlide}
+            onSlideChange={handleDocSlideChange}
+          />
+        ) : (
           <div className="text-center py-16 bg-white border border-dashed border-[#E7E7EB] rounded-[4px]">
             <Sparkles size={28} className="mx-auto text-[#E7E7EB] mb-3" />
             <p className="text-[13px] text-[#9A9A9A]">暂无课件内容</p>
             <p className="text-[11px] text-[#A3A3A3] mt-1">在左栏填写课题名称后点击「AI 生成课件」</p>
           </div>
         )}
+
+        {/* 发散地图 */}
+        {cwDivergence.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-[#E7E7EB]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[12px] font-medium text-[#353535]">🧭 发散地图（勾选要删除的项，可溯源到锚点）</p>
+              <button onClick={handleTrimCw} disabled={trimming || !cwDivergence.some(d => removedDivergence[d.content])}
+                className="px-2 py-1 text-[11px] text-white bg-[#FA8C16] rounded-[3px] hover:bg-[#E67E00] disabled:opacity-40">
+                {trimming ? '剔除中...' : `应用剔除 (${cwDivergence.filter(d => removedDivergence[d.content]).length})`}
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {cwDivergence.map((d: any, i: number) => (
+                <label key={i} className={`flex items-start gap-2 text-[11px] leading-snug rounded-[3px] px-1 py-1 ${removedDivergence[d.content] ? 'bg-[#FFF1E6]' : 'hover:bg-[#F6F7F8]'}`}>
+                  <input type="checkbox" className="mt-0.5 shrink-0" checked={!removedDivergence[d.content]}
+                    onChange={e => setRemovedDivergence(s => ({ ...s, [d.content]: !e.target.checked }))} />
+                  <span className={`px-1.5 py-0.5 rounded-[2px] text-white shrink-0 ${d.zone === 'edge' ? 'bg-[#722ED1]' : 'bg-[#02A7F0]'}`}>
+                    {d.zone === 'edge' ? '边缘' : '轨道'}
+                  </span>
+                  <span className="text-[#353535]">
+                    <b>{d.content}</b> → 锚点：{d.anchor}（{d.rationale}）
+                    {d.warn ? <span className="text-[#FA8C16]"> ⚠ 疑似超界</span> : ''}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 发布校验未通过 */}
+        {validateIssues && validateIssues.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-[#F5222D]">
+            <p className="text-[12px] font-medium text-[#F5222D] mb-2">⛔ 发布校验未通过，请修改后重新发布：</p>
+            <ul className="space-y-1.5">
+              {validateIssues.map((iss: any, i: number) => (
+                <li key={i} className="text-[11px] text-[#353535] leading-snug">
+                  · {iss.message} <span className="text-[#9A9A9A]">（建议：{iss.suggestion}）</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
-
-      {/* 发散地图 */}
-      {cwDivergence.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-[#E7E7EB]">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[12px] font-medium text-[#353535]">🧭 发散地图（勾选要删除的项，可溯源到锚点）</p>
-            <button onClick={handleTrimCw} disabled={trimming || !cwDivergence.some(d => removedDivergence[d.content])}
-              className="px-2 py-1 text-[11px] text-white bg-[#FA8C16] rounded-[3px] hover:bg-[#E67E00] disabled:opacity-40">
-              {trimming ? '剔除中...' : `应用剔除 (${cwDivergence.filter(d => removedDivergence[d.content]).length})`}
-            </button>
-          </div>
-          <div className="space-y-1.5">
-            {cwDivergence.map((d: any, i: number) => (
-              <label key={i} className={`flex items-start gap-2 text-[11px] leading-snug rounded-[3px] px-1 py-1 ${removedDivergence[d.content] ? 'bg-[#FFF1E6]' : 'hover:bg-[#F6F7F8]'}`}>
-                <input type="checkbox" className="mt-0.5 shrink-0" checked={!removedDivergence[d.content]}
-                  onChange={e => setRemovedDivergence(s => ({ ...s, [d.content]: !e.target.checked }))} />
-                <span className={`px-1.5 py-0.5 rounded-[2px] text-white shrink-0 ${d.zone === 'edge' ? 'bg-[#722ED1]' : 'bg-[#02A7F0]'}`}>
-                  {d.zone === 'edge' ? '边缘' : '轨道'}
-                </span>
-                <span className="text-[#353535]">
-                  <b>{d.content}</b> → 锚点：{d.anchor}（{d.rationale}）
-                  {d.warn ? <span className="text-[#FA8C16]"> ⚠ 疑似超界</span> : ''}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 发布校验未通过 */}
-      {validateIssues && validateIssues.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-[#F5222D]">
-          <p className="text-[12px] font-medium text-[#F5222D] mb-2">⛔ 发布校验未通过，请修改后重新发布：</p>
-          <ul className="space-y-1.5">
-            {validateIssues.map((iss: any, i: number) => (
-              <li key={i} className="text-[11px] text-[#353535] leading-snug">
-                · {iss.message} <span className="text-[#9A9A9A]">（建议：{iss.suggestion}）</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   )
 
@@ -482,7 +625,7 @@ export default function CoursewareBuilder() {
       secondaryRight={rightPanelDoc}
       mode={ctrl.workMode === 'ai' ? 'primary' : 'secondary'}
       onModeChange={m => ctrl.setWorkMode(m === 'primary' ? 'ai' : 'doc')}
-      sceneName="PPT 课件"
+      sceneName={channel.scene}
       footerAlign="left"
       footerLifecycle={{
         saveDraftLabel: '保存草稿',
@@ -492,10 +635,10 @@ export default function CoursewareBuilder() {
         status: ctrl.status,
         saving: ctrl.saving || savingCw || validating,
       }}
-      previewTitle={`${genTitle.trim() || '未命名'}_课件 · PPT 放映`}
+      previewTitle={`${genTitle.trim() || '未命名'}_课件 · ${channel.previewSuffix}`}
       previewSlot={
         cwOutline.length > 0 ? (
-          <PptxPreview slides={outlineToSlides(cwOutline, cwOpts())} title={`${genTitle.trim()}_课件`} onClose={() => {}} embedded />
+          <PptxPreview slides={outlineToSlides(cwOutline, cwOpts())} theme={getTheme(themeId)} />
         ) : (
           <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
         )

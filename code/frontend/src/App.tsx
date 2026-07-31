@@ -43,7 +43,7 @@ export default function App() {
         <Route path="/lesson-plans/:id/edit" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
         <Route path="/lesson-plans/:id" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
         <Route path="/materials" element={<Suspense fallback={<Loading />}><Materials /></Suspense>} />
-        <Route path="/courseware/new" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
+        <Route path="/courseware/:format" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
         <Route path="/exercises" element={<Suspense fallback={<Loading />}><Exercises /></Suspense>} />
         <Route path="/exercises/new" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
         <Route path="/exercises/:id/edit" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
