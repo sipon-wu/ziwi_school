@@ -239,6 +239,12 @@ export function markdownToOutline(md: string): OutlineSlide[] {
   for (const raw of md.split('\n')) {
     const line = raw.trim()
     if (!line) continue
+    // 自由元素层内嵌注释：<!-- CW-EL:[...] --> 还原到当前页 elements
+    const elMatch = line.match(/^<!--\s*CW-EL:(.*)\s*-->$/)
+    if (elMatch && cur) {
+      try { cur.elements = JSON.parse(elMatch[1]) } catch { /* 解析失败则忽略，保留 bullets */ }
+      continue
+    }
     if (line.startsWith('## ')) {
       if (cur) slides.push(cur)
       cur = { title: line.slice(3).trim(), bullets: [] }
@@ -289,6 +295,8 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
     const bs = s.elements && s.elements.length ? extractBullets(s.elements) : s.bullets
     bs.forEach(b => lines.push(`- ${b}`))
     if (s.notes) lines.push('', `> 教师备注：${s.notes}`)
+    // 内嵌自由元素层（坐标/图片/形状），重新打开时还原；不影响人类可读提纲
+    if (s.elements && s.elements.length) lines.push(`<!-- CW-EL:${JSON.stringify(s.elements)} -->`)
     lines.push('')
   })
   return lines.join('\n')

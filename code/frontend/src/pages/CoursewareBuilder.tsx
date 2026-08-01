@@ -833,7 +833,7 @@ export default function CoursewareBuilder() {
 
   // ── 查看态只读放映内容（左缩略图导航 + 右可滚动放映），view 态 secondaryRight 与全屏 previewSlot 共用 ──
   const previewSlides = cwOutline.length > 0 ? (
-    <PptxPreview slides={outlineToSlides(cwOutline, cwOpts())} theme={getTheme(themeId)} showPager={false} />
+    <PptxPreview slides={outlineToSlides(cwOutline, cwOpts())} theme={getTheme(themeId)} showPager={false} index={docSlide} viewMode="single" />
   ) : (
     <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   )
