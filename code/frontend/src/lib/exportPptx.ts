@@ -23,6 +23,8 @@ export interface CwOptions {
   teacherName?: string
   /** 课件风格主题（官方模板库），缺省用经典深蓝 */
   theme?: CwTheme
+  /** 版心比例：16/9（默认）或 4:3，导出版面跟随 */
+  aspect?: '16/9' | '4/3'
 }
 
 /** 单行富文本（与 pptxgenjs addText 的 text 对象结构一致） */
@@ -58,11 +60,17 @@ export interface CwElement {
   /** hex 不带 # */
   color?: string
   bold?: boolean
+  italic?: boolean
+  underline?: boolean
   align?: 'left' | 'center' | 'right'
+  /** 行距倍数（默认 1.4） */
+  lineHeight?: number
+  /** 字体（缺省 Microsoft YaHei） */
+  fontFamily?: string
   /** 多行文本是否按条目渲染为项目符号 */
   bullet?: boolean
   // ── 形状 ──
-  shape?: 'rect' | 'ellipse' | 'line' | 'triangle'
+  shape?: 'rect' | 'ellipse' | 'line' | 'triangle' | 'roundRect' | 'arrow' | 'star' | 'bubble'
   /** hex 不带 # */
   fill?: string
   // ── 图片 ──
@@ -340,9 +348,7 @@ export function extractBullets(elements?: CwElement[]): string[] {
   return out
 }
 
-const CW_W = 13.3
-const CW_H = 7.5
-function renderElement(slide: any, e: CwElement) {
+function renderElement(slide: any, e: CwElement, CW_W: number, CW_H: number) {
   const x = (e.x / 100) * CW_W
   const y = (e.y / 100) * CW_H
   const w = (e.w / 100) * CW_W
@@ -371,23 +377,29 @@ export async function exportCoursewareToPptx(
     : input
   const theme = opts.theme || DEFAULT_THEME
   const font = theme.font || FONT
+  const is43 = opts.aspect === '4/3'
+  const CW_W = is43 ? 10 : 13.3
+  const CW_H = 7.5
   const pres: any = new pptxgen()
-  pres.layout = 'LAYOUT_WIDE' // 13.3" × 7.5"
+  pres.defineLayout({ name: 'CW', width: CW_W, height: CW_H })
+  pres.layout = 'CW'
   pres.author = '知微教学'
   pres.title = opts.title
 
+  const bandH = (1.15 / 7.5) * CW_H
+  const titleW = CW_W - 1.4
   slides.forEach((s) => {
     if (s.kind === 'cover') {
       const cover = pres.addSlide()
       cover.background = { color: theme.coverBg }
       cover.addText(s.title, {
-        x: 0.9, y: 2.5, w: 11.5, h: 1.5, fontFace: font, fontSize: 40, bold: true, color: theme.onPrimary, align: 'center',
+        x: 0.9, y: 2.5, w: CW_W - 1.8, h: 1.5, fontFace: font, fontSize: 40, bold: true, color: theme.onPrimary, align: 'center',
       })
       cover.addText(s.subtitle || '', {
-        x: 0.9, y: 4.2, w: 11.5, h: 0.6, fontFace: font, fontSize: 18, color: theme.lightText, align: 'center',
+        x: 0.9, y: 4.2, w: CW_W - 1.8, h: 0.6, fontFace: font, fontSize: 18, color: theme.lightText, align: 'center',
       })
       cover.addText(s.footer || '', {
-        x: 0.9, y: 6.7, w: 11.5, h: 0.4, fontFace: font, fontSize: 12, color: theme.footer, align: 'center',
+        x: 0.9, y: 6.7, w: CW_W - 1.8, h: 0.4, fontFace: font, fontSize: 12, color: theme.footer, align: 'center',
       })
       if (s.notes) cover.addNotes(s.notes)
       return
@@ -395,25 +407,25 @@ export async function exportCoursewareToPptx(
 
     const slide = pres.addSlide()
     // 顶部标题色带
-    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 13.3, h: 1.15, fill: { color: theme.primary } })
+    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: CW_W, h: bandH, fill: { color: theme.primary } })
     slide.addText(s.title, {
-      x: 0.7, y: 0, w: 11.9, h: 1.15, fontFace: font, fontSize: 24, bold: true, color: theme.onPrimary, valign: 'middle',
+      x: 0.7, y: 0, w: titleW, h: bandH, fontFace: font, fontSize: 24, bold: true, color: theme.onPrimary, valign: 'middle',
     })
 
     if (s.elements && s.elements.length) {
-      s.elements.forEach((e) => renderElement(slide, e))
+      s.elements.forEach((e) => renderElement(slide, e, CW_W, CW_H))
     } else if (s.rich && s.rich.length) {
       slide.addText(s.rich, {
-        x: 0.7, y: 1.45, w: 11.9, h: 5.7, fontFace: font, valign: 'top', align: 'left', color: theme.body, fontSize: 16, fit: 'shrink',
+        x: 0.7, y: bandH + 0.3, w: titleW, h: CW_H - bandH - 0.6, fontFace: font, valign: 'top', align: 'left', color: theme.body, fontSize: 16, fit: 'shrink',
       })
     } else {
       slide.addText('（本节无正文）', {
-        x: 0.7, y: 1.45, w: 11.9, h: 1, fontFace: font, fontSize: 14, color: theme.subtle,
+        x: 0.7, y: bandH + 0.3, w: titleW, h: 1, fontFace: font, fontSize: 14, color: theme.subtle,
       })
     }
 
     slide.addText(s.footer || '', {
-      x: 10.3, y: 7.0, w: 2.6, h: 0.4, fontFace: font, fontSize: 10, color: theme.footer, align: 'right',
+      x: CW_W - 3, y: CW_H - 0.5, w: 2.7, h: 0.4, fontFace: font, fontSize: 10, color: theme.footer, align: 'right',
     })
     if (s.notes) slide.addNotes(s.notes)
   })

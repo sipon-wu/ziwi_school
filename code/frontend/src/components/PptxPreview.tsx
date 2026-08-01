@@ -19,11 +19,14 @@ interface PptxPreviewProps {
   /** 编辑态元素/标题变更回写 */
   onSlideChange?: (index: number, slide: CwSlide) => void
   showPager?: boolean
+  /** 版心比例：16/9（默认）或 4/3，影响画布基准尺寸与导出版面 */
+  aspectRatio?: '16/9' | '4/3'
 }
 
-const CANVAS_W = 960
-const CANVAS_H = 540
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+
+/** 按版心比例取画布基准尺寸（4:3 高度更高） */
+const canvasSizeOf = (ar: '16/9' | '4/3') => ar === '4/3' ? { w: 960, h: 720 } : { w: 960, h: 540 }
 
 export default function PptxPreview({
   slides,
@@ -34,7 +37,13 @@ export default function PptxPreview({
   onIndexChange,
   onSlideChange,
   showPager = true,
+  aspectRatio = '16/9',
+  embedFullscreen = false,
 }: PptxPreviewProps) {
+  // 版心比例：受控 prop 优先，否则内部自管（工具条可切换）
+  const [ar, setAr] = useState<'16/9' | '4/3'>(aspectRatio || '16/9')
+  useEffect(() => { if (aspectRatio) setAr(aspectRatio) }, [aspectRatio])
+  const { w: CW, h: CH } = canvasSizeOf(ar)
   const theme = useMemo(() => themeProp || DEFAULT_THEME, [themeProp])
   const [i, setI] = useState(0)
   const current = clamp(index ?? i, 0, slides.length - 1)
@@ -54,7 +63,7 @@ export default function PptxPreview({
     <div className={`flex flex-col items-center ${className || ''}`}>
       <div className="w-full max-w-4xl">
         {editable ? (
-          <EditableCanvas slide={slides[current]} theme={theme} onChange={handleSlideChange} />
+          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} />
         ) : (
           <div className="space-y-6">
             {slides.map((s, idx) => (
@@ -94,7 +103,7 @@ export default function PptxPreview({
 function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number) {
   if (s.kind === 'cover') {
     return (
-      <div className="relative" style={{ aspectRatio: '16/9', background: theme.coverBg }}>
+      <div className="relative" style={{ aspectRatio: aspectRatio, background: theme.coverBg }}>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
           <h2 className="text-4xl font-bold" style={{ color: theme.onPrimary }}>{s.title}</h2>
           {s.subtitle && <p className="mt-4 text-lg" style={{ color: theme.lightText }}>{s.subtitle}</p>}
@@ -106,7 +115,7 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number) {
     )
   }
   return (
-    <div className="relative bg-white" style={{ aspectRatio: '16/9' }}>
+    <div className="relative bg-white" style={{ aspectRatio }}>
       <div className="absolute left-0 top-0 h-[15.3%] w-full" style={{ background: theme.primary }} />
       <div className="absolute left-[2%] top-0 flex h-[15.3%] items-center" style={{ width: '96%' }}>
         <span className="truncate text-2xl font-bold" style={{ color: theme.onPrimary }}>{s.title}</span>
@@ -146,7 +155,9 @@ function renderElementsStatic(elements: CwElement[]) {
               className="h-full w-full whitespace-pre-wrap"
               style={{
                 color: `#${el.color || '222222'}`, fontSize: el.fontSize || 18, fontWeight: el.bold ? 700 : 400,
-                textAlign: el.align || 'left', fontFamily: FONT, lineHeight: 1.4,
+                fontStyle: el.italic ? 'italic' : undefined,
+                textDecoration: el.underline ? 'underline' : undefined,
+                textAlign: el.align || 'left', fontFamily: el.fontFamily || FONT, lineHeight: el.lineHeight || 1.4,
               }}
             >
               {el.bullet ? (el.text || '').split('\n').map((t, k) => <div key={k}>• {t}</div>) : el.text}
@@ -156,14 +167,7 @@ function renderElementsStatic(elements: CwElement[]) {
             <img src={el.src} alt="" className="h-full w-full object-contain" />
           )}
           {el.type === 'shape' && (
-            <div
-              className="h-full w-full"
-              style={{
-                background: el.fill ? `#${el.fill}` : '#CCCCCC',
-                borderRadius: el.shape === 'ellipse' ? '50%' : el.shape === 'triangle' ? '0' : 4,
-                clipPath: el.shape === 'triangle' ? 'polygon(50% 0, 100% 100%, 0 100%)' : undefined,
-              }}
-            />
+            <ShapeRender shape={el.shape} fill={el.fill} />
           )}
         </div>
       ))}
@@ -171,280 +175,711 @@ function renderElementsStatic(elements: CwElement[]) {
   )
 }
 
+/** 形状渲染（编辑态/静态态共用）：矩形/椭圆/三角/线条/圆角矩形/箭头/星形/气泡 */
+function ShapeRender({ shape, fill }: { shape?: CwElement['shape']; fill?: string }) {
+  const bg = fill ? `#${fill}` : '#CCCCCC'
+  if (shape === 'line') {
+    return <div className="h-full w-full flex items-center"><div className="w-full" style={{ height: 3, background: bg }} /></div>
+  }
+  const style: React.CSSProperties = { background: bg }
+  switch (shape) {
+    case 'ellipse':
+      style.borderRadius = '50%'
+      break
+    case 'triangle':
+      style.clipPath = 'polygon(50% 0, 100% 100%, 0 100%)'
+      break
+    case 'roundRect':
+      style.borderRadius = 16
+      break
+    case 'arrow':
+      style.clipPath = 'polygon(0 30%, 62% 30%, 62% 0, 100% 50%, 62% 100%, 62% 70%, 0 70%)'
+      break
+    case 'star':
+      style.clipPath = 'polygon(50% 0, 63% 36%, 100% 38%, 71% 61%, 81% 100%, 50% 76%, 19% 100%, 29% 61%, 0 38%, 37% 36%)'
+      break
+    case 'bubble':
+      style.borderRadius = 18
+      style.clipPath = 'polygon(0% 0%, 100% 0%, 100% 78%, 34% 78%, 18% 100%, 22% 78%, 0% 78%)'
+      break
+    default:
+      style.borderRadius = 4
+  }
+  return <div className="h-full w-full" style={style} />
+}
+
 /* ───────────────────────── 可编辑画布 ───────────────────────── */
 
 interface EditableCanvasProps {
   slide: CwSlide
+  /** 页标识：仅切页时变化 → 触发重置；同页编辑（slide 引用变化）不重置，避免覆盖画布内编辑态 */
+  slideKey?: number
   theme: CwTheme
   onChange: (slide: CwSlide) => void
+  /** 画布基准宽高（随版心比例变化） */
+  cw: number
+  ch: number
+  /** 当前版心比例 */
+  ar: '16/9' | '4/3'
+  /** 切换版心比例 */
+  onArChange: (v: '16/9' | '4/3') => void
 }
 
-function EditableCanvas({ slide, theme, onChange }: EditableCanvasProps) {
+/** 画布快照（撤销/重做用） */
+interface Snap { elements: CwElement[]; title: string; layout: string }
+
+const SNAP = 1.5 // 吸附阈值（%）
+const FONT_OPTS = ['Microsoft YaHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 'Arial', 'Times New Roman']
+
+function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange }: EditableCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
-  const [selId, setSelId] = useState<string | null>(null)
+  const [selIds, setSelIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [elements, setElements] = useState<CwElement[]>(slide.elements || [])
   const [title, setTitle] = useState(slide.title)
-  const [layout, setLayout] = useState(slide.layout || 'title-body')
+  const [layout, setLayout] = useState<string>(slide.layout || 'title-body')
+  // 历史栈（撤销/重做）
+  const [history, setHistory] = useState<Snap[]>([{ elements: slide.elements || [], title: slide.title, layout: slide.layout || 'title-body' }])
+  const [hIndex, setHIndex] = useState(0)
+  // 对齐参考线
+  const [guide, setGuide] = useState<{ v?: number; h?: number }>({})
   const elementsRef = useRef(elements)
   const titleRef = useRef(title)
-  const drag = useRef<{ id: string; mode: 'move' | 'resize'; sx: number; sy: number; ox: number; oy: number; ow: number; oh: number } | null>(null)
+  const layoutRef = useRef(layout)
+  const selIdsRef = useRef(selIds)
+  const hIndexRef = useRef(hIndex)
+  const historyRef = useRef(history)
+  const drag = useRef<{ mode: 'move' | 'resize' | 'marquee'; sx: number; sy: number; base: CwElement[]; mx: number; my: number } | null>(null)
+  const clipboardRef = useRef<CwElement[]>([])
 
+  // 仅切页（slideKey 变化）时重置画布；同页编辑 slide 引用变化不重置（避免覆盖画布内编辑态）
   useEffect(() => {
-    setElements(slide.elements || [])
+    const els = slide.elements || []
+    const lay = slide.layout || 'title-body'
+    setElements(els)
     setTitle(slide.title)
-    setLayout(slide.layout || 'title-body')
-    setSelId(null)
+    setLayout(lay)
+    setSelIds([])
     setEditingId(null)
-  }, [slide])
+    setGuide({})
+    setHistory([{ elements: els, title: slide.title, layout: lay }])
+    setHIndex(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideKey])
 
   useEffect(() => { elementsRef.current = elements }, [elements])
   useEffect(() => { titleRef.current = title }, [title])
+  useEffect(() => { layoutRef.current = layout }, [layout])
+  useEffect(() => { selIdsRef.current = selIds }, [selIds])
+  useEffect(() => { hIndexRef.current = hIndex }, [hIndex])
+  useEffect(() => { historyRef.current = history }, [history])
 
+  // 自适应缩放
   useLayoutEffect(() => {
-    const el = canvasRef.current
+    const el = canvasRef.current?.parentElement
     if (!el) return
-    const ro = new ResizeObserver(() => { setScale(el.clientWidth / CANVAS_W) })
+    const update = () => setScale(Math.min(1, el.clientWidth / cw))
+    update()
+    const ro = new ResizeObserver(update)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
 
-  const pct = (e: ReactPointerEvent) => {
-    const r = canvasRef.current!.getBoundingClientRect()
-    return { x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 }
+  const emit = (els: CwElement[], t: string, lay: string) => {
+    onChange({ ...slide, title: t, layout: lay as CwSlide['layout'], elements: els })
+  }
+  /** 应用变更（不入历史栈，拖动过程中的实时预览用） */
+  const apply = (els: CwElement[], t = titleRef.current, lay = layoutRef.current) => {
+    setElements(els); setTitle(t); setLayout(lay)
+    emit(els, t, lay)
+  }
+  /** 提交变更（入历史栈，截断 redo 分支） */
+  const commit = (els: CwElement[], t = titleRef.current, lay = layoutRef.current) => {
+    setElements(els); setTitle(t); setLayout(lay)
+    emit(els, t, lay)
+    const snap: Snap = { elements: els, title: t, layout: lay }
+    setHistory(prev => [...prev.slice(0, hIndexRef.current + 1), snap].slice(-50))
+    setHIndex(prev => Math.min(prev + 1, 49))
+  }
+
+  const undo = () => {
+    const idx = hIndexRef.current
+    if (idx <= 0) return
+    const s = historyRef.current[idx - 1]
+    setHIndex(idx - 1)
+    apply(s.elements, s.title, s.layout)
+    setSelIds([])
+  }
+  const redo = () => {
+    const idx = hIndexRef.current
+    if (idx >= historyRef.current.length - 1) return
+    const s = historyRef.current[idx + 1]
+    setHIndex(idx + 1)
+    apply(s.elements, s.title, s.layout)
+    setSelIds([])
+  }
+
+  const selId = selIds.length === 1 ? selIds[0] : null
+  const sel = elements.find(e => e.id === selId)
+  const patchSel = (p: Partial<CwElement>) => {
+    if (!selId) return
+    commit(elements.map(e => (e.id === selId ? { ...e, ...p } : e)))
+  }
+
+  const addElement = (type: 'text' | 'image' | 'shape', extra?: Partial<CwElement>) => {
+    const el: CwElement = {
+      id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      type,
+      x: 30, y: 35, w: 40, h: type === 'text' ? 12 : 25,
+      ...(type === 'text' ? { text: '双击编辑文本', fontSize: 18, color: '222222' } : {}),
+      ...(type === 'shape' ? { shape: 'rect', fill: '4472C4' } : {}),
+      ...extra,
+    }
+    commit([...elements, el])
+    setSelIds([el.id])
+  }
+
+  const removeSelected = () => {
+    if (!selIdsRef.current.length) return
+    commit(elementsRef.current.filter(e => !selIdsRef.current.includes(e.id)))
+    setSelIds([])
+  }
+
+  const duplicateSelected = () => {
+    if (!selIdsRef.current.length) return
+    const copies = elementsRef.current
+      .filter(e => selIdsRef.current.includes(e.id))
+      .map(e => ({ ...e, id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, x: Math.min(95, e.x + 2), y: Math.min(95, e.y + 2) }))
+    commit([...elementsRef.current, ...copies])
+    setSelIds(copies.map(c => c.id))
+  }
+
+  const copySelected = () => {
+    clipboardRef.current = elementsRef.current.filter(e => selIdsRef.current.includes(e.id)).map(e => ({ ...e }))
+  }
+  const pasteClipboard = () => {
+    if (!clipboardRef.current.length) return
+    const copies = clipboardRef.current.map(e => ({ ...e, id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, x: Math.min(95, e.x + 2), y: Math.min(95, e.y + 2) }))
+    commit([...elementsRef.current, ...copies])
+    setSelIds(copies.map(c => c.id))
+  }
+
+  const moveLayer = (dir: 1 | -1) => {
+    if (!selId) return
+    const idx = elements.findIndex(e => e.id === selId)
+    const to = idx + dir
+    if (idx < 0 || to < 0 || to >= elements.length) return
+    const next = [...elements]
+    const [moved] = next.splice(idx, 1)
+    next.splice(to, 0, moved)
+    commit(next)
+  }
+
+  // ── 对齐分布（多选） ──
+  const alignSelected = (mode: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdistribute' | 'vdistribute') => {
+    const selEls = elementsRef.current.filter(e => selIdsRef.current.includes(e.id))
+    if (selEls.length < 2) return
+    const px = (v: number) => v
+    if (mode === 'hdistribute' || mode === 'vdistribute') {
+      if (selEls.length < 3) return
+      const horiz = mode === 'hdistribute'
+      const sorted = [...selEls].sort((a, b) => (horiz ? a.x - b.x : a.y - b.y))
+      const first = sorted[0], last = sorted[sorted.length - 1]
+      const span = horiz ? (last.x - first.x) : (last.y - first.y)
+      const step = span / (sorted.length - 1)
+      const posMap = new Map(sorted.map((e, i) => [e.id, first[horiz ? 'x' : 'y'] + step * i]))
+      commit(elementsRef.current.map(e => posMap.has(e.id) ? { ...e, [horiz ? 'x' : 'y']: px(posMap.get(e.id)!) } : e))
+      return
+    }
+    const edges = selEls.map(e => ({ l: e.x, r: e.x + e.w, t: e.y, b: e.y + e.h, cx: e.x + e.w / 2, cy: e.y + e.h / 2 }))
+    let target = 0
+    if (mode === 'left') target = Math.min(...edges.map(e => e.l))
+    if (mode === 'right') target = Math.max(...edges.map(e => e.r))
+    if (mode === 'hcenter') target = edges.reduce((s, e) => s + e.cx, 0) / edges.length
+    if (mode === 'top') target = Math.min(...edges.map(e => e.t))
+    if (mode === 'bottom') target = Math.max(...edges.map(e => e.b))
+    if (mode === 'vcenter') target = edges.reduce((s, e) => s + e.cy, 0) / edges.length
+    commit(elementsRef.current.map(e => {
+      if (!selIdsRef.current.includes(e.id)) return e
+      if (mode === 'left') return { ...e, x: target }
+      if (mode === 'right') return { ...e, x: target - e.w }
+      if (mode === 'hcenter') return { ...e, x: target - e.w / 2 }
+      if (mode === 'top') return { ...e, y: target }
+      if (mode === 'bottom') return { ...e, y: target - e.h }
+      return { ...e, y: target - e.h / 2 }
+    }))
+  }
+
+  const onUpload = (f: File) => {
+    const reader = new FileReader()
+    reader.onload = () => addElement('image', { src: String(reader.result), w: 30, h: 30 })
+    reader.readAsDataURL(f)
+  }
+
+  // 坐标换算：client → 画布 %
+  const toPct = (clientX: number, clientY: number) => {
+    const rect = canvasRef.current!.getBoundingClientRect()
+    return { x: ((clientX - rect.left) / rect.width) * 100, y: ((clientY - rect.height) / rect.height) * 100 }
+  }
+
+  // ── 吸附计算：返回修正后的 dx/dy 与参考线 ──
+  const snapDrag = (moving: CwElement[], dx: number, dy: number) => {
+    const lead = moving[0]
+    const nx = lead.x + dx, ny = lead.y + dy
+    const edges = { l: nx, cx: nx + lead.w / 2, r: nx + lead.w, t: ny, cy: ny + lead.h / 2, b: ny + lead.h }
+    let bestV: { d: number; line: number; corr: number } | null = null
+    let bestH: { d: number; line: number; corr: number } | null = null
+    const considerV = (line: number, corr: number) => { const d = Math.abs(corr); if (d < SNAP && (!bestV || d < bestV.d)) bestV = { d, line, corr } }
+    const considerH = (line: number, corr: number) => { const d = Math.abs(corr); if (d < SNAP && (!bestH || d < bestH.d)) bestH = { d, line, corr } }
+    // 画布中线
+    considerV(50, 50 - edges.cx)
+    considerH(50, 50 - edges.cy)
+    // 其他元素边缘
+    const movingIds = new Set(moving.map(m => m.id))
+    for (const e of elementsRef.current) {
+      if (movingIds.has(e.id)) continue
+      const l = e.x, r = e.x + e.w, t = e.y, b = e.y + e.h, cx = e.x + e.w / 2, cy = e.y + e.h / 2
+      considerV(l, l - edges.l); considerV(l, l - edges.cx); considerV(l, l - edges.r)
+      considerV(r, r - edges.l); considerV(r, r - edges.cx); considerV(r, r - edges.r)
+      considerV(cx, cx - edges.l); considerV(cx, cx - edges.cx); considerV(cx, cx - edges.r)
+      considerH(t, t - edges.t); considerH(t, t - edges.cy); considerH(t, t - edges.b)
+      considerH(b, b - edges.t); considerH(b, b - edges.cy); considerH(b, b - edges.b)
+      considerH(cy, cy - edges.t); considerH(cy, cy - edges.cy); considerH(cy, cy - edges.b)
+    }
+    const vSnap = bestV as { d: number; line: number; corr: number } | null
+    const hSnap = bestH as { d: number; line: number; corr: number } | null
+    return {
+      dx: dx + (vSnap ? vSnap.corr : 0),
+      dy: dy + (hSnap ? hSnap.corr : 0),
+      v: vSnap ? vSnap.line : undefined,
+      h: hSnap ? hSnap.line : undefined,
+    }
   }
 
   const onPointerDown = (e: ReactPointerEvent, el: CwElement, mode: 'move' | 'resize') => {
     e.stopPropagation()
     if (editingId === el.id) return
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
-    const p = pct(e)
-    drag.current = { id: el.id, mode, sx: p.x, sy: p.y, ox: el.x, oy: el.y, ow: el.w, oh: el.h }
-    setSelId(el.id)
+    // 多选：Shift 增减；否则若点中已选集合则整组拖动，否则单选
+    let nextSel: string[]
+    if (e.shiftKey) {
+      nextSel = selIdsRef.current.includes(el.id) ? selIdsRef.current.filter(s => s !== el.id) : [...selIdsRef.current, el.id]
+      setSelIds(nextSel)
+      if (mode === 'resize') nextSel = [el.id]
+    } else {
+      nextSel = selIdsRef.current.includes(el.id) ? selIdsRef.current : [el.id]
+      setSelIds(nextSel)
+    }
+    const base = elementsRef.current.map(x => ({ ...x }))
+    drag.current = { mode, sx: e.clientX, sy: e.clientY, base, mx: 0, my: 0 }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
   }
 
   const onPointerMove = (e: ReactPointerEvent) => {
-    if (!drag.current) return
-    const p = pct(e)
     const d = drag.current
-    const dx = p.x - d.sx
-    const dy = p.y - d.sy
-    setElements((prev) => prev.map((el) => {
-      if (el.id !== d.id) return el
-      if (d.mode === 'move') {
-        return { ...el, x: clamp(d.ox + dx, 0, 100 - el.w), y: clamp(d.oy + dy, 0, 100 - el.h) }
-      }
-      return { ...el, w: clamp(d.ow + dx, 4, 100 - el.x), h: clamp(d.oh + dy, 3, 100 - el.y) }
-    }))
+    if (!d) return
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const dxPct = ((e.clientX - d.sx) / rect.width) * 100
+    const dyPct = ((e.clientY - d.sy) / rect.height) * 100
+    if (d.mode === 'marquee') {
+      d.mx = dxPct; d.my = dyPct
+      setGuide({})
+      // 框选：以起点为基准算画布 % 矩形
+      const start = toPct(d.sx, d.sy)
+      const cur = toPct(e.clientX, e.clientY)
+      const x1 = Math.min(start.x, cur.x), x2 = Math.max(start.x, cur.x)
+      const y1 = Math.min(start.y, cur.y), y2 = Math.max(start.y, cur.y)
+      const hit = d.base.filter(el => el.x < x2 && el.x + el.w > x1 && el.y < y2 && el.y + el.h > y1).map(el => el.id)
+      setSelIds(hit)
+      setMarquee({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 })
+      return
+    }
+    const moving = d.base.filter(el => selIdsRef.current.includes(el.id))
+    if (d.mode === 'move') {
+      const snapped = snapDrag(moving, dxPct, dyPct)
+      setGuide({ v: snapped.v, h: snapped.h })
+      apply(d.base.map(el => selIdsRef.current.includes(el.id)
+        ? { ...el, x: clamp(el.x + snapped.dx, 0, 100 - el.w), y: clamp(el.y + snapped.dy, 0, 100 - el.h) }
+        : el))
+    } else {
+      // 缩放仅作用于单选元素
+      apply(d.base.map(el => el.id === selId
+        ? { ...el, w: clamp(el.w + dxPct, 4, 100 - el.x), h: clamp(el.h + dyPct, 3, 100 - el.y) }
+        : el))
+    }
   }
 
   const onPointerUp = () => {
-    if (!drag.current) return
-    drag.current = null
-    onChange({ ...slide, title: titleRef.current, elements: elementsRef.current })
-  }
-
-  const commitElements = (next: CwElement[]) => {
-    elementsRef.current = next
-    setElements(next)
-    onChange({ ...slide, title: titleRef.current, elements: next })
-  }
-
-  const updateEl = (id: string, patch: Partial<CwElement>) =>
-    commitElements(elementsRef.current.map((e) => (e.id === id ? { ...e, ...patch } : e)))
-
-  const addEl = (type: CwElement['type']) => {
-    const base: CwElement = {
-      id: crypto.randomUUID(),
-      type,
-      x: 30, y: 30, w: 40, h: 20,
-      rotation: 0,
+    if (drag.current) {
+      const d = drag.current
+      drag.current = null
+      setGuide({})
+      setMarquee(null)
+      // 拖动结束入历史栈（当前 elements 已是最终态）
+      commit(elementsRef.current)
     }
-    if (type === 'text') Object.assign(base, { text: '双击编辑文本', fontSize: 18, color: '222222', bullet: false, align: 'left' })
-    if (type === 'shape') Object.assign(base, { shape: 'rect', fill: '4C8BF5' })
-    commitElements([...elementsRef.current, base])
-    setSelId(base.id)
   }
 
-  const addImage = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base: CwElement = { id: crypto.randomUUID(), type: 'image', x: 25, y: 25, w: 50, h: 35, src: reader.result as string, rotation: 0 }
-      commitElements([...elementsRef.current, base])
-      setSelId(base.id)
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  // 右侧属性面板收起（教案式）+ 全屏编辑
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
+
+  const onCanvasPointerDown = (e: ReactPointerEvent) => {
+    if (e.target !== canvasRef.current) return
+    setEditingId(null); setEditingTitle(false)
+    // 空白框选
+    drag.current = { mode: 'marquee', sx: e.clientX, sy: e.clientY, base: elementsRef.current.map(x => ({ ...x })), mx: 0, my: 0 }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  // ── 键盘操作 ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName || '').toLowerCase()
+      const isTyping = tag === 'textarea' || tag === 'input' || (document.activeElement as HTMLElement)?.isContentEditable
+      if (isTyping) return
+      const meta = e.ctrlKey || e.metaKey
+      if (meta && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return }
+      if (meta && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return }
+      if (meta && e.key.toLowerCase() === 'c') { copySelected(); return }
+      if (meta && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return }
+      if (meta && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return }
+      if (e.key === 'Delete' || e.key === 'Backspace') { if (selIdsRef.current.length) { e.preventDefault(); removeSelected() } return }
+      // 方向键微调
+      const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+      if (arrows[e.key] && selIdsRef.current.length) {
+        e.preventDefault()
+        const [ax, ay] = arrows[e.key]
+        const step = e.shiftKey ? 5 : 0.5
+        commit(elementsRef.current.map(el => selIdsRef.current.includes(el.id)
+          ? { ...el, x: clamp(el.x + ax * step, 0, 100 - el.w), y: clamp(el.y + ay * step, 0, 100 - el.h) }
+          : el))
+      }
     }
-    reader.readAsDataURL(file)
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [slide])
+
+  const applyLayout = (lay: string) => {
+    const next = layoutElements({ title: titleRef.current, bullets: extractBullets(elementsRef.current) }, lay)
+    commit(next, titleRef.current, lay)
   }
 
-  const deleteSel = () => {
-    if (!selId) return
-    commitElements(elementsRef.current.filter((e) => e.id !== selId))
-    setSelId(null)
-  }
+  // ── 设计系统配色（对齐知微，替代散乱 slate/#4472C4） ──
+  const B = 'border border-[#E7E7EB] hover:bg-[#F6F7F8] text-[#353535]'
+  const BActive = 'border border-[#02A7F0] bg-[#02A7F0] text-white'
+  const SEL = '#02A7F0' // 选中高亮（替代 #4472C4）
 
-  const reorder = (dir: 'up' | 'down') => {
-    if (!selId) return
-    const arr = [...elementsRef.current]
-    const idx = arr.findIndex((e) => e.id === selId)
-    if (idx < 0) return
-    const j = dir === 'up' ? idx + 1 : idx - 1
-    if (j < 0 || j >= arr.length) return
-    ;[arr[idx], arr[j]] = [arr[j], arr[idx]]
-    commitElements(arr)
-  }
-
-  const applyLayout = (v: string) => {
-    const bullets = extractBullets(elementsRef.current)
-    const next = layoutElements({ title, bullets }, v)
-    setLayout(v)
-    onChange({ ...slide, title, elements: next, layout: v })
-    setElements(next)
-  }
-
-  const sel = elements.find((e) => e.id === selId) || null
-
-  return (
-    <div className="select-none">
-      {/* 顶部工具条 */}
-      <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5 ring-1 ring-slate-200">
-        <button className="rounded px-2 py-1 text-xs font-medium bg-white ring-1 ring-slate-200 hover:bg-slate-100" onClick={() => addEl('text')}>+ 文本框</button>
-        <label className="cursor-pointer rounded px-2 py-1 text-xs font-medium bg-white ring-1 ring-slate-200 hover:bg-slate-100">
-          + 图片
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && addImage(e.target.files[0])} />
-        </label>
-        <button className="rounded px-2 py-1 text-xs font-medium bg-white ring-1 ring-slate-200 hover:bg-slate-100" onClick={() => addEl('shape')}>+ 形状</button>
-        <span className="mx-1 h-4 w-px bg-slate-200" />
-        <button className="rounded px-2 py-1 text-xs bg-white ring-1 ring-slate-200 hover:bg-slate-100 disabled:opacity-40" onClick={deleteSel} disabled={!sel}>删除</button>
-        <button className="rounded px-2 py-1 text-xs bg-white ring-1 ring-slate-200 hover:bg-slate-100 disabled:opacity-40" onClick={() => reorder('up')} disabled={!sel}>上移</button>
-        <button className="rounded px-2 py-1 text-xs bg-white ring-1 ring-slate-200 hover:bg-slate-100 disabled:opacity-40" onClick={() => reorder('down')} disabled={!sel}>下移</button>
-        {sel?.type === 'text' && (
-          <>
-            <span className="mx-1 h-4 w-px bg-slate-200" />
-            <button className={`rounded px-2 py-1 text-xs ${sel.bold ? 'bg-slate-800 text-white' : 'bg-white ring-1 ring-slate-200'}`} onClick={() => updateEl(sel.id, { bold: !sel.bold })}>B</button>
-            <input type="color" value={`#${sel.color || '222222'}`} onChange={(e) => updateEl(sel.id, { color: e.target.value.replace('#', '') })} className="h-7 w-8 cursor-pointer rounded border-0" title="文字颜色" />
-            <input type="number" value={sel.fontSize || 18} min={8} max={96} onChange={(e) => updateEl(sel.id, { fontSize: Number(e.target.value) })} className="w-14 rounded px-1 py-0.5 text-xs ring-1 ring-slate-200" title="字号" />
-            <button className={`rounded px-2 py-1 text-xs ${sel.align === 'center' ? 'bg-slate-800 text-white' : 'bg-white ring-1 ring-slate-200'}`} onClick={() => updateEl(sel.id, { align: 'center' })}>居中</button>
-            <button className={`rounded px-2 py-1 text-xs ${sel.bullet ? 'bg-slate-800 text-white' : 'bg-white ring-1 ring-slate-200'}`} onClick={() => updateEl(sel.id, { bullet: !sel.bullet })}>• 条目</button>
-          </>
-        )}
-        {sel?.type === 'shape' && (
-          <>
-            <span className="mx-1 h-4 w-px bg-slate-200" />
-            <select value={sel.shape || 'rect'} onChange={(e) => updateEl(sel.id, { shape: e.target.value as CwElement['shape'] })} className="rounded px-1 py-0.5 text-xs ring-1 ring-slate-200">
-              <option value="rect">矩形</option>
-              <option value="ellipse">椭圆</option>
-              <option value="triangle">三角</option>
-              <option value="line">线条</option>
-            </select>
-            <input type="color" value={`#${sel.fill || 'CCCCCC'}`} onChange={(e) => updateEl(sel.id, { fill: e.target.value.replace('#', '') })} className="h-7 w-8 cursor-pointer rounded border-0" title="填充" />
-          </>
-        )}
-        <span className="mx-1 h-4 w-px bg-slate-200" />
-        <select value={layout} onChange={(e) => applyLayout(e.target.value)} className="rounded px-1 py-0.5 text-xs ring-1 ring-slate-200" title="页面版式">
-          <option value="title-body">标题+正文</option>
-          <option value="title-only">仅标题</option>
-          <option value="two-col">两栏</option>
-          <option value="blank">空白</option>
-        </select>
-      </div>
-
-      {/* 画布 */}
-      <div className="relative w-full overflow-hidden rounded-lg bg-slate-200" style={{ aspectRatio: '16/9' }}>
-        <div
-          ref={canvasRef}
-          className="absolute left-0 top-0 bg-white"
-          style={{ width: CANVAS_W, height: CANVAS_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
-          onClick={(e) => { if (e.target === e.currentTarget) { setSelId(null); setEditingId(null) } }}
-        >
-          {/* 标题色带 */}
-          <div className="absolute left-0 top-0 flex h-[15.3%] w-full items-center" style={{ background: theme.primary }}>
-            {editingTitle ? (
-              <span
-                contentEditable
-                suppressContentEditableWarning
-                className="ml-[2%] w-[96%] text-2xl font-bold outline-none"
-                style={{ color: theme.onPrimary }}
-                onBlur={(e) => { setTitle(e.currentTarget.textContent || ''); setEditingTitle(false); onChange({ ...slide, title: e.currentTarget.textContent || '', elements: elementsRef.current }) }}
-              >
-                {title}
-              </span>
+  // ── 右侧属性面板（选中元素时显示样式设置，教案式收起/展开） ──
+  const propPanel = (
+    <>
+      {!panelCollapsed && (
+        <div className="w-[240px] shrink-0 flex flex-col border-l border-[#E7E7EB] bg-[#FAFBFC] overflow-y-auto">
+          <div className="flex items-center justify-between px-2 py-2 border-b border-[#F0F0F0] shrink-0">
+            <span className="text-[11px] font-medium text-[#353535]">{sel ? (sel.type === 'text' ? '文本框' : sel.type === 'shape' ? '形状' : '图片') : '属性'}</span>
+            <button onClick={() => setPanelCollapsed(true)} title="收起面板" className="text-[#9A9A9A] hover:text-[#353535] text-[12px]">›</button>
+          </div>
+          <div className="p-2.5 space-y-3 text-[11px]">
+            {!sel ? (
+              <p className="text-[#C0C0C0] text-center py-6">选中画布元素后<br />在此设置样式</p>
             ) : (
-              <span
-                className="ml-[2%] w-[96%] cursor-text truncate text-2xl font-bold"
-                style={{ color: theme.onPrimary }}
-                onDoubleClick={() => setEditingTitle(true)}
-                title="双击编辑标题"
-              >
-                {title}
-              </span>
+              <>
+                {/* 位置尺寸 */}
+                <div>
+                  <p className="text-[#9A9A9A] mb-1.5">位置 · 尺寸 (%)</p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(['x', 'y', 'w', 'h'] as const).map(k => (
+                      <label key={k} className="flex flex-col">
+                        <span className="text-[#C0C0C0] text-[9px] uppercase">{k}</span>
+                        <input type="number" value={Math.round(sel[k])} onChange={e => patchSel({ [k]: clamp(Number(e.target.value) || 0, 0, 100) })}
+                          className="w-full border border-[#E7E7EB] rounded px-1 py-0.5 focus:border-[#02A7F0] outline-none" />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 文本样式 */}
+                {sel.type === 'text' && (
+                  <>
+                    <div>
+                      <p className="text-[#9A9A9A] mb-1.5">字体 · 字号 · 行距</p>
+                      <select value={sel.fontFamily || FONT} onChange={e => patchSel({ fontFamily: e.target.value })}
+                        className="w-full border border-[#E7E7EB] rounded px-1.5 py-1 bg-white focus:border-[#02A7F0] outline-none mb-1.5">
+                        {FONT_OPTS.map(f => <option key={f} value={f}>{f === FONT ? '默认(雅黑)' : f}</option>)}
+                      </select>
+                      <div className="flex gap-1">
+                        <input type="number" min={10} max={72} value={sel.fontSize || 18} onChange={e => patchSel({ fontSize: Number(e.target.value) || 18 })}
+                          className="w-1/2 border border-[#E7E7EB] rounded px-1.5 py-1 focus:border-[#02A7F0] outline-none" title="字号" />
+                        <select value={sel.lineHeight || 1.4} onChange={e => patchSel({ lineHeight: Number(e.target.value) })}
+                          className="w-1/2 border border-[#E7E7EB] rounded px-1 py-1 bg-white focus:border-[#02A7F0] outline-none" title="行距">
+                          {[1, 1.15, 1.4, 1.6, 2].map(l => <option key={l} value={l}>{l}x</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[#9A9A9A] mb-1.5">样式</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => patchSel({ bold: !sel.bold })} className={`flex-1 py-1 rounded ${sel.bold ? BActive : B}`} title="加粗"><b>B</b></button>
+                        <button onClick={() => patchSel({ italic: !sel.italic })} className={`flex-1 py-1 rounded italic ${sel.italic ? BActive : B}`} title="斜体">I</button>
+                        <button onClick={() => patchSel({ underline: !sel.underline })} className={`flex-1 py-1 rounded underline ${sel.underline ? BActive : B}`} title="下划线">U</button>
+                        <button onClick={() => patchSel({ bullet: !sel.bullet })} className={`flex-1 py-1 rounded ${sel.bullet ? BActive : B}`} title="条目符号">•</button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[#9A9A9A] mb-1.5">对齐</p>
+                      <div className="flex gap-1">
+                        {(['left', 'center', 'right'] as const).map(a => (
+                          <button key={a} onClick={() => patchSel({ align: a })} className={`flex-1 py-1 rounded ${sel.align === a || (a === 'left' && !sel.align) ? BActive : B}`}>
+                            {a === 'left' ? '左' : a === 'center' ? '中' : '右'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[#9A9A9A] mb-1.5">文字颜色</p>
+                      <input type="color" value={`#${sel.color || '222222'}`} onChange={e => patchSel({ color: e.target.value.replace('#', '') })}
+                        className="w-full h-7 border border-[#E7E7EB] rounded cursor-pointer" />
+                    </div>
+                  </>
+                )}
+
+                {/* 形状样式 */}
+                {sel.type === 'shape' && (
+                  <>
+                    <div>
+                      <p className="text-[#9A9A9A] mb-1.5">形状</p>
+                      <select value={sel.shape || 'rect'} onChange={e => patchSel({ shape: e.target.value as CwElement['shape'] })}
+                        className="w-full border border-[#E7E7EB] rounded px-1.5 py-1 bg-white focus:border-[#02A7F0] outline-none">
+                        <option value="rect">矩形</option>
+                        <option value="roundRect">圆角矩形</option>
+                        <option value="ellipse">椭圆</option>
+                        <option value="triangle">三角形</option>
+                        <option value="line">线条</option>
+                        <option value="arrow">箭头</option>
+                        <option value="star">星形</option>
+                        <option value="bubble">气泡</option>
+                      </select>
+                    </div>
+                    <div>
+                      <p className="text-[#9A9A9A] mb-1.5">填充色</p>
+                      <input type="color" value={`#${sel.fill || '4472C4'}`} onChange={e => patchSel({ fill: e.target.value.replace('#', '') })}
+                        className="w-full h-7 border border-[#E7E7EB] rounded cursor-pointer" />
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
-
-          {/* 自由元素层 */}
-          {elements.map((el) => {
-            const isSel = el.id === selId
-            return (
-              <div
-                key={el.id}
-                className={`absolute ${editingId === el.id ? '' : 'cursor-move'} ${isSel ? 'ring-2 ring-blue-500' : ''}`}
-                style={{
-                  left: `${el.x}%`, top: `${el.y}%`, width: `${el.w}%`, height: `${el.h}%`,
-                  transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-                  zIndex: elements.indexOf(el),
-                }}
-                onPointerDown={(e) => onPointerDown(e, el, 'move')}
-                onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text') setEditingId(el.id) }}
-                title={el.type === 'text' ? '双击编辑文字' : '拖拽移动'}
-              >
-                {el.type === 'text' && (
-                  editingId === el.id ? (
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      className="h-full w-full whitespace-pre-wrap outline-none"
-                      style={{ color: `#${el.color || '222222'}`, fontSize: el.fontSize || 18, fontWeight: el.bold ? 700 : 400, textAlign: el.align || 'left', fontFamily: FONT, lineHeight: 1.4 }}
-                      onBlur={(e) => { updateEl(el.id, { text: e.currentTarget.innerText }); setEditingId(null) }}
-                    >
-                      {el.text}
-                    </div>
-                  ) : (
-                    <div
-                      className="h-full w-full whitespace-pre-wrap"
-                      style={{ color: `#${el.color || '222222'}`, fontSize: el.fontSize || 18, fontWeight: el.bold ? 700 : 400, textAlign: el.align || 'left', fontFamily: FONT, lineHeight: 1.4 }}
-                    >
-                      {el.bullet ? (el.text || '').split('\n').map((t, k) => <div key={k}>• {t}</div>) : el.text}
-                    </div>
-                  )
-                )}
-                {el.type === 'image' && el.src && <img src={el.src} alt="" className="pointer-events-none h-full w-full object-contain" />}
-                {el.type === 'shape' && (
-                  <div
-                    className="h-full w-full"
-                    style={{
-                      background: el.fill ? `#${el.fill}` : '#CCCCCC',
-                      borderRadius: el.shape === 'ellipse' ? '50%' : el.shape === 'triangle' ? '0' : 4,
-                      clipPath: el.shape === 'triangle' ? 'polygon(50% 0, 100% 100%, 0 100%)' : undefined,
-                    }}
-                  />
-                )}
-                {/* 缩放手柄 */}
-                {isSel && editingId !== el.id && (
-                  <div
-                    className="absolute -bottom-1 -right-1 h-3 w-3 cursor-se-resize rounded-sm bg-blue-500 ring-2 ring-white"
-                    onPointerDown={(e) => onPointerDown(e, el, 'resize')}
-                  />
-                )}
-              </div>
-            )
-          })}
         </div>
+      )}
+      {panelCollapsed && (
+        <button onClick={() => setPanelCollapsed(false)} title="展开属性面板"
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-7 h-12 rounded-l bg-[#212529]/80 text-white flex items-center justify-center hover:bg-[#212529]">
+          <span style={{ transform: 'rotate(180deg)', display: 'inline-block' }}>›</span>
+        </button>
+      )}
+    </>
+  )
+
+  // ── 画布主体（工具条 + 画布 + 右侧属性面板） ──
+  const body = (
+    <div className="flex flex-1 overflow-hidden relative">
+      {/* 中央：工具条 + 画布 */}
+      <div className="flex-1 flex flex-col overflow-hidden px-4 py-3">
+        {/* 工具条（操作类，样式设置移右侧属性面板） */}
+        <div className="mb-1.5 flex flex-wrap items-center gap-1 text-[11px] shrink-0">
+          <button title="撤销 (Ctrl+Z)" disabled={hIndex <= 0} onClick={undo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40`}>↶</button>
+          <button title="重做 (Ctrl+Y)" disabled={hIndex >= history.length - 1} onClick={redo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40`}>↷</button>
+          <span className="mx-0.5 text-[#E7E7EB]">|</span>
+          <button onClick={() => addElement('text')} className={`px-1.5 py-0.5 rounded ${B}`}>+ 文本框</button>
+          <label className={`px-1.5 py-0.5 rounded ${B} cursor-pointer`}>
+            + 图片
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+          </label>
+          <button onClick={() => addElement('shape')} className={`px-1.5 py-0.5 rounded ${B}`}>+ 形状</button>
+          {selIds.length > 0 && (
+            <>
+              <span className="mx-0.5 text-[#E7E7EB]">|</span>
+              <button title="复制 (Ctrl+C)" onClick={copySelected} className={`px-1.5 py-0.5 rounded ${B}`}>复制</button>
+              <button title="粘贴 (Ctrl+V)" onClick={pasteClipboard} className={`px-1.5 py-0.5 rounded ${B}`}>粘贴</button>
+              <button title="创建副本 (Ctrl+D)" onClick={duplicateSelected} className={`px-1.5 py-0.5 rounded ${B}`}>副本</button>
+              <button onClick={removeSelected} className="px-1.5 py-0.5 rounded border border-[#F5222D] text-[#F5222D] hover:bg-[#FFF1F0]">删除</button>
+              {selId && (
+                <>
+                  <button title="上移一层" onClick={() => moveLayer(1)} className={`px-1.5 py-0.5 rounded ${B}`}>上移</button>
+                  <button title="下移一层" onClick={() => moveLayer(-1)} className={`px-1.5 py-0.5 rounded ${B}`}>下移</button>
+                </>
+              )}
+            </>
+          )}
+          {selIds.length >= 2 && (
+            <>
+              <span className="mx-0.5 text-[#E7E7EB]">|</span>
+              <span className="text-[#9A9A9A]">对齐</span>
+              <button title="左对齐" onClick={() => alignSelected('left')} className={`px-1.5 py-0.5 rounded ${B}`}>左</button>
+              <button title="水平居中" onClick={() => alignSelected('hcenter')} className={`px-1.5 py-0.5 rounded ${B}`}>水平中</button>
+              <button title="右对齐" onClick={() => alignSelected('right')} className={`px-1.5 py-0.5 rounded ${B}`}>右</button>
+              <button title="顶对齐" onClick={() => alignSelected('top')} className={`px-1.5 py-0.5 rounded ${B}`}>顶</button>
+              <button title="垂直居中" onClick={() => alignSelected('vcenter')} className={`px-1.5 py-0.5 rounded ${B}`}>垂直中</button>
+              <button title="底对齐" onClick={() => alignSelected('bottom')} className={`px-1.5 py-0.5 rounded ${B}`}>底</button>
+              {selIds.length >= 3 && (
+                <>
+                  <button title="水平等间距" onClick={() => alignSelected('hdistribute')} className={`px-1.5 py-0.5 rounded ${B}`}>水平匀</button>
+                  <button title="垂直等间距" onClick={() => alignSelected('vdistribute')} className={`px-1.5 py-0.5 rounded ${B}`}>垂直匀</button>
+                </>
+              )}
+            </>
+          )}
+          <span className="mx-0.5 text-[#E7E7EB]">|</span>
+          <select value={layout} onChange={(e) => applyLayout(e.target.value)} className={`rounded px-1 py-0.5 bg-white ${B}`} title="页面版式">
+            <option value="title-body">标题+正文</option>
+            <option value="title-only">仅标题</option>
+            <option value="two-col">两栏</option>
+            <option value="blank">空白</option>
+          </select>
+          <select value={ar} onChange={(e) => onArChange(e.target.value as '16/9' | '4/3')} className={`rounded px-1 py-0.5 bg-white ${B}`} title="版心比例">
+            <option value="16/9">16:9</option>
+            <option value="4/3">4:3</option>
+          </select>
+          <span className="flex-1" />
+          {!fullscreen && !embedFullscreen && (
+            <button onClick={() => setFullscreen(true)} title="全屏编辑" className={`px-2 py-0.5 rounded ${B}`}>⛶ 全屏</button>
+          )}
+        </div>
+
+        {/* 画布（按版心比例基准，按容器缩放） */}
+        <div className="flex-1 overflow-y-auto flex items-start justify-center py-2">
+          <div style={{ width: cw * scale, height: ch * scale }}>
+            <div
+              ref={canvasRef}
+              onPointerDown={onCanvasPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              className="relative overflow-hidden bg-white rounded-md ring-1 ring-[#E7E7EB] shadow"
+              style={{ width: cw, height: ch, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+            >
+              {/* 标题条 */}
+              <div className="absolute left-0 top-0 h-[15.3%] w-full" style={{ background: theme.primary }} />
+              {editingTitle ? (
+                <input
+                  autoFocus value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={() => { setEditingTitle(false); commit(elementsRef.current, titleRef.current) }}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                  className="absolute left-[2%] top-[3%] z-20 text-2xl font-bold bg-white/90 rounded px-1 outline-none"
+                  style={{ width: '90%', color: '#222' }}
+                />
+              ) : (
+                <div
+                  className="absolute left-[2%] top-0 flex h-[15.3%] items-center"
+                  style={{ width: '96%' }}
+                  onDoubleClick={() => setEditingTitle(true)}
+                  title="双击编辑标题"
+                >
+                  <span className="truncate text-2xl font-bold" style={{ color: theme.onPrimary }}>{title}</span>
+                </div>
+              )}
+
+              {/* 元素层 */}
+              {elements.map((el) => {
+                const selected = selIds.includes(el.id)
+                const editing = editingId === el.id
+                return (
+                  <div
+                    key={el.id}
+                    className="absolute"
+                    style={{
+                      left: `${el.x}%`, top: `${el.y}%`, width: `${el.w}%`, height: `${el.h}%`,
+                      outline: selected ? `2px solid ${SEL}` : '1px dashed transparent',
+                      transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                      cursor: editing ? 'text' : 'move',
+                      zIndex: selected ? 10 : 1,
+                    }}
+                    onPointerDown={(e) => onPointerDown(e, el, 'move')}
+                    onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text') setEditingId(el.id) }}
+                  >
+                    {el.type === 'text' && (
+                      editing ? (
+                        <textarea
+                          autoFocus value={el.text || ''}
+                          onChange={(e) => apply(elements.map(x => x.id === el.id ? { ...x, text: e.target.value } : x))}
+                          onBlur={() => { setEditingId(null); commit(elementsRef.current) }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className="h-full w-full resize-none bg-white/80 outline-none"
+                          style={{
+                            color: `#${el.color || '222222'}`, fontSize: el.fontSize || 18, fontWeight: el.bold ? 700 : 400,
+                            fontStyle: el.italic ? 'italic' : undefined,
+                            textDecoration: el.underline ? 'underline' : undefined,
+                            textAlign: el.align || 'left', fontFamily: el.fontFamily || FONT, lineHeight: el.lineHeight || 1.4,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className="h-full w-full overflow-hidden whitespace-pre-wrap"
+                          style={{
+                            color: `#${el.color || '222222'}`, fontSize: el.fontSize || 18, fontWeight: el.bold ? 700 : 400,
+                            fontStyle: el.italic ? 'italic' : undefined,
+                            textDecoration: el.underline ? 'underline' : undefined,
+                            textAlign: el.align || 'left', fontFamily: el.fontFamily || FONT, lineHeight: el.lineHeight || 1.4,
+                          }}
+                        >
+                          {el.bullet ? (el.text || '').split('\n').map((t, k) => <div key={k}>• {t}</div>) : el.text}
+                        </div>
+                      )
+                    )}
+                    {el.type === 'image' && el.src && <img src={el.src} alt="" draggable={false} className="h-full w-full object-contain pointer-events-none" />}
+                    {el.type === 'shape' && <ShapeRender shape={el.shape} fill={el.fill} />}
+                    {selected && selIds.length === 1 && (
+                      <div
+                        className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-full bg-white ring-2"
+                        style={{ cursor: 'nwse-resize', ['--tw-ring-color' as string]: SEL }}
+                        onPointerDown={(e) => onPointerDown(e, el, 'resize')}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* 对齐参考线 */}
+              {guide.v != null && (
+                <div className="absolute top-0 pointer-events-none" style={{ left: `${guide.v}%`, width: 1, height: '100%', background: '#FF4D4F', zIndex: 50 }} />
+              )}
+              {guide.h != null && (
+                <div className="absolute left-0 pointer-events-none" style={{ top: `${guide.h}%`, height: 1, width: '100%', background: '#FF4D4F', zIndex: 50 }} />
+              )}
+
+              {/* 框选矩形 */}
+              {marquee && (
+                <div className="absolute pointer-events-none border bg-opacity-10" style={{ left: `${marquee.x}%`, top: `${marquee.y}%`, width: `${marquee.w}%`, height: `${marquee.h}%`, zIndex: 60, borderColor: SEL, background: `${SEL}1A` }} />
+              )}
+            </div>
+          </div>
+        </div>
+        <p className="mt-1 text-center text-xs text-[#9A9A9A] shrink-0">双击标题/文本框编辑文字 · 拖拽移动(自动吸附) · 拖右下角缩放 · 空白处拖框选 · Ctrl+Z/Y 撤销重做 · Ctrl+C/V/D 复制粘贴副本 · Delete 删 · 方向键微调</p>
       </div>
-      <p className="mt-1 text-center text-xs text-slate-400">双击标题/文本框编辑文字 · 拖拽移动 · 拖右下角缩放</p>
+
+      {/* 右侧属性面板 */}
+      {propPanel}
     </div>
   )
+
+  // ── 全屏编辑（fixed inset-0 + 深色标题栏 + 退出/完成，借鉴教案全屏编辑器） ──
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-[80] bg-[#F0F2F5] flex flex-col select-none" onClick={(e) => { if (e.target === e.currentTarget) setFullscreen(false) }}>
+        <div className="flex items-center justify-between px-4 py-2 bg-[#212529] text-white shrink-0">
+          <span className="text-sm font-medium truncate">{title || '未命名'} · PPT 全屏编辑</span>
+          <div className="flex gap-2">
+            <button onClick={() => setFullscreen(false)} className="px-3 py-1 text-xs rounded bg-white/15 hover:bg-white/25">退出全屏</button>
+            <button onClick={() => setFullscreen(false)} className="px-3 py-1 text-xs rounded bg-[#02A7F0] hover:bg-[#0288D1]">完成</button>
+          </div>
+        </div>
+        {body}
+      </div>
+    )
+  }
+
+  return <div className="w-full select-none flex flex-col">{body}</div>
 }

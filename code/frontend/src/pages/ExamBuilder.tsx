@@ -50,6 +50,7 @@ export default function ExamBuilder() {
         const ex = res?.item || res
         if (!ex) return
         setExamTitle(ex.title || '')
+        if (ex.status === 'active' || ex.status === 'published') setExamStatus('active')
         if (typeof ex.total_score === 'number') setTotalScore(ex.total_score)
         if (typeof ex.duration_minutes === 'number') setExamDuration(ex.duration_minutes)
         // 题目解析
@@ -71,6 +72,8 @@ export default function ExamBuilder() {
 
   // 表单状态
   const [examTitle, setExamTitle] = useState('')
+  // 作品发布状态（active=已发布定版，版本只读禁回退；draft=草稿可回退）
+  const [examStatus, setExamStatus] = useState<'draft' | 'active'>('draft')
   const [totalScore, setTotalScore] = useState(100)
   const [extraRequirements, setExtraRequirements] = useState('')
   const [examDuration, setExamDuration] = useState(40)
@@ -511,6 +514,9 @@ export default function ExamBuilder() {
             value={examDocContent}
             onChange={(v) => setExamDocContent(v || '')}
             docTitle={examTitle || '未命名试卷'}
+            resourceType="exam"
+            resourceId={examId}
+            locked={examStatus === 'active'}
             toolbarExtra={
               <>
                 <button onClick={handleExportWord} disabled={!selectedQuestions.length}

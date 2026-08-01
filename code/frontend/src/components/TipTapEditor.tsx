@@ -24,6 +24,7 @@ import { Bold, Italic, UnderlineIcon, Strikethrough, AlignLeft, AlignCenter, Ali
 import { FormulaPreview } from './FormulaRender'
 import ResourcePicker from './ResourcePicker'
 import { useToast } from './Toast'
+import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 // @ts-ignore - mammoth 浏览器版无类型
 import * as mammoth from 'mammoth/mammoth.browser'
 import 'katex/dist/katex.min.css'
@@ -476,9 +477,15 @@ interface Props {
   docTitle?: string     // 页眉展示的文档标题（不存储，仅视觉，对齐 Word/腾讯文档）
   /** 工具栏尾部注入（如"导出教案/全屏"），与内置"导入 Word/保存版本"并列在最右 */
   toolbarExtra?: ReactNode
+  /** 批注/版本入库：作品资源类型（lesson_plan/exam/exercise_sheet/sheet）。不传则右侧栏批注/版本禁用（提示先保存） */
+  resourceType?: string
+  /** 批注/版本入库：作品 id。新建未保存时为空 → 禁用右侧栏 */
+  resourceId?: string
+  /** 作品已发布（active）→ 版本只读、禁存/禁恢复 */
+  locked?: boolean
 }
 
-export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, fullscreen, docTitle, toolbarExtra }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, fullscreen, docTitle, toolbarExtra, resourceType, resourceId, locked }: Props) {
   const { toast } = useToast()
   // 预览态（readOnly）或全屏承载下，左右侧栏默认展开
   const [outlineVisible, setOutlineVisible] = useState(fullscreen || readOnly ? true : false)
@@ -486,10 +493,10 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
   // 预览态（readOnly）隐藏编辑工具栏；编辑态（!readOnly）照常展示
   const showToolbar = !noPanels && !readOnly
 
-  // 版本快照
-  const [snapshots, setSnapshots] = useState<Array<{ time: string; content: string; label?: string }>>([])
-  // 批注
-  const [annotations, setAnnotations] = useState<Array<{ id: string; text: string; comment: string; time: string }>>([])
+  // 版本快照 + 批注：入库 hook（传了 resourceType+resourceId 才入库；locked=已发布禁存/禁恢复）
+  const canPersist = !!(resourceType && resourceId)
+  const anns = useAnnotations(resourceType || '', resourceId)
+  const vers = useVersions(resourceType || '', resourceId, !!locked)
   const [newAnnotation, setNewAnnotation] = useState('')
   const [rightTab, setRightTab] = useState<'annotations' | 'history'>('annotations')
 
@@ -652,29 +659,33 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
     return () => clearInterval(timer)
   }, [editor])
 
-  // 版本快照
-  const takeSnapshot = useCallback((label?: string) => {
-    if (!editor) return
+  // 版本快照（入库；payload=文档 HTML 字符串）
+  const takeSnapshot = useCallback(async (label?: string) => {
+    if (!editor || !canPersist) return
     const html = editor.getHTML()
-    setSnapshots(prev => [{ time: new Date().toLocaleTimeString(), content: html, label: label || '手动保存' }, ...prev].slice(0, 30))
-  }, [editor])
+    const ok = await vers.take(label || `手动保存 · ${new Date().toLocaleTimeString()}`, html)
+    if (!ok) toast(locked ? '已发布定版，不可存版本快照' : '版本保存失败', 'warning')
+  }, [editor, canPersist, vers, locked, toast])
 
-  const restoreSnapshot = useCallback((html: string) => {
+  const restoreSnapshot = useCallback(async (versionId: string) => {
     if (!editor) return
+    const payload = await vers.restore(versionId)
+    if (payload == null) { toast('已发布定版，不可回退版本', 'warning'); return }
+    const html = typeof payload === 'string' ? payload : ''
     editor.commands.setContent(html)
     onChange(html)
-  }, [editor, onChange])
+    toast('已恢复到该版本', 'success')
+  }, [editor, onChange, vers, toast])
 
-  // 批注
-  const addAnnotation = () => {
+  // 批注（入库；anchor=选中文字）
+  const addAnnotation = async () => {
     const sel = window.getSelection()
     const selText = sel?.toString()?.trim()
-    if (!selText || !newAnnotation.trim()) return
-    const ann = { id: Date.now().toString(36), text: selText, comment: newAnnotation.trim(), time: new Date().toLocaleTimeString() }
-    setAnnotations(prev => [ann, ...prev])
+    if (!selText || !newAnnotation.trim() || !canPersist) return
+    await anns.add('text', { text: selText }, newAnnotation)
     setNewAnnotation('')
   }
-  const deleteAnnotation = (id: string) => setAnnotations(prev => prev.filter(a => a.id !== id))
+  const deleteAnnotation = (id: string) => anns.remove(id)
 
   // 公式插入（新建）
   const openFormulaEditor = (type: 'math' | 'chemistry') => {
@@ -1007,70 +1018,79 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
               <div className="flex-1 flex flex-col overflow-hidden">
                 {/* 新增批注 */}
                 <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
-                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">选中正文文字后，在此输入批注内容</p>
+                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">{canPersist ? '选中正文文字后，在此输入批注内容' : '保存后（生成作品 id）才能添加批注'}</p>
                   <textarea
                     value={newAnnotation}
                     onChange={e => setNewAnnotation(e.target.value)}
                     rows={2}
                     placeholder="输入批注..."
-                    className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#02A7F0] outline-none resize-none"
+                    disabled={!canPersist}
+                    className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#02A7F0] outline-none resize-none disabled:opacity-40"
                   />
                   <button onClick={addAnnotation}
-                    disabled={!newAnnotation.trim()}
+                    disabled={!newAnnotation.trim() || !canPersist}
                     className="w-full mt-1.5 py-1 text-[11px] text-white bg-[#02A7F0] rounded hover:bg-[#0288D1] disabled:opacity-40 flex items-center justify-center gap-1">
                     <Plus size={10} /> 添加批注
                   </button>
                 </div>
-                {/* 批注列表 */}
+                {/* 批注列表（入库，跨刷新加载） */}
                 <div className="flex-1 overflow-y-auto">
-                  {annotations.length === 0 ? (
+                  {anns.items.length === 0 ? (
                     <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
                   ) : (
-                    annotations.map((a) => (
-                      <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded truncate max-w-[120px]" title={a.text}>
-                            "{a.text.substring(0, 20)}{a.text.length > 20 ? '…' : ''}"
-                          </span>
-                          <button onClick={() => deleteAnnotation(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0">
-                            <X size={10} />
-                          </button>
+                    anns.items.map((a) => {
+                      let anchorText = ''
+                      try { anchorText = JSON.parse(a.anchor || '{}').text || '' } catch { /* noop */ }
+                      return (
+                        <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded truncate max-w-[120px]" title={anchorText}>
+                              "{anchorText.substring(0, 20)}{anchorText.length > 20 ? '…' : ''}"
+                            </span>
+                            <button onClick={() => deleteAnnotation(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0">
+                              <X size={10} />
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
+                          <span className="text-[9px] text-[#C0C0C0]">{a.created_at?.slice(0, 16).replace('T', ' ')}</span>
                         </div>
-                        <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
-                        <span className="text-[9px] text-[#C0C0C0]">{a.time}</span>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
             )}
 
-            {/* 版本历史面板 */}
+            {/* 版本历史面板（入库；发布定版后只读禁存/禁恢复） */}
             {rightTab === 'history' && (
               <div className="flex-1 overflow-y-auto py-1">
-                <button onClick={() => takeSnapshot('点击保存')}
-                  className="w-full text-left px-3 py-1.5 text-[11px] text-[#02A7F0] hover:bg-[#F0F2F5] flex items-center gap-1">
-                  <Plus size={10} /> 保存当前版本
-                </button>
-                <div className="border-t border-[#F0F0F0] my-1" />
-                {snapshots.length === 0 ? (
-                  <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
+                {!canPersist ? (
+                  <p className="text-[11px] text-[#C0C0C0] px-3 py-2">保存后（生成作品 id）才能存版本快照</p>
+                ) : locked ? (
+                  <p className="text-[10px] text-[#9A9A9A] px-3 py-2">已发布定版，版本仅供查看，不可存/回退</p>
                 ) : (
-                  snapshots.map((s, i) => (
-                    <div key={i} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
+                  <>
+                    <button onClick={() => takeSnapshot('点击保存')}
+                      className="w-full text-left px-3 py-1.5 text-[11px] text-[#02A7F0] hover:bg-[#F0F2F5] flex items-center gap-1">
+                      <Plus size={10} /> 保存当前版本
+                    </button>
+                    <div className="border-t border-[#F0F0F0] my-1" />
+                  </>
+                )}
+                {vers.items.length === 0 ? (
+                  canPersist && <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
+                ) : (
+                  vers.items.map((s) => (
+                    <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[#353535]">{s.time}</span>
+                        <span className="text-[11px] text-[#353535]">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
                         <span className="text-[9px] text-[#C0C0C0]">{s.label}</span>
                       </div>
-                      {!readOnly && (
+                      {!readOnly && !locked && canPersist && (
                       <div className="flex gap-2 mt-0.5">
-                        <button onClick={() => restoreSnapshot(s.content)}
+                        <button onClick={() => restoreSnapshot(s.id)}
                           className="text-[10px] text-[#02A7F0] hover:underline flex items-center gap-0.5">
                           <RotateCcw size={9} />恢复
-                        </button>
-                        <button onClick={() => editor?.commands.setContent(s.content)}
-                          className="text-[10px] text-[#9A9A9A] hover:underline flex items-center gap-0.5">
-                          <Eye size={9} />预览
                         </button>
                       </div>
                       )}

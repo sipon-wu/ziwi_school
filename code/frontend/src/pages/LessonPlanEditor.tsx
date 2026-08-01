@@ -129,6 +129,8 @@ export default function LessonPlanEditor() {
   const [extraRequirements, setExtraRequirements] = useState('')
   const [content, setContent] = useState('')
   const [planId, setPlanId] = useState<string|null>(id || null)
+  // 作品发布状态（active/published=定稿，版本只读禁回退；draft=草稿可回退）
+  const [planStatus, setPlanStatus] = useState<'draft' | 'published'>('draft')
   const [saving, setSaving] = useState(false)
   const [curriculum, setCurriculum] = useState<any[]>([])
   const [modelVersion, setModelVersion] = useState('')
@@ -264,6 +266,7 @@ export default function LessonPlanEditor() {
       const c = data.content || ''
       setContent(c === '{}' || c === '""' ? '' : c)
       setPlanId(data.id)
+      if (data.status === 'active' || data.status === 'published' || data.review_status === 'approved') setPlanStatus('published')
       if (data.curriculum_alignments) {
         try { setCurriculum(JSON.parse(data.curriculum_alignments)) } catch { setCurriculum([]) }
       }
@@ -550,6 +553,9 @@ export default function LessonPlanEditor() {
       placeholder="开始编写教案正文..."
       toolbarExtra={exportToolbarExtra}
       onFullscreen={() => setShowFullscreenEditor(true)}
+      resourceType="lesson_plan"
+      resourceId={planId || undefined}
+      locked={planStatus === 'published'}
     />
   )
 
@@ -886,7 +892,7 @@ export default function LessonPlanEditor() {
         <div className="flex-1 overflow-hidden">
           {/* 全屏编辑必须与文档模式一致：value 必须是 HTML（contentToHtml 把 Markdown 转 HTML），
               不能传原始 content（Markdown），否则编辑器会把 #/## 当成纯文本显示 */}
-          <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." fullscreen />
+          <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." fullscreen resourceType="lesson_plan" resourceId={planId || undefined} locked={planStatus === 'published'} />
         </div>
       </div>
     )}

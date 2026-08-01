@@ -8,6 +8,7 @@ const LessonPlanList = lazy(() => import('./pages/LessonPlanList'))
 const LessonPlanEditor = lazy(() => import('./pages/LessonPlanEditor'))
 const Materials = lazy(() => import('./pages/Materials'))
 const CoursewareBuilder = lazy(() => import('./pages/CoursewareBuilder'))
+const CoursewareList = lazy(() => import('./pages/CoursewareList'))
 const Exercises = lazy(() => import('./pages/Exercises'))
 const ExerciseGenerator = lazy(() => import('./pages/ExerciseGenerator'))
 const ExamList = lazy(() => import('./pages/ExamList'))
@@ -43,7 +44,12 @@ export default function App() {
         <Route path="/lesson-plans/:id/edit" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
         <Route path="/lesson-plans/:id" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />
         <Route path="/materials" element={<Suspense fallback={<Loading />}><Materials /></Suspense>} />
-        <Route path="/courseware/:format" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
+        <Route path="/courseware/ppt" element={<Suspense fallback={<Loading />}><CoursewareList format="ppt" /></Suspense>} />
+        <Route path="/courseware/h5" element={<Suspense fallback={<Loading />}><CoursewareList format="h5" /></Suspense>} />
+        <Route path="/courseware/video" element={<Suspense fallback={<Loading />}><CoursewareList format="video" /></Suspense>} />
+        <Route path="/courseware/:format/new" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
+        <Route path="/courseware/:format/:id" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
+        <Route path="/courseware/:format/:id/edit" element={<Suspense fallback={<Loading />}><CoursewareBuilder /></Suspense>} />
         <Route path="/exercises" element={<Suspense fallback={<Loading />}><Exercises /></Suspense>} />
         <Route path="/exercises/new" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />
         <Route path="/exercises/:id/edit" element={<Suspense fallback={<Loading />}><ExerciseGenerator /></Suspense>} />

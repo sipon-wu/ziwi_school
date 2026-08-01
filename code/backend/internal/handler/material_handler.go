@@ -107,6 +107,9 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		Tag     string `json:"tag"`
 		URL     string `json:"url"`
 		Content string `json:"content"`
+		Status  string `json:"status"`
+		Grade   string `json:"grade"`
+		Subject string `json:"subject"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
@@ -124,16 +127,62 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		Tag:       body.Tag,
 		URL:       body.URL,
 		Content:   body.Content,
+		Status:    body.Status,
+		Grade:     body.Grade,
+		Subject:   body.Subject,
 		CreatedAt: time.Now(),
 	}
 	if m.Type == "" {
 		m.Type = "courseware"
+	}
+	if m.Status == "" {
+		m.Status = "active"
 	}
 	if err := h.repo.Create(m); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, m)
+}
+
+// UpdateMaterial 更新素材（课件草稿/发布落库复用）
+// PUT /api/materials/:id
+func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
+	id := c.Param("id")
+	existing, err := h.repo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "素材不存在"})
+		return
+	}
+	var body struct {
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Tag     string `json:"tag"`
+		URL     string `json:"url"`
+		Content string `json:"content"`
+		Status  string `json:"status"`
+		Grade   string `json:"grade"`
+		Subject string `json:"subject"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
+		return
+	}
+	existing.Name = body.Name
+	existing.Type = body.Type
+	existing.Tag = body.Tag
+	existing.URL = body.URL
+	existing.Content = body.Content
+	if body.Status != "" {
+		existing.Status = body.Status
+	}
+	existing.Grade = body.Grade
+	existing.Subject = body.Subject
+	if err := h.repo.Update(existing); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, existing)
 }
 
 func formatFileSize(sz int64) string {

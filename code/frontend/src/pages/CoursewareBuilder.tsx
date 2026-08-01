@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Sparkles, Loader2, FileText } from 'lucide-react'
+import { Sparkles, Loader2, FileText, MessageSquare, History, Plus, X, RotateCcw, ChevronLeft, Maximize2, Undo2, Redo2, TextCursorInput, Shapes, Image as ImageIcon, ZoomIn } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
@@ -20,6 +20,7 @@ import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview from '../components/PptxPreview'
 import ThemePicker from '../components/ThemePicker'
+import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
@@ -28,7 +29,7 @@ const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token')
 // 教学课件频道：PPT / H5 / 视频 共用同一编辑器与同一份内容来源（一次创作、多格式交付）
 type CwFormat = 'ppt' | 'h5' | 'video'
 const CW_CHANNEL: Record<CwFormat, { name: string; chip: string; color: string; scene: string; previewSuffix: string }> = {
-  ppt:   { name: 'PPT 课件',    chip: 'PPT',  color: '#02A7F0', scene: 'PPT 课件',    previewSuffix: 'PPT 放映' },
+  ppt:   { name: 'PPT 课件',    chip: 'PPT',  color: '#722ED1', scene: 'PPT 课件',    previewSuffix: 'PPT 放映' },
   h5:    { name: 'H5 互动课件', chip: 'H5',   color: '#FA8C16', scene: 'H5 互动课件', previewSuffix: 'H5 预览' },
   video: { name: '视频课件',    chip: '视频', color: '#52C41A', scene: '视频课件',    previewSuffix: '分镜预览' },
 }
@@ -67,8 +68,16 @@ export default function CoursewareBuilder() {
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
   const { format } = useParams<{ format?: string }>()
   const navigate = useNavigate()
+  const { id } = useParams()
   const cwFormat: CwFormat = format === 'h5' ? 'h5' : format === 'video' ? 'video' : 'ppt'
   const channel = CW_CHANNEL[cwFormat]
+  const isEditing = !!id
+  const [materialId, setMaterialId] = useState<string>(id || '')
+  // 缩略图侧栏可收起（腾讯文档范式：左侧页管理可折叠，编辑区最大化）
+  const [thumbCollapsed, setThumbCollapsed] = useState(false)
+  // 全屏预览（放映态）开关：view 态由框架受控自动开
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [cwLoading, setCwLoading] = useState<boolean>(isEditing)
   const [videoConfig, setVideoConfig] = useState<CwVideoConfig>({ presenter: 'none', style: 'knowledge' })
 
   // eslint-disable-next-line prefer-const
@@ -136,6 +145,21 @@ export default function CoursewareBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 编辑已有课件：从素材库加载内容回填（对齐习题/教案「查看/编辑」由 id 加载）
+  useEffect(() => {
+    if (!isEditing || !id) return
+    setCwLoading(true)
+    materialAPI.get(id).then((m: any) => {
+      if (!m) return
+      setGenTitle((m.name || '').replace(/_课件$/, ''))
+      setCwOutline(materializeOutline(markdownToOutline(m.content || '')))
+      setCwMarkdown(m.content || '')
+      setCwExtra(m.tag || '')
+      if (m.grade) setThemeId(recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId)
+    }).catch(() => {}).finally(() => setCwLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
   // 课前问诊：进页拉一次
   useEffect(() => {
     if (consultQuestions.length > 0 || consultLoading) return
@@ -153,7 +177,10 @@ export default function CoursewareBuilder() {
   // 进入任一课件频道默认文档模式：视频频道需文档模式才显示配置面板，PPT/H5 也围绕提纲；用户仍可手动切 AI 选知识点
   useEffect(() => { if (ctrl.workMode !== 'doc') ctrl.setWorkMode('doc') }, [cwFormat, ctrl])
 
-  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师', theme: getTheme(themeId) })
+  // 版心比例：16:9（默认，投影标准）或 4:3（传统屏），预览与导出同步
+  const [cwAr, setCwAr] = useState<'16/9' | '4/3'>('16/9')
+
+  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师', theme: getTheme(themeId), aspect: cwAr })
 
   // ── AI 生成课件 ──
   const handleGenCourseware = async (leftChatContext?: string) => {
@@ -300,16 +327,32 @@ export default function CoursewareBuilder() {
     } catch (e: any) { toast('H5 导出失败: ' + (e.message || '未知错误'), 'error') }
   }
 
-  // ── footer：保存草稿(本地暂存) / 发布到素材库(红线校验闸) ──
-  const handleSaveDraft = () => {
+  // ── footer：保存草稿(落库，与习题/教案一致) / 发布到素材库(红线校验闸) ──
+  const handleSaveDraft = async () => {
+    const payload = {
+      name: `${genTitle.trim() || '未命名'}_课件`,
+      type: 'courseware',
+      tag: `${teaching.subject}${gradeName}`,
+      content: outlineToMarkdown(cwOutline, cwOpts()),
+      status: 'draft',
+      grade: gradeName,
+      subject: teaching.subject,
+    }
     try {
+      // 本地兜底暂存（未发布前可恢复）
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
         title: genTitle, extra: cwExtra, markdown: cwMarkdown,
         outline: cwOutline, divergence: cwDivergence, divergenceLevel, themeId,
         videoConfig,
       }))
-      toast('草稿已暂存本地（发布后自动清除）', 'success')
-    } catch { toast('草稿暂存失败', 'error') }
+      if (materialId) {
+        await materialAPI.update(materialId, payload)
+      } else {
+        const m: any = await materialAPI.createJSON(payload)
+        if (m?.id) setMaterialId(m.id)
+      }
+      toast('草稿已保存', 'success')
+    } catch (e: any) { toast('草稿保存失败: ' + (e.message || ''), 'error') }
   }
 
   // 必须在 ctrl = useEditorController(...) 之前声明，避免 const 的 TDZ 类型报错
@@ -334,12 +377,20 @@ export default function CoursewareBuilder() {
     } finally { setValidating(false) }
     setSavingCw(true)
     try {
-      await materialAPI.createJSON({
+      const payload = {
         name: `${genTitle.trim()}_课件`,
         type: 'courseware',
         tag: `${teaching.subject}${gradeName}`,
         content: outlineToMarkdown(cwOutline, cwOpts()),
-      })
+        status: 'active',
+        grade: gradeName,
+        subject: teaching.subject,
+      }
+      if (materialId) await materialAPI.update(materialId, payload)
+      else {
+        const m: any = await materialAPI.createJSON(payload)
+        if (m?.id) setMaterialId(m.id)
+      }
       try { localStorage.removeItem(DRAFT_KEY) } catch { /* noop */ }
       toast('课件已发布到素材库', 'success')
     }     catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
@@ -347,6 +398,48 @@ export default function CoursewareBuilder() {
   }
 
   ctrl = useEditorController({ onSaveDraft: handleSaveDraft, onPublish: handlePublish })
+
+  // 批注 / 版本快照：课件按页锚定（page:N，N=当前 docSlide+1）；发布定版后只读禁存/禁恢复
+  const cwLocked = ctrl.status === 'active'
+  const cwAnn = useAnnotations('material', materialId)
+  const cwVer = useVersions('material', materialId, cwLocked)
+  const [cwAnnText, setCwAnnText] = useState('')
+  const [cwAnnOpen, setCwAnnOpen] = useState(false)
+  const [cwAnnTab, setCwAnnTab] = useState<'annotations' | 'history'>('annotations')
+  // 全屏编辑：隐藏左右栏与发散/校验，最大化画布
+  const [cwFullscreen, setCwFullscreen] = useState(false)
+  const [cwFsThumb, setCwFsThumb] = useState(true)
+  const [cwFsAnn, setCwFsAnn] = useState(false)
+  useEffect(() => {
+    if (!cwFullscreen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCwFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [cwFullscreen])
+  const addCwAnnotation = () => {
+    if (!cwAnnText.trim() || !materialId) return
+    cwAnn.add('page', { page: docSlide + 1, pageTitle: cwOutline[docSlide]?.title || '' }, cwAnnText.trim())
+    setCwAnnText('')
+  }
+  const takeCwSnapshot = async () => {
+    if (!materialId) return
+    const ok = await cwVer.take('课件快照', cwOutline)
+    if (!ok) toast('已发布定版或保存失败', 'warning')
+  }
+  const restoreCwSnapshot = async (versionId: string) => {
+    const payload = await cwVer.restore(versionId)
+    if (payload == null) { toast('已发布定版，不可回退版本', 'warning'); return }
+    if (Array.isArray(payload) && payload.length) { setCwOutline(payload as OutlineSlide[]); toast('已恢复到该版本', 'success') }
+  }
+
+  // 查看态：进入查看态即自动打开全屏预览（按 id 重算，兼容同标签内切换不同课件），与组卷一致
+  useEffect(() => {
+    if (ctrl?.readOnly) setPreviewOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  // 查看态点「编辑」：关全屏预览 + 原地解锁（replaceState 同步 URL 为 /:id/edit，与组卷一致）
+  const editNow = () => { setPreviewOpen(false); ctrl.forceEdit(); ctrl.setWorkMode('doc'); if (id) window.history.replaceState(null, '', `/courseware/${cwFormat}/${id}/edit`) }
 
   // ── 左栏（AI/DOC 共用，同教案/出题/组卷） ──
   const leftPanel = (
@@ -491,41 +584,61 @@ export default function CoursewareBuilder() {
 
   // ── 右栏 文档模式：可拖拽编辑画布 + 缩略图页管理 + 发散地图 + 校验面板 ──
   const rightPanelDoc = (
-    <div className="flex-1 flex overflow-hidden bg-[#FAFAFA]">
-      {/* 缩略图页管理 */}
-      <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
-        <div className="flex items-center justify-between px-1 pb-1">
-          <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
-          <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#722ED1] border border-[#722ED1] rounded hover:bg-[#F7F0FC]">+ 页</button>
-        </div>
-        {cwOutline.map((s, idx) => (
-          <div key={idx} onClick={() => setDocSlide(idx)}
-            className={`group cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#722ED1] bg-[#F7F0FC]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
-                <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 text-[10px] text-[#353535] hover:text-[#722ED1] disabled:opacity-30">↑</button>
-                <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 text-[10px] text-[#353535] hover:text-[#722ED1] disabled:opacity-30">↓</button>
-                <button onClick={(e) => { e.stopPropagation(); deleteCwPage(idx) }} className="px-1 text-[10px] text-[#F5222D] hover:bg-[#FFF1F0]">✕</button>
-              </div>
+    <div className="flex-1 flex overflow-hidden bg-[#FAFAFA] relative">
+      {/* 缩略图页管理（可收起，腾讯文档范式） */}
+      {!thumbCollapsed && (
+        <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
+          <div className="flex items-center justify-between px-1 pb-1">
+            <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
+            <div className="flex items-center gap-1">
+              <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#722ED1] border border-[#722ED1] rounded hover:bg-[#F7F0FC]">+ 页</button>
+              <button onClick={() => setThumbCollapsed(true)} title="收起页列表" className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
             </div>
-            <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
           </div>
-        ))}
-      </div>
+          {cwOutline.map((s, idx) => (
+            <div key={idx} onClick={() => setDocSlide(idx)}
+              className={`group cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#722ED1] bg-[#F7F0FC]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                  <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 text-[10px] text-[#353535] hover:text-[#722ED1] disabled:opacity-30">↑</button>
+                  <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 text-[10px] text-[#353535] hover:text-[#722ED1] disabled:opacity-30">↓</button>
+                  <button onClick={(e) => { e.stopPropagation(); deleteCwPage(idx) }} className="px-1 text-[10px] text-[#F5222D] hover:bg-[#FFF1F0]">✕</button>
+                </div>
+              </div>
+              <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {thumbCollapsed && (
+        <button onClick={() => setThumbCollapsed(false)} title="展开页列表"
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-7 h-12 rounded-r bg-[#212529]/80 text-white flex items-center justify-center hover:bg-[#212529] text-[14px]">›</button>
+      )}
 
       {/* 可编辑画布 */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         <div className="flex items-center gap-2 flex-wrap mb-3">
           <button onClick={exportCwPptx} className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#5B23A8]">导出 PPT</button>
+
           <button onClick={polishOutline} disabled={polishing} className="px-3 py-1.5 text-[12px] text-[#722ED1] border border-[#722ED1] rounded-[4px] hover:bg-[#F7F0FC] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色'}</button>
           <button onClick={exportCwDocx} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 Word</button>
           <button onClick={exportCwPdf} className="px-3 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-white">导出 PDF</button>
-          <button onClick={exportCwH5} className={`px-3 py-1.5 text-[12px] border rounded-[4px] ${cwFormat === 'h5' ? 'text-white bg-[#FA8C16] border-[#FA8C16] hover:bg-[#E67E00]' : 'text-[#FA8C16] border-[#FA8C16] hover:bg-[#FFF7E6]'}`}>导出 H5</button>
+          <button onClick={exportCwH5} className={`px-3 py-1.5 text-[12px] border rounded-[4px] ${cwFormat === 'h5' ? 'text-white bg-[#FA8C16] border-[#FA8C16] hover:bg-[#E67E00]' : 'text-[#9A9A9A] border-[#E7E7EB] hover:bg-white'}`}>导出 H5</button>
           {cwFormat === 'video' && (
             <button disabled title="AI 自动生成讲解视频即将上线"
-              className="px-3 py-1.5 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">🎬 AI 生成视频 <span className="text-[10px] px-1 bg-[#52C41A] text-white rounded">即将上线</span></button>
+              className="px-3 py-1.5 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">🎬 AI 生成视频 <span className="text-[10px] px-1 bg-[#B0B8C4] text-white rounded">即将上线</span></button>
           )}
+          <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
+            className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F7F7F8]" title="版心比例">
+            <option value="16/9">16:9</option>
+            <option value="4/3">4:3</option>
+          </select>
+          <div className="flex-1" />
+          <button onClick={() => setCwFullscreen(true)} title="全屏编辑"
+            className="px-2.5 py-1.5 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#E6F7FF] flex items-center gap-1">
+            <Maximize2 size={14} /> 全屏
+          </button>
           <ThemePicker value={themeId} onChange={setThemeId} />
         </div>
         {cwFormat === 'video' && (
@@ -563,6 +676,7 @@ export default function CoursewareBuilder() {
             index={docSlide}
             onIndexChange={setDocSlide}
             onSlideChange={handleDocSlideChange}
+            aspectRatio={cwAr}
           />
         ) : (
           <div className="text-center py-16 bg-white border border-dashed border-[#E7E7EB] rounded-[4px]">
@@ -587,7 +701,7 @@ export default function CoursewareBuilder() {
                 <label key={i} className={`flex items-start gap-2 text-[11px] leading-snug rounded-[3px] px-1 py-1 ${removedDivergence[d.content] ? 'bg-[#FFF1E6]' : 'hover:bg-[#F6F7F8]'}`}>
                   <input type="checkbox" className="mt-0.5 shrink-0" checked={!removedDivergence[d.content]}
                     onChange={e => setRemovedDivergence(s => ({ ...s, [d.content]: !e.target.checked }))} />
-                  <span className={`px-1.5 py-0.5 rounded-[2px] text-white shrink-0 ${d.zone === 'edge' ? 'bg-[#722ED1]' : 'bg-[#02A7F0]'}`}>
+                  <span className={`px-1.5 py-0.5 rounded-[2px] text-white shrink-0 ${d.zone === 'edge' ? 'bg-[#722ED1]' : 'bg-[#9A9A9A]'}`}>
                     {d.zone === 'edge' ? '边缘' : '轨道'}
                   </span>
                   <span className="text-[#353535]">
@@ -613,9 +727,328 @@ export default function CoursewareBuilder() {
             </ul>
           </div>
         )}
+
+        {/* 批注 / 版本快照（按页锚定；右侧浮层，不挤压画布） */}
+        {!cwAnnOpen && materialId && (
+          <button onClick={() => setCwAnnOpen(true)} title="批注 / 版本"
+            className="absolute right-3 top-3 z-20 w-7 h-7 bg-gray-700/70 hover:bg-gray-800 rounded-md flex items-center justify-center text-white shadow-md">
+            <MessageSquare size={14} />
+          </button>
+        )}
+        {cwAnnOpen && materialId && (
+          <div className="absolute right-0 top-0 bottom-0 w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden shadow-lg">
+            <div className="flex border-b border-[#F0F0F0] shrink-0">
+              <button onClick={() => setCwAnnTab('annotations')}
+                className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'annotations' ? 'border-[#722ED1] text-[#722ED1] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
+                <MessageSquare size={11} className="inline mr-1" />批注
+              </button>
+              <button onClick={() => setCwAnnTab('history')}
+                className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'history' ? 'border-[#722ED1] text-[#722ED1] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
+                <History size={11} className="inline mr-1" />版本
+              </button>
+              <button onClick={() => setCwAnnOpen(false)} className="px-2 text-[#C0C0C0] hover:text-[#9A9A9A]">
+                <ChevronLeft size={12} />
+              </button>
+            </div>
+
+            {cwAnnTab === 'annotations' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
+                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">对第 {docSlide + 1} 页写批注：</p>
+                  <textarea
+                    value={cwAnnText}
+                    onChange={e => setCwAnnText(e.target.value)}
+                    rows={2}
+                    placeholder="输入批注..."
+                    className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#722ED1] outline-none resize-none"
+                  />
+                  <button onClick={addCwAnnotation}
+                    disabled={!cwAnnText.trim()}
+                    className="w-full mt-1.5 py-1 text-[11px] text-white bg-[#722ED1] rounded hover:bg-[#5B23A8] disabled:opacity-40 flex items-center justify-center gap-1">
+                    <Plus size={10} /> 添加批注
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {cwAnn.items.length === 0 ? (
+                    <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
+                  ) : (
+                    cwAnn.items.map((a: any) => {
+                      let pageLabel = ''
+                      try { pageLabel = 'P' + (JSON.parse(a.anchor || '{}').page || '?') } catch { /* noop */ }
+                      return (
+                        <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded">{pageLabel}</span>
+                            <button onClick={() => cwAnn.remove(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0"><X size={10} /></button>
+                          </div>
+                          <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
+                          <span className="text-[9px] text-[#C0C0C0]">{a.created_at?.slice(0, 16).replace('T', ' ')}</span>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {cwAnnTab === 'history' && (
+              <div className="flex-1 overflow-y-auto py-1">
+                {cwLocked ? (
+                  <p className="text-[10px] text-[#9A9A9A] px-3 py-2">已发布定版，版本仅供查看，不可存/回退</p>
+                ) : (
+                  <>
+                    <button onClick={() => takeCwSnapshot()}
+                      className="w-full text-left px-3 py-1.5 text-[11px] text-[#722ED1] hover:bg-[#F0F2F5] flex items-center gap-1">
+                      <Plus size={10} /> 保存当前版本
+                    </button>
+                    <div className="border-t border-[#F0F0F0] my-1" />
+                  </>
+                )}
+                {cwVer.items.length === 0 ? (
+                  <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
+                ) : (
+                  cwVer.items.map((s: any) => (
+                    <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#353535]">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
+                        <span className="text-[9px] text-[#C0C0C0]">{s.label}</span>
+                      </div>
+                      {!cwLocked && (
+                        <div className="flex gap-2 mt-0.5">
+                          <button onClick={() => restoreCwSnapshot(s.id)} className="text-[10px] text-[#722ED1] hover:underline flex items-center gap-0.5">
+                            <RotateCcw size={9} />恢复
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
+
+  // ── 查看态只读放映内容（左缩略图导航 + 右可滚动放映），view 态 secondaryRight 与全屏 previewSlot 共用 ──
+  const previewSlides = cwOutline.length > 0 ? (
+    <PptxPreview slides={outlineToSlides(cwOutline, cwOpts())} theme={getTheme(themeId)} showPager={false} />
+  ) : (
+    <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
+  )
+  const previewPane = (
+    <div className="flex-1 flex overflow-hidden bg-[#FAFAFA] h-full">
+      {/* 左：只读缩略图页导航 */}
+      <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
+        <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</div>
+        {cwOutline.map((s, idx) => (
+          <div key={idx} onClick={() => setDocSlide(idx)}
+            className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#722ED1] bg-[#F7F0FC]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
+            <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
+            <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
+          </div>
+        ))}
+      </div>
+      {/* 中：可滚动只读放映 */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {docSlide + 1}/{cwOutline.length} 页</div>
+        {previewSlides}
+      </div>
+    </div>
+  )
+
+  // 全屏编辑：最大化画布，隐藏左右栏与发散/校验面板，但顶栏整合左栏关键信息与编辑控件（优先级最高，覆盖查看态/编辑态）
+  if (cwFullscreen) {
+    const slides = outlineToSlides(cwOutline, cwOpts())
+    return (
+      <div className="fixed inset-0 z-50 bg-[#FAFAFA] flex flex-col">
+        {/* 顶栏：退出 / 课题信息（左栏关键信息）/ 编辑控件 / 比例 / 显示页 / 导出 */}
+        <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white">
+          <button onClick={() => setCwFullscreen(false)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-[12px] text-[#353535] border border-[#E0E0E0] rounded hover:bg-[#F5F5F5]">
+            <X size={13} /> 退出全屏 (Esc)
+          </button>
+          <div className="min-w-0 flex flex-col leading-tight">
+            <span className="text-[13px] text-[#353535] font-medium truncate">{genTitle.trim() || '未命名课件'}</span>
+            <span className="text-[10px] text-[#9A9A9A] truncate">{teaching.subject} · {gradeName} · {teaching.semester || '学期'}</span>
+          </div>
+          <div className="w-px h-5 bg-[#EEE]" />
+          {/* 编辑控件：对照腾讯文档工具栏 */}
+          <button onClick={polishOutline} disabled={polishing} title="AI 润色提纲"
+            className="px-2 py-1.5 text-[12px] text-[#722ED1] border border-[#722ED1] rounded hover:bg-[#F7F0FC] disabled:opacity-50 flex items-center gap-1">
+            <Sparkles size={13} /> 润色
+          </button>
+          <button onClick={addCwPage} title="新增页" className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white flex items-center gap-1">
+            <Plus size={13} /> 页
+          </button>
+          <button onClick={() => deleteCwPage(docSlide)} disabled={cwOutline.length <= 1} title="删除当前页"
+            className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white disabled:opacity-40 flex items-center gap-1">
+            <X size={13} /> 删
+          </button>
+          <button onClick={() => setCwFsAnn(true)} title="批注 / 版本" className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white flex items-center gap-1">
+            <MessageSquare size={13} /> 批注
+          </button>
+          <div className="flex-1" />
+          {/* 版心比例切换 */}
+          <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
+            className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded bg-white hover:bg-[#F7F7F8]" title="版心比例">
+            <option value="16/9">16:9</option>
+            <option value="4/3">4:3</option>
+          </select>
+          {cwOutline.length > 1 && (
+            <button onClick={() => setCwFsThumb(v => !v)} title="显示/隐藏缩略图栏"
+              className="px-2.5 py-1.5 text-[12px] text-[#595959] border border-[#E0E0E0] rounded hover:bg-[#F5F5F5]">
+              {cwFsThumb ? '隐藏页' : '显示页'}
+            </button>
+          )}
+          <button onClick={exportCwPptx}
+            className="px-3 py-1.5 text-[12px] text-white bg-[#722ED1] rounded hover:bg-[#5B23A8]">导出 PPT</button>
+        </div>
+        {/* 主体：缩略图 + 画布 */}
+        <div className="flex-1 flex min-h-0">
+          {cwFsThumb && cwOutline.length > 1 && (
+            <div className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2">
+              {cwOutline.map((s, i) => (
+                <button key={i} onClick={() => setDocSlide(i)}
+                  className={`w-full text-left px-2.5 py-2 mb-1 mx-1 rounded text-[11px] leading-snug transition-colors ${i === docSlide ? 'bg-[#722ED1] text-white' : 'text-[#595959] hover:bg-[#ECECF0]'}`}>
+                  <span className="block opacity-60 text-[10px] mb-0.5">P{i + 1}</span>
+                  {(s.title || '未命名').slice(0, 16)}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto p-6 flex justify-center">
+            <div className="w-full max-w-[960px]">
+              {cwOutline.length > 0 ? (
+                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} embedFullscreen />
+              ) : (
+                <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
+              )}
+            </div>
+          </div>
+          {/* 全屏内批注 / 版本浮层 */}
+          {cwFsAnn && (
+            <div className="w-[240px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden shadow-lg">
+              <div className="flex border-b border-[#F0F0F0] shrink-0">
+                <button onClick={() => setCwAnnTab('annotations')}
+                  className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'annotations' ? 'border-[#722ED1] text-[#722ED1] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
+                  <MessageSquare size={11} className="inline mr-1" />批注
+                </button>
+                <button onClick={() => setCwAnnTab('history')}
+                  className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'history' ? 'border-[#722ED1] text-[#722ED1] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
+                  <History size={11} className="inline mr-1" />版本
+                </button>
+                <button onClick={() => setCwFsAnn(false)} className="px-2 text-[#C0C0C0] hover:text-[#9A9A9A]">
+                  <ChevronLeft size={12} />
+                </button>
+              </div>
+              {cwAnnTab === 'annotations' && (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
+                    <p className="text-[10px] text-[#9A9A9A] mb-1.5">对第 {docSlide + 1} 页写批注：</p>
+                    <textarea
+                      value={cwAnnText}
+                      onChange={e => setCwAnnText(e.target.value)}
+                      rows={2}
+                      placeholder="输入批注..."
+                      className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#722ED1] outline-none resize-none"
+                    />
+                    <button onClick={addCwAnnotation}
+                      disabled={!cwAnnText.trim()}
+                      className="w-full mt-1.5 py-1 text-[11px] text-white bg-[#722ED1] rounded hover:bg-[#5B23A8] disabled:opacity-40 flex items-center justify-center gap-1">
+                      <Plus size={10} /> 添加批注
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {cwAnn.items.length === 0 ? (
+                      <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
+                    ) : (
+                      cwAnn.items.map((a: any) => {
+                        let pageLabel = ''
+                        try { pageLabel = 'P' + (JSON.parse(a.anchor || '{}').page || '?') } catch { /* noop */ }
+                        return (
+                          <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
+                            <div className="flex items-start justify-between gap-1">
+                              <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded">{pageLabel}</span>
+                              <button onClick={() => cwAnn.remove(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0"><X size={10} /></button>
+                            </div>
+                            <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
+                            <span className="text-[9px] text-[#C0C0C0]">{a.created_at?.slice(0, 16).replace('T', ' ')}</span>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+              {cwAnnTab === 'history' && (
+                <div className="flex-1 overflow-y-auto py-1">
+                  {cwLocked ? (
+                    <p className="text-[10px] text-[#9A9A9A] px-3 py-2">已发布定版，版本仅供查看，不可存/回退</p>
+                  ) : (
+                    <>
+                      <button onClick={() => takeCwSnapshot()}
+                        className="w-full text-left px-3 py-1.5 text-[11px] text-[#722ED1] hover:bg-[#F0F2F5] flex items-center gap-1">
+                        <Plus size={10} /> 保存当前版本
+                      </button>
+                      <div className="border-t border-[#F0F0F0] my-1" />
+                    </>
+                  )}
+                  {cwVer.items.length === 0 ? (
+                    <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
+                  ) : (
+                    cwVer.items.map((s: any) => (
+                      <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#353535] truncate">{s.label}</span>
+                          {!cwLocked && (
+                            <button onClick={() => restoreCwSnapshot(s.id)} title="恢复到此版本"
+                              className="text-[#02A7F0] hover:text-[#0E7BC4] shrink-0 flex items-center gap-0.5 text-[10px]">
+                              <RotateCcw size={10} /> 回退
+                            </button>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-[#C0C0C0]">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── 查看态（bare :id）：与组卷同构 —— secondary 锁定 + 自动全屏预览，点「编辑」原地解锁进文档模式 ──
+  if (ctrl.readOnly) {
+    return (
+      <EditorLayout
+        sceneName={channel.scene}
+        primaryLeft={leftPanel}
+        primaryRight={rightPanelAi}
+        secondaryLeft={leftPanel}
+        secondaryRight={previewPane}
+        mode="secondary"
+        modeLocked
+        modeLockedLabel="只读查看"
+        footerAlign="left"
+        footerLifecycle={{
+          saveDraftLabel: '编辑',
+          publishLabel: '返回课件库',
+          onSaveDraft: editNow,
+          onPublish: () => { window.location.href = '/courseware/' + cwFormat },
+        }}
+        previewTitle={`${genTitle.trim() || '未命名'}_课件 · ${channel.previewSuffix}`}
+        previewSlot={previewPane}
+        previewOpen={previewOpen}
+        onPreviewChange={setPreviewOpen}
+        onPreviewEdit={editNow}
+      />
+    )
+  }
 
   return (
     <EditorLayout
@@ -635,7 +1068,9 @@ export default function CoursewareBuilder() {
         status: ctrl.status,
         saving: ctrl.saving || savingCw || validating,
       }}
-      previewTitle={`${genTitle.trim() || '未命名'}_课件 · ${channel.previewSuffix}`}
+      // 编辑态 footer「预览」开全屏放映
+      previewOpen={previewOpen}
+      onPreviewChange={setPreviewOpen}
       previewSlot={
         cwOutline.length > 0 ? (
           <PptxPreview slides={outlineToSlides(cwOutline, cwOpts())} theme={getTheme(themeId)} />

@@ -301,8 +301,11 @@ export const lessonPlanAPI = {
 export const materialAPI = {
   list: () => request<{ items: MaterialItem[] }>('/materials'),
   /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
-  createJSON: (data: { name: string; type: string; tag?: string; url?: string; content?: string }) =>
+  createJSON: (data: { name: string; type: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
     request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
+  /** 更新素材（课件草稿/发布落库复用） */
+  update: (id: string, data: { name?: string; type?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
+    request<any>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   get: (id: string) => request<any>(`/materials/${id}`),
 }
 

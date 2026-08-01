@@ -21,9 +21,8 @@ const SIDEBAR: SidebarGroup[] = [
     { label: '教案发布库', icon: <FileText size={14} />, to: '/published-lessons' },
     { label: '教案互审', icon: <GitPullRequest size={14} />, to: '/review-pool' },
   ]},
-  { id: '素材', label: '素材库', icon: <ImgIcon size={16} />, to: '/materials' },
   { id: '课件', label: '教学课件', icon: <MonitorPlay size={16} />, children: [
-    { label: 'PPT 课件', icon: <MonitorPlay size={14} />, to: '/courseware/new' },
+    { label: 'PPT 课件', icon: <MonitorPlay size={14} />, to: '/courseware/ppt' },
     { label: 'H5 互动课件', icon: <Smartphone size={14} />, to: '/courseware/h5' },
     { label: '视频课件', icon: <Video size={14} />, to: '/courseware/video' },
   ]},
@@ -32,6 +31,7 @@ const SIDEBAR: SidebarGroup[] = [
     { label: '组卷·试卷库', icon: <Files size={14} />, to: '/exams' },
     { label: '作业布置', icon: <Send size={14} />, to: '/assignments' },
   ]},
+  { id: '素材', label: '素材库', icon: <ImgIcon size={16} />, to: '/materials' },
   { id: '数据', label: '教学数据', icon: <BarChart3 size={16} />, children: [
     { label: '学情分析', icon: <BarChart3 size={14} />, to: '/analytics' },
     { label: '成长足迹', icon: <Footprints size={14} />, to: '/growth' },

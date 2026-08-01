@@ -53,6 +53,7 @@ func main() {
 		&model.TeacherTextbookPref{},
 		&model.UserSubmittedTextbookVersion{},
 		&model.Sheet{},
+		&model.Annotation{}, &model.Version{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
@@ -144,6 +145,7 @@ func main() {
 	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
 	examHandler := handler.NewExamHandler(examRepo)
+	annotationHandler := handler.NewAnnotationHandler(db)
 	exerciseSheetHandler := handler.NewExerciseSheetHandler(exerciseSheetRepo)
 	sheetHandler := handler.NewSheetHandler(sheetRepo)
 	deanHandler := handler.NewDeanHandler(deanRepo)
@@ -278,6 +280,14 @@ func main() {
 		teacher.GET("/materials/:id", materialHandler.GetMaterial)
 		teacher.POST("/materials", materialHandler.UploadMaterial)
 		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
+		teacher.PUT("/materials/:id", materialHandler.UpdateMaterial)
+		// 通用批注 + 版本快照（挂任意作品；版本仅草稿期可存/回退，发布后只读）
+		teacher.GET("/annotations", annotationHandler.ListAnnotations)
+		teacher.POST("/annotations", annotationHandler.CreateAnnotation)
+		teacher.DELETE("/annotations/:id", annotationHandler.DeleteAnnotation)
+		teacher.GET("/versions", annotationHandler.ListVersions)
+		teacher.POST("/versions", annotationHandler.CreateVersion)
+		teacher.POST("/versions/:id/restore", annotationHandler.RestoreVersion)
 		// 学校/班级归档
 		teacher.PUT("/schools/:id/archive", scHandler.ArchiveSchool)
 		teacher.PUT("/schools/:id/restore", scHandler.RestoreSchool)

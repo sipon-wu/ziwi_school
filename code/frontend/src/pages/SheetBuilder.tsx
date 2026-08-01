@@ -405,9 +405,12 @@ export default function SheetBuilder() {
                 title="导出 Word">Word</button>
               <button onClick={handleExportPdf} disabled={!previewQuestions.length}
                 className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="导出 PDF">PDF</button>
+                title="导出 PDF">PDF              </button>
             </>
           }
+          resourceType="sheet"
+          resourceId={id}
+          locked={published}
         />
       }
       mode={ctrl.workMode === 'ai' ? 'primary' : 'secondary'}

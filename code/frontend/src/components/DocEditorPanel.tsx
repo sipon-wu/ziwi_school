@@ -15,13 +15,18 @@ interface DocEditorPanelProps {
   toolbarExtra?: ReactNode
   /** 覆盖默认的全屏预览行为（如教案走全屏编辑）；不传则走 EditorLayout PreviewOverlay 全屏预览 */
   onFullscreen?: () => void
+  /** 批注/版本入库：作品资源类型 + id（透传给 TipTapEditor） */
+  resourceType?: string
+  resourceId?: string
+  /** 作品已发布 → 版本只读禁存/禁恢复 */
+  locked?: boolean
 }
 
 /**
  * 文档模式编辑区统一框架外壳（P0 统一框架）。
  * 所有编辑器（教案 / 习题 / 试卷 / 题单）的文档模式右栏共用，消除各页手写导致的"另一套框架"。
  */
-export default function DocEditorPanel({ hint, value, onChange, docTitle, readOnly, placeholder, toolbarExtra, onFullscreen }: DocEditorPanelProps) {
+export default function DocEditorPanel({ hint, value, onChange, docTitle, readOnly, placeholder, toolbarExtra, onFullscreen, resourceType, resourceId, locked }: DocEditorPanelProps) {
   const openPreview = useOpenPreview()
   const fullscreenBtn = onFullscreen || openPreview.openPreview !== (() => {}) ? (
     <button onClick={onFullscreen || openPreview.openPreview}
@@ -49,6 +54,9 @@ export default function DocEditorPanel({ hint, value, onChange, docTitle, readOn
           readOnly={readOnly}
           placeholder={placeholder}
           toolbarExtra={mergedToolbarExtra}
+          resourceType={resourceType}
+          resourceId={resourceId}
+          locked={locked}
         />
       </div>
     </div>

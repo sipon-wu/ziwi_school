@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/zhiwei/backend/internal/model"
 	"gorm.io/gorm"
 )
@@ -17,6 +19,21 @@ func (r *MaterialRepository) List(schoolID string) ([]model.Material, error) {
 
 func (r *MaterialRepository) Create(m *model.Material) error {
 	return r.db.Create(m).Error
+}
+
+// Update 更新素材（课件草稿/发布落库复用），仅更新可编辑字段
+func (r *MaterialRepository) Update(m *model.Material) error {
+	return r.db.Model(m).Where("id = ?", m.ID).Updates(map[string]interface{}{
+		"name":      m.Name,
+		"type":      m.Type,
+		"tag":       m.Tag,
+		"url":       m.URL,
+		"content":   m.Content,
+		"status":    m.Status,
+		"grade":     m.Grade,
+		"subject":   m.Subject,
+		"updated_at": time.Now(),
+	}).Error
 }
 
 // GetByID 按 ID 获取单个素材（含 content，供 AI 课件生成读取参照课件正文）
