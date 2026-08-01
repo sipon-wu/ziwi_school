@@ -68,7 +68,7 @@ export default function PptxPreview({
           <div className="space-y-6">
             {slides.map((s, idx) => (
               <div key={idx} className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
-                {renderStaticSlide(s, theme, idx)}
+                {renderStaticSlide(s, theme, idx, ar)}
               </div>
             ))}
           </div>
@@ -100,10 +100,10 @@ export default function PptxPreview({
 
 /* ───────────────────────── 静态（放映/预览）渲染 ───────────────────────── */
 
-function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number) {
+function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio: '16/9' | '4/3') {
   if (s.kind === 'cover') {
     return (
-      <div className="relative" style={{ aspectRatio: aspectRatio, background: theme.coverBg }}>
+      <div className="relative" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', background: theme.coverBg }}>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
           <h2 className="text-4xl font-bold" style={{ color: theme.onPrimary }}>{s.title}</h2>
           {s.subtitle && <p className="mt-4 text-lg" style={{ color: theme.lightText }}>{s.subtitle}</p>}
@@ -115,7 +115,7 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number) {
     )
   }
   return (
-    <div className="relative bg-white" style={{ aspectRatio }}>
+    <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9' }}>
       <div className="absolute left-0 top-0 h-[15.3%] w-full" style={{ background: theme.primary }} />
       <div className="absolute left-[2%] top-0 flex h-[15.3%] items-center" style={{ width: '96%' }}>
         <span className="truncate text-2xl font-bold" style={{ color: theme.onPrimary }}>{s.title}</span>
