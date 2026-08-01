@@ -23,6 +23,8 @@ interface PptxPreviewProps {
   viewMode?: 'scroll' | 'single'
   /** 版心比例：16/9（默认）或 4/3，影响画布基准尺寸与导出版面 */
   aspectRatio?: '16/9' | '4/3'
+  /** 是否处于外层全屏嵌入态（此时隐藏 PptxPreview 自身的全屏按钮，避免重复） */
+  embedFullscreen?: boolean
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -67,7 +69,7 @@ export default function PptxPreview({
     <div className={`flex flex-col items-center ${className || ''}`}>
       <div className="w-full max-w-4xl">
         {editable ? (
-          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} />
+          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} />
         ) : viewMode === 'single' ? (
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
@@ -233,6 +235,8 @@ interface EditableCanvasProps {
   ar: '16/9' | '4/3'
   /** 切换版心比例 */
   onArChange: (v: '16/9' | '4/3') => void
+  /** 是否处于外层全屏嵌入态（隐藏画布自身的全屏按钮，避免重复） */
+  embedFullscreen?: boolean
 }
 
 /** 画布快照（撤销/重做用） */
@@ -241,7 +245,7 @@ interface Snap { elements: CwElement[]; title: string; layout: string }
 const SNAP = 1.5 // 吸附阈值（%）
 const FONT_OPTS = ['Microsoft YaHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 'Arial', 'Times New Roman']
 
-function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange }: EditableCanvasProps) {
+function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange, embedFullscreen }: EditableCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [selIds, setSelIds] = useState<string[]>([])
