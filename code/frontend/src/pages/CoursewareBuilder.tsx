@@ -921,7 +921,7 @@ export default function CoursewareBuilder() {
           <div className="flex-1 overflow-y-auto p-6 flex justify-center">
             <div className="w-full max-w-[960px]">
               {cwOutline.length > 0 ? (
-                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} embedFullscreen />
+                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} index={docSlide} viewMode="single" embedFullscreen />
               ) : (
                 <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
               )}

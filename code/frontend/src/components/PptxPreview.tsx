@@ -19,6 +19,8 @@ interface PptxPreviewProps {
   /** 编辑态元素/标题变更回写 */
   onSlideChange?: (index: number, slide: CwSlide) => void
   showPager?: boolean
+  /** 只读态展示方式：scroll=竖向长列表（默认），single=单页+翻页（配合左侧缩略图导航） */
+  viewMode?: 'scroll' | 'single'
   /** 版心比例：16/9（默认）或 4/3，影响画布基准尺寸与导出版面 */
   aspectRatio?: '16/9' | '4/3'
 }
@@ -38,6 +40,7 @@ export default function PptxPreview({
   onSlideChange,
   showPager = true,
   aspectRatio = '16/9',
+  viewMode = 'scroll',
   embedFullscreen = false,
 }: PptxPreviewProps) {
   // 版心比例：受控 prop 优先，否则内部自管（工具条可切换）
@@ -46,6 +49,7 @@ export default function PptxPreview({
   const { w: CW, h: CH } = canvasSizeOf(ar)
   const theme = useMemo(() => themeProp || DEFAULT_THEME, [themeProp])
   const [i, setI] = useState(0)
+  useEffect(() => { if (typeof index === 'number') setI(clamp(index, 0, slides.length - 1)) }, [index, slides.length])
   const current = clamp(index ?? i, 0, slides.length - 1)
 
   const setIndex = (n: number) => {
@@ -64,6 +68,12 @@ export default function PptxPreview({
       <div className="w-full max-w-4xl">
         {editable ? (
           <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} />
+        ) : viewMode === 'single' ? (
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
+              {renderStaticSlide(slides[current], theme, current, ar)}
+            </div>
+          </div>
         ) : (
           <div className="space-y-6">
             {slides.map((s, idx) => (
