@@ -371,7 +371,7 @@ export default function SheetBuilder() {
   // ===== P0-6 统一 footer =====
   const sheetFooterLifecycle = {
     saveDraftLabel: '保存草稿',
-    publishLabel: published ? '已布置' : '布置到班级',
+    publishLabel: '发布',
     onSaveDraft: ctrl?.saveDraft ?? (() => {}),
     onPublish: ctrl?.publish ?? (() => {}),
     status: ctrl?.status,

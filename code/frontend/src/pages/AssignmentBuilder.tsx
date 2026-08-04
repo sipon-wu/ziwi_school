@@ -308,7 +308,7 @@ export default function AssignmentBuilder() {
         footerAlign="left"
         footerLifecycle={{
           saveDraftLabel: '保存为草稿',
-          publishLabel: enableSchedule ? '定时发布' : '立即发布',
+          publishLabel: '发布',
           onSaveDraft: handleSaveDraft,
           onPublish: handlePublish,
           saving,

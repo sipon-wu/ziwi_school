@@ -62,7 +62,7 @@ const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto
 /**
  * P4 课件编辑器页（PPT 课件 · H5 预留）：与教案/出题/组卷同一套 EditorLayout 四件套。
  * AI 模式 = 左栏参数 + 右栏知识图谱；文档模式 = 左栏参数 + 右栏可编辑提纲/发散地图/校验；
- * 框架预览 = PPT 放映；footer = 保存草稿(本地) / 发布到素材库(红线校验闸)。
+ * 框架预览 = PPT 放映；footer = 保存草稿(本地) / 发布到课件库(红线校验闸)。
  */
 export default function CoursewareBuilder() {
   const teaching = useTeaching()
@@ -344,7 +344,7 @@ export default function CoursewareBuilder() {
     } catch { /* 各导出函数已各自 toast */ }
   }
 
-  // ── footer：保存草稿(落库，与习题/教案一致) / 发布到素材库(红线校验闸) ──
+  // ── footer：保存草稿(落库，与习题/教案一致) / 发布到课件库(红线校验闸) ──
   const handleSaveDraft = async () => {
     const payload = {
       name: `${genTitle.trim() || '未命名'}_课件`,
@@ -409,7 +409,7 @@ export default function CoursewareBuilder() {
         if (m?.id) setMaterialId(m.id)
       }
       try { localStorage.removeItem(getDraftKey(materialId)) } catch { /* noop */ }
-      toast('课件已发布到素材库', 'success')
+      toast('课件已发布', 'success')
     }     catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
     finally { setSavingCw(false) }
   }
@@ -1192,7 +1192,7 @@ export default function CoursewareBuilder() {
       footerAlign="left"
       footerLifecycle={{
         saveDraftLabel: '保存草稿',
-        publishLabel: '发布到素材库',
+        publishLabel: '发布',
         onSaveDraft: ctrl.saveDraft,
         onPublish: ctrl.publish,
         status: ctrl.status,

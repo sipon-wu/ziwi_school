@@ -830,8 +830,8 @@ export default function ExerciseGenerator() {
   )
 
   const exerciseFooterLifecycle = useMemo(() => ({
-    saveDraftLabel: '保存为草稿',
-    publishLabel: '发布到题库',
+   saveDraftLabel: '保存为草稿',
+   publishLabel: '发布',
     onSaveDraft: ctrl?.saveDraft ?? (() => {}),
     onPublish: ctrl?.publish ?? (() => {}),
     status: ctrl?.status,
