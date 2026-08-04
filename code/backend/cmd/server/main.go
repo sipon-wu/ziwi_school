@@ -45,7 +45,7 @@ func main() {
 		&model.School{}, &model.Campus{}, &model.User{}, &model.Class{},
 		&model.TeacherClass{}, &model.StudentClass{}, &model.LessonPlan{},
 		&model.Exam{}, &model.Material{}, &model.ImportBatch{},
-		&repository.Question{}, &repository.Assignment{},
+		&repository.Question{}, &repository.Assignment{}, &repository.AssignmentQuestionLog{},
 		&model.TextbookVersion{}, &model.StandardClause{},
 		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
 		&model.SchoolTextbookOverride{},
@@ -68,6 +68,28 @@ func main() {
 	db.Exec(`ALTER TABLE teacher_textbook_pref ADD COLUMN IF NOT EXISTS class_id VARCHAR(50) NOT NULL DEFAULT ''`)
 	db.Exec(`DROP INDEX IF EXISTS uk_teacher_subject`)
 	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_teacher_gcs ON teacher_textbook_pref (teacher_id, grade, class_id, subject)`)
+
+	// 题单（练习题集 sheets）：补齐 publish_mode（发布去向）/ assigned_classes（题目粒度已布置班级日志）。
+	// GORM AutoMigrate 已建 sheet 表并加列，此处对历史库幂等补列。
+	db.Exec(`ALTER TABLE sheets ADD COLUMN IF NOT EXISTS publish_mode VARCHAR(20) NOT NULL DEFAULT ''`)
+	db.Exec(`ALTER TABLE sheets ADD COLUMN IF NOT EXISTS assigned_classes JSONB NOT NULL DEFAULT '[]'::jsonb`)
+	// 作业表（assignments）：补齐 sheet_id（题单→作业追溯）。
+	db.Exec(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS sheet_id VARCHAR(50) NOT NULL DEFAULT ''`)
+	// 题目粒度布置日志表（避免同师同年级同学科各班重复布置同一题目）。
+	db.Exec(`CREATE TABLE IF NOT EXISTS assignment_question_logs (
+		id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid(),
+		teacher_id VARCHAR(50) NOT NULL,
+		school_id VARCHAR(50) NOT NULL,
+		class_id VARCHAR(50) NOT NULL,
+		subject VARCHAR(20) NOT NULL,
+		question_id VARCHAR(50) NOT NULL,
+		sheet_id VARCHAR(50),
+		assignment_id VARCHAR(50),
+		assigned_at TIMESTAMPTZ DEFAULT now()
+	)`)
+	// 重建正确的四列复合唯一索引（GORM 默认会建错误的单字段索引，先 DROP 再建复合索引）。
+	db.Exec(`DROP INDEX IF EXISTS uk_aql_t_s_c_q`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_aql_t_s_c_q ON assignment_question_logs (teacher_id, school_id, class_id, question_id)`)
 
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(db)
@@ -142,12 +164,12 @@ func main() {
 	analyticsHandler := handler.NewAnalyticsHandler(dashboardRepo)
 	lessonHandler := handler.NewLessonHandler(lessonRepo)
 	exerciseHandler := handler.NewExerciseHandler(exerciseRepo)
-	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo)
+	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo, sheetRepo, exerciseSheetRepo)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
 	examHandler := handler.NewExamHandler(examRepo)
 	annotationHandler := handler.NewAnnotationHandler(db)
 	exerciseSheetHandler := handler.NewExerciseSheetHandler(exerciseSheetRepo)
-	sheetHandler := handler.NewSheetHandler(sheetRepo)
+	sheetHandler := handler.NewSheetHandler(sheetRepo, assignmentRepo)
 	deanHandler := handler.NewDeanHandler(deanRepo)
 	auditRepo := repository.NewAuditRepository(db)
 	itHandler := handler.NewITHandler(itRepo, deanRepo, auditRepo)
@@ -248,6 +270,7 @@ func main() {
 		teacher.POST("/sheets", sheetHandler.Create)
 		teacher.GET("/sheets/:id", sheetHandler.Get)
 		teacher.PUT("/sheets/:id", sheetHandler.Update)
+		teacher.GET("/sheets/:id/assignments", sheetHandler.GetAssignments)
 		// 习题库（工作单 / 简单卷面）：与试卷库同构，单题用快照
 		teacher.GET("/worksheets", exerciseSheetHandler.ListSheets)
 		teacher.POST("/worksheets", exerciseSheetHandler.CreateSheet)

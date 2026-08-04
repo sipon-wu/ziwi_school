@@ -19,6 +19,10 @@ type ExerciseSheet struct {
 	EditMode   string    `gorm:"column:edit_mode;type:varchar(10);default:'ai'" json:"edit_mode"`
 	PaperSize  string    `gorm:"column:paper_size;type:varchar(4);default:'A4'" json:"paper_size"`
 	Status     string    `gorm:"column:status;type:varchar(20);default:draft" json:"status"`
+	// PublishMode 发布去向：bank=入题库（资产），assignment=已布置为作业
+	PublishMode string `gorm:"column:publish_mode;type:varchar(20);default:''" json:"publish_mode"`
+	// AssignedClasses 题目粒度已布置班级日志（JSON 数组，避免重复布置）
+	AssignedClasses string `gorm:"column:assigned_classes;type:jsonb;default:'[]'" json:"assigned_classes"`
 	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt  time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }

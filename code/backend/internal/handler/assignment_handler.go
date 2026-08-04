@@ -11,11 +11,13 @@ import (
 )
 
 type AssignmentHandler struct {
-	repo *repository.AssignmentRepository
+	repo           *repository.AssignmentRepository
+	sheetRepo      *repository.SheetRepo
+	exerciseSheetRepo *repository.ExerciseSheetRepository
 }
 
-func NewAssignmentHandler(repo *repository.AssignmentRepository) *AssignmentHandler {
-	return &AssignmentHandler{repo: repo}
+func NewAssignmentHandler(repo *repository.AssignmentRepository, sheetRepo *repository.SheetRepo, exerciseSheetRepo *repository.ExerciseSheetRepository) *AssignmentHandler {
+	return &AssignmentHandler{repo: repo, sheetRepo: sheetRepo, exerciseSheetRepo: exerciseSheetRepo}
 }
 
 // CreateAssignmentRequest 创建作业请求
@@ -27,6 +29,10 @@ type CreateAssignmentRequest struct {
 	Questions      []QuestionItem `json:"questions"`
 	TotalScore     float64        `json:"total_score"`
 	DueHours       int            `json:"due_hours"`
+	// SheetID 题单→作业追溯（从题单布置时由前端传回）
+	SheetID        string `json:"sheet_id"`
+	// SheetType 题单类型：sheet（练习题集）/ worksheet（习题库）
+	SheetType      string `json:"sheet_type"`
 }
 
 // QuestionItem 作业中的题目项
@@ -97,6 +103,7 @@ func (h *AssignmentHandler) CreateAssignment(c *gin.Context) {
 		DueHours:       req.DueHours,
 		PublishedAt:    &now,
 		GradingStatus:  "pending",
+		SheetID:        req.SheetID,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -106,7 +113,66 @@ func (h *AssignmentHandler) CreateAssignment(c *gin.Context) {
 		return
 	}
 
+	// 题目粒度布置日志：避免同师同年级同学科各班重复布置同一题目
+	if len(req.Questions) > 0 {
+		logs := make([]repository.AssignmentQuestionLog, 0, len(req.Questions))
+		sheetID := req.SheetID
+		for _, q := range req.Questions {
+			if q.QuestionID == "" {
+				continue
+			}
+			logs = append(logs, repository.AssignmentQuestionLog{
+				TeacherID:  teacherIDStr,
+				SchoolID:   schoolIDStr,
+				ClassID:    req.ClassID,
+				Subject:    req.Subject,
+				QuestionID: q.QuestionID,
+				SheetID:    sheetID,
+				AssignmentID: a.ID,
+			})
+		}
+		if err := h.repo.LogQuestions(logs); err != nil {
+			// 日志写入失败不阻断主流程，仅记录
+			c.Error(err)
+		}
+	}
+
+	// 回写题单已布置班级（题单粒度去重累计）
+	if req.SheetID != "" {
+		go h.appendAssignedClass(req.SheetID, req.SheetType, req.ClassID)
+	}
+
 	c.JSON(http.StatusCreated, a)
+}
+
+// appendAssignedClass 将班级追加到题单的 assigned_classes 列表（幂等去重）
+func (h *AssignmentHandler) appendAssignedClass(sheetID, sheetType, classID string) {
+	if sheetID == "" || classID == "" || h.sheetRepo == nil {
+		return
+	}
+	// 仅处理练习题集（sheet）；习题库（worksheet）暂未实现布置回写
+	if sheetType == "worksheet" {
+		return
+	}
+	s, err := h.sheetRepo.GetByIDAnySchool(sheetID)
+	if err != nil || s == nil {
+		return
+	}
+	var classes []string
+	if s.AssignedClasses != "" {
+		if err := json.Unmarshal([]byte(s.AssignedClasses), &classes); err != nil {
+			classes = []string{}
+		}
+	}
+	for _, c := range classes {
+		if c == classID {
+			return // 已存在，去重
+		}
+	}
+	classes = append(classes, classID)
+	if err := h.sheetRepo.SetPublishMode(sheetID, "assignment", classes); err != nil {
+		return
+	}
 }
 
 // DeleteAssignment 删除作业
