@@ -487,9 +487,9 @@ interface Props {
 
 export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, fullscreen, docTitle, toolbarExtra, resourceType, resourceId, locked }: Props) {
   const { toast } = useToast()
-  // 预览态（readOnly）或全屏承载下，左右侧栏默认展开
-  const [outlineVisible, setOutlineVisible] = useState(fullscreen || readOnly ? true : false)
-  const [historyVisible, setHistoryVisible] = useState(fullscreen || readOnly ? true : false)
+  // 全屏承载下左右侧栏默认展开；只读预览态保持干净阅读（侧栏收起，由调用方决定是否需要）
+  const [outlineVisible, setOutlineVisible] = useState(fullscreen ? true : false)
+  const [historyVisible, setHistoryVisible] = useState(fullscreen ? true : false)
   // 预览态（readOnly）隐藏编辑工具栏；编辑态（!readOnly）照常展示
   const showToolbar = !noPanels && !readOnly
 

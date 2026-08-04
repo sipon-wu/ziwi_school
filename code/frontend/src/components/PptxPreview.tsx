@@ -1,4 +1,6 @@
+import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Undo2, Redo2 } from 'lucide-react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { CwElement, CwSlide } from '../lib/exportPptx'
 import { layoutElements, extractBullets } from '../lib/exportPptx'
@@ -25,6 +27,8 @@ interface PptxPreviewProps {
   aspectRatio?: '16/9' | '4/3'
   /** 是否处于外层全屏嵌入态（此时隐藏 PptxPreview 自身的全屏按钮，避免重复） */
   embedFullscreen?: boolean
+  /** 选中元素变化回调（向上冒泡，供外层自动唤起属性面板；null 表示点空白取消选择） */
+  onSelect?: (id: string | null) => void
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -44,6 +48,7 @@ export default function PptxPreview({
   aspectRatio = '16/9',
   viewMode = 'scroll',
   embedFullscreen = false,
+  onSelect,
 }: PptxPreviewProps) {
   // 版心比例：受控 prop 优先，否则内部自管（工具条可切换）
   const [ar, setAr] = useState<'16/9' | '4/3'>(aspectRatio || '16/9')
@@ -66,10 +71,10 @@ export default function PptxPreview({
   }
 
   return (
-    <div className={`flex flex-col items-center ${className || ''}`}>
-      <div className="w-full max-w-4xl">
+    <div className={`flex flex-col ${className || ''}`}>
+      <div className="mx-auto max-w-4xl" style={{ width: 'min(896px, 100%)' }}>
         {editable ? (
-          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} />
+          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} onSelect={onSelect} />
         ) : viewMode === 'single' ? (
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
@@ -237,6 +242,8 @@ interface EditableCanvasProps {
   onArChange: (v: '16/9' | '4/3') => void
   /** 是否处于外层全屏嵌入态（隐藏画布自身的全屏按钮，避免重复） */
   embedFullscreen?: boolean
+  /** 选中元素变化回调（向上冒泡，供外层自动唤起属性面板） */
+  onSelect?: (id: string | null) => void
 }
 
 /** 画布快照（撤销/重做用） */
@@ -245,7 +252,7 @@ interface Snap { elements: CwElement[]; title: string; layout: string }
 const SNAP = 1.5 // 吸附阈值（%）
 const FONT_OPTS = ['Microsoft YaHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 'Arial', 'Times New Roman']
 
-function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange, embedFullscreen }: EditableCanvasProps) {
+function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange, embedFullscreen, onSelect }: EditableCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [selIds, setSelIds] = useState<string[]>([])
@@ -290,14 +297,14 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   useEffect(() => { hIndexRef.current = hIndex }, [hIndex])
   useEffect(() => { historyRef.current = history }, [history])
 
-  // 自适应缩放
+  // 自适应缩放：用 canvasRef 父级的父级（flex-1 容器）的 clientWidth 作为可用宽度基准
   useLayoutEffect(() => {
-    const el = canvasRef.current?.parentElement
-    if (!el) return
-    const update = () => setScale(Math.min(1, el.clientWidth / cw))
+    const wrap = canvasRef.current?.parentElement?.parentElement
+    if (!wrap) return
+    const update = () => setScale(Math.min(1, wrap.clientWidth / cw))
     update()
     const ro = new ResizeObserver(update)
-    ro.observe(el)
+    ro.observe(wrap)
     return () => ro.disconnect()
   }, [])
 
@@ -337,6 +344,32 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
 
   const selId = selIds.length === 1 ? selIds[0] : null
   const sel = elements.find(e => e.id === selId)
+
+  // 选中变化：冒泡通知外层 + 自动展开/收起属性面板 + 计算面板屏幕跟随定位
+  useEffect(() => {
+    onSelect?.(selId)
+    setPanelCollapsed(!selId)
+    // 用户拖动过面板 → 保留用户拖到的位置，不再自动跟随
+    if (dragPos) return
+    if (!selId || !canvasRef.current) { setPopupPos(null); return }
+    // 计算选中元件在画布中的屏幕坐标，面板浮在元件上方/侧方避免遮挡
+    const rect = canvasRef.current.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) { setPopupPos(null); return }
+    const elemX = rect.left + (sel!.x / 100) * rect.width
+    const elemY = rect.top + (sel!.y / 100) * rect.height
+    const elemW = (sel!.w / 100) * rect.width
+    const elemH = (sel!.h / 100) * rect.height
+    const PANEL_W = 240
+    const PANEL_H_EST = 380 // 预估值（含文本框所有控件；形状面板更短）
+    const GAP = 8
+    // 首选：元件上方居中；上方空间不足时改为元件下方
+    let top = elemY - PANEL_H_EST - GAP
+    if (top < 8) top = elemY + elemH + GAP
+    // 左右居中于元件，但不超出视口
+    const left = Math.max(GAP, Math.min(window.innerWidth - PANEL_W - GAP, elemX + elemW / 2 - PANEL_W / 2))
+    setPopupPos({ top, left })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selId])
   const patchSel = (p: Partial<CwElement>) => {
     if (!selId) return
     commit(elements.map(e => (e.id === selId ? { ...e, ...p } : e)))
@@ -536,9 +569,14 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   }
 
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
-  // 右侧属性面板收起（教案式）+ 全屏编辑
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  // 右侧属性面板收起（默认收起，点中画布元件时自动弹出，点空白自动收起，更聚焦画布）
+  const [panelCollapsed, setPanelCollapsed] = useState(true)
   const [fullscreen, setFullscreen] = useState(false)
+  // 属性面板屏幕跟随定位：选中元件后计算其屏幕坐标，面板浮在元件上方以避免遮挡
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null)
+  // 用户拖动后的位置（null 表示跟随选中元件自动定位；非 null 表示用户拖到了固定位置）
+  const [dragPos, setDragPos] = useState<{ top: number; left: number } | null>(null)
+  const dragStartRef = useRef<{ x: number; y: number; top: number; left: number } | null>(null)
 
   const onCanvasPointerDown = (e: ReactPointerEvent) => {
     if (e.target !== canvasRef.current) return
@@ -586,126 +624,142 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   const BActive = 'border border-[#02A7F0] bg-[#02A7F0] text-white'
   const SEL = '#02A7F0' // 选中高亮（替代 #4472C4）
 
-  // ── 右侧属性面板（选中元素时显示样式设置，教案式收起/展开） ──
-  const propPanel = (
-    <>
-      {!panelCollapsed && (
-        <div className="w-[240px] shrink-0 flex flex-col border-l border-[#E7E7EB] bg-[#FAFBFC] overflow-y-auto">
-          <div className="flex items-center justify-between px-2 py-2 border-b border-[#F0F0F0] shrink-0">
-            <span className="text-[11px] font-medium text-[#353535]">{sel ? (sel.type === 'text' ? '文本框' : sel.type === 'shape' ? '形状' : '图片') : '属性'}</span>
-            <button onClick={() => setPanelCollapsed(true)} title="收起面板" className="text-[#9A9A9A] hover:text-[#353535] text-[12px]">›</button>
-          </div>
-          <div className="p-2.5 space-y-3 text-[11px]">
-            {!sel ? (
-              <p className="text-[#C0C0C0] text-center py-6">选中画布元素后<br />在此设置样式</p>
-            ) : (
-              <>
-                {/* 位置尺寸 */}
-                <div>
-                  <p className="text-[#9A9A9A] mb-1.5">位置 · 尺寸 (%)</p>
-                  <div className="grid grid-cols-4 gap-1">
-                    {(['x', 'y', 'w', 'h'] as const).map(k => (
-                      <label key={k} className="flex flex-col">
-                        <span className="text-[#C0C0C0] text-[9px] uppercase">{k}</span>
-                        <input type="number" value={Math.round(sel[k])} onChange={e => patchSel({ [k]: clamp(Number(e.target.value) || 0, 0, 100) })}
-                          className="w-full border border-[#E7E7EB] rounded px-1 py-0.5 focus:border-[#02A7F0] outline-none" />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 文本样式 */}
-                {sel.type === 'text' && (
-                  <>
-                    <div>
-                      <p className="text-[#9A9A9A] mb-1.5">字体 · 字号 · 行距</p>
-                      <select value={sel.fontFamily || FONT} onChange={e => patchSel({ fontFamily: e.target.value })}
-                        className="w-full border border-[#E7E7EB] rounded px-1.5 py-1 bg-white focus:border-[#02A7F0] outline-none mb-1.5">
-                        {FONT_OPTS.map(f => <option key={f} value={f}>{f === FONT ? '默认(雅黑)' : f}</option>)}
-                      </select>
-                      <div className="flex gap-1">
-                        <input type="number" min={10} max={72} value={sel.fontSize || 18} onChange={e => patchSel({ fontSize: Number(e.target.value) || 18 })}
-                          className="w-1/2 border border-[#E7E7EB] rounded px-1.5 py-1 focus:border-[#02A7F0] outline-none" title="字号" />
-                        <select value={sel.lineHeight || 1.4} onChange={e => patchSel({ lineHeight: Number(e.target.value) })}
-                          className="w-1/2 border border-[#E7E7EB] rounded px-1 py-1 bg-white focus:border-[#02A7F0] outline-none" title="行距">
-                          {[1, 1.15, 1.4, 1.6, 2].map(l => <option key={l} value={l}>{l}x</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[#9A9A9A] mb-1.5">样式</p>
-                      <div className="flex gap-1">
-                        <button onClick={() => patchSel({ bold: !sel.bold })} className={`flex-1 py-1 rounded ${sel.bold ? BActive : B}`} title="加粗"><b>B</b></button>
-                        <button onClick={() => patchSel({ italic: !sel.italic })} className={`flex-1 py-1 rounded italic ${sel.italic ? BActive : B}`} title="斜体">I</button>
-                        <button onClick={() => patchSel({ underline: !sel.underline })} className={`flex-1 py-1 rounded underline ${sel.underline ? BActive : B}`} title="下划线">U</button>
-                        <button onClick={() => patchSel({ bullet: !sel.bullet })} className={`flex-1 py-1 rounded ${sel.bullet ? BActive : B}`} title="条目符号">•</button>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[#9A9A9A] mb-1.5">对齐</p>
-                      <div className="flex gap-1">
-                        {(['left', 'center', 'right'] as const).map(a => (
-                          <button key={a} onClick={() => patchSel({ align: a })} className={`flex-1 py-1 rounded ${sel.align === a || (a === 'left' && !sel.align) ? BActive : B}`}>
-                            {a === 'left' ? '左' : a === 'center' ? '中' : '右'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[#9A9A9A] mb-1.5">文字颜色</p>
-                      <input type="color" value={`#${sel.color || '222222'}`} onChange={e => patchSel({ color: e.target.value.replace('#', '') })}
-                        className="w-full h-7 border border-[#E7E7EB] rounded cursor-pointer" />
-                    </div>
-                  </>
-                )}
-
-                {/* 形状样式 */}
-                {sel.type === 'shape' && (
-                  <>
-                    <div>
-                      <p className="text-[#9A9A9A] mb-1.5">形状</p>
-                      <select value={sel.shape || 'rect'} onChange={e => patchSel({ shape: e.target.value as CwElement['shape'] })}
-                        className="w-full border border-[#E7E7EB] rounded px-1.5 py-1 bg-white focus:border-[#02A7F0] outline-none">
-                        <option value="rect">矩形</option>
-                        <option value="roundRect">圆角矩形</option>
-                        <option value="ellipse">椭圆</option>
-                        <option value="triangle">三角形</option>
-                        <option value="line">线条</option>
-                        <option value="arrow">箭头</option>
-                        <option value="star">星形</option>
-                        <option value="bubble">气泡</option>
-                      </select>
-                    </div>
-                    <div>
-                      <p className="text-[#9A9A9A] mb-1.5">填充色</p>
-                      <input type="color" value={`#${sel.fill || '4472C4'}`} onChange={e => patchSel({ fill: e.target.value.replace('#', '') })}
-                        className="w-full h-7 border border-[#E7E7EB] rounded cursor-pointer" />
-                    </div>
-                  </>
-                )}
-              </>
-            )}
+  // ── 属性面板（Portal 到 body，fixed 定位跟随选中元件，避免遮挡画布内容与批注栏） ──
+  const propPanelContent = !panelCollapsed && selId && sel && (dragPos || popupPos) && (
+    <div
+      style={{ position: 'fixed', top: (dragPos || popupPos)!.top, left: (dragPos || popupPos)!.left, zIndex: 50 }}
+      className="w-[240px] flex flex-col border border-[#E7E7EB] bg-white overflow-y-auto shadow-2xl rounded-lg"
+      onMouseDown={e => e.stopPropagation()}>
+      <div
+        className="flex items-center justify-between px-2.5 py-2 border-b border-[#F0F0F0] shrink-0 bg-[#FAFBFC] cursor-move select-none"
+        onMouseDown={e => {
+          // 仅左键拖动；点收起按钮不触发拖动
+          if (e.button !== 0) return
+          e.preventDefault()
+          const cur = dragPos || popupPos!
+          dragStartRef.current = { x: e.clientX, y: e.clientY, top: cur.top, left: cur.left }
+          const onMove = (ev: MouseEvent) => {
+            if (!dragStartRef.current) return
+            const dx = ev.clientX - dragStartRef.current.x
+            const dy = ev.clientY - dragStartRef.current.y
+            const newTop = dragStartRef.current.top + dy
+            const newLeft = dragStartRef.current.left + dx
+            setDragPos({ top: newTop, left: newLeft })
+          }
+          const onUp = () => {
+            dragStartRef.current = null
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+          }
+          document.addEventListener('mousemove', onMove)
+          document.addEventListener('mouseup', onUp)
+        }}
+      >
+        <span className="text-[11px] font-medium text-[#353535] flex items-center gap-1">
+          <span className="text-[#C0C0C0]">⋮⋮</span>
+          {sel.type === 'text' ? '文本框' : sel.type === 'shape' ? '形状' : '图片'}
+        </span>
+        <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setPanelCollapsed(true); setDragPos(null) }} title="收起面板" className="text-[#9A9A9A] hover:text-[#353535] text-[12px]">›</button>
+      </div>
+      <div className="p-2.5 space-y-3 text-[11px]">
+        {/* 位置尺寸 */}
+        <div>
+          <p className="text-[#9A9A9A] mb-1.5">位置 · 尺寸 (%)</p>
+          <div className="grid grid-cols-4 gap-1">
+            {(['x', 'y', 'w', 'h'] as const).map(k => (
+              <label key={k} className="flex flex-col">
+                <span className="text-[#C0C0C0] text-[9px] uppercase">{k}</span>
+                <input type="number" value={Math.round(sel[k])} onChange={e => patchSel({ [k]: clamp(Number(e.target.value) || 0, 0, 100) })}
+                  className="w-full border border-[#E7E7EB] rounded px-1 py-0.5 focus:border-[#02A7F0] outline-none" />
+              </label>
+            ))}
           </div>
         </div>
-      )}
-      {panelCollapsed && (
-        <button onClick={() => setPanelCollapsed(false)} title="展开属性面板"
-          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-7 h-12 rounded-l bg-[#212529]/80 text-white flex items-center justify-center hover:bg-[#212529]">
-          <span style={{ transform: 'rotate(180deg)', display: 'inline-block' }}>›</span>
-        </button>
-      )}
-    </>
+
+        {/* 文本样式 */}
+        {sel.type === 'text' && (
+          <>
+            <div>
+              <p className="text-[#9A9A9A] mb-1.5">字体 · 字号 · 行距</p>
+              <select value={sel.fontFamily || FONT} onChange={e => patchSel({ fontFamily: e.target.value })}
+                className="w-full border border-[#E7E7EB] rounded px-1.5 py-1 bg-white focus:border-[#02A7F0] outline-none mb-1.5">
+                {FONT_OPTS.map(f => <option key={f} value={f}>{f === FONT ? '默认(雅黑)' : f}</option>)}
+              </select>
+              <div className="flex gap-1">
+                <input type="number" min={10} max={72} value={sel.fontSize || 18} onChange={e => patchSel({ fontSize: Number(e.target.value) || 18 })}
+                  className="w-1/2 border border-[#E7E7EB] rounded px-1.5 py-1 focus:border-[#02A7F0] outline-none" title="字号" />
+                <select value={sel.lineHeight || 1.4} onChange={e => patchSel({ lineHeight: Number(e.target.value) })}
+                  className="w-1/2 border border-[#E7E7EB] rounded px-1 py-1 bg-white focus:border-[#02A7F0] outline-none" title="行距">
+                  {[1, 1.15, 1.4, 1.6, 2].map(l => <option key={l} value={l}>{l}x</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <p className="text-[#9A9A9A] mb-1.5">样式</p>
+              <div className="flex gap-1">
+                <button onClick={() => patchSel({ bold: !sel.bold })} className={`flex-1 py-1 rounded ${sel.bold ? BActive : B}`} title="加粗"><b>B</b></button>
+                <button onClick={() => patchSel({ italic: !sel.italic })} className={`flex-1 py-1 rounded italic ${sel.italic ? BActive : B}`} title="斜体">I</button>
+                <button onClick={() => patchSel({ underline: !sel.underline })} className={`flex-1 py-1 rounded underline ${sel.underline ? BActive : B}`} title="下划线">U</button>
+                <button onClick={() => patchSel({ bullet: !sel.bullet })} className={`flex-1 py-1 rounded ${sel.bullet ? BActive : B}`} title="条目符号">•</button>
+              </div>
+            </div>
+            <div>
+              <p className="text-[#9A9A9A] mb-1.5">对齐</p>
+              <div className="flex gap-1">
+                {(['left', 'center', 'right'] as const).map(a => (
+                  <button key={a} onClick={() => patchSel({ align: a })} className={`flex-1 py-1 rounded ${sel.align === a || (a === 'left' && !sel.align) ? BActive : B}`}>
+                    {a === 'left' ? '左' : a === 'center' ? '中' : '右'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[#9A9A9A] mb-1.5">文字颜色</p>
+              <input type="color" value={`#${sel.color || '222222'}`} onChange={e => patchSel({ color: e.target.value.replace('#', '') })}
+                className="w-full h-7 border border-[#E7E7EB] rounded cursor-pointer" />
+            </div>
+          </>
+        )}
+
+        {/* 形状样式 */}
+        {sel.type === 'shape' && (
+          <>
+            <div>
+              <p className="text-[#9A9A9A] mb-1.5">形状</p>
+              <select value={sel.shape || 'rect'} onChange={e => patchSel({ shape: e.target.value as CwElement['shape'] })}
+                className="w-full border border-[#E7E7EB] rounded px-1.5 py-1 bg-white focus:border-[#02A7F0] outline-none">
+                <option value="rect">矩形</option>
+                <option value="roundRect">圆角矩形</option>
+                <option value="ellipse">椭圆</option>
+                <option value="triangle">三角形</option>
+                <option value="line">线条</option>
+                <option value="arrow">箭头</option>
+                <option value="star">星形</option>
+                <option value="bubble">气泡</option>
+              </select>
+            </div>
+            <div>
+              <p className="text-[#9A9A9A] mb-1.5">填充色</p>
+              <input type="color" value={`#${sel.fill || '4472C4'}`} onChange={e => patchSel({ fill: e.target.value.replace('#', '') })}
+                className="w-full h-7 border border-[#E7E7EB] rounded cursor-pointer" />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   )
+
+  // 属性面板无独立唤醒按钮——只在画布命中元件时由 useEffect 自动展开，关闭靠点空白或面板 › 收起
 
   // ── 画布主体（工具条 + 画布 + 右侧属性面板） ──
   const body = (
     <div className="flex flex-1 overflow-hidden relative">
       {/* 中央：工具条 + 画布 */}
       <div className="flex-1 flex flex-col overflow-hidden px-4 py-3">
-        {/* 工具条（操作类，样式设置移右侧属性面板） */}
-        <div className="mb-1.5 flex flex-wrap items-center gap-1 text-[11px] shrink-0">
-          <button title="撤销 (Ctrl+Z)" disabled={hIndex <= 0} onClick={undo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40`}>↶</button>
-          <button title="重做 (Ctrl+Y)" disabled={hIndex >= history.length - 1} onClick={redo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40`}>↷</button>
+        {/* 工具条（与画布同宽居中） */}
+        <div className="mb-1.5 flex flex-wrap items-center gap-1 text-[11px] shrink-0 mx-auto" style={{ maxWidth: 'min(896px, 100%)' }}>
+          <button title="撤销 (Ctrl+Z)" disabled={hIndex <= 0} onClick={undo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40 flex items-center gap-1`}><Undo2 size={13} /> 撤销</button>
+          <button title="重做 (Ctrl+Y)" disabled={hIndex >= history.length - 1} onClick={redo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40 flex items-center gap-1`}><Redo2 size={13} /> 重做</button>
           <span className="mx-0.5 text-[#E7E7EB]">|</span>
           <button onClick={() => addElement('text')} className={`px-1.5 py-0.5 rounded ${B}`}>+ 文本框</button>
           <label className={`px-1.5 py-0.5 rounded ${B} cursor-pointer`}>
@@ -753,10 +807,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
             <option value="two-col">两栏</option>
             <option value="blank">空白</option>
           </select>
-          <select value={ar} onChange={(e) => onArChange(e.target.value as '16/9' | '4/3')} className={`rounded px-1 py-0.5 bg-white ${B}`} title="版心比例">
-            <option value="16/9">16:9</option>
-            <option value="4/3">4:3</option>
-          </select>
+          {/* 版心比例由父级顶栏控制（避免重复），此处不重复 */}
+          <span className={`rounded px-1.5 py-0.5 ${B} text-[#9A9A9A]`} title="版心比例">版心 {ar}</span>
           <span className="flex-1" />
           {!fullscreen && !embedFullscreen && (
             <button onClick={() => setFullscreen(true)} title="全屏编辑" className={`px-2 py-0.5 rounded ${B}`}>⛶ 全屏</button>
@@ -764,7 +816,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
         </div>
 
         {/* 画布（按版心比例基准，按容器缩放） */}
-        <div className="flex-1 overflow-y-auto flex items-start justify-center py-2">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto flex items-start justify-center py-2">
           <div style={{ width: cw * scale, height: ch * scale }}>
             <div
               ref={canvasRef}
@@ -874,8 +926,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
         <p className="mt-1 text-center text-xs text-[#9A9A9A] shrink-0">双击标题/文本框编辑文字 · 拖拽移动(自动吸附) · 拖右下角缩放 · 空白处拖框选 · Ctrl+Z/Y 撤销重做 · Ctrl+C/V/D 复制粘贴副本 · Delete 删 · 方向键微调</p>
       </div>
 
-      {/* 右侧属性面板 */}
-      {propPanel}
+      {/* 属性面板展开内容（Portal 到 body，fixed 跟随选中元件）；面板只在命中元件时才出现，无独立唤醒按钮 */}
+      {propPanelContent && createPortal(propPanelContent, document.body)}
     </div>
   )
 

@@ -168,7 +168,7 @@ export default function Materials() {
             {/* AI 生成课件（P4：独立编辑器页，与教案/出题/组卷同框架） */}
             <button
               onClick={() => window.open('/courseware/new', '_blank')}
-              className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] transition-colors"
             >
               <Sparkles size={14} /> AI 生成课件
             </button>
@@ -347,7 +347,7 @@ export default function Materials() {
                   <span className="text-[11px] text-[#9A9A9A] flex items-center gap-0.5"><TrendingUp size={10} />{m.usage}</span>
                   {m.type === 'courseware' && (
                     <button onClick={(e) => { e.stopPropagation(); openPlay(m) }}
-                      className="flex items-center gap-1 text-[11px] text-[#722ED1] hover:text-[#5B23A8]"><Monitor size={12} />播放</button>
+                      className="flex items-center gap-1 text-[11px] text-[#02A7F0] hover:text-[#0398D8]"><Monitor size={12} />播放</button>
                   )}
                 </div>
               </div>

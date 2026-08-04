@@ -36,7 +36,7 @@ export default function XiaoWeiLauncher({
           style={{ boxShadow: '0 0 0 3px rgba(2,167,240,0.45), 0 0 24px 4px rgba(2,167,240,0.35)' }}
         >
           <EditXiaoWeiPanel
-            contextType={contextType as 'lesson' | 'exercise' | 'exam'}
+            contextType={contextType as 'lesson' | 'exercise' | 'exam' | 'courseware' | 'sheet' | 'assignment'}
             subject={subject}
             grade={String(grade)}
             knowledgeNodeNames={knowledgeNodeNames}

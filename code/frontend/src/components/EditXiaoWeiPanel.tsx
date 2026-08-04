@@ -9,7 +9,7 @@ interface Message {
 }
 
 interface Props {
-  contextType: 'lesson' | 'exercise' | 'exam'
+  contextType: 'lesson' | 'exercise' | 'exam' | 'courseware' | 'sheet' | 'assignment'
   subject: string
   grade: string
   knowledgeNodeNames: string[]
@@ -33,7 +33,7 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
   useEffect(() => {
     const k = knowledgeNodeNames.length > 0 ? `已选知识点：${knowledgeNodeNames.join('、')}。` : ''
     const e = extraRequirements ? `已有附加要求：${extraRequirements}。` : ''
-    const typeLabel = contextType === 'lesson' ? '教案' : contextType === 'exercise' ? '习题' : '试卷'
+    const typeLabel = contextType === 'lesson' ? '教案' : contextType === 'exercise' ? '习题' : contextType === 'courseware' ? '课件' : contextType === 'sheet' ? '题单' : contextType === 'assignment' ? '作业' : '试卷'
     const systemText = `${TEACHING_SYSTEM}\n\n当前用户正在编辑一份【${grade}${subject} · ${typeLabel}】。${k}${e}
 
 对话要求：

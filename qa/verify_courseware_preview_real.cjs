@@ -79,7 +79,7 @@ const assert = (c, m) => { A.push((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.
   const p5Thumb = popup.locator('text=/^P5$/')
   await p5Thumb.click().catch(() => {})
   await popup.waitForTimeout(300)
-  const p5Highlighted = await p5Thumb.evaluate(el => el.closest('div')?.className.includes('border-[#722ED1]') || el.parentElement?.className.includes('722ED1')).catch(() => false)
+  const p5Highlighted = await p5Thumb.evaluate(el => el.closest('div')?.className.includes('border-[#02A7F0]') || el.parentElement?.className.includes('02A7F0')).catch(() => false)
   A.push('p5ThumbHighlighted=' + p5Highlighted)
   assert(p5Highlighted, '点缩略图P5可切换并高亮当前页')
   // 右栏可滚到末页（确证长画布可下拉到任意页）

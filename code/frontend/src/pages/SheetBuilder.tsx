@@ -192,7 +192,7 @@ export default function SheetBuilder() {
         <label className="block text-[12px] font-medium text-[#353535] mb-2">标题</label>
         <input value={sheetTitle} onChange={e => setSheetTitle(e.target.value)}
           placeholder="如：第三单元课后练习"
-          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1]" />
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
       </div>
 
       {/* 布置班级 */}
@@ -201,7 +201,7 @@ export default function SheetBuilder() {
           <Users size={12} className="inline mr-1" />布置班级
         </label>
         <select value={targetClass} onChange={e => setTargetClass(e.target.value)}
-          className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1] bg-white">
+          className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
           <option value="">请选择班级</option>
           {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -213,7 +213,7 @@ export default function SheetBuilder() {
           <Calendar size={12} className="inline mr-1" />截止日期（选填）
         </label>
         <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
-          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1]" />
+          className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
       </div>
 
       {/* 出题配置 */}
@@ -224,7 +224,7 @@ export default function SheetBuilder() {
           <div className="flex gap-2">
             {DIFFICULTIES.map(d => (
               <button key={d} onClick={() => setDifficulty(d)}
-                className={`flex-1 px-2.5 py-2 text-[12px] rounded-[4px] transition-colors ${difficulty === d ? 'bg-[#722ED1] text-white' : 'bg-[#F6F7F8] text-[#353535] hover:bg-[#E8E8E8]'}`}>
+                className={`flex-1 px-2.5 py-2 text-[12px] rounded-[4px] transition-colors ${difficulty === d ? 'bg-[#02A7F0] text-white' : 'bg-[#F6F7F8] text-[#353535] hover:bg-[#E8E8E8]'}`}>
                 {DIFFICULTY_LABELS[d]}
               </button>
             ))}
@@ -234,7 +234,7 @@ export default function SheetBuilder() {
           <div className="flex-1">
             <label className="block text-[12px] text-[#9A9A9A] mb-1.5">题量</label>
             <select value={count} onChange={e => setCount(Number(e.target.value))}
-              className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1] bg-white">
+              className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] bg-white">
               {[3,5,8,10,15,20].map(n => <option key={n} value={n}>{n} 题</option>)}
             </select>
           </div>
@@ -244,7 +244,7 @@ export default function SheetBuilder() {
           <div className="flex flex-wrap gap-1.5">
             {QUESTION_TYPES.map(t => (
               <button key={t.id} onClick={() => toggleType(t.id)}
-                className={`px-2.5 py-1.5 text-[11px] rounded-full transition-colors ${selectedTypes.includes(t.id) ? 'bg-[#722ED1]/10 text-[#722ED1] border border-[#722ED1]' : 'bg-[#F6F7F8] text-[#353535] border border-transparent hover:border-[#E7E7EB]'}`}>
+                className={`px-2.5 py-1.5 text-[11px] rounded-full transition-colors ${selectedTypes.includes(t.id) ? 'bg-[#02A7F0]/10 text-[#02A7F0] border border-[#02A7F0]' : 'bg-[#F6F7F8] text-[#353535] border border-transparent hover:border-[#E7E7EB]'}`}>
                 {t.label}
               </button>
             ))}
@@ -257,13 +257,13 @@ export default function SheetBuilder() {
         <label className="block text-[12px] font-medium text-[#353535] mb-1.5">附加要求</label>
         <textarea value={extraReq} onChange={e => setExtraReq(e.target.value)}
           rows={2} placeholder="如：侧重基础、减少开放性题目…（也可先在左下角小微对话提需求，自动带入）"
-          className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1] resize-none" />
+          className="w-full px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0] resize-none" />
       </div>
 
       {/* AI 生成按钮 */}
       <div className="px-5 py-4 border-t border-[#F0F0F0]">
         <button onClick={() => handleGenerate()} disabled={generating || picker.selectedIds.length === 0}
-          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50 transition-colors">
+          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] disabled:opacity-50 transition-colors">
           {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           {generating ? '正在生成题目...' : (picker.selectedIds.length === 0 ? '请先在知识图谱选取知识点' : (questions.length > 0 ? '重新生成题目' : 'AI 生成题目'))}
         </button>
@@ -319,7 +319,7 @@ export default function SheetBuilder() {
       {questions.length > 0 && (
         <div className="px-5 py-4 border-t border-[#F0F0F0] mt-auto">
           <button onClick={() => { ctrl.setWorkMode('ai'); handleGenerate() }} disabled={generating}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] disabled:opacity-50 transition-colors">
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] disabled:opacity-50 transition-colors">
             <Sparkles size={14} /> 重新生成题目
           </button>
         </div>
@@ -445,7 +445,7 @@ export default function SheetBuilder() {
               {/* 选项 2: 布置为作业 */}
               <div className="border border-[#E7E7EB] rounded-md p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Send size={18} className="text-[#722ED1]" />
+                  <Send size={18} className="text-[#02A7F0]" />
                   <span className="text-[13px] font-medium text-[#353535]">布置为作业</span>
                 </div>
 
@@ -468,7 +468,7 @@ export default function SheetBuilder() {
                             onClick={() => setAssignClasses(prev => selected ? prev.filter(x => x !== c) : [...prev, c])}
                             className={`px-2.5 py-1.5 text-[12px] rounded-[3px] transition-colors ${
                               wasAssigned ? 'bg-amber-50 text-amber-400 line-through cursor-not-allowed' :
-                              selected ? 'bg-[#722ED1] text-white' : 'bg-[#F6F7F8] text-[#636363] hover:bg-[#E8E8EB]'
+                              selected ? 'bg-[#02A7F0] text-white' : 'bg-[#F6F7F8] text-[#636363] hover:bg-[#E8E8EB]'
                             }`}>
                             {c}{wasAssigned ? ' 🚫' : selected ? ' ✓' : ''}
                           </button>
@@ -479,13 +479,13 @@ export default function SheetBuilder() {
                   </div>
                   <div>
                     <label className="block text-[11px] text-[#9A9A9A] mb-1">日期</label>
-                    <input type="date" value={assignDate} onChange={e => setAssignDate(e.target.value)} className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#722ED1]" />
+                    <input type="date" value={assignDate} onChange={e => setAssignDate(e.target.value)} className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] focus:outline-none focus:border-[#02A7F0]" />
                   </div>
                   <div>
                     <label className="block text-[11px] text-[#9A9A9A] mb-1">作业类型</label>
                     <div className="flex flex-wrap gap-1.5">
                       {assignTypes.map(t => (
-                        <button key={t} onClick={() => setAssignType(t)} className={`px-3 py-1 text-[12px] rounded-[3px] transition-colors ${assignType === t ? 'bg-[#722ED1] text-white' : 'bg-[#F6F7F8] text-[#636363] hover:bg-[#E8E8EB]'}`}>
+                        <button key={t} onClick={() => setAssignType(t)} className={`px-3 py-1 text-[12px] rounded-[3px] transition-colors ${assignType === t ? 'bg-[#02A7F0] text-white' : 'bg-[#F6F7F8] text-[#636363] hover:bg-[#E8E8EB]'}`}>
                           {t}
                         </button>
                       ))}
@@ -493,7 +493,7 @@ export default function SheetBuilder() {
                   </div>
                 </div>
 
-                <button onClick={handleAssignHomework} className="ml-7 flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#722ED1] rounded-[4px] hover:bg-[#5B23A8] transition-colors">
+                <button onClick={handleAssignHomework} className="ml-7 flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] transition-colors">
                   <Send size={14} /> 确认布置
                 </button>
               </div>
