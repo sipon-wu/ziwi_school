@@ -7,6 +7,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { api, lessonPlanAPI, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import { useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
+import { ALL_SUBJECTS } from '@shared/subjects'
 
 interface LessonPlan {
   id: string
@@ -63,7 +64,7 @@ export default function LessonPlanList() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   // 草稿箱展示教师本人的全部教案；学科/年级仅作可选筛选（默认全部），不再按全局教学上下文硬藏
-  const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+  const SUBJECTS = ALL_SUBJECTS
   const GRADES = Object.values(GRADE_MAP)
 
   const filtered = plans.filter(p => {

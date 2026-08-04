@@ -5,7 +5,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  resolve: { alias: { '@': path.resolve(__dirname, './src'), '@shared': path.resolve(__dirname, '../shared') } },
   server: { port: 5173, proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } },
   build: {
     // KnowledgeGraph(@antv/g6) 等重库体积大，拆独立 chunk 降低主包体积

@@ -245,9 +245,18 @@ export function markdownToOutline(md: string): OutlineSlide[] {
       try { cur.elements = JSON.parse(elMatch[1]) } catch { /* 解析失败则忽略，保留 bullets */ }
       continue
     }
+    // 版式标注注释：<!-- layout: edu-xxx --> 写入当前页 layout（AI 生成时自动带上教学版式）
+    const layoutMatch = line.match(/^<!--\s*layout:\s*([\w-]+)\s*-->$/)
+    if (layoutMatch && cur) {
+      cur.layout = layoutMatch[1]
+      continue
+    }
     if (line.startsWith('## ')) {
       if (cur) slides.push(cur)
-      cur = { title: line.slice(3).trim(), bullets: [] }
+      const title = line.slice(3).trim()
+      // 总标题页（# 后的首个 ## 或标题等于课件名）视为封面
+      const isCover: boolean = !cur && /封面|^课件$|^《.+》$/.test(title)
+      cur = { title, bullets: [], layout: isCover ? 'edu-cover' : undefined }
     } else if (cur) {
       cur.bullets.push(line.replace(/^[-*]\s*/, '').replace(/\*{1,3}/g, '').replace(/`/g, ''))
     } else {
@@ -326,6 +335,39 @@ export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[
     }
     case 'blank':
       return []
+    // ── 教学语义版式：按结构占位生成默认自由元素（老师填空式编辑） ──
+    case 'edu-cover':
+      return [
+        { id: uid(), type: 'text', x: 10, y: 30, w: 80, h: 18, text: slide.title || '课题名称', fontSize: 32, bold: true, align: 'center' },
+        { id: uid(), type: 'text', x: 10, y: 56, w: 80, h: 10, text: '年级 / 学科 / 教师', fontSize: 16, align: 'center', color: '666666' },
+      ]
+    case 'edu-goal':
+      return [
+        { id: uid(), type: 'text', x: 6, y: 23, w: 28, h: 60, text: '知识与技能\n（填写）', fontSize: 16, bullet: true },
+        { id: uid(), type: 'text', x: 36, y: 23, w: 28, h: 60, text: '过程与方法\n（填写）', fontSize: 16, bullet: true },
+        { id: uid(), type: 'text', x: 66, y: 23, w: 28, h: 60, text: '情感态度价值观\n（填写）', fontSize: 16, bullet: true },
+      ]
+    case 'edu-explain':
+      return [
+        { id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 22, text: slide.bullets[0] || '概念定义（填写）', fontSize: 18, bold: true },
+        { id: uid(), type: 'text', x: 6, y: 50, w: 88, h: 38, text: (slide.bullets.slice(1).join('\n') || '要点展开（填写）'), fontSize: 16, bullet: true },
+      ]
+    case 'edu-example':
+      return [
+        { id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 26, text: slide.bullets[0] || '题干（填写）', fontSize: 18, bold: true },
+        { id: uid(), type: 'text', x: 6, y: 54, w: 88, h: 34, text: (slide.bullets.slice(1).join('\n') || '解答步骤（填写）'), fontSize: 16, bullet: true },
+      ]
+    case 'edu-summary':
+      return [
+        { id: uid(), type: 'text', x: 6, y: 23, w: 60, h: 60, text: parts.join('\n') || '要点归纳（填写）', fontSize: 16, bullet: true },
+        { id: uid(), type: 'shape', x: 70, y: 28, w: 24, h: 50, shape: 'ellipse', fill: 'E8F7FF' },
+      ]
+    case 'edu-homework':
+      return [
+        { id: uid(), type: 'text', x: 6, y: 23, w: 28, h: 60, text: '基础\n（填写）', fontSize: 16, bullet: true },
+        { id: uid(), type: 'text', x: 36, y: 23, w: 28, h: 60, text: '提高\n（填写）', fontSize: 16, bullet: true },
+        { id: uid(), type: 'text', x: 66, y: 23, w: 28, h: 60, text: '拓展\n（填写）', fontSize: 16, bullet: true },
+      ]
     case 'title-body':
     default:
       return parts.length ? [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }] : []

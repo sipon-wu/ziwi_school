@@ -12,7 +12,7 @@ import { classAPI, notifyError } from '../lib/api'
 
 /* ──────── Sidebar ──────── */
 type SidebarGroup = { id: string; label: string; icon: ReactNode; to?: string; children?: SidebarChild[] }
-type SidebarChild = { label: string; icon: ReactNode; to: string; requireSchool?: boolean }
+type SidebarChild = { label: string; icon: ReactNode; to: string; requireSchool?: boolean; soon?: boolean }
 
 const SIDEBAR: SidebarGroup[] = [
   { id: 'home', label: '首页', icon: <LayoutGrid size={16} />, to: '/teacher' },
@@ -23,8 +23,8 @@ const SIDEBAR: SidebarGroup[] = [
   ]},
   { id: '课件', label: '教学课件', icon: <MonitorPlay size={16} />, children: [
     { label: 'PPT 课件', icon: <MonitorPlay size={14} />, to: '/courseware/ppt' },
-    { label: 'H5 互动课件', icon: <Smartphone size={14} />, to: '/courseware/h5' },
-    { label: '视频课件', icon: <Video size={14} />, to: '/courseware/video' },
+    { label: 'H5 互动课件', icon: <Smartphone size={14} />, to: '/courseware/h5', soon: true },
+    { label: '视频课件', icon: <Video size={14} />, to: '/courseware/video', soon: true },
   ]},
   { id: '练习', label: '作业练习', icon: <ListChecks size={16} />, children: [
     { label: '出题·题库', icon: <PenTool size={14} />, to: '/exercises' },
@@ -199,6 +199,16 @@ export default function AppLayout({ children }: Props) {
                       <div className="flex flex-col gap-[1px] mt-[2px]">
                         {g.children.map((c) => {
                           const childActive = path.startsWith(c.to)
+                          if (c.soon) {
+                            return (
+                              <span key={c.to}
+                                title="即将上线"
+                                className="flex items-center gap-[6px] pl-[34px] pr-[12px] py-[4px] text-[14px] leading-[24px] font-[400] text-[#B0B8C4] cursor-not-allowed">
+                                {c.icon}<span>{c.label}</span>
+                                <span className="ml-auto text-[10px] px-1 bg-[#B0B8C4] text-white rounded">即将上线</span>
+                              </span>
+                            )
+                          }
                           return (
                             <a key={c.to} href={c.to}
                               className={`flex items-center gap-[6px] pl-[34px] pr-[12px] py-[4px] text-[14px] leading-[24px] font-[400] ${childActive ? 'bg-[#02A7F0] text-white rounded-[999px]' : 'text-[#9A9A9A] hover:text-[#353535]'}`}>

@@ -200,3 +200,18 @@ export const THEME_GROUPS: ThemeGroup[] = (() => {
 })()
 
 export { THEMES }
+
+// ── 风格标签 → 代表性 themeId 映射（与 cwTemplate.ts 的 StyleTag 对齐） ──
+// 仅取每风格下的一个代表配色作为模板默认色；素材积累后可由具体 CwTemplate 覆盖 themeId。
+export const DEFAULT_THEME_ID = DEFAULT_THEME.id
+
+export const THEME_BY_STYLE: Partial<Record<string, string>> = {
+  china: 'zgf-ink-wash',         // 中国风 → 水墨丹青
+  minimal: 'min-classic-blue',   // 简约 → 经典深蓝（= DEFAULT_THEME）
+  tech: 'te-quantum-blue',       // 科技风 → 量子蓝
+  fresh: 'fr-mint',              // 小清新 → 薄荷绿
+  academic: 'aca-edu-blue',      // 学术 → 教研蓝
+  cartoon: 'sp-cartoon',         // 卡通 → 卡通插画（专项主题）
+  flat: 'min-geo',               // 扁平 → 几何极简（近似）
+  business: 'min-navy-intellectual', // 商务 → 知性藏青（近似）
+}

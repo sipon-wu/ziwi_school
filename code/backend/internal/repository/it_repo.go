@@ -296,12 +296,16 @@ func (r *ITRepository) UpdateUserRole(schoolID, userID, role string) error {
 // UpsertSchoolTextbook 按 (学校, 学科, 年级) upsert 一条 scope='school' 覆盖行，仅本校生效。
 // 写学校本地副本表 school_textbook_override，不影响公共库 tb_textbook_version，多校互不影响。
 func (r *ITRepository) UpsertSchoolTextbook(schoolID, subject, grade, publisher, versionName string) error {
+	norm := model.NormalizeSubject(subject)
+	if norm == "" {
+		return fmt.Errorf("invalid subject: %s", subject)
+	}
 	return r.db.Exec(`
 		INSERT INTO school_textbook_override (id, school_id, subject, grade, publisher, version_name, created_at, updated_at)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())
 		ON CONFLICT (school_id, subject, grade)
 		DO UPDATE SET publisher = EXCLUDED.publisher, version_name = EXCLUDED.version_name, updated_at = now()
-	`, schoolID, subject, grade, publisher, versionName).Error
+	`, schoolID, norm, grade, publisher, versionName).Error
 }
 
 // ── V2.5 教材版本三级配置 ──
@@ -324,6 +328,11 @@ func (r *ITRepository) ListTextbookConfigs(schoolID string) ([]model.TextbookCon
 // 学校级 grade=空、class_id=nil；年级学科级 grade=年级、class_id=nil；班级级 class_id=班级、grade=年级。
 // 注：GORM Exec 的 prepared statement 不支持单字符串多语句，故 DELETE 与 INSERT 分两次执行。
 func (r *ITRepository) UpsertTextbookConfig(cfg *model.TextbookConfig) error {
+	norm := model.NormalizeSubject(cfg.Subject)
+	if norm == "" {
+		return fmt.Errorf("invalid subject: %s", cfg.Subject)
+	}
+	cfg.Subject = norm
 	if err := r.db.Exec(
 		`DELETE FROM textbook_config WHERE school_id = $1 AND config_type = $2 AND subject = $3 AND grade IS NOT DISTINCT FROM $4 AND class_id IS NOT DISTINCT FROM $5`,
 		cfg.SchoolID, string(cfg.ConfigType), cfg.Subject, cfg.Grade, cfg.ClassID,
@@ -384,16 +393,20 @@ func (r *ITRepository) ResolveTextbookConfig(schoolID, subject, grade string, cl
 
 // UpsertTeacherTextbookPref 按唯一键 (teacher_id, grade, class_id, subject) upsert 一条个人教材偏好。
 func (r *ITRepository) UpsertTeacherTextbookPref(teacherID, schoolID, grade, classID, subject, publisher, versionName string) error {
+	norm := model.NormalizeSubject(subject)
+	if norm == "" {
+		return fmt.Errorf("invalid subject: %s", subject)
+	}
 	if err := r.db.Exec(
 		`DELETE FROM teacher_textbook_pref WHERE teacher_id = $1 AND grade IS NOT DISTINCT FROM $2 AND class_id IS NOT DISTINCT FROM $3 AND subject = $4`,
-		teacherID, grade, classID, subject,
+		teacherID, grade, classID, norm,
 	).Error; err != nil {
 		return err
 	}
 	return r.db.Exec(
 		`INSERT INTO teacher_textbook_pref (id, teacher_id, school_id, grade, class_id, subject, publisher, version_name, created_at, updated_at)
 		 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, now(), now())`,
-		teacherID, schoolID, grade, classID, subject, publisher, versionName,
+		teacherID, schoolID, grade, classID, norm, publisher, versionName,
 	).Error
 }
 

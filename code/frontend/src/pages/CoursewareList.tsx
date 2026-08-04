@@ -117,6 +117,14 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
   return (
     <AppLayout>
       <div className="space-y-4">
+        {format === 'h5' && (
+          <div className="bg-white border border-dashed border-[#D0D0D0] rounded-[4px] p-10 flex flex-col items-center justify-center text-center">
+            <Smartphone size={32} className="text-[#B0B8C4] mb-3" />
+            <h2 className="text-[15px] font-medium text-[#353535] mb-1">H5 互动课件编辑器 · 即将上线</h2>
+            <p className="text-[12px] text-[#9A9A9A] max-w-[420px]">H5 互动课件模板体系已就绪（风格标签、配色色系、“通用 × 色系”自由组合均与 PPT 同源），
+              编辑器交互将于后续版本开放。当前可先用 PPT 课件创作，H5 输出通道预留中。</p>
+          </div>
+        )}
         {/* 页面标题 */}
         <div className="flex items-center justify-between">
           <div>

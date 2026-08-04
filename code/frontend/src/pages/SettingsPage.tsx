@@ -4,6 +4,7 @@ import { api, adminAPI, classAPI, teacherPrefAPI, notifyError } from '../lib/api
 import AppLayout from '../components/AppLayout'
 import SubmitTextbookModal from '../components/SubmitTextbookModal'
 import { useTeaching } from '../lib/TeachingContext'
+import { subjectsForGrade } from '@shared/subjects'
 
 type SubTab = 'account' | 'school' | 'textbook' | 'semester' | 'train' | 'log' | 'library' | 'campus'
 
@@ -1090,21 +1091,7 @@ function SchoolClassTab() {
 
   const sc: Record<string, string> = { '语文': 'bg-blue-50 text-blue-600', '数学': 'bg-orange-50 text-orange-600', '英语': 'bg-green-50 text-green-600' }
 
-  // 按学段划分学科：小学不出现物理/化学/生物/历史/地理；中学才出现。
-  const SUBJECTS_BY_LEVEL: Record<'elementary' | 'middle' | 'high', string[]> = {
-    elementary: ['语文', '数学', '英语', '政治', '体育', '音乐', '美术', '信息技术'],
-    middle: ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '体育', '音乐', '美术', '信息技术'],
-    high: ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '体育', '音乐', '美术', '信息技术'],
-  }
-
-  function gradeLevel(grade: string): 'elementary' | 'middle' | 'high' {
-    if (['七年级', '八年级', '九年级'].includes(grade)) return 'middle'
-    return 'elementary'
-  }
-
-  function subjectsForGrade(grade: string): string[] {
-    return SUBJECTS_BY_LEVEL[gradeLevel(grade)]
-  }
+  // 按学段划分学科统一引用 shared/subjects 事实源（不含艺体/信息），见下方 subjectsForGrade 调用
 
   const handleLookup = useCallback((name: string) => {
     if (!name || name.length < 2) { setLookupResult(null); return }

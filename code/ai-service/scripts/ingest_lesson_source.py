@@ -22,6 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from embeddings import embed_texts, EMBED_DIM  # noqa: E402
+from subjects import normalize_subject  # noqa: E402
 from vector_store import ensure_schema, truncate, insert_rows, COLUMNS  # noqa: E402
 
 DEFAULT_FILES = [
@@ -31,18 +32,8 @@ DEFAULT_FILES = [
     "底料_小度诗教.jsonl",
 ]
 
-# K12 核心学科白名单（音乐/美术/体育/特教/小语种等不属知微教学范围）
-SUBJECT_ALLOWLIST = frozenset({
-    "语文", "数学", "英语",
-    "物理", "化学", "生物学",
-    "科学", "地理", "历史",
-    "道德与法治", "思想政治",
-    "信息技术", "信息科技",
-    "语文·书法练习指导",
-    "地理图册",
-    "中国历史", "世界历史",
-    "英语（三年级起点）",
-})
+# K12 学科事实源统一在 subjects.py；入库时按 normalize_subject 归一到 9 标准学科，
+# 归一后为空（如音乐/美术/体育/信息技术/信息科技）则跳过，不属知微知识边界。
 
 
 def compose_text(row):
@@ -95,7 +86,7 @@ def row_to_record(row, mode):
     return {
         "chunk_id": row.get("chunk_id", ""),
         "stage": row.get("学段", "") or "",
-        "subject": row.get("学科", "") or "",
+        "subject": normalize_subject(row.get("学科", "") or ""),
         "grade": row.get("年级", "") or "",
         "volume": row.get("册别", "") or "",
         "version": row.get("版本", "") or "",
@@ -159,9 +150,9 @@ def main():
         buf = []
         n = 0
         for row in iter_jsonl(path):
-            subject = (row.get("学科", "") or "").strip()
-            if not subject or subject not in SUBJECT_ALLOWLIST:
-                continue  # 跳过空学科 + 音乐/美术/体育/特教/小语种等非核心学科
+            subject = normalize_subject((row.get("学科", "") or "").strip())
+            if not subject:
+                continue  # 跳过空学科 + 音乐/美术/体育/信息技术等非核心（非知识边界）学科
             buf.append(row_to_record(row, args.mode))
             n += 1
             if args.limit and n >= args.limit:

@@ -1,9 +1,9 @@
 {
-  "base": "https://school1.ziwi.cn",
-  "generated": "2026-07-30T09:38:58.745Z",
+  "base": "http://school1.ziwi.cn",
+  "generated": "2026-08-04T09:38:51.239Z",
   "total": 66,
-  "pass": 66,
-  "fail": 0,
+  "pass": 64,
+  "fail": 2,
   "cases": [
     {
       "id": "LOGIN-T",
@@ -436,9 +436,9 @@
         200,
         403
       ],
-      "actual": 403,
-      "pass": true,
-      "note": "路由存在，RBAC 正确拒 teacher"
+      "actual": 404,
+      "pass": false,
+      "note": "前端调用(studentAPI.listAssignments)但后端无路由→真实缺口"
     },
     {
       "id": "E-SEB",
@@ -449,9 +449,9 @@
         200,
         403
       ],
-      "actual": 403,
-      "pass": true,
-      "note": "路由存在，RBAC 正确拒 teacher"
+      "actual": 404,
+      "pass": false,
+      "note": "前端调用(studentAPI.getErrorBook)但后端无路由→真实缺口"
     },
     {
       "id": "W-EX",
@@ -470,7 +470,7 @@
       "id": "W-EX-D",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/exercises/f5dfe3c8-7b58-41f2-8088-bd8f5bc1c6b9",
+      "path": "/api/exercises/83a0383c-c805-4bc1-80e6-5d8055e39793",
       "expected": [
         200
       ],
@@ -505,7 +505,7 @@
       "id": "S3",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/lesson-plans/lp_1fc746be3aba",
+      "path": "/api/lesson-plans/lp_2ec37e072af3",
       "expected": [
         200,
         204

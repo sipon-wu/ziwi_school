@@ -806,6 +806,14 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
             <option value="title-only">仅标题</option>
             <option value="two-col">两栏</option>
             <option value="blank">空白</option>
+            <optgroup label="教学版式">
+              <option value="edu-cover">封面</option>
+              <option value="edu-goal">教学目标</option>
+              <option value="edu-explain">知识讲解</option>
+              <option value="edu-example">例题演练</option>
+              <option value="edu-summary">课堂小结</option>
+              <option value="edu-homework">作业布置</option>
+            </optgroup>
           </select>
           {/* 版心比例由父级顶栏控制（避免重复），此处不重复 */}
           <span className={`rounded px-1.5 py-0.5 ${B} text-[#9A9A9A]`} title="版心比例">版心 {ar}</span>

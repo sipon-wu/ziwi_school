@@ -20,6 +20,7 @@
 
 import re
 import json
+from subjects import normalize_subject
 
 # ── 负面清单（平台可维护；新增只需往这里加词）──
 NEGATIVE_KEYWORDS = [
@@ -50,13 +51,15 @@ def divergence_budget(level: str) -> dict:
 
 # ── 学科原生拓展（轨道区按学科注入，低成本提示词精修，来自产品决议 2026-07-13 第 2 点）──
 # 这些本来就是学科图谱的「相邻原生拓展」，不是独立价值观库，直接纳入轨道区抽取即可。
+# key 统一为标准 9 学科（与 subjects.py 同源）。
 SUBJECT_ORBIT_HINTS = {
-    "科学": "可融入「科学拓展」：关联前沿科技、自然现象、工程应用或课堂可演示的小实验，激发探究欲。",
     "物理": "可融入「科学拓展」：关联工程技术、航天/能源/材料前沿、生活中的物理现象，激发探究欲。",
     "化学": "可融入「科学拓展」：关联材料、环境、生活中的化学现象与趣味实验，激发探究欲。",
     "生物": "可融入「科学拓展」：关联生命现象、生态环保、健康与前沿生物科技，激发探究欲。",
     "语文": "可融入「课外阅读」：关联同主题名篇、整本书阅读延伸、作者背景或文化典故，开阔文学视野。",
     "历史": "可融入「课外阅读」：关联同期史料、人物故事、文化遗产，培养史料实证意识。",
+    "地理": "可融入「地理视野」：关联自然地理现象、区域发展、生活中的地理，开阔空间认知。",
+    "政治": "可融入「社会视野」：关联法治生活、社会热点、家国情怀与责任担当，培养公民意识。",
     "数学": "可融入「同级奥数拓展」：关联思维体操、趣味数学、生活中的数学建模，锻炼灵活思维。",
     "英语": "可融入「更宽口径」：关联跨文化真实语境、原版阅读片段、生活交际，用中性生活案例开阔视野"
             "（避免商业/外来亚文化符号）。",
@@ -64,13 +67,13 @@ SUBJECT_ORBIT_HINTS = {
 
 
 def subject_orbit_hint(subject: str) -> str:
-    """按学科返回原生拓展提示（命中前缀/包含即匹配），未命中返回空。"""
+    """按学科返回原生拓展提示（以归一到标准 9 学科后的精确 key 匹配），未命中返回空。"""
     if not subject:
         return ""
-    for key, hint in SUBJECT_ORBIT_HINTS.items():
-        if subject.startswith(key) or key in subject:
-            return hint
-    return ""
+    norm = normalize_subject(subject)
+    if not norm:
+        return ""
+    return SUBJECT_ORBIT_HINTS.get(norm, "")
 
 
 def scan_negative(text: str) -> list:
