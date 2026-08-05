@@ -47,7 +47,7 @@ export default function AssignmentList() {
           id: a.id, title: a.title, subject: a.subject, grade: '四年级',
           class_name: a.class_id === 'b0000000-0000-0000-0000-000000000002' ? '四年级 (1)班' : '四年级 (3)班',
           question_count: Array.isArray(qArr) ? qArr.length : 0,
-          status: (a.due_at ? 'published' : 'draft') as AssignmentItem['status'],
+          status: (a.status || (a.due_at ? 'published' : 'draft')) as AssignmentItem['status'],
           due_at: a.due_at || '',
           submissions: 0, total_students: 42, updated_at: a.created_at?.slice(0, 10) || '',
         }
