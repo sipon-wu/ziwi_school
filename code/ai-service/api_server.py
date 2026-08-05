@@ -770,6 +770,67 @@ async def courseware_render_ppt(req: Request):
     return {"ppt_slides": _fallback_ppt(markdown, title)}
 
 
+@app.post("/api/ai/courseware/generate-video-script")
+async def courseware_generate_video_script(req: Request):
+    """视频课件分镜脚本生成（路径α）：基于已定稿课件/课文，生成可用于程序化画面合成的视频分镜。
+
+    返回 {video_script: [{index, title, narration, visual, duration_s}], total_duration_s, model}。
+    - narration：该镜头的配音文案（口语化、面向学生，1~2 句）。
+    - visual：程序化画面描述（简笔画/卡通场景/关键词板书的提示，给前端/合成器用，非真实图像）。
+    - duration_s：单镜头时长（秒），总时长建议 15~60 秒。
+    真实视频生成（数字人/AI 绘景）待 token 平权后接百炼视频模型；本端点只产出语义文本分镜。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    title = body.get("title", "视频课件")
+    subject = body.get("subject", "")
+    grade = body.get("grade", "")
+    markdown = body.get("markdown", "")
+    duration = int(body.get("duration_s", 15))
+    if duration <= 0 or duration > 120:
+        duration = 15
+    if not markdown:
+        return {"video_script": [{"index": 0, "title": title,
+                                  "narration": f"欢迎观看{subject}{grade}《{title}》讲解视频。",
+                                  "visual": "封面：标题 + 学科年级",
+                                  "duration_s": duration}],
+                "total_duration_s": duration, "model": "fallback"}
+    prompt = (
+        "你是一名资深教研员兼微课编导。下面是一份已定稿的中小学课件（Markdown），"
+        "请将其改编为一段短视频的「分镜脚本」，用于程序化画面合成（卡通简笔/关键词板书 + 配音）。\n"
+        "要求：\n"
+        "1. 输出 JSON 数组，每项为一段镜头，结构：\n"
+        "   {\"index\":整数(从0起), \"title\":字符串(镜头名), "
+        "\"narration\":字符串(该镜头配音文案,口语化面向学生,1~2句), "
+        "\"visual\":字符串(程序化画面提示:如'卡通场景:静夜月光下床前',或'板书:关键词XXX'), "
+        "\"duration_s\":整数(该镜头秒数)}\n"
+        "2. 第一镜为封面（title 用课件总标题，narration 为开场白，visual 为标题画面）。\n"
+        "3. 镜头数 4~8 个，各镜 duration_s 之和为总时长，需尽量接近 "
+        f"{duration} 秒（允许 ±3 秒）；每个镜头 2~6 秒。\n"
+        "4. 按课件知识顺序展开，关键知识点/诗意/公式须有对应镜头；结尾一镜做小结或留思考。\n"
+        "5. 只输出 JSON 数组，不要任何解释。\n"
+        f"课件总标题：{title}（{subject}{grade}）\n\n课件原文：\n{markdown}\n"
+    )
+    try:
+        raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 2000)
+        m = re.search(r"\[.*\]", raw, re.DOTALL)
+        if m:
+            shots = json.loads(m.group(0))
+            if isinstance(shots, list) and shots:
+                total = sum(int(s.get("duration_s", 0)) for s in shots)
+                return {"video_script": shots, "total_duration_s": total, "model": "qwen-turbo"}
+    except Exception:
+        logger.exception("generate-video-script failed")
+    # 兜底：封面 + 一段概述
+    return {"video_script": [
+        {"index": 0, "title": title,
+         "narration": f"接下来我们用 {duration} 秒，一起走进{subject}{grade}《{title}》。",
+         "visual": "封面：标题 + 学科年级", "duration_s": duration}
+    ], "total_duration_s": duration, "model": "fallback"}
+
+
 # 各题型默认分值（当未指定总分时用于习题；组卷按总分归一化覆盖）
 _DEFAULT_SCORE = {
     "choice": 3, "fill": 3, "judge": 2, "truefalse": 2, "short_answer": 5,

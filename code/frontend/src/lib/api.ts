@@ -280,6 +280,19 @@ export const aiAPI = {
       method: 'POST',
       body: JSON.stringify(params),
     }),
+
+  /** 视频课件分镜脚本生成（路径α）：基于课件 Markdown 真实生成语义分镜，供程序化画面合成 */
+  generateVideoScript: (params: {
+    markdown: string
+    title: string
+    subject: string
+    grade: string
+    duration_s?: number
+  }) =>
+    request<any>('/ai/courseware/generate-video-script', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
 }
 
 // ── 教案接口 ──

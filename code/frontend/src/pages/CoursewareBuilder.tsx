@@ -11,7 +11,8 @@ import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
 import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets } from '../lib/exportPptx'
-import { exportH5Courseware } from '../lib/exportH5'
+import { exportH5Courseware, buildH5FromOutline, buildH5Html, type H5Slide } from '../lib/exportH5'
+import QRCode from 'qrcode'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { getTheme, recommendTheme } from '../lib/pptThemes'
 import { PPT_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, gradeToStage, type StyleTag } from '../lib/cwTemplate'
@@ -114,7 +115,9 @@ export default function CoursewareBuilder() {
   const [validateIssues, setValidateIssues] = useState<any[] | null>(null)
   const [validating, setValidating] = useState(false)
   const [savingCw, setSavingCw] = useState(false)
+  const [h5Qr, setH5Qr] = useState<{ url: string; dataUrl: string } | null>(null)
   const [polishing, setPolishing] = useState(false)
+  const [genVideo, setGenVideo] = useState(false)
   const [docSlide, setDocSlide] = useState(0)
   // 新建课件默认套用「按学科+年级」推荐主题（仅默认，不强制；教师可随时手改，恢复草稿时以草稿为准）
   const [themeId, setThemeId] = useState<string>(() => recommendTheme(teaching.subject, teaching.grade).themeId)
@@ -290,11 +293,38 @@ export default function CoursewareBuilder() {
       const out = materializeOutline(pptToOutline(r.ppt_slides || []))
       if (out.length) { setCwOutline(out); setCwMarkdown(md); toast('提纲已 AI 润色（含讲稿）', 'success') }
       else toast('润色未返回内容', 'warning')
-    } catch (e: any) { toast('润色失败: ' + (e.message || '未知错误'), 'error') }
+    }     catch (e: any) { toast('润色失败: ' + (e.message || '未知错误'), 'error') }
     finally { setPolishing(false) }
   }
 
+  // 视频课件（路径α）：调用 AI 真实生成分镜脚本，写入提纲画布（左栏分镜即视频脚本）
+  const genVideoScript = async () => {
+    const md = cwOutline.length ? outlineToMarkdown(cwOutline, cwOpts()) : cwMarkdown
+    if (!md.trim()) { toast('请先生成课件内容', 'warning'); return }
+    setGenVideo(true)
+    try {
+      const r: any = await aiAPI.generateVideoScript({
+        markdown: md, title: genTitle.trim() || '视频课件', subject: teaching.subject, grade: gradeName,
+      })
+      const shots = r.video_script || []
+      if (!shots.length) { toast('分镜未返回内容', 'warning'); return }
+      const out: OutlineSlide[] = shots.map((s: any, i: number) => ({
+        title: s.title || `镜头${i + 1}`,
+        bullets: [
+          `🎙 ${s.narration || ''}`,
+          `🎬 ${s.visual || ''}`,
+          s.duration_s ? `⏱ ${s.duration_s}s` : '',
+        ].filter(Boolean),
+        notes: s.narration || '',
+      }))
+      setCwOutline(out); setCwMarkdown(md); ctrl.touch()
+      toast(`已生成 ${out.length} 个视频分镜（程序化画面合成待 token 平权）`, 'success')
+    } catch (e: any) { toast('生成分镜失败: ' + (e.message || '未知错误'), 'error') }
+    finally { setGenVideo(false) }
+  }
+
   // 导出
+
   const exportCwPptx = async () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
     try { await exportCoursewareToPptx(outlineToSlides(cwOutline, cwOpts()), cwOpts()) }
@@ -309,26 +339,29 @@ export default function CoursewareBuilder() {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
     printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
   }
-  // H5 互动课件：用与 PPT 同源的内容构建专用 markdown（首段作封面、其余为内容页），导出为自包含 HTML
-  const buildH5Markdown = () => {
-    const lines: string[] = [
-      `## ${genTitle.trim()}_课件`,
-      `> ${teaching.subject} · ${gradeName}${safeGetUser().name ? ' · ' + safeGetUser().name : ''}`,
-      '',
-    ]
-    cwOutline.forEach(s => {
-      lines.push(`## ${s.title}`)
-      const bs = s.elements && s.elements.length ? extractBullets(s.elements) : s.bullets
-      bs.forEach(b => lines.push(`- ${b}`))
-      if (s.notes) lines.push('', `> 教师备注：${s.notes}`)
-      lines.push('')
+  // H5 互动课件：直接消费与 PPT 同源的提纲 OutlideSlide[]，首段作封面、其余为内容页。
+  // 教师备注(notes)转为「点击揭示」互动——投屏时平时隐藏，点击后翻牌显示给全班看，贴合上课节奏。
+  const buildH5Slides = (): H5Slide[] => {
+    if (!cwOutline.length) return []
+    return cwOutline.map((s, i) => {
+      const bs = s.elements && s.elements.length ? extractBullets(s.elements) : (s.bullets || [])
+      const interactive = s.notes
+        ? { reveal: { prompt: '点击揭示：教师讲解要点', answer: s.notes } }
+        : null
+      return {
+        title: s.title,
+        points: bs,
+        body: '',
+        isTitle: i === 0,
+        interactive,
+      }
     })
-    return lines.join('\n')
   }
   const exportCwH5 = () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
     try {
-      const blob = exportH5Courseware(buildH5Markdown(), {
+      const slides = buildH5Slides()
+      const blob = exportH5Courseware(slides, {
         subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
         teacherName: safeGetUser().name || '教师',
       })
@@ -403,7 +436,7 @@ export default function CoursewareBuilder() {
     } finally { setValidating(false) }
     setSavingCw(true)
     try {
-      const payload = {
+      const payload: any = {
         name: `${genTitle.trim()}_课件`,
         type: 'courseware',
         format: cwFormat,
@@ -413,13 +446,27 @@ export default function CoursewareBuilder() {
         grade: gradeName,
         subject: teaching.subject,
       }
+      // H5 互动课件：将完整互动 HTML 一并写入 h5_html，供手机扫码访问端点直接渲染
+      if (cwFormat === 'h5') {
+        payload.h5_html = buildH5Html(buildH5Slides(), {
+          subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+          teacherName: safeGetUser().name || '教师',
+        })
+      }
+      let newId = materialId
       if (materialId) await materialAPI.update(materialId, payload)
       else {
         const m: any = await materialAPI.createJSON(payload)
-        if (m?.id) setMaterialId(m.id)
+        if (m?.id) { setMaterialId(m.id); newId = m.id }
       }
       try { localStorage.removeItem(getDraftKey(materialId)) } catch { /* noop */ }
       toast('课件已发布', 'success')
+      // H5：发布后弹出扫码查看二维码（手机扫码即可在浏览器打开投屏互动课件）
+      if (cwFormat === 'h5' && newId) {
+        const url = `${window.location.origin}/api/materials/${newId}/h5`
+        const dataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 })
+        setH5Qr({ url, dataUrl })
+      }
     }     catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
     finally { setSavingCw(false) }
   }
@@ -652,8 +699,10 @@ export default function CoursewareBuilder() {
         </div>
         <button onClick={polishOutline} disabled={polishing} className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#E8F7FF] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色'}</button>
         {cwFormat === 'video' && (
-          <button disabled title="暂不提供 AI 自动生成视频"
-            className="px-2.5 py-1 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">🎬 AI 生成视频 <span className="text-[10px] px-1 bg-[#B0B8C4] text-white rounded">暂不提供</span></button>
+          <button onClick={genVideoScript} disabled={genVideo}
+            className="px-2.5 py-1 text-[12px] text-[#52C41A] border border-[#52C41A] rounded-[4px] hover:bg-[#F6FFED] disabled:opacity-50 flex items-center gap-1">
+            {genVideo ? <><Loader2 size={13} className="animate-spin" /> 生成分镜…</> : '🎬 AI 生成视频分镜'}
+          </button>
         )}
         <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
           className="px-2 py-1 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F7F7F8]" title="版心比例">
@@ -779,7 +828,7 @@ export default function CoursewareBuilder() {
         <div className="flex-1 overflow-y-auto px-6 py-4 flex justify-center">
         {cwFormat === 'video' && (
           <div className="mb-3 rounded-[6px] border border-[#B7EB8F] bg-[#F6FFED] p-3">
-            <div className="text-[12px] font-medium text-[#389E0D] mb-2">🎬 视频课件配置（参数预留，暂不提供 AI 生成与视频标记）</div>
+            <div className="text-[12px] font-medium text-[#389E0D] mb-2">🎬 视频课件配置（参数预留；点「AI 生成视频分镜」产出语义分镜脚本）</div>
             <div className="mb-2">
               <div className="text-[11px] text-[#595959] mb-1">出镜形象</div>
               <div className="flex flex-wrap gap-2">
@@ -1272,6 +1321,7 @@ export default function CoursewareBuilder() {
   }
 
   return (
+    <>
     <EditorLayout
       primaryLeft={leftPanel}
       primaryRight={rightPanelAi}
@@ -1299,5 +1349,22 @@ export default function CoursewareBuilder() {
           <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
         )}
     />
+    {h5Qr && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setH5Qr(null)}>
+        <div className="bg-white rounded-2xl p-6 w-[320px] shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[16px] font-bold text-[#1A3A6B]">扫码在手机查看</h3>
+            <button className="text-[#999] hover:text-[#333]" onClick={() => setH5Qr(null)}><X size={18} /></button>
+          </div>
+          <img src={h5Qr.dataUrl} alt="二维码" className="w-[240px] h-[240px] mx-auto block" />
+          <p className="text-[12px] text-[#888] text-center mt-3 leading-relaxed">
+            用手机扫描二维码，即可在浏览器中打开投屏互动课件（点击翻页、点选互动、点击揭示答案）。<br />
+            同一链接也可在大屏浏览器直接打开投屏上课。
+          </p>
+          <a href={h5Qr.url} target="_blank" rel="noreferrer" className="block text-center text-[12px] text-[#2B5DA8] underline mt-2 break-all">{h5Qr.url}</a>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
