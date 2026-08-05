@@ -1,6 +1,6 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-08-04T09:42:28.227Z",
+  "generatedAt": "2026-08-05T02:52:52.679Z",
   "summary": {
     "total": 43,
     "PASS": 37,
@@ -30,21 +30,21 @@
       "role": "教师(语文)",
       "journey": "渲染·首页",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=390",
+      "detail": "visible=true appErr=false redirect=false len=380",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题列表",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=866",
+      "detail": "visible=true appErr=false redirect=false len=876",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=565",
+      "detail": "visible=true appErr=false redirect=false len=595",
       "shot": ""
     },
     {
@@ -58,35 +58,35 @@
       "role": "教师(语文)",
       "journey": "渲染·素材库",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=2767",
+      "detail": "visible=true appErr=false redirect=false len=2867",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=669",
+      "detail": "visible=true appErr=false redirect=false len=659",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·作业",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=586",
+      "detail": "visible=true appErr=false redirect=false len=576",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·班级切换",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=380",
+      "detail": "visible=true appErr=false redirect=false len=370",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·系统设置",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=358",
+      "detail": "visible=true appErr=false redirect=false len=348",
       "shot": ""
     },
     {
@@ -184,7 +184,7 @@
       "role": "班主任",
       "journey": "我的班级·渲染",
       "status": "PASS",
-      "detail": "visible=true len=350",
+      "detail": "visible=true len=340",
       "shot": ""
     },
     {
@@ -226,21 +226,21 @@
       "role": "教务",
       "journey": "渲染·出题",
       "status": "PASS",
-      "detail": "visible=true len=470",
+      "detail": "visible=true len=460",
       "shot": ""
     },
     {
       "role": "教务",
       "journey": "渲染·教案",
       "status": "PASS",
-      "detail": "visible=true len=446",
+      "detail": "visible=true len=436",
       "shot": ""
     },
     {
       "role": "教务",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true len=725",
+      "detail": "visible=true len=715",
       "shot": ""
     },
     {
@@ -261,21 +261,21 @@
       "role": "教研",
       "journey": "渲染·出题",
       "status": "PASS",
-      "detail": "visible=true len=470",
+      "detail": "visible=true len=460",
       "shot": ""
     },
     {
       "role": "教研",
       "journey": "渲染·教案",
       "status": "PASS",
-      "detail": "visible=true len=446",
+      "detail": "visible=true len=436",
       "shot": ""
     },
     {
       "role": "教研",
       "journey": "渲染·学情",
       "status": "PASS",
-      "detail": "visible=true len=725",
+      "detail": "visible=true len=715",
       "shot": ""
     },
     {
@@ -303,7 +303,7 @@
       "role": "IT管理员",
       "journey": "设置·版本库维护",
       "status": "PASS",
-      "detail": "visible=true len=90453",
+      "detail": "visible=true len=276",
       "shot": ""
     },
     {

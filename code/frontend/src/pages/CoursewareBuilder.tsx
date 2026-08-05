@@ -357,6 +357,7 @@ export default function CoursewareBuilder() {
     const payload = {
       name: `${genTitle.trim() || '未命名'}_课件`,
       type: 'courseware',
+      format: cwFormat,
       tag: `${teaching.subject}${gradeName}`,
       content: outlineToMarkdown(cwOutline, cwOpts()),
       status: 'draft',
@@ -405,6 +406,7 @@ export default function CoursewareBuilder() {
       const payload = {
         name: `${genTitle.trim()}_课件`,
         type: 'courseware',
+        format: cwFormat,
         tag: `${teaching.subject}${gradeName}`,
         content: outlineToMarkdown(cwOutline, cwOpts()),
         status: 'active',
@@ -616,6 +618,11 @@ export default function CoursewareBuilder() {
   // ── 右栏 文档模式：可拖拽编辑画布 + 缩略图页管理 + 发散地图 + 校验面板 ──
   const rightPanelDoc = (
     <div className="flex-1 flex flex-col min-h-0 bg-[#FAFAFA] relative">
+      {cwFormat === 'h5' && (
+        <div className="shrink-0 px-3 py-2 bg-[#FFF7E6] border-b border-[#FFE7BA] text-[12px] text-[#AD6800]">
+          H5 文档编辑模式建设中，当前可预览/导出。如需编辑内容，请使用 AI 模式按知识点与模板自动生成 H5 课件。
+        </div>
+      )}
       {/* 顶部独立工具条（参照教案编辑布局）：把高频操作统一到顶部，左右栏从其下方开始、顶端齐平不再冲顶 */}
       <div className="h-10 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white">
         {/* 左：缩微页标题与操作 */}
@@ -645,8 +652,8 @@ export default function CoursewareBuilder() {
         </div>
         <button onClick={polishOutline} disabled={polishing} className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#E8F7FF] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色'}</button>
         {cwFormat === 'video' && (
-          <button disabled title="AI 自动生成讲解视频即将上线"
-            className="px-2.5 py-1 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">🎬 AI 生成视频 <span className="text-[10px] px-1 bg-[#B0B8C4] text-white rounded">即将上线</span></button>
+          <button disabled title="暂不提供 AI 自动生成视频"
+            className="px-2.5 py-1 text-[12px] text-[#B0B8C4] border border-dashed border-[#D0D0D0] rounded-[4px] cursor-not-allowed flex items-center gap-1">🎬 AI 生成视频 <span className="text-[10px] px-1 bg-[#B0B8C4] text-white rounded">暂不提供</span></button>
         )}
         <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
           className="px-2 py-1 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F7F7F8]" title="版心比例">
@@ -772,7 +779,7 @@ export default function CoursewareBuilder() {
         <div className="flex-1 overflow-y-auto px-6 py-4 flex justify-center">
         {cwFormat === 'video' && (
           <div className="mb-3 rounded-[6px] border border-[#B7EB8F] bg-[#F6FFED] p-3">
-            <div className="text-[12px] font-medium text-[#389E0D] mb-2">🎬 视频课件配置（AI 生成视频即将上线，先选好参数）</div>
+            <div className="text-[12px] font-medium text-[#389E0D] mb-2">🎬 视频课件配置（参数预留，暂不提供 AI 生成与视频标记）</div>
             <div className="mb-2">
               <div className="text-[11px] text-[#595959] mb-1">出镜形象</div>
               <div className="flex flex-wrap gap-2">

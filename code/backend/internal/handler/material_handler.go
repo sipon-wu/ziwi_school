@@ -77,6 +77,7 @@ func (h *MaterialHandler) UploadMaterial(c *gin.Context) {
 		SchoolID:  schoolID.(string),
 		UserID:    userID.(string),
 		Type:      c.PostForm("type"),
+		Format:    c.PostForm("format"),
 		Size:      formatFileSize(header.Size),
 		Tag:       c.PostForm("tag"),
 		URL:       "/uploads/" + storedName,
@@ -87,6 +88,9 @@ func (h *MaterialHandler) UploadMaterial(c *gin.Context) {
 	}
 	if m.Type == "" {
 		m.Type = guessType(ext)
+	}
+	if m.Format == "" {
+		m.Format = m.Type // 文件上传无显式 format 时，默认与 type 同（如 video）
 	}
 
 	if err := h.repo.Create(m); err != nil {
@@ -104,6 +108,7 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 	var body struct {
 		Name    string `json:"name"`
 		Type    string `json:"type"`
+		Format  string `json:"format"`
 		Tag     string `json:"tag"`
 		URL     string `json:"url"`
 		Content string `json:"content"`
@@ -124,6 +129,7 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		SchoolID:  schoolID.(string),
 		UserID:    userID.(string),
 		Type:      body.Type,
+		Format:    body.Format,
 		Tag:       body.Tag,
 		URL:       body.URL,
 		Content:   body.Content,
@@ -157,6 +163,7 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	var body struct {
 		Name    string `json:"name"`
 		Type    string `json:"type"`
+		Format  string `json:"format"`
 		Tag     string `json:"tag"`
 		URL     string `json:"url"`
 		Content string `json:"content"`
@@ -170,6 +177,9 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	}
 	existing.Name = body.Name
 	existing.Type = body.Type
+	if body.Format != "" {
+		existing.Format = body.Format
+	}
 	existing.Tag = body.Tag
 	existing.URL = body.URL
 	existing.Content = body.Content

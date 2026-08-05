@@ -8,6 +8,7 @@ type Material struct {
 	UserID    string    `json:"user_id"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
+	Format    string    `json:"format"` // ppt | h5 | video（课件形态，与 type 正交：courseware 可含 ppt/h5，video 独占）
 	Size      string    `json:"size"`
 	Tag       string    `json:"tag"`
 	URL       string    `json:"url"`

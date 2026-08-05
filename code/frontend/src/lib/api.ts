@@ -6,6 +6,7 @@ export interface MaterialItem {
   id: string
   name: string
   type: string
+  format?: string
   tag?: string
   size?: number
   created_at?: string
@@ -301,10 +302,27 @@ export const lessonPlanAPI = {
 export const materialAPI = {
   list: () => request<{ items: MaterialItem[] }>('/materials'),
   /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
-  createJSON: (data: { name: string; type: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
+  createJSON: (data: { name: string; type: string; format?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
     request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
+  /** 上传文件素材（视频课件等） */
+  upload: async (file: File, extra?: { name?: string; type?: string; format?: string; tag?: string }) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (extra?.name) fd.append('name', extra.name)
+    if (extra?.type) fd.append('type', extra.type)
+    if (extra?.format) fd.append('format', extra.format)
+    if (extra?.tag) fd.append('tag', extra.tag)
+    const token = localStorage.getItem('zhiwei_token')
+    const res = await fetch('/api/materials', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: fd,
+    })
+    if (!res.ok) throw new Error('上传失败')
+    return res.json()
+  },
   /** 更新素材（课件草稿/发布落库复用） */
-  update: (id: string, data: { name?: string; type?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
+  update: (id: string, data: { name?: string; type?: string; format?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
     request<any>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   get: (id: string) => request<any>(`/materials/${id}`),
 }

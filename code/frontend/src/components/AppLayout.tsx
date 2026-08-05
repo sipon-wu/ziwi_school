@@ -23,8 +23,8 @@ const SIDEBAR: SidebarGroup[] = [
   ]},
   { id: '课件', label: '教学课件', icon: <MonitorPlay size={16} />, children: [
     { label: 'PPT 课件', icon: <MonitorPlay size={14} />, to: '/courseware/ppt' },
-    { label: 'H5 互动课件', icon: <Smartphone size={14} />, to: '/courseware/h5', soon: true },
-    { label: '视频课件', icon: <Video size={14} />, to: '/courseware/video', soon: true },
+    { label: 'H5 互动课件', icon: <Smartphone size={14} />, to: '/courseware/h5' },
+    { label: '视频课件', icon: <Video size={14} />, to: '/courseware/video' },
   ]},
   { id: '练习', label: '作业练习', icon: <ListChecks size={16} />, children: [
     { label: '出题·题库', icon: <PenTool size={14} />, to: '/exercises' },

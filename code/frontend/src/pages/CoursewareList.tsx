@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, MonitorPlay, Smartphone, Video, Eye, Pencil } from 'lucide-react'
+import { Plus, Search, MonitorPlay, Smartphone, Video, Eye, Pencil, X } from 'lucide-react'
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import { materialAPI, openWorkspace } from '../lib/api'
@@ -10,10 +10,12 @@ type CoursewareItem = {
   id: string
   name: string
   type: string
+  format?: string
   tag?: string
   subject?: string
   grade?: string
   status?: string
+  url?: string
   size?: number
   created_at?: string
   updated_at?: string
@@ -24,50 +26,50 @@ type Channel = 'ppt' | 'h5' | 'video'
 const CHANNEL: Record<Channel, {
   title: string
   type: string
-  newTo: string
+  format?: string
   newLabel: string
   hint: string
   icon: React.ReactNode
   open: (id: string) => string
   openEdit: (id: string) => string
   openLabel: string
-  openInline: boolean
+  isVideo: boolean
 }> = {
   ppt: {
     title: 'PPT 课件',
     type: 'courseware',
-    newTo: '/courseware/ppt/new',
+    format: 'ppt',
     newLabel: '新建 PPT 课件',
     hint: '在编辑器中创作，可导出 PPTX / PDF',
     icon: <MonitorPlay size={14} className="text-[#9A9A9A] shrink-0" />,
     open: (id) => `/courseware/ppt/${id}`,
     openEdit: (id) => `/courseware/ppt/${id}/edit`,
     openLabel: '打开',
-    openInline: false,
+    isVideo: false,
   },
   h5: {
     title: 'H5 互动课件',
     type: 'courseware',
-    newTo: '/courseware/h5',
+    format: 'h5',
     newLabel: '新建 H5 互动课件',
-    hint: '逐页轻量课件，可导出 H5 网页',
+    hint: 'AI 模式按知识点/模板自动生成 H5 课件；文档编辑模式建设中',
     icon: <Smartphone size={14} className="text-[#9A9A9A] shrink-0" />,
     open: (id) => `/courseware/h5/${id}`,
     openEdit: (id) => `/courseware/h5/${id}/edit`,
     openLabel: '打开',
-    openInline: false,
+    isVideo: false,
   },
   video: {
     title: '视频课件',
     type: 'video',
-    newTo: '/materials',
-    newLabel: '上传视频素材',
-    hint: '上传视频后标记知识点，供 AI 检索引用到教案',
+    format: 'video',
+    newLabel: '上传视频课件',
+    hint: '上传本地教学视频，点击即可播放；暂不提供 AI 编辑与视频标记',
     icon: <Video size={14} className="text-[#9A9A9A] shrink-0" />,
-    open: (id) => `/materials?focus=${id}`,
-    openEdit: (id) => `/materials?focus=${id}`,
-    openLabel: '预览 / 标记',
-    openInline: true,
+    open: (id) => `/courseware/video/${id}`,
+    openEdit: (id) => `/courseware/video/${id}/edit`,
+    openLabel: '播放',
+    isVideo: true,
   },
 }
 
@@ -83,13 +85,21 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
   const [items, setItems] = useState<CoursewareItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [playing, setPlaying] = useState<CoursewareItem | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     materialAPI.list().then((res) => {
       const all = (res?.items || []) as CoursewareItem[]
-      setItems(all.filter((m) => m.type === ch.type))
+      // 按 type + format 双维度过滤，区分 ppt/h5（同为 courseware）与 video
+      const filtered = all.filter((m) => {
+        if (ch.isVideo) return m.type === 'video'
+        return m.type === 'courseware' && (m.format || 'ppt') === (ch.format || 'ppt')
+      })
+      setItems(filtered)
     }).catch(() => setItems([]))
-  }, [ch.type])
+  }, [ch.type, ch.format, ch.isVideo])
 
   const SUBJECTS = useMemo(() => {
     const s = new Set<string>()
@@ -108,23 +118,44 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
   const { page, totalPages, paginated, goTo } = usePagination(filtered, 8)
 
   const handleOpen = (i: CoursewareItem) => {
-    // 列表点击 → 全屏预览（只读放映态 /:id）；预览页"编辑"按钮再进 /:id/edit 编辑态
-    const target = ch.openInline ? ch.open(i.id) : ch.open(i.id)
-    if (ch.openInline) navigate(target)
-    else openWorkspace(target)
+    if (ch.isVideo) {
+      setPlaying(i) // 视频：内嵌播放
+      return
+    }
+    openWorkspace(ch.open(i.id)) // ppt/h5：新标签打开放映态
+  }
+
+  const handleNew = () => {
+    if (ch.isVideo) {
+      fileInputRef.current?.click()
+      return
+    }
+    openWorkspace(ch.open('new'))
+  }
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const okExt = /\.(mp4|avi|mov|mkv|webm)$/i.test(file.name)
+    if (!okExt) { alert('仅支持 mp4/avi/mov/mkv/webm 视频文件'); return }
+    setUploading(true)
+    try {
+      await materialAPI.upload(file, { name: file.name, type: 'video', format: 'video' })
+      const res = await materialAPI.list()
+      const all = (res?.items || []) as CoursewareItem[]
+      setItems(all.filter((m) => m.type === 'video'))
+    } catch {
+      alert('视频上传失败，请重试')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
     <AppLayout>
+      <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleFile} />
       <div className="space-y-4">
-        {format === 'h5' && (
-          <div className="bg-white border border-dashed border-[#D0D0D0] rounded-[4px] p-10 flex flex-col items-center justify-center text-center">
-            <Smartphone size={32} className="text-[#B0B8C4] mb-3" />
-            <h2 className="text-[15px] font-medium text-[#353535] mb-1">H5 互动课件编辑器 · 即将上线</h2>
-            <p className="text-[12px] text-[#9A9A9A] max-w-[420px]">H5 互动课件模板体系已就绪（风格标签、配色色系、“通用 × 色系”自由组合均与 PPT 同源），
-              编辑器交互将于后续版本开放。当前可先用 PPT 课件创作，H5 输出通道预留中。</p>
-          </div>
-        )}
         {/* 页面标题 */}
         <div className="flex items-center justify-between">
           <div>
@@ -132,10 +163,11 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
             <p className="text-[11px] text-[#9A9A9A] mt-0.5">{ch.hint}</p>
           </div>
           <button
-            onClick={() => { if (ch.openInline) navigate(ch.newTo); else openWorkspace(ch.newTo) }}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
+            onClick={handleNew}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors disabled:opacity-60"
           >
-            <Plus size={16} /> {ch.newLabel}
+            <Plus size={16} /> {uploading ? '上传中...' : ch.newLabel}
           </button>
         </div>
 
@@ -166,8 +198,8 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
         {filtered.length === 0 ? (
           <EmptyState
             title={`暂无${ch.title}`}
-            description={`点击右上角「${ch.newLabel}」开始`}
-            action={{ label: ch.newLabel, onClick: () => { if (ch.openInline) navigate(ch.newTo); else openWorkspace(ch.newTo) } }}
+            description={ch.isVideo ? '点击右上角「上传视频课件」选择本地视频' : `点击右上角「${ch.newLabel}」开始`}
+            action={{ label: ch.newLabel, onClick: handleNew }}
           />
         ) : (
           <div className="bg-white border border-[#E7E7EB] rounded-[4px] overflow-hidden">
@@ -211,7 +243,7 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={(e) => { e.stopPropagation(); handleOpen(i) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title={ch.openLabel}>
-                            <Eye size={14} />
+                            {ch.isVideo ? <Video size={14} /> : <Eye size={14} />}
                           </button>
                         </div>
                       </td>
@@ -234,6 +266,19 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 视频播放 modal */}
+        {playing && (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6" onClick={() => setPlaying(null)}>
+            <div className="bg-white rounded-[6px] overflow-hidden max-w-[860px] w-full" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#E7E7EB]">
+                <span className="text-[14px] font-medium text-[#353535]">{playing.name}</span>
+                <button onClick={() => setPlaying(null)} className="p-1 text-[#9A9A9A] hover:text-[#353535]"><X size={18} /></button>
+              </div>
+              <video src={playing.url} controls autoPlay className="w-full max-h-[70vh] bg-black" />
+            </div>
           </div>
         )}
       </div>
