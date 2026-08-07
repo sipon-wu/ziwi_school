@@ -17,7 +17,7 @@ interface LessonPlan {
   subject: string
   grade: string
   school_year?: string
-  status: 'final'
+  status: string
   review_status: ReviewStatus
   updated_at: string
   format_template: string
@@ -48,8 +48,12 @@ export default function PublishedLessons() {
   const [plans, setPlans] = useState<LessonPlan[]>([])
   useEffect(() => {
     api<{ items: any[] }>('/lesson-plans').then(res => {
-      // 发布库 = 自己送审中(pending) + 已通过(approved)；草稿/被退回归草稿箱
-      setPlans(res.items.filter(r => r.review_status === 'pending' || r.review_status === 'approved').map(r => ({
+      // 发布库 = 已发布：送审中(pending) + 已通过(approved) + 互审关闭直接发布(active+none)
+      // 草稿/被退回(returned)归草稿箱；纯草稿(status=draft/final)不进发布库
+      setPlans(res.items.filter(r =>
+        r.review_status === 'pending' || r.review_status === 'approved' ||
+        (r.status === 'active' && r.review_status === 'none')
+      ).map(r => ({
         id: r.id, lesson_title: r.title || r.lesson_title, subject: r.subject, grade: r.grade,
         school_year: r.created_at?.slice(0,4) || '', status: r.status,
         review_status: r.review_status || 'none', updated_at: r.updated_at,
