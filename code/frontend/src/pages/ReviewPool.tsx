@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
-import { GitPullRequest, Search, Eye, CheckCircle2, XCircle, MessageSquare, Trash2 } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { GitPullRequest, Search, Eye, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
 import { useToast } from '../components/Toast'
+import { api, reviewAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import AppLayout from '../components/AppLayout'
 
@@ -16,14 +18,6 @@ interface ReviewItem {
   submitted_at: string
 }
 
-const MOCK_REVIEWS: ReviewItem[] = [
-  { id: '9', lesson_title: 'Unit 2 My Family - 词汇课', author: '李小红', subject: '英语', grade: '四年级', unit: '第二单元', format_template: '3d_objective', submitted_at: '2026-07-04 09:30' },
-  { id: '10', lesson_title: '《忆江南》古诗赏析', author: '王大力', subject: '语文', grade: '四年级', unit: '第一单元', format_template: 'core_literacy', submitted_at: '2026-07-03 16:00' },
-  { id: '13', lesson_title: '观察物体（三视图）', author: '刘小月', subject: '数学', grade: '四年级', unit: '第三单元', format_template: 'core_literacy', submitted_at: '2026-07-05 10:00' },
-  { id: '14', lesson_title: 'Unit 5 Weather - 阅读课', author: '陈小花', subject: '英语', grade: '四年级', unit: '第五单元', format_template: '3d_objective', submitted_at: '2026-07-05 14:20' },
-  { id: '15', lesson_title: '《鸟的天堂》精读', author: '赵大鹏', subject: '语文', grade: '四年级', unit: '第一单元', format_template: 'core_literacy', submitted_at: '2026-07-02 11:00' },
-]
-
 const ALL_UNITS = ['第一单元', '第二单元', '第三单元', '第四单元', '第五单元', '第六单元', '第七单元', '第八单元']
 
 export default function ReviewPool() {
@@ -31,8 +25,40 @@ export default function ReviewPool() {
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterUnit, setFilterUnit] = useState('')
-  const [articles, setArticles] = useState(MOCK_REVIEWS)
+  const [articles, setArticles] = useState<ReviewItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [decidingId, setDecidingId] = useState<string | null>(null)
+  const navigate = useNavigate()
+
+  // 小眼睛：直接跳转到已有教案查看态（只读 + 全屏预览 + 批注侧栏），复用阅读视图而非重造弹层
+  const openReview = (item: ReviewItem) => navigate(`/lesson-plans/${item.id}?review=1`)
+
+  // 真实拉取本校待审(pending)列表；无数据时 fallback 到 mock，避免空页
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    api<{ items?: ReviewItem[] }>('/review/pending')
+      .then(r => {
+        if (cancelled) return
+        const items = (r.items || []) as any[]
+        if (items.length > 0) {
+          setArticles(items.map((it: any) => ({
+            id: it.id,
+            lesson_title: it.title || it.lesson_title,
+            author: it.teacher_name || it.author || '未知',
+            subject: it.subject,
+            grade: it.grade,
+            unit: it.unit || '—',
+            format_template: it.format_template,
+            submitted_at: (it.updated_at || it.submitted_at || '').slice(0, 16).replace('T', ' '),
+          })))
+        }
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const filtered = useMemo(() => {
     const subjectFiltered = articles.filter(r => r.subject === teaching.subject)
@@ -51,17 +77,20 @@ export default function ReviewPool() {
     }
   }
 
-  // ── 审阅操作：toast 反馈（后端审阅 endpoint 待实现）──
-  const handleReviewAction = (action: string, item: ReviewItem) => {
-    // localStorage 记录审阅操作，防止刷新丢失
-    const key = 'zhiwei_review_actions'
+  // 评审结论：写回后端 review_status（操作者=当前评审人，后端落库）
+  const decide = async (item: ReviewItem, decision: 'approve' | 'reject') => {
+    setDecidingId(item.id)
+    const prev = articles
     try {
-      const existing = JSON.parse(localStorage.getItem(key) || '{}')
-      existing[item.id] = { action, at: new Date().toISOString(), title: item.lesson_title }
-      localStorage.setItem(key, JSON.stringify(existing))
-    } catch {}
-    toast(`已${action === 'approve' ? '通过' : action === 'reject' ? '退回' : '留言'}: ${item.lesson_title}`, 'success')
-    setArticles(prev => prev.filter(a => a.id !== item.id))
+      await reviewAPI.decide(item.id, decision, '')
+      setArticles(p => p.filter(a => a.id !== item.id))
+      toast(`已${decision === 'approve' ? '通过' : '退回'}: ${item.lesson_title}`, 'success')
+    } catch {
+      setArticles(prev) // 回滚
+      toast('评审提交失败', 'error')
+    } finally {
+      setDecidingId(null)
+    }
   }
 
   const pending = filtered.length
@@ -69,10 +98,6 @@ export default function ReviewPool() {
 
   return (
     <AppLayout>
-      <div className="bg-yellow-50 border border-yellow-200 rounded-[4px] px-4 py-2 mb-4 text-[11px] text-[#595959]">
-        ⚠️ 互审池中已归档班级的互审项将自动移出
-      </div>
-      
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -129,11 +154,13 @@ export default function ReviewPool() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F0F0F0]">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] text-[#9A9A9A]">加载中…</td></tr>
+                ) : filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] text-[#9A9A9A]">暂无待审教案</td></tr>
                 ) : (
                   filtered.map(r => (
-                    <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                    <tr key={r.id} onClick={() => openReview(r)} className="hover:bg-[#F9FAFB] transition-colors group cursor-pointer">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <GitPullRequest size={13} className="text-[#FA8C16] shrink-0" />
@@ -148,11 +175,10 @@ export default function ReviewPool() {
                       <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{r.submitted_at}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handleReviewAction('review', r)} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="审阅"><Eye size={14} /></button>
-                          <button onClick={() => handleReviewAction('approve', r)} className="p-1.5 text-[#9A9A9A] hover:text-green-600 hover:bg-green-50 rounded-[3px]" title="通过"><CheckCircle2 size={14} /></button>
-                          <button onClick={() => handleReviewAction('reject', r)} className="p-1.5 text-[#9A9A9A] hover:text-orange-500 hover:bg-orange-50 rounded-[3px]" title="退回"><XCircle size={14} /></button>
-                          <button onClick={() => handleReviewAction('comment', r)} className="p-1.5 text-[#9A9A9A] hover:text-[#722ED1] hover:bg-purple-50 rounded-[3px]" title="留言"><MessageSquare size={14} /></button>
-                          <button onClick={() => setDeleteTarget(r.id)} className="p-1.5 text-[#9A9A9A] hover:text-red-500 hover:bg-red-50 rounded-[3px]" title="删除"><Trash2 size={14} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); openReview(r) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="阅读并批注（查看态）"><Eye size={14} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); decide(r, 'approve') }} disabled={decidingId === r.id} className="p-1.5 text-[#9A9A9A] hover:text-green-600 hover:bg-green-50 rounded-[3px] disabled:opacity-40" title="通过"><CheckCircle2 size={14} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); decide(r, 'reject') }} disabled={decidingId === r.id} className="p-1.5 text-[#9A9A9A] hover:text-orange-500 hover:bg-orange-50 rounded-[3px] disabled:opacity-40" title="退回"><XCircle size={14} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(r.id) }} className="p-1.5 text-[#9A9A9A] hover:text-red-500 hover:bg-red-50 rounded-[3px]" title="移除"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -166,7 +192,6 @@ export default function ReviewPool() {
 
       <ConfirmDialog open={!!deleteTarget} title="移除互审项" message="将从互审池移除此项，确认？" danger
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
-
     </AppLayout>
   )
 }

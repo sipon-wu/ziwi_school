@@ -15,19 +15,20 @@ interface LessonPlan {
   subject: string
   grade: string
   school_year?: string
-  status: 'draft' | 'final'
+  status: string
+  review_status?: string
   updated_at: string
   format_template: string
 }
 
 const _MOCK_PLANS: LessonPlan[] = [
-  { id: '1', lesson_title: '《观潮》第一课时', subject: '语文', grade: '四年级', school_year: '2025-2026', status: 'final', updated_at: '2026-06-17 14:30', format_template: 'core_literacy' },
-  { id: '2', lesson_title: '分数的意义和性质', subject: '数学', grade: '三年级', status: 'final', updated_at: '2026-06-17 10:15', format_template: 'core_literacy' },
+  { id: '1', lesson_title: '《观潮》第一课时', subject: '语文', grade: '四年级', school_year: '2025-2026', status: 'published', updated_at: '2026-06-17 14:30', format_template: 'core_literacy' },
+  { id: '2', lesson_title: '分数的意义和性质', subject: '数学', grade: '三年级', status: 'published', updated_at: '2026-06-17 10:15', format_template: 'core_literacy' },
   { id: '3', lesson_title: 'Unit 3 My School - 阅读课', subject: '英语', grade: '五年级', status: 'draft', updated_at: '2026-06-16 16:00', format_template: '3d_objective' },
   { id: '4', lesson_title: '《荷花》赏析与仿写', subject: '语文', grade: '三年级', status: 'draft', updated_at: '2026-06-15 09:20', format_template: 'core_literacy' },
-  { id: '5', lesson_title: '小数加减法练习课', subject: '数学', grade: '四年级', status: 'final', updated_at: '2026-06-14 11:45', format_template: 'unit_teaching' },
+  { id: '5', lesson_title: '小数加减法练习课', subject: '数学', grade: '四年级', status: 'published', updated_at: '2026-06-14 11:45', format_template: 'unit_teaching' },
   { id: '6', lesson_title: '《草船借箭》精读', subject: '语文', grade: '五年级', status: 'draft', updated_at: '2026-06-13 15:30', format_template: 'core_literacy' },
-  { id: '7', lesson_title: '长方形和正方形面积', subject: '数学', grade: '三年级', status: 'final', updated_at: '2026-06-12 08:00', format_template: 'core_literacy' },
+  { id: '7', lesson_title: '长方形和正方形面积', subject: '数学', grade: '三年级', status: 'published', updated_at: '2026-06-12 08:00', format_template: 'core_literacy' },
   { id: '8', lesson_title: 'Unit 5 Weather - 对话课', subject: '英语', grade: '四年级', status: 'draft', updated_at: '2026-06-11 13:20', format_template: '3d_objective' },
 ]
 
@@ -67,7 +68,12 @@ export default function LessonPlanList() {
   const SUBJECTS = ALL_SUBJECTS
   const GRADES = Object.values(GRADE_MAP)
 
-  const filtered = plans.filter(p => {
+  // 草稿箱 = 未送审草稿(draft/final) + 被退回(returned)；已送审(pending)/已通过(approved)/已归档(archived)排除
+  const draftBase = plans.filter(p =>
+    p.review_status === 'returned' ||
+    (p.review_status !== 'pending' && p.review_status !== 'approved' && p.status !== 'active' && p.status !== 'archived')
+  )
+  const filtered = draftBase.filter(p => {
     if (searchTerm && !p.lesson_title.includes(searchTerm)) return false
     if (filterStatus && p.status !== filterStatus) return false
     if (filterYear && p.school_year !== filterYear) return false
@@ -117,7 +123,7 @@ export default function LessonPlanList() {
             className="px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0] text-[#353535]">
             <option value="">全部状态</option>
             <option value="draft">草稿</option>
-            <option value="final">已定稿</option>
+            <option value="published">已发布</option>
           </select>
           <select value={filterYear} onChange={e => { setFilterYear(e.target.value); goTo(1) }}
             className="px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0] text-[#353535]">
@@ -141,7 +147,7 @@ export default function LessonPlanList() {
         <div className="flex items-center gap-3 text-[12px] text-[#9A9A9A]">
           <span>共 {filtered.length} 份教案</span>
           <span className="text-[#E7E7EB]">|</span>
-          <span>已定稿 {filtered.filter(p => p.status === 'final').length} 份</span>
+          <span>已发布 {filtered.filter(p => p.status === 'published').length} 份</span>
           <span className="text-[#E7E7EB]">|</span>
           <span>草稿 {filtered.filter(p => p.status === 'draft').length} 份</span>
         </div>
@@ -166,7 +172,10 @@ export default function LessonPlanList() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F0F0]">
                   {paginated.map(plan => (
-                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
+                    <tr key={plan.id} onClick={() => {
+                      // 统一进只读查看态（顶栏带"编辑"按钮），点"编辑"才进编辑器
+                      window.open(`/lesson-plans/${plan.id}`, '_blank')
+                    }} className="hover:bg-[#F9FAFB] transition-colors cursor-pointer group">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <BookOpen size={14} className="text-[#9A9A9A] shrink-0" />
@@ -183,9 +192,9 @@ export default function LessonPlanList() {
                         {plan.format_template === 'core_literacy' ? '核心素养' : plan.format_template === '3d_objective' ? '三维目标' : '单元教学'}
                       </td>
                       <td className="px-4 py-3">
-                        {plan.status === 'final' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium bg-green-50 text-green-600">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> 已定稿
+                        {plan.review_status === 'returned' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium bg-orange-50 text-orange-600">
+                            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> 已退回
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] font-medium bg-yellow-50 text-yellow-600">

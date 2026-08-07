@@ -483,9 +483,14 @@ interface Props {
   resourceId?: string
   /** 作品已发布（active）→ 版本只读、禁存/禁恢复 */
   locked?: boolean
+  /**
+   * 评审批注模式：无选中文本时允许直接提交，自动 anchor 到当前光标段落/整篇（评审场景：readOnly
+   * 下让评审者无需先选正文就能落批注）。默认 false（要求选中文本）。
+   */
+  annotationAllowWholeDoc?: boolean
 }
 
-export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, fullscreen, docTitle, toolbarExtra, resourceType, resourceId, locked }: Props) {
+export default function TipTapEditor({ value, onChange, placeholder, readOnly, noPanels, fullscreen, docTitle, toolbarExtra, resourceType, resourceId, locked, annotationAllowWholeDoc }: Props) {
   const { toast } = useToast()
   // 全屏承载下左右侧栏默认展开；只读预览态保持干净阅读（侧栏收起，由调用方决定是否需要）
   const [outlineVisible, setOutlineVisible] = useState(fullscreen ? true : false)
@@ -677,13 +682,37 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
     toast('已恢复到该版本', 'success')
   }, [editor, onChange, vers, toast])
 
-  // 批注（入库；anchor=选中文字）
+  // 批注（入库；anchor=选中文字；评审模式下允许无选中直接提交，自动锚到整篇/当前段落）
   const addAnnotation = async () => {
     const sel = window.getSelection()
     const selText = sel?.toString()?.trim()
-    if (!selText || !newAnnotation.trim() || !canPersist) return
-    await anns.add('text', { text: selText }, newAnnotation)
+    if (!newAnnotation.trim() || !canPersist) {
+      toast('请输入批注内容', 'error')
+      return
+    }
+    let anchorText: string
+    let anchorObj: object
+    if (selText) {
+      anchorText = selText
+      anchorObj = { text: selText }
+    } else if (annotationAllowWholeDoc) {
+      // 评审模式无选中：取当前光标所在段落文本作锚点，无光标/不在段落则降级为整篇
+      let paraText = ''
+      try {
+        if (editor?.state?.selection) {
+          const parent = editor.state.selection.$from.parent
+          paraText = parent?.textContent?.trim()?.slice(0, 200) || ''
+        }
+      } catch { /* noop */ }
+      anchorText = paraText || '整篇评审意见'
+      anchorObj = { text: anchorText, whole_doc: !paraText }
+    } else {
+      toast('请先在正文中选中要批注的文字', 'error')
+      return
+    }
+    await anns.add('text', anchorObj, newAnnotation)
     setNewAnnotation('')
+    toast(selText ? '已添加批注' : (annotationAllowWholeDoc ? '已对整篇添加批注' : '已添加批注'), 'success')
   }
   const deleteAnnotation = (id: string) => anns.remove(id)
 
@@ -1018,7 +1047,7 @@ export default function TipTapEditor({ value, onChange, placeholder, readOnly, n
               <div className="flex-1 flex flex-col overflow-hidden">
                 {/* 新增批注 */}
                 <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
-                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">{canPersist ? '选中正文文字后，在此输入批注内容' : '保存后（生成作品 id）才能添加批注'}</p>
+                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">{canPersist ? (annotationAllowWholeDoc ? '在此输入批注内容（可选中正文段落做精确锚点）' : '选中正文文字后，在此输入批注内容') : '保存后（生成作品 id）才能添加批注'}</p>
                   <textarea
                     value={newAnnotation}
                     onChange={e => setNewAnnotation(e.target.value)}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type JSX, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2, Pencil, MessageCircle } from 'lucide-react'
-import { aiAPI, lessonPlanAPI, materialAPI, classAPI } from '../lib/api'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { aiAPI, lessonPlanAPI, materialAPI, classAPI, reviewAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
@@ -99,6 +99,7 @@ export default function LessonPlanEditor() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const isEditing = Boolean(id)
   const teaching = useTeaching()
 
@@ -266,7 +267,12 @@ export default function LessonPlanEditor() {
       const c = data.content || ''
       setContent(c === '{}' || c === '""' ? '' : c)
       setPlanId(data.id)
-      if (data.status === 'active' || data.status === 'published' || data.review_status === 'approved') setPlanStatus('published')
+      // 定稿锁定判定：已通过(approved)或互审关闭直接发布(active+none)才只读；
+      // 被退回(returned)按方案A保留发布壳但允许重新编辑再送审 → 不锁
+      const lockedByStatus = (data.status === 'active' && data.review_status !== 'returned') ||
+                             (data.status === 'published') ||
+                             (data.review_status === 'approved')
+      if (lockedByStatus) setPlanStatus('published')
       if (data.curriculum_alignments) {
         try { setCurriculum(JSON.parse(data.curriculum_alignments)) } catch { setCurriculum([]) }
       }
@@ -521,8 +527,9 @@ export default function LessonPlanEditor() {
   })
 
   // 查看态：进入查看态即自动打开全屏预览（按 id 重算，兼容同标签内切换不同教案）
+  // 评审模式(?review=1)下不自动弹预览，保留顶栏"通过/退回"按钮可点
   useEffect(() => {
-    if (ctrl?.readOnly) setPreviewOpen(true)
+    if (ctrl?.readOnly && searchParams.get('review') !== '1') setPreviewOpen(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -778,7 +785,59 @@ export default function LessonPlanEditor() {
   // 顶栏带 导出教案/打印/编辑 按钮；点「编辑」ctrl.forceEdit 原地解锁进入文档模式。
   if (ctrl.readOnly) {
     const viewHtml = contentToHtml(content)
-    const editNow = () => { setPreviewOpen(false); ctrl.forceEdit(); ctrl.setWorkMode('doc'); window.history.replaceState(null, '', `/lesson-plans/${id}/edit`) }
+    const editNow = () => {
+      if (planStatus === 'published') { toast('该教案已定版发布，不可编辑', 'warning'); return }
+      setPreviewOpen(false); ctrl.forceEdit(); ctrl.setWorkMode('doc'); window.history.replaceState(null, '', `/lesson-plans/${id}/edit`)
+    }
+    const isReviewMode = searchParams.get('review') === '1'
+    const handleReviewDecision = async (decision: 'approve' | 'reject') => {
+      if (!id) return
+      try {
+        await reviewAPI.decide(id, decision, '')
+        toast(decision === 'approve' ? '已通过评审' : '已退回', 'success')
+        navigate('/review-pool')
+      } catch { toast('评审提交失败', 'error') }
+    }
+    // 评审模式：绕过 EditorLayout(其左栏 466px 固定不可收起，违反"评审仅看作品"的诉求)
+    // 自渲染极简布局：顶栏+全屏 TipTapEditor 带批注侧栏(resourceType/resourceId 触发 useAnnotations)。
+    // fullscreen=true 让批注面板默认展开；外层 style 隐藏章节导航(评审不需要)，仅保留正文+批注。
+    if (isReviewMode) {
+      return (
+        <div className="h-screen flex flex-col bg-[#F6F7F8]">
+          <header className="shrink-0 bg-white border-b border-[#E7E7EB] px-5 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-[12px] text-[#9A9A9A] truncate">{lessonTitle || '未命名教案'} · {subject}{grade}</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-[3px] bg-[#FFF7E6] text-[#FA8C16] border border-[#FFE7BA] shrink-0">评审模式</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => navigate('/review-pool')}
+                className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8]">
+                <ArrowLeft size={13} /> 返回互审池</button>
+              <button onClick={() => handleReviewDecision('reject')}
+                className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-[#FA8C16] text-white rounded-[4px] hover:bg-[#d97a0a]">
+                <XCircle size={13} /> 退回</button>
+              <button onClick={() => handleReviewDecision('approve')}
+                className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-[#52C41A] text-white rounded-[4px] hover:bg-[#49ad14]">
+                <CheckCircle2 size={13} /> 通过</button>
+            </div>
+          </header>
+          <div className="flex-1 overflow-hidden relative">
+            {/* 评审模式：fullscreen 下 TipTapEditor 默认展开左右侧栏——左侧章节导航(评审者快速定位)+右侧批注。 */}
+            <TipTapEditor
+              value={viewHtml}
+              readOnly
+              onChange={() => {}}
+              docTitle={lessonTitle || '未命名教案'}
+              resourceType="lesson_plan"
+              resourceId={id}
+              locked
+              fullscreen
+              annotationAllowWholeDoc
+            />
+          </div>
+        </div>
+      )
+    }
     const centeredDocInline = (
       <div className="h-full overflow-auto bg-[#F6F7F8] flex justify-center py-10">
         <div className="w-[794px] min-h-[1123px] bg-white shadow-sm">
@@ -813,8 +872,9 @@ export default function LessonPlanEditor() {
                 <button onClick={_handlePrintPdf}
                   className="flex items-center gap-1 px-3 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F6F7F8]">
                   <FileText size={13} /> 打印</button>
-                <button onClick={editNow}
-                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-[#02A7F0] text-white rounded-[4px] hover:bg-[#0288D1]">
+                <button onClick={editNow} disabled={planStatus === 'published'}
+                  title={planStatus === 'published' ? '该教案已定版发布，不可编辑' : '进入编辑'}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[12px] bg-[#02A7F0] text-white rounded-[4px] hover:bg-[#0288D1] disabled:opacity-40 disabled:cursor-not-allowed">
                   <Pencil size={13} /> 编辑</button>
               </div>
             </div>
@@ -826,16 +886,18 @@ export default function LessonPlanEditor() {
         modeLockedLabel="只读查看"
         footerAlign="left"
         footerLifecycle={{
-          saveDraftLabel: '编辑',
+          saveDraftLabel: planStatus === 'published' ? '已定版' : '编辑',
           publishLabel: '返回教案库',
           onSaveDraft: editNow,
           onPublish: () => { window.location.href = '/lesson-plans' },
+          saveDraftDisabled: planStatus === 'published',
         }}
         previewTitle="教案预览"
         previewSlot={centeredDocFull}
         previewOpen={previewOpen}
         onPreviewChange={setPreviewOpen}
         onPreviewEdit={editNow}
+        previewEditDisabled={planStatus === 'published'}
       />
     )
   }

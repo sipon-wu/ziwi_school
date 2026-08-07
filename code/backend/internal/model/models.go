@@ -33,6 +33,8 @@ type School struct {
 	// 心跳上报（P2 私有部署心跳对齐）
 	LastHeartbeatAt    *time.Time `json:"last_heartbeat_at"`
 	HeartbeatFailCount int        `gorm:"default:0" json:"heartbeat_fail_count"`
+	// 教案互审开关（规格书 §2.2.4，默认关闭；教师/IT 可在设置开启；开启后发布=送审 pending）
+	LessonReviewEnabled bool `gorm:"default:false" json:"lesson_review_enabled"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -168,9 +170,9 @@ type LessonPlan struct {
 	MaterialRefs      string     `gorm:"column:material_links;type:text" json:"material_refs,omitempty"`
 	AIGenerationBasis string     `gorm:"-" json:"ai_generation_basis,omitempty"`
 	LastEditedAt      *time.Time `gorm:"-" json:"last_edited_at,omitempty"`
-	ReviewerID        *string    `gorm:"-" json:"reviewer_id,omitempty"`
-	ReviewComment     string     `gorm:"-" json:"review_comment,omitempty"`
-	ReviewedAt        *time.Time `gorm:"-" json:"reviewed_at,omitempty"`
+	ReviewerID        *string    `gorm:"column:reviewer_id;type:varchar(50);index" json:"reviewer_id,omitempty"`
+	ReviewComment     string     `gorm:"column:review_comment;type:text" json:"review_comment,omitempty"`
+	ReviewedAt        *time.Time `gorm:"column:reviewed_at" json:"reviewed_at,omitempty"`
 	PublishedAt       *time.Time `json:"published_at"`
 }
 

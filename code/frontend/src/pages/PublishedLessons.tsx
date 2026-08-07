@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Search, Trash2, Eye, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { usePagination } from '../lib/useApi'
@@ -8,6 +8,9 @@ import { useTeaching } from '@/lib/TeachingContext'
 import { api, lessonPlanAPI, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 
+// review_status 与后端 lesson_plans 表枚举对齐：none(未送审) / pending(评审中) / approved(已通过) / returned(已退回)
+type ReviewStatus = 'none' | 'pending' | 'approved' | 'returned'
+
 interface LessonPlan {
   id: string
   lesson_title: string
@@ -15,7 +18,7 @@ interface LessonPlan {
   grade: string
   school_year?: string
   status: 'final'
-  review_status: 'reviewing' | 'approved' | 'rejected'
+  review_status: ReviewStatus
   updated_at: string
   format_template: string
 }
@@ -24,9 +27,9 @@ const MOCK_PUBLISHED: LessonPlan[] = [
   { id: '1', lesson_title: '《观潮》第一课时', subject: '语文', grade: '四年级', school_year: '2025-2026', status: 'final', review_status: 'approved', updated_at: '2026-06-17 14:30', format_template: 'core_literacy' },
   { id: '5', lesson_title: '小数加减法练习课', subject: '数学', grade: '四年级', status: 'final', review_status: 'approved', updated_at: '2026-06-14 11:45', format_template: 'unit_teaching' },
   { id: '7', lesson_title: '长方形和正方形面积', subject: '数学', grade: '三年级', status: 'final', review_status: 'approved', updated_at: '2026-06-12 08:00', format_template: 'core_literacy' },
-  { id: '9', lesson_title: 'Unit 2 My Family - 词汇课', subject: '英语', grade: '四年级', status: 'final', review_status: 'reviewing', updated_at: '2026-06-10 09:30', format_template: '3d_objective' },
-  { id: '10', lesson_title: '《忆江南》古诗赏析', subject: '语文', grade: '四年级', status: 'final', review_status: 'reviewing', updated_at: '2026-06-08 16:00', format_template: 'core_literacy' },
-  { id: '11', lesson_title: '三角形内角和', subject: '数学', grade: '四年级', status: 'final', review_status: 'rejected', updated_at: '2026-06-05 11:00', format_template: 'core_literacy' },
+  { id: '9', lesson_title: 'Unit 2 My Family - 词汇课', subject: '英语', grade: '四年级', status: 'final', review_status: 'pending', updated_at: '2026-06-10 09:30', format_template: '3d_objective' },
+  { id: '10', lesson_title: '《忆江南》古诗赏析', subject: '语文', grade: '四年级', status: 'final', review_status: 'pending', updated_at: '2026-06-08 16:00', format_template: 'core_literacy' },
+  { id: '11', lesson_title: '三角形内角和', subject: '数学', grade: '四年级', status: 'final', review_status: 'returned', updated_at: '2026-06-05 11:00', format_template: 'core_literacy' },
   { id: '12', lesson_title: 'Unit 4 At the Farm - 听说课', subject: '英语', grade: '四年级', status: 'final', review_status: 'approved', updated_at: '2026-06-03 13:20', format_template: '3d_objective' },
   { id: '2', lesson_title: '分数的意义和性质', subject: '数学', grade: '三年级', status: 'final', review_status: 'approved', updated_at: '2026-06-17 10:15', format_template: 'core_literacy' },
 ]
@@ -45,7 +48,8 @@ export default function PublishedLessons() {
   const [plans, setPlans] = useState<LessonPlan[]>([])
   useEffect(() => {
     api<{ items: any[] }>('/lesson-plans').then(res => {
-      setPlans(res.items.filter(r => r.status === 'final').map(r => ({
+      // 发布库 = 自己送审中(pending) + 已通过(approved)；草稿/被退回归草稿箱
+      setPlans(res.items.filter(r => r.review_status === 'pending' || r.review_status === 'approved').map(r => ({
         id: r.id, lesson_title: r.title || r.lesson_title, subject: r.subject, grade: r.grade,
         school_year: r.created_at?.slice(0,4) || '', status: r.status,
         review_status: r.review_status || 'none', updated_at: r.updated_at,
@@ -59,12 +63,8 @@ export default function PublishedLessons() {
   const [filterReview, setFilterReview] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  const classFiltered = useMemo(() => {
-    const gradeStr = GRADE_MAP[teaching.grade] || ''
-    return plans.filter(p => p.subject === teaching.subject && p.grade === gradeStr)
-  }, [plans, teaching.subject, teaching.grade])
-
-  const filtered = classFiltered.filter(p => {
+  // 发布库展示自己全部已送审/已通过教案；学科/年级仅作可选筛选（默认全部，不再硬藏）
+  const filtered = plans.filter(p => {
     if (searchTerm && !p.lesson_title.includes(searchTerm)) return false
     if (filterSubject && p.subject !== filterSubject) return false
     if (filterYear && p.school_year !== filterYear) return false
@@ -117,8 +117,9 @@ export default function PublishedLessons() {
             className="px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0] text-[#353535]">
             <option value="">全部状态</option>
             <option value="approved">已通过</option>
-            <option value="reviewing">待审核</option>
-            <option value="rejected">需修改</option>
+            <option value="pending">评审中</option>
+            <option value="returned">已退回</option>
+            <option value="none">未送审</option>
           </select>
         </div>
 
@@ -151,7 +152,7 @@ export default function PublishedLessons() {
                 </thead>
                 <tbody className="divide-y divide-[#F0F0F0]">
                   {paginated.map(plan => (
-                    <tr key={plan.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                    <tr key={plan.id} onClick={() => window.open(`/lesson-plans/${plan.id}`, '_blank')} className="hover:bg-[#F9FAFB] transition-colors group cursor-pointer">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <BookOpen size={14} className="text-[#9A9A9A] shrink-0" />
@@ -170,10 +171,12 @@ export default function PublishedLessons() {
                       <td className="px-4 py-3 hidden lg:table-cell">
                         {plan.review_status === 'approved' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] bg-green-50 text-green-600">已通过</span>
-                        ) : plan.review_status === 'reviewing' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] bg-blue-50 text-blue-600">待审核</span>
+                        ) : plan.review_status === 'pending' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] bg-blue-50 text-blue-600">评审中</span>
+                        ) : plan.review_status === 'returned' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] bg-orange-50 text-orange-600">已退回</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] bg-orange-50 text-orange-600">需修改</span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[11px] bg-gray-50 text-gray-500">未送审</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-[12px] text-[#9A9A9A] hidden lg:table-cell">{plan.updated_at}</td>

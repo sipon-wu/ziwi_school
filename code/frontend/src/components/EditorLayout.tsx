@@ -68,6 +68,8 @@ interface Props {
   onPreviewChange?: (open: boolean) => void
   /** 预览 overlay 内「编辑」按钮的点击处理（如直接进入编辑态）。不传则用 onPreviewChange(false) */
   onPreviewEdit?: () => void
+  /** 已定版不可编辑时禁用预览 overlay 的「编辑」按钮 */
+  previewEditDisabled?: boolean
 
   // ========== P0-2 全屏预览承载层（新） ==========
   /** 注入到全屏预览承载层内的产品预览内容（文字类=锁定版式 / PPT=放映态 / H5=运行态）。
@@ -85,6 +87,8 @@ interface Props {
     onPublish: () => void
     status?: EditorStatus
     saving?: boolean
+    /** 保存草稿按钮禁用（如已定版发布不可再编辑） */
+    saveDraftDisabled?: boolean
   }
   /** footer 对齐：'full'=横跨整页底部（默认），'left'=限制到左栏宽度 466px（贴左对齐） */
   footerAlign?: 'full' | 'left'
@@ -99,7 +103,7 @@ export default function EditorLayout({
   sceneName,
   footerExtra, footerLeft, footerRight, hidePreviewBtn, onPreview,
   previewSlot, previewTitle, footerLifecycle, footerAlign,
-  previewOpen: previewOpenProp, onPreviewChange, onPreviewEdit,
+  previewOpen: previewOpenProp, onPreviewChange, onPreviewEdit, previewEditDisabled,
 }: Props) {
   // 受控预览：传了 previewOpen 则由页面持有状态，否则框架内部自管理
   const previewControlled = previewOpenProp !== undefined
@@ -166,8 +170,9 @@ export default function EditorLayout({
     <>
       <button
         onClick={footerLifecycle.onSaveDraft}
-        disabled={footerLifecycle.saving}
-        className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-50 transition-colors"
+        disabled={footerLifecycle.saving || footerLifecycle.saveDraftDisabled}
+        title={footerLifecycle.saveDraftDisabled ? '该教案已定版发布，不可编辑' : undefined}
+        className="flex-1 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {footerLifecycle.saveDraftLabel}
       </button>
@@ -256,7 +261,7 @@ export default function EditorLayout({
 
       {/* P0-2 全屏预览承载层 */}
       {useNewPreview && (
-        <PreviewOverlay open={previewOpen} title={previewTitle} onClose={() => setPreviewOpen(false)} onEdit={onPreviewEdit}>
+        <PreviewOverlay open={previewOpen} title={previewTitle} onClose={() => setPreviewOpen(false)} onEdit={onPreviewEdit} editDisabled={previewEditDisabled}>
           {previewSlot}
         </PreviewOverlay>
       )}

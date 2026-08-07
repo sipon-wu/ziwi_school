@@ -12,10 +12,12 @@ interface Props {
   onClose: () => void
   /** 可选：覆盖 onClose 的"编辑"动作（如页面想直接进入编辑态）。不传则按钮用 onClose */
   onEdit?: () => void
+  /** 已定版不可编辑时禁用"编辑"按钮 */
+  editDisabled?: boolean
   children: ReactNode
 }
 
-export default function PreviewOverlay({ open, title, onClose, onEdit, children }: Props) {
+export default function PreviewOverlay({ open, title, onClose, onEdit, editDisabled, children }: Props) {
   if (!open) return null
   const handleEdit = onEdit || onClose
   return (
@@ -25,7 +27,9 @@ export default function PreviewOverlay({ open, title, onClose, onEdit, children 
         <span className="text-[14px] font-medium text-[#353535]">{title || '预览'}</span>
         <button
           onClick={handleEdit}
-          className="px-4 py-1.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
+          disabled={editDisabled}
+          title={editDisabled ? '该教案已定版发布，不可编辑' : undefined}
+          className="px-4 py-1.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           编辑
         </button>
