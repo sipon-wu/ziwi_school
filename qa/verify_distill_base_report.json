@@ -1,0 +1,61 @@
+{
+  "generated": "2026-08-08T09:59:53.640Z",
+  "ssh_host": "193.112.163.147",
+  "thresholds": {
+    "source": 50000,
+    "lecture": 200
+  },
+  "total": 6,
+  "pass": 6,
+  "fail": 0,
+  "cases": [
+    {
+      "name": "DISTILL-SOURCE-staging",
+      "env": "staging",
+      "metric": "tb_lesson_source rows",
+      "actual": 58138,
+      "pass": true,
+      "note": "期望 ≥ 50000"
+    },
+    {
+      "name": "DISTILL-LECTURE-staging",
+      "env": "staging",
+      "metric": "tb_lesson_lecture rows",
+      "actual": 299,
+      "pass": true,
+      "note": "期望 ≥ 200"
+    },
+    {
+      "name": "DISTILL-ORPHAN-staging",
+      "env": "staging",
+      "metric": "source.lecture_id 外键悬空",
+      "actual": 0,
+      "pass": true,
+      "note": "期望 = 0"
+    },
+    {
+      "name": "DISTILL-SOURCE-prod",
+      "env": "prod",
+      "metric": "tb_lesson_source rows",
+      "actual": 58138,
+      "pass": true,
+      "note": "期望 ≥ 50000"
+    },
+    {
+      "name": "DISTILL-LECTURE-prod",
+      "env": "prod",
+      "metric": "tb_lesson_lecture rows",
+      "actual": 299,
+      "pass": true,
+      "note": "期望 ≥ 200"
+    },
+    {
+      "name": "DISTILL-ORPHAN-prod",
+      "env": "prod",
+      "metric": "source.lecture_id 外键悬空",
+      "actual": 0,
+      "pass": true,
+      "note": "期望 = 0"
+    }
+  ]
+}

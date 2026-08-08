@@ -115,6 +115,12 @@ func main() {
 			log.Printf("Warning: AutoMigrate failed: %v", err)
 		}
 	}
+	// 蒸馏底座（知微·有谱引擎 RAG 素材层）：tb_lesson_source 为 32 分区表，
+	// 含 vector(1024) 列与 HNSW 向量索引，GORM AutoMigrate 不支持分区/向量，
+	// 故用幂等原生 SQL 建父表 + 32 分区 + 索引 + 外键。对已有库（staging/prod）
+	// 全部 IF NOT EXISTS，安全跳过，不破坏现有数据。
+	ensureDistillSchema(db)
+
 	// growth_care_records 现已由 CareRepository.AutoMigrate() 管理（GORM 幂等迁移），
 	// 原有裸 CREATE TABLE 已移除。若升级前表不存在，迁移会自动建表。
 	// 家长-学生关联（没有学生端，由家长端代理；家长账号经此表绑定花名册学生）
@@ -463,4 +469,83 @@ func placeholder(msg string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": msg, "status": "not_implemented"})
 	}
+}
+
+// ensureDistillSchema 幂等建出蒸馏底座两张表（分区父表 + 32 分区 + 向量索引 + 外键）。
+// 不走 GORM AutoMigrate：分区表、vector(1024)、HNSW 索引均非 GORM 原生支持。
+// 对已有库（staging/prod）所有语句 IF NOT EXISTS，安全跳过、不破坏现有数据。
+func ensureDistillSchema(db *gorm.DB) {
+	// 0) 确保 pgvector 扩展存在（prod 镜像需为 pgvector/pgvector:pg16，与 staging 一致）
+	db.Exec(`CREATE EXTENSION IF NOT EXISTS vector`)
+
+	// 1) 讲义表（父引用表，先于 source 建以便外键）
+	db.Exec(`CREATE TABLE IF NOT EXISTS tb_lesson_lecture (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		lesson_key VARCHAR(255) NOT NULL,
+		subject VARCHAR(100) NOT NULL,
+		grade VARCHAR(50) NOT NULL,
+		unit VARCHAR(255),
+		chapter VARCHAR(255),
+		title VARCHAR(255) NOT NULL,
+		lecture JSONB NOT NULL,
+		source_type VARCHAR(50) NOT NULL,
+		source_ids TEXT[],
+		textbook_version_ids UUID[],
+		knowledge_node_ids UUID[],
+		standard_clause_ids UUID[],
+		original_text_status VARCHAR(20) DEFAULT 'replaced_by_lecture',
+		created_at TIMESTAMPTZ DEFAULT now(),
+		updated_at TIMESTAMPTZ DEFAULT now()
+	)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_lecture_lesson_key ON tb_lesson_lecture (lesson_key)`)
+
+	// 2) 蒸馏素材分区父表
+	db.Exec(`CREATE TABLE IF NOT EXISTS tb_lesson_source (
+		id BIGSERIAL,
+		chunk_id TEXT,
+		stage TEXT,
+		subject TEXT,
+		grade TEXT,
+		volume TEXT,
+		version TEXT,
+		new_old TEXT,
+		unit TEXT,
+		chapter TEXT,
+		source_type TEXT,
+		source_id TEXT,
+		content TEXT,
+		std_clauses TEXT,
+		kg_unit TEXT,
+		copyright TEXT,
+		shard_key TEXT NOT NULL,
+		unit_seq INTEGER,
+		embedding vector(1024),
+		lecture_id UUID,
+		storage_mode TEXT DEFAULT 'distilled_only',
+		created_at TIMESTAMPTZ DEFAULT now(),
+		updated_at TIMESTAMPTZ DEFAULT now(),
+		PRIMARY KEY (id, shard_key)
+	) PARTITION BY HASH (shard_key)`)
+
+	// 3) 32 个分区（与 staging 实际 schema 对齐，modulus 32）
+	for i := 0; i < 32; i++ {
+		sql := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS tb_lesson_source_p%02d PARTITION OF tb_lesson_source FOR VALUES WITH (modulus 32, remainder %d)`, i, i)
+		db.Exec(sql)
+		db.Exec(fmt.Sprintf(`CREATE UNIQUE INDEX IF NOT EXISTS tb_lesson_source_p%02d_chunk_id_shard_key_key ON tb_lesson_source_p%02d (chunk_id, shard_key)`, i, i))
+		db.Exec(fmt.Sprintf(`CREATE INDEX IF NOT EXISTS ix_tb_lesson_source_p%02d_embedding ON tb_lesson_source_p%02d USING hnsw (embedding vector_cosine_ops)`, i, i))
+	}
+
+	// 4) 外键：source.lecture_id → lecture.id
+	db.Exec(`DO $$
+	BEGIN
+		IF NOT EXISTS (
+			SELECT 1 FROM pg_constraint WHERE conname = 'tb_lesson_source_lecture_id_fkey'
+		) THEN
+			ALTER TABLE tb_lesson_source
+				ADD CONSTRAINT tb_lesson_source_lecture_id_fkey
+				FOREIGN KEY (lecture_id) REFERENCES tb_lesson_lecture (id);
+		END IF;
+	END $$`)
+
+	log.Printf("ensureDistillSchema: tb_lesson_source / tb_lesson_lecture schema ensured (idempotent)")
 }
