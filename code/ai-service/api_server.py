@@ -180,19 +180,34 @@ async def _boundary_block(subject, grade, version, unit, query_text, top_k=5):
                 items.append(f"- 【{u}/{ch}】{c}")
                 continue
 
-            # Level 3：B/D 类蒸馏数据
+            # Level 3：蒸馏数据（V2 新格式 + 旧格式兼容）
             if content_dict.get("distilled"):
+                parts = []
+                summary = content_dict.get("summary", "")
+                kpoints = content_dict.get("knowledge_points", [])
+                treq = content_dict.get("teaching_requirements", "")
+                # 旧格式兼容
                 ktopics = content_dict.get("knowledge_topics", [])
                 hints = content_dict.get("teaching_hints", "")
-                if ktopics or hints:
-                    parts = []
-                    if ktopics:
-                        parts.append("知识点：" + "、".join(ktopics[:4]))
-                    if hints:
-                        parts.append("教学要点：" + hints[:150])
-                    c = " | ".join(parts)
-                    items.append(f"- 【{u}/{ch}】{c}")
-                    continue
+
+                if summary:
+                    parts.append(summary[:280])
+                elif kpoints:
+                    parts.append("知识点：" + "、".join(kpoints[:4]))
+                elif ktopics:
+                    parts.append("知识点：" + "、".join(ktopics[:4]))
+                if treq:
+                    parts.append("教学要求：" + treq[:120])
+                elif hints:
+                    parts.append("教学要点：" + hints[:150])
+                if not parts and content_dict.get("original_work_title"):
+                    parts.append(f"《{content_dict['original_work_title']}》{content_dict.get('original_work_author', '')}")
+                c = " | ".join(parts) if parts else "（已蒸馏）"
+                # B 类标注改编来源
+                if content_dict.get("class") == "B" and content_dict.get("adaptation_note"):
+                    c += f"（来源：{content_dict['adaptation_note'][:80]}）"
+                items.append(f"- 【{u}/{ch}】{c}")
+                continue
 
             # Level 4：静默行 → 2-pass kg_unit 跳转
             if kg_unit:
