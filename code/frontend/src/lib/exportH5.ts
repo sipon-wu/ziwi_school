@@ -34,6 +34,10 @@ export interface CoursewareOptions {
   grade: string
   title: string
   teacherName?: string
+  /** 投屏自动播放：开启后从首页开始按间隔自动翻页 */
+  autoPlay?: boolean
+  /** 自动播放间隔（秒），默认 8 */
+  autoPlayInterval?: number
 }
 
 /** 将 OutlineSlide[]（AI 生成的课件提纲）转为 H5Slide[]（默认无互动纯内容页，首段作封面） */
@@ -146,6 +150,8 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f1226;c
 .nav button{background:rgba(255,255,255,.16);border:none;color:#fff;padding:10px 22px;border-radius:12px;font-size:14px;cursor:pointer;transition:.2s}
 .nav button:hover{background:rgba(255,255,255,.28)}
 .nav button:disabled{opacity:.3;cursor:default}
+.nav .play{background:rgba(43,93,168,.55);min-width:96px}
+.nav .play:hover{background:rgba(43,93,168,.8)}
 .nav .dots{display:flex;gap:8px}
 .nav .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);transition:.2s}
 .nav .dot.active{background:#fff;width:26px;border-radius:4px}
@@ -162,17 +168,28 @@ ${slidesHtml}
   <button onclick="go(-1)" id="prevBtn">&larr; 上一页</button>
   <div class="dots">${safeSlides.map((_, i) => `<div class="dot${i === 0 ? ' active' : ''}" onclick="goTo(${i})"></div>`).join('')}</div>
   <button onclick="go(1)" id="nextBtn">下一页 &rarr;</button>
+  <button class="play" id="playBtn" onclick="togglePlay()">▶ 播放</button>
 </div>
 <script>
 let idx=0;const N=${N};
+const AUTO_INTERVAL=${opts.autoPlayInterval && opts.autoPlayInterval > 0 ? opts.autoPlayInterval : 8}*1000;
+let playTimer=null;
 function update(){document.querySelectorAll('.slide').forEach((s,i)=>s.classList.toggle('active',i===idx));document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));document.getElementById('pageNum').textContent=(idx+1)+' / '+N;document.getElementById('prevBtn').disabled=idx===0;document.getElementById('nextBtn').disabled=idx===N-1}
 function go(n){idx=Math.max(0,Math.min(N-1,idx+n));update()}
 function goTo(n){idx=n;update()}
-document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' ')go(1);if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(-1)})
+function togglePlay(){if(playTimer){stopPlay();return}startPlay()}
+function startPlay(){document.getElementById('playBtn').textContent='⏸ 暂停';playTimer=setInterval(()=>{if(idx>=N-1){goTo(0)}else{go(1)}},AUTO_INTERVAL)}
+function stopPlay(){document.getElementById('playBtn').textContent='▶ 播放';if(playTimer){clearInterval(playTimer);playTimer=null}}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' ')go(1);if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(-1);if(e.key==='p'||e.key==='P')togglePlay()})
 let sx=0;document.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true})
 document.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40){dx<0?go(1):go(-1)}},{passive:true})
+// 手动翻页时暂停自动播放，避免与定时器抢页
+const _origGo=go, _origGoTo=goTo;
+go=function(n){stopPlay();_origGo(n)};
+goTo=function(n){stopPlay();_origGoTo(n)};
 function answerQuiz(btn){if(btn.classList.contains('correct')||btn.classList.contains('wrong'))return;const box=btn.closest('.quiz');box.querySelectorAll('.q-choice').forEach(b=>b.style.pointerEvents='none');const ok=btn.dataset.correct==='1';btn.classList.add(ok?'correct':'wrong');const exp=box.querySelector('.quiz-explain');const ex=btn.dataset.explain;if(ex){exp.style.display='block';exp.textContent=ex}if(!ok){box.querySelectorAll('.q-choice').forEach(b=>{if(b.dataset.correct==='1')b.classList.add('correct')})}}
 update()
+${opts.autoPlay ? 'startPlay();' : ''}
 </script></body></html>`
 
   return html

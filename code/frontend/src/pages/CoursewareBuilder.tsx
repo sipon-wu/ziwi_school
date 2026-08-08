@@ -391,6 +391,8 @@ export default function CoursewareBuilder() {
       const blob = exportH5Courseware(slides, {
         subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
         teacherName: safeGetUser().name || '教师',
+        autoPlay: true,
+        autoPlayInterval: 8,
       })
       downloadBlob(blob, `${genTitle.trim()}_${teaching.subject}${gradeName}.html`)
       toast('H5 互动课件已生成并下载', 'success')
@@ -1091,7 +1093,7 @@ export default function CoursewareBuilder() {
     }
   }, [cwOutline])
   const previewSlideElems = previewSlides && previewSlides.length > 0 ? (
-    <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide} viewMode="single" />
+    <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide} viewMode="single" autoPlay />
   ) : (
     <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   )

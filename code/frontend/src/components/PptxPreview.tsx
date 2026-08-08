@@ -226,6 +226,10 @@ interface PptxPreviewProps {
   embedFullscreen?: boolean
   /** 选中元素变化回调（向上冒泡，供外层自动唤起属性面板；null 表示点空白取消选择） */
   onSelect?: (id: string | null) => void
+  /** single 模式下自动轮播播放 */
+  autoPlay?: boolean
+  /** 自动播放间隔（毫秒），默认 8000 */
+  autoPlayInterval?: number
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -246,6 +250,8 @@ export default function PptxPreview({
   viewMode = 'scroll',
   embedFullscreen = false,
   onSelect,
+  autoPlay = false,
+  autoPlayInterval = 8000,
 }: PptxPreviewProps) {
   // 版心比例：受控 prop 优先，否则内部自管（工具条可切换）
   const [ar, setAr] = useState<'16/9' | '4/3'>(aspectRatio || '16/9')
@@ -261,6 +267,21 @@ export default function PptxPreview({
     setI(c)
     onIndexChange?.(c)
   }
+
+  // single 模式自动轮播：仅在非编辑、多页、开启 autoPlay 时生效
+  const [autoPlaying, setAutoPlaying] = useState(autoPlay)
+  useEffect(() => { setAutoPlaying(autoPlay) }, [autoPlay])
+  useEffect(() => {
+    if (!autoPlaying || editable || viewMode !== 'single' || slides.length <= 1) return
+    const t = setInterval(() => {
+      setI((prev) => {
+        const next = prev >= slides.length - 1 ? 0 : prev + 1
+        onIndexChange?.(next)
+        return next
+      })
+    }, autoPlayInterval)
+    return () => clearInterval(t)
+  }, [autoPlaying, editable, viewMode, slides.length, autoPlayInterval, onIndexChange])
 
   // 编辑态：当前页元素变更回写
   const handleSlideChange = (slide: CwSlide) => {
@@ -306,6 +327,14 @@ export default function PptxPreview({
           >
             下一页
           </button>
+          {viewMode === 'single' && (
+            <button
+              onClick={() => setAutoPlaying((p) => !p)}
+              className="rounded px-3 py-1 text-sm bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 hover:bg-indigo-100"
+            >
+              {autoPlaying ? '⏸ 暂停' : '▶ 播放'}
+            </button>
+          )}
         </div>
       )}
     </div>
