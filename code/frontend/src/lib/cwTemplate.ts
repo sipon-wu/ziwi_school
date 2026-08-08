@@ -281,6 +281,7 @@ export interface CwTemplate {
 // ── PPT 模板池：基于现有 56 套 CwTheme 配色铺满 8 类风格（各标签下素材积累多少算多少） ──
 // themeId 全部复用 pptThemes.ts 真实存在的 CwTheme；名称取「主题名·风格课件」形式，所见即所得。
 import { getTheme } from './pptThemes'
+import type { CwTheme } from './pptThemes'
 import type { OutlineSlide } from './exportPptx'
 
 // 教学通用示例提纲：空课件套模板时注入，立即可见版式预览（教师填空式替换）

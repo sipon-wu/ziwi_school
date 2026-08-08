@@ -21,7 +21,6 @@ import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview from '../components/PptxPreview'
-import ThemePicker from '../components/ThemePicker'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
@@ -127,6 +126,7 @@ export default function CoursewareBuilder() {
 
   // ── 模板套用（PPT 课件）：从模板库选 → 一键换肤套用、内容不变、可撤销 ──
   const [tplPanelOpen, setTplPanelOpen] = useState(false)
+  const [tplDim, setTplDim] = useState<'style' | 'color'>('style')
   const [tplStyleFilter, setTplStyleFilter] = useState<StyleTag | ''>('')
   const tplAppliedId = useRef<string | null>(null)
   const tplPrevTheme = useRef<string | null>(null)
@@ -760,18 +760,17 @@ export default function CoursewareBuilder() {
         </button>
         {/* 右：全屏 + 主题 */}
         <button onClick={() => setCwFullscreen(true)} title="全屏编辑"
-          className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#E6F7FF] flex items-center gap-1">
+          className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F9] rounded-[4px] hover:bg-[#E6F7FF] flex items-center gap-1">
           <Maximize2 size={13} /> 全屏
         </button>
-        <ThemePicker value={themeId} onChange={setThemeId} />
-        {/* 模板库：主流 AI 风格套用（生成后从模板库选 → 一键换肤，内容不变） */}
+        {/* 模板库：统一弹层（风格 / 色系多维度分类，选中即全文换肤套用） */}
         <div className="relative">
           <button onClick={() => setTplPanelOpen(v => !v)} title="模板库"
             className={`px-2.5 py-1 text-[12px] border rounded-[4px] flex items-center gap-1 ${tplPanelOpen || tplAppliedId.current ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
             <Shapes size={13} /> 模板{tplAppliedId.current ? '✓' : ''}
           </button>
           {tplPanelOpen && (
-            <div className="absolute right-0 top-9 z-50 w-[320px] max-h-[420px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3">
+            <div className="absolute right-0 top-9 z-50 w-[340px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[13px] font-medium text-[#353535]">课件模板库</span>
                 {tplAppliedId.current && (
@@ -785,15 +784,45 @@ export default function CoursewareBuilder() {
                   }} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
                 )}
               </div>
-              {/* 风格筛选（PPT/H5 共用风格标签文案） */}
-              <div className="flex flex-wrap gap-1 mb-2">
-                <button onClick={() => setTplStyleFilter('')} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === '' ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>全部</button>
-                {(Object.keys(STYLE_LABELS) as StyleTag[]).map(s => (
-                  <button key={s} onClick={() => setTplStyleFilter(s)} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === s ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>{STYLE_LABELS[s]}</button>
+              {/* 维度切换：风格 / 色系（色系由模板实际配色聚类而来，不再单独成下拉） */}
+              <div className="flex gap-1 mb-2 bg-[#F2F3F5] rounded p-0.5">
+                {([['style', '按风格'], ['color', '按色系']] as const).map(([k, lbl]) => (
+                  <button key={k} onClick={() => setTplDim(k)} className={`flex-1 px-2 py-1 rounded text-[12px] ${tplDim === k ? 'bg-white text-[#02A7F0] shadow-sm' : 'text-[#666]'}`}>{lbl}</button>
                 ))}
               </div>
-              {tplStyleFilter === 'basic' ? (
-                // 「通用」路径：结构固定 + 选色系自由叠加
+              {tplDim === 'style' ? (
+                <>
+                  {/* 风格筛选（PPT/H5 共用风格标签文案，不含 basic——色系已独立成维度） */}
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    <button onClick={() => setTplStyleFilter('')} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === '' ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>全部</button>
+                    {(Object.keys(STYLE_LABELS) as StyleTag[]).filter(s => s !== 'basic').map(s => (
+                      <button key={s} onClick={() => setTplStyleFilter(s)} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === s ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>{STYLE_LABELS[s]}</button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).map(t => (
+                      <button key={t.id} onClick={async () => {
+                        const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+                        const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                        setCwOutline(r.outline); setThemeId(r.themeId)
+                        tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
+                        setTplPanelOpen(false)
+                        toast(`已套用模板：${t.name}`, 'success')
+                      }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                        <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
+                        <div className="p-1.5">
+                          <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
+                          <div className="text-[10px] text-[#999] mt-0.5">{STYLE_LABELS[t.style]} · {t.layouts ? Object.keys(t.layouts).length : 0} 版式</div>
+                        </div>
+                      </button>
+                    ))}
+                    {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).length === 0 && (
+                      <p className="col-span-2 text-[11px] text-[#999] text-center py-4">该风格暂无 PPT 模板，后续素材积累后可见</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                // 按色系维度：结构固定 + 色系自由叠加（色系由模板实配色聚类而来）
                 <div className="grid grid-cols-2 gap-2">
                   {COLOR_FAMILIES.map(f => {
                     const applied = tplAppliedId.current === `basic-${f.id}`
@@ -815,28 +844,6 @@ export default function CoursewareBuilder() {
                       </button>
                     )
                   })}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).map(t => (
-                    <button key={t.id} onClick={async () => {
-                      const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                      const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                      setCwOutline(r.outline); setThemeId(r.themeId)
-                      tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                      setTplPanelOpen(false)
-                      toast(`已套用模板：${t.name}`, 'success')
-                    }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                      <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
-                      <div className="p-1.5">
-                        <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
-                        <div className="text-[10px] text-[#999] mt-0.5">{STYLE_LABELS[t.style]} · {t.layouts ? Object.keys(t.layouts).length : 0} 版式</div>
-                      </div>
-                    </button>
-                  ))}
-                  {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).length === 0 && (
-                    <p className="col-span-2 text-[11px] text-[#999] text-center py-4">该风格暂无 PPT 模板，后续素材积累后可见</p>
-                  )}
                 </div>
               )}
             </div>

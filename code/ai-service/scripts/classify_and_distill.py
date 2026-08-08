@@ -41,6 +41,8 @@ BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "500"))
 SLEEP_CLASSIFY = float(os.environ.get("SLEEP_CLASSIFY", "0.5"))
 SLEEP_DISTILL = float(os.environ.get("SLEEP_DISTILL", "0.5"))
 MAX_SAMPLE_LEN = int(os.environ.get("MAX_SAMPLE_LEN", "1200"))
+MAX_GROUPS = os.environ.get("MAX_GROUPS")
+MAX_GROUPS = int(MAX_GROUPS) if MAX_GROUPS else None
 
 DEFAULT_MODEL = os.environ.get("LLM_MODEL", "qwen-turbo")
 MAX_TOKENS_CLASSIFY = 800
@@ -86,11 +88,12 @@ def _call_llm(messages: list, model: str = DEFAULT_MODEL, max_tokens: int = 2000
     raise RuntimeError(f"LLM 调用失败: {last_err}")
 
 
-def _extract_json(text: str) -> dict:
-    """从 LLM 返回中尝试提取 JSON 对象。"""
+def _extract_json(text: str, context: str = "") -> dict:
+    """从 LLM 返回中尝试提取 JSON 对象；失败时打印原始片段以便排查。"""
+    original = text
     text = text.strip()
+    # 去掉 markdown code block
     if text.startswith("```"):
-        # 去掉 markdown code block
         text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
         text = re.sub(r"\n?```$", "", text)
         text = text.strip()
@@ -101,14 +104,31 @@ def _extract_json(text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # 再尝试第一个 { ... } 块
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
+    # 再尝试第一个 { ... } 块（非贪婪，避免跨多个对象）
+    for m in re.finditer(r"\{[\s\S]*?\}", text):
         try:
             return json.loads(m.group(0))
         except json.JSONDecodeError:
-            pass
+            continue
 
+    # 兜底：把 "key": "value" 行包裹成对象再解析
+    try:
+        pairs = re.findall(r'"([^"]+)"\s*:\s*("[^"]*"|\[[^\]]*\]|true|false|null|\d+(?:\.\d+)?)', text)
+        if pairs:
+            obj = {}
+            for k, v in pairs:
+                try:
+                    obj[k] = json.loads(v)
+                except json.JSONDecodeError:
+                    obj[k] = v.strip('"')
+            if "class" in obj or "knowledge_points" in obj:
+                return obj
+    except Exception:
+        pass
+
+    snippet = original[:300].replace("\n", "\\n")
+    ctx = f" [{context}]" if context else ""
+    print(f"[WARN] JSON 提取失败{ctx}: {snippet}", file=sys.stderr)
     raise ValueError("无法从 LLM 返回中提取 JSON")
 
 
@@ -125,15 +145,8 @@ CLASSIFY_PROMPT = """你是一名精通中小学教材版权与内容分类的�
 
 判断依据：文本内容、语言风格、是否像课文/教材改写、是否含出版社注释/课后题/识字要求等。
 
-请只返回如下 JSON，不要解释：
-{
-  "class": "A/B/C/D",
-  "confidence": "高/中/低",
-  "reason": "一句话理由",
-  "original_work_title": "作品名（A/C/D 必填；B 填原作名，如无可不填）",
-  "original_work_author": "作者（A/C/D 必填；B 填原作者，如无可不填）",
-  "adaptation_note": "B 类填写教材版本与年级，如'部编版语文一年级上册'；其他可不填"
-}
+必须只返回一个 JSON 对象，不要任何解释、不要 markdown 代码块、不要多余文字。严格使用如下格式（包含大括号）：
+{{"class": "A/B/C/D", "confidence": "高/中/低", "reason": "一句话理由", "original_work_title": "作品名", "original_work_author": "作者", "adaptation_note": "B类填教材版本年级，其他留空"}}
 
 待分类文本（节选自《{work_title}》，{subject}{grade}{version}）：
 ---
@@ -151,7 +164,7 @@ def classify_work(work_title: str, sample: str, subject: str, grade: str, versio
         sample=sample[:MAX_SAMPLE_LEN],
     )
     raw = _call_llm([{"role": "user", "content": prompt}], DEFAULT_MODEL, MAX_TOKENS_CLASSIFY)
-    result = _extract_json(raw)
+    result = _extract_json(raw, context=f"classify {work_title}")
     # 标准化字段
     result.setdefault("class", "B")
     result.setdefault("original_work_title", work_title)
@@ -170,14 +183,8 @@ DISTILL_PROMPT = """你是一名资深教研员，请将以下教材/课文内�
 2. 提取出知识点、生字（语文低年级）、教学要求、能力目标、简短摘要；
 3. 摘要需通顺、信息完整，可直接被教师阅读。
 
-请只返回如下 JSON，不要解释：
-{
-  "knowledge_points": ["知识点1", "知识点2"],
-  "new_chars": ["生字第1", "生字第2"],
-  "teaching_requirements": "朗读识字、理解内容、能够复述...",
-  "abilities": ["观察力", "语言表达"],
-  "summary": "本课/本篇为...，知识点包括...，教学要求为..."
-}
+必须只返回一个 JSON 对象，不要任何解释、不要 markdown 代码块、不要多余文字。格式如下（包含大括号）：
+{{"knowledge_points": ["知识点1", "知识点2"], "new_chars": ["生字第1", "生字第2"], "teaching_requirements": "朗读识字、理解内容、能够复述...", "abilities": ["观察力", "语言表达"], "summary": "本课/本篇为...，知识点包括...，教学要求为..."}}
 
 待蒸馏内容（节选自《{work_title}》，{subject}{grade}{version}；分类为 {class_label} 类）：
 ---
@@ -196,7 +203,7 @@ def distill_work(work_title: str, sample: str, subject: str, grade: str, version
         sample=sample[:MAX_SAMPLE_LEN],
     )
     raw = _call_llm([{"role": "user", "content": prompt}], DEFAULT_MODEL, MAX_TOKENS_DISTILL)
-    result = _extract_json(raw)
+    result = _extract_json(raw, context=f"distill {work_title}")
     # 标准化字段
     result.setdefault("knowledge_points", [])
     result.setdefault("new_chars", [])
@@ -417,6 +424,9 @@ def main():
         updates: list[tuple[int, str, str, dict]] = []
 
         for idx, (key, w) in enumerate(works.items(), 1):
+            if MAX_GROUPS and idx > MAX_GROUPS:
+                print(f"[TEST] 达到 MAX_GROUPS={MAX_GROUPS}，提前结束")
+                break
             meta = w["meta"]
             chunks = w["chunks"]
             samples = w["samples"]
@@ -437,6 +447,7 @@ def main():
                 )
             except Exception as e:
                 print(f"  [ERROR] 分类失败: {e}", file=sys.stderr)
+                traceback.print_exc()
                 stats["errors"] += 1
                 continue
 
