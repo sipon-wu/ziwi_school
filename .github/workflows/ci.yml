@@ -27,6 +27,16 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./...
+      # 蒸馏底座守门：确保 ensureDistillSchema 既被定义又被调用。
+      # 历史根因：蒸馏层曾不在代码管线，建表逻辑被删/未接 →
+      # 部署后 tb_lesson_source/tb_lesson_lecture 建不出，RAG 无素材却测试全绿（假绿）。
+      # 此静态检查拦「代码回归」，真·数据非空断言见 qa/verify_distill_base.cjs（需 SSH CVM，CI runner 不跑）。
+      - name: Distill schema guard
+        run: |
+          MAIN=cmd/server/main.go
+          grep -q "func ensureDistillSchema" "$MAIN" || { echo "FAIL: ensureDistillSchema 未定义"; exit 1; }
+          grep -q "ensureDistillSchema(db)" "$MAIN" || { echo "FAIL: ensureDistillSchema 未被调用"; exit 1; }
+          echo "OK: ensureDistillSchema 已定义并被调用"
 
   frontend:
     name: Frontend (lint / typecheck / build)
