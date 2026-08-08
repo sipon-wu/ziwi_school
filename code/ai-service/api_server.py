@@ -484,6 +484,10 @@ async def gen_courseware(req: Request):
     edge_enabled = bool(body.get("edge_enabled", False))
     edge_categories = body.get("edge_categories") or []
     unit = body.get("textbook_unit", "")
+    # ── 风格模板（P1）：AI 定风格语义，系统映射到 CwTheme 配色盘 ──
+    style_tag = (body.get("style_tag") or "").strip()
+    style_profile = (body.get("style_profile") or "").strip()
+    style_mode = (body.get("style_mode") or "auto").strip()  # auto | preset | free
 
     kp_names, prereq_names = _resolve_scope(body)
     budget = divergence_budget(divergence_level)
@@ -553,6 +557,25 @@ async def gen_courseware(req: Request):
             f"不得说教式灌入正文。{ETHIC_PRINCIPLE}"
         )
 
+    # ── 风格模板（P1）：AI 定风格语义，系统映射到 CwTheme 配色盘 ──
+    # 定义受控风格词表，AI 只能从中选，杜绝未知配色/外部风格
+    STYLE_TAGS = "、".join([
+        "basic(通用结构)", "china(中国风)", "minimal(极简)", "tech(科技)",
+        "fresh(清新)", "academic(严谨学术)", "cartoon(卡通)", "flat(扁平)", "business(商务)",
+    ])
+    if style_tag:
+        scope_hint += (
+            f"\n【风格·指定大类】本课件视觉风格须为【{style_tag}】，属于受控风格词表之一：{STYLE_TAGS}。"
+            f"请在版式节奏与内容组织上体现该风格（如科技风多用双栏/大图/模块化、国风多用留白与韵味、"
+            f"极简风要点更精简、卡通风更活泼）。版式标注（<!-- layout -->）仍须从现有版式集合中取，不得自创版式。"
+        )
+    if style_profile:
+        scope_hint += (
+            f"\n【风格·自由描述】用户期望风格：{style_profile}。"
+            f"请在受控风格词表（{STYLE_TAGS}）内自行匹配最贴切的风格大类，"
+            f"并在课件结构与版式节奏上体现该风格。版式标注仍须从现有版式集合中取。"
+        )
+
     prompt = (
         f"你是资深中小学课件设计专家，善于把一节课设计得“充实但不冗长、恰到好处”，"
         f"并能在守住院点的前提下适度发散以启发学生思维。"
@@ -605,6 +628,8 @@ async def gen_courseware(req: Request):
         "divergence_map": divergence_map,
         "similar_material": similar,
         "recommended_refs": recommended_refs,
+        "style_tag": style_tag,
+        "style_profile": style_profile,
         "model": "qwen-turbo",
         "generation_time_ms": int((time.time() - start) * 1000),
     }
@@ -741,9 +766,12 @@ async def courseware_render_ppt(req: Request):
     title = body.get("title", "课件")
     subject = body.get("subject", "")
     grade = body.get("grade", "")
+    style_tag = (body.get("style_tag") or "").strip()
+    theme_id = (body.get("theme_id") or "").strip()
     if not markdown:
         return {"ppt_slides": [{"kind": "cover", "title": title,
-                                 "bullets": [], "notes": ""}]}
+                                 "bullets": [], "notes": ""}],
+                "style_tag": style_tag, "theme_id": theme_id}
     prompt = (
         "你是一名资深教研员兼课件设计师。下面是一份已定稿的中小学课件（Markdown），"
         "请将其「渲染」为适合课堂投屏的 PPT 幻灯片结构，做到：每页要点精炼、不堆砌原文、逻辑清晰、便于讲解。\n"
@@ -763,11 +791,91 @@ async def courseware_render_ppt(req: Request):
         if m:
             slides = json.loads(m.group(0))
             if isinstance(slides, list) and slides:
-                return {"ppt_slides": slides}
+                return {"ppt_slides": slides, "style_tag": style_tag, "theme_id": theme_id}
     except Exception:
         pass
     # 兜底：直接按章节拆分（保证至少有可用 PPT）
-    return {"ppt_slides": _fallback_ppt(markdown, title)}
+    return {"ppt_slides": _fallback_ppt(markdown, title), "style_tag": style_tag, "theme_id": theme_id}
+
+
+def _parse_duration(val):
+    """兼容 duration_s 为整数/字符串/或 time:'0:00-0:10' 字符串，统一转秒数。"""
+    if val is None:
+        return 3
+    if isinstance(val, (int, float)):
+        return int(val)
+    s = str(val).strip()
+    if ":" in s:  # 形如 "0:00 - 0:10" 取结束时刻
+        try:
+            end = s.split("-")[-1].strip()
+            parts = [int(p) for p in end.replace(".", ":").split(":") if p.strip().isdigit()]
+            if len(parts) >= 2:
+                return parts[0] * 60 + parts[1]
+            if parts:
+                return parts[0]
+        except Exception:
+            pass
+    try:
+        return int(float(s))
+    except Exception:
+        return 3
+
+
+def _parse_video_shots(raw: str):
+    """从 LLM 原始返回中鲁棒提取视频分镜列表，兼容两种字段命名（标准/简写）。"""
+    if not raw:
+        return []
+    cleaned = re.sub(r"```(?:json)?", "", raw).strip()
+    data = None
+    # 1) 直接解析整个去围栏内容
+    try:
+        data = json.loads(cleaned)
+    except Exception:
+        data = None
+    # 2) 贪婪匹配数组再解析
+    if data is None:
+        m = re.search(r"\[.*\]", cleaned, re.DOTALL)
+        if m:
+            try:
+                data = json.loads(m.group(0))
+            except Exception:
+                data = None
+    # 3) 退化：逐对象提取（防止前后杂文干扰）
+    if data is None:
+        objs = re.findall(r"\{[^{}]*\}", cleaned, re.DOTALL)
+        if objs:
+            items = []
+            for o in objs:
+                try:
+                    items.append(json.loads(o))
+                except Exception:
+                    pass
+            if items:
+                data = items
+    if not isinstance(data, list) or not data:
+        return []
+    out = []
+    for i, s in enumerate(data):
+        if not isinstance(s, dict):
+            continue
+        # 兼容字段命名：title/text、narration/voiceover、visual/scene、duration_s/time
+        title = s.get("title") or s.get("text") or f"镜头{i + 1}"
+        narration = s.get("narration") or s.get("voiceover") or ""
+        visual = s.get("visual") or s.get("scene") or ""
+        dur = _parse_duration(s.get("duration_s", s.get("time")))
+        idx = s.get("index", i)
+        try:
+            idx = int(idx)
+        except Exception:
+            idx = i
+        out.append({
+            "index": idx,
+            "title": str(title),
+            "narration": str(narration),
+            "visual": str(visual),
+            "duration_s": dur,
+        })
+    return out
 
 
 @app.post("/api/ai/courseware/generate-video-script")
@@ -810,17 +918,17 @@ async def courseware_generate_video_script(req: Request):
         "3. 镜头数 4~8 个，各镜 duration_s 之和为总时长，需尽量接近 "
         f"{duration} 秒（允许 ±3 秒）；每个镜头 2~6 秒。\n"
         "4. 按课件知识顺序展开，关键知识点/诗意/公式须有对应镜头；结尾一镜做小结或留思考。\n"
-        "5. 只输出 JSON 数组，不要任何解释。\n"
+        "5. 严格使用以下字段名，不要使用 time/scene/text/voiceover 等其它命名：\n"
+        "   index(整数), title(字符串), narration(字符串), visual(字符串), duration_s(整数秒)\n"
+        "6. 只输出 JSON 数组，不要任何解释、不要 markdown 代码块围栏。\n"
         f"课件总标题：{title}（{subject}{grade}）\n\n课件原文：\n{markdown}\n"
     )
     try:
         raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 2000)
-        m = re.search(r"\[.*\]", raw, re.DOTALL)
-        if m:
-            shots = json.loads(m.group(0))
-            if isinstance(shots, list) and shots:
-                total = sum(int(s.get("duration_s", 0)) for s in shots)
-                return {"video_script": shots, "total_duration_s": total, "model": "qwen-turbo"}
+        shots = _parse_video_shots(raw)
+        if shots:
+            total = sum(x["duration_s"] for x in shots)
+            return {"video_script": shots, "total_duration_s": total, "model": "qwen-turbo"}
     except Exception:
         logger.exception("generate-video-script failed")
     # 兜底：封面 + 一段概述

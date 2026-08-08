@@ -1,14 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Trash2, Copy, Eye, FileText, PenTool, Files, Send, Image as ImgIcon, Music, Video, X, Bell } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
-import { api, notifyError } from '../lib/api'
+import { api, notifyError, assignmentAPI, materialAPI } from '../lib/api'
 import { useTeaching } from '../lib/TeachingContext'
 
 function safeGetUser() {
   try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} }
 }
 
-interface DashboardData { stats: { pending_grading: number; pending_review: number; parent_sign_total: number; parent_sign_signed: number; period_new_plans: number; period_new_questions: number; period_new_exams: number }; recent: { id: string; title: string; subject: string; grade: string; status: string; updated_at: string }[] }
+interface DashboardData { stats: { pending_grading: number; pending_review: number; parent_sign_total: number; parent_sign_signed: number; period_new_plans: number; period_new_questions: number; period_new_exams: number } }
+
+/** 跨库草稿聚合项（题库/试卷库/课件库，不含教案——教案有独立草稿入口） */
+interface DraftItem {
+  id: string
+  title: string
+  grade: string
+  subject: string
+  source: 'assignment' | 'exam' | 'courseware'
+  sourceLabel: string
+  updated_at: string
+  // 课件专用：发布/编辑路由需要 format
+  format?: string
+}
 
 /* ──────── Quick Create ──────── */
 const QUICK_CREATE = [
@@ -26,6 +39,7 @@ export default function TeacherDashboard() {
   const teaching = useTeaching()
   const [timeTab, setTimeTab] = useState<'7' | '30'>('7')
   const [data, setData] = useState<DashboardData | null>(null)
+  const [drafts, setDrafts] = useState<DraftItem[]>([])
   const [showUrge, setShowUrge] = useState(false)
   const [urgeSent, setUrgeSent] = useState(false)
 
@@ -44,8 +58,41 @@ export default function TeacherDashboard() {
     api<DashboardData>(`/analytics/teacher-dashboard?${params.toString()}`).then(setData).catch((e) => notifyError('仪表盘数据加载失败', e))
   }, [timeTab, teaching.selectedClassId, teaching.subject, teaching.grade])
 
+  // 跨库草稿聚合：题库 / 试卷库 / 课件库（不含教案，教案有独立草稿入口）
+  useEffect(() => {
+    const normalize = (g?: string) => {
+      if (!g) return ''
+      const m = g.match(/(\d+)/)
+      return m ? `${['一','二','三','四','五','六','七','八','九'][parseInt(m[1], 10) - 1] || ''}年级` : g
+    }
+    Promise.allSettled([
+      assignmentAPI.list().catch(() => ({ items: [] })),
+      api<{ items: any[] }>('/exams').catch(() => ({ items: [] })),
+      materialAPI.list().catch(() => ({ items: [] })),
+    ]).then(([aRes, eRes, mRes]) => {
+      const aItems = (aRes.status === 'fulfilled' ? aRes.value?.items : []) || []
+      const eItems = (eRes.status === 'fulfilled' ? eRes.value?.items : []) || []
+      const mItems = (mRes.status === 'fulfilled' ? mRes.value?.items : []) || []
+      const out: DraftItem[] = []
+      aItems.filter((a: any) => a.status === 'draft').forEach((a: any) =>
+        out.push({ id: a.id, title: a.title, grade: normalize(a.grade), subject: a.subject || '', source: 'assignment', sourceLabel: '作业', updated_at: a.updated_at || a.created_at || '' }))
+      eItems.filter((e: any) => e.status === 'draft').forEach((e: any) =>
+        out.push({ id: e.id, title: e.title, grade: normalize(e.grade), subject: e.subject || '', source: 'exam', sourceLabel: '试卷', updated_at: e.updated_at || '' }))
+      mItems.filter((m: any) => m.status === 'draft').forEach((m: any) =>
+        out.push({ id: m.id, title: m.name || m.title, grade: m.grade || '', subject: m.subject || '', source: 'courseware', sourceLabel: '课件', format: m.format, updated_at: m.updated_at || '' }))
+      out.sort((x, y) => (y.updated_at || '').localeCompare(x.updated_at || ''))
+      setDrafts(out.slice(0, 8))
+    })
+  }, [])
+
+  const draftLink = (d: DraftItem) => {
+    if (d.source === 'assignment') return `/assignments/${d.id}`
+    if (d.source === 'exam') return `/exams/${d.id}`
+    return `/courseware/${d.format || 'ppt'}/${d.id}`
+  }
+
   const s = data?.stats
-  const recent = data?.recent || []
+  const recent = drafts
 
   const formatDate = (iso: string) => iso?.slice(0, 10) || ''
 
@@ -134,37 +181,37 @@ export default function TeacherDashboard() {
         </div>
       </div>
 
-      {/* Row 3: 近期草稿 */}
+      {/* Row 3: 近期草稿（跨库聚合：作业/试卷/课件，不含教案——教案有独立草稿入口） */}
       <div className="bg-white border border-[#E7E7EB] rounded-[4px] p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[15px] font-semibold text-[#353535]">近期草稿</h3>
-          <a href="/lesson-plans" className="text-[13px] text-[#9A9A9A] border border-[#E7E7EB] rounded-[3px] px-3 py-1 hover:border-[#02A7F0] hover:text-[#02A7F0]">全部草稿</a>
+          <div className="flex items-center gap-2 text-[13px]">
+            <a href="/exercises" className="text-[#9A9A9A] border border-[#E7E7EB] rounded-[3px] px-3 py-1 hover:border-[#02A7F0] hover:text-[#02A7F0]">题库</a>
+            <a href="/exams" className="text-[#9A9A9A] border border-[#E7E7EB] rounded-[3px] px-3 py-1 hover:border-[#02A7F0] hover:text-[#02A7F0]">试卷库</a>
+            <a href="/materials" className="text-[#9A9A9A] border border-[#E7E7EB] rounded-[3px] px-3 py-1 hover:border-[#02A7F0] hover:text-[#02A7F0]">课件库</a>
+          </div>
         </div>
         <table className="w-full text-[13px]">
           <thead><tr className="border-b border-[#E7E7EB]">
             <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal">草稿内容</th>
+            <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal w-16">来源</th>
             <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal w-16">年级</th>
-            <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal">状态</th>
             <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal whitespace-nowrap">更新时间</th>
-            <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal w-28">操作</th>
+            <th className="text-left py-2.5 px-3 text-[11px] text-[#9A9A9A] font-normal w-20">操作</th>
           </tr></thead>
           <tbody>
             {recent.length === 0 ? (
               <tr><td colSpan={5} className="py-6 text-center text-[13px] text-[#9A9A9A]">暂无草稿</td></tr>
             ) : recent.map((d) => (
-              <tr key={d.id} className="border-b border-[#F0F0F0] hover:bg-[#F9FAFB]">
-                <td className="py-3 px-3"><a href={`/lesson-plans/${d.id}`} target="_blank" rel="noopener noreferrer" className="text-[#353535] hover:text-[#02A7F0]">{d.title}</a></td>
-                <td className="py-3 px-3 text-[#9A9A9A]">{d.grade}</td>
+              <tr key={`${d.source}-${d.id}`} className="border-b border-[#F0F0F0] hover:bg-[#F9FAFB]">
+                <td className="py-3 px-3"><a href={draftLink(d)} target="_blank" rel="noopener noreferrer" className="text-[#353535] hover:text-[#02A7F0]">{d.title}</a></td>
                 <td className="py-3 px-3">
-                  <span className={`text-[11px] px-2 py-0.5 rounded-sm ${d.status === 'final' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>{d.status === 'final' ? '已定稿' : '草稿'}</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-sm bg-[#F0F5FF] text-[#02A7F0]">{d.sourceLabel}</span>
                 </td>
+                <td className="py-3 px-3 text-[#9A9A9A]">{d.grade}</td>
                 <td className="py-3 px-3 text-[#9A9A9A]">{formatDate(d.updated_at)}</td>
                 <td className="py-3 px-3">
-                  <div className="flex items-center gap-2">
-                    <a href={`/lesson-plans/${d.id}`} target="_blank" rel="noopener noreferrer" className="text-[#9A9A9A] hover:text-[#02A7F0]"><Eye size={14} /></a>
-                    <button className="text-[#9A9A9A] hover:text-[#02A7F0]"><Copy size={14} /></button>
-                    <button className="text-[#9A9A9A] hover:text-[#FF4D4F]"><Trash2 size={14} /></button>
-                  </div>
+                  <a href={draftLink(d)} target="_blank" rel="noopener noreferrer" className="text-[#9A9A9A] hover:text-[#02A7F0]" title="继续编辑"><PenTool size={14} /></a>
                 </td>
               </tr>
             ))}

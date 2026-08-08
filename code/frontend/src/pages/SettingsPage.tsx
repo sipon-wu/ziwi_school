@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { Pencil, Plus, Trash2, Copy, Check, X, Upload } from 'lucide-react'
-import { api, adminAPI, classAPI, teacherPrefAPI, notifyError } from '../lib/api'
+import { api, adminAPI, classAPI, teacherPrefAPI, schoolReviewConfigAPI, notifyError } from '../lib/api'
 import AppLayout from '../components/AppLayout'
 import SubmitTextbookModal from '../components/SubmitTextbookModal'
 import { useTeaching } from '../lib/TeachingContext'
@@ -57,6 +57,39 @@ export default function SettingsPage() {
   )
 }
 
+// 教案互审开关（学校级，教师 / IT 管理员均可配置，默认关闭）
+// 关闭 → 直接发布；开启 → 送审到教研组长（进入发布库"评审中"）
+function ReviewConfigCard() {
+  const [reviewEnabled, setReviewEnabled] = useState(false)
+  const [reviewLoading, setReviewLoading] = useState(true)
+  useEffect(() => {
+    schoolReviewConfigAPI.get().then((r: any) => {
+      setReviewEnabled(!!(r && r.lesson_review_enabled))
+    }).catch(() => {}).finally(() => setReviewLoading(false))
+  }, [])
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="text-[12px] font-medium text-[#353535]">教案互审</div>
+        <div className="text-[10px] text-[#9A9A9A] mt-0.5">开启后教案送审到教研组长，关闭则直接发布</div>
+      </div>
+      <button disabled={reviewLoading} onClick={async () => {
+        const next = !reviewEnabled
+        setReviewEnabled(next)
+        try {
+          await schoolReviewConfigAPI.update(next)
+        } catch (e: any) {
+          setReviewEnabled(!next)
+          notifyError(e?.message || '保存互审开关失败')
+        }
+      }}
+        className={`w-10 h-5 rounded-full transition-colors relative ${reviewEnabled ? 'bg-[#02A7F0]' : 'bg-[#D0D0D0]'} ${reviewLoading ? 'opacity-50' : ''}`}>
+        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${reviewEnabled ? 'left-5' : 'left-0.5'}`} />
+      </button>
+    </div>
+  )
+}
+
 function AccountTab() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} } })()
   const [userName, setUserName] = useState(user.name || '张真真')
@@ -65,7 +98,6 @@ function AccountTab() {
   const [userGender, setUserGender] = useState('女')
   const [userRegion, setUserRegion] = useState('中国 四川 成都')
   const [userId] = useState(user.id || 'js_3025510d5cb2')
-  const [reviewEnabled, setReviewEnabled] = useState(localStorage.getItem('review_enabled') !== 'false')
   const [avatarErr, setAvatarErr] = useState(false)
   const [avatarSrc, setAvatarSrc] = useState('/avatar.jpg?v=3')
   const [avatarMsg, setAvatarMsg] = useState('')
@@ -191,13 +223,7 @@ function AccountTab() {
         </div>
       ))}
       <div className="px-5 py-3 border-t border-[#F0F0F0] space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div><div className="text-[12px] font-medium text-[#353535]">教案互审</div><div className="text-[10px] text-[#9A9A9A] mt-0.5">开启后教案送审到教研组长，关闭则直接发布</div></div>
-          <button onClick={() => { setReviewEnabled(!reviewEnabled); localStorage.setItem('review_enabled', String(!reviewEnabled)) }}
-            className={`w-10 h-5 rounded-full transition-colors relative ${reviewEnabled ? 'bg-[#02A7F0]' : 'bg-[#D0D0D0]'}`}>
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${reviewEnabled ? 'left-5' : 'left-0.5'}`} />
-          </button>
-        </div>
+        <ReviewConfigCard />
         <button className="text-[#02A7F0] hover:underline text-[11px]">帐号移交</button>
       </div>
     </div>
@@ -438,6 +464,9 @@ function SchoolTextbookConfig() {
       <div className="text-[13px] font-medium mb-1">教材版本配置（三级）</div>
       <div className="text-[12px] text-[#9A9A9A] mb-4">
         优先级：班级级 &gt; 年级-学科级 &gt; 学校默认。保存后全校（或对应班级）的教案生成、出题组卷、知识图谱将自动锚定对应版本。此为学校级配置，将作用于本校全部教师。
+      </div>
+      <div className="mb-5 pb-4 border-b border-[#F0F0F0]">
+        <ReviewConfigCard />
       </div>
       {loading && <div className="text-[12px] text-[#9A9A9A]">加载中…</div>}
       {!loading && (

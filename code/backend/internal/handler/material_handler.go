@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -112,9 +114,11 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		Tag     string `json:"tag"`
 		URL     string `json:"url"`
 		Content string `json:"content"`
+		H5HTML  string `json:"h5_html"`
 		Status  string `json:"status"`
 		Grade   string `json:"grade"`
 		Subject string `json:"subject"`
+		ThemeID string `json:"theme_id"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
@@ -133,9 +137,11 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		Tag:       body.Tag,
 		URL:       body.URL,
 		Content:   body.Content,
+		H5HTML:    body.H5HTML,
 		Status:    body.Status,
 		Grade:     body.Grade,
 		Subject:   body.Subject,
+		ThemeID:   body.ThemeID,
 		CreatedAt: time.Now(),
 	}
 	if m.Type == "" {
@@ -167,9 +173,11 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 		Tag     string `json:"tag"`
 		URL     string `json:"url"`
 		Content string `json:"content"`
+		H5HTML  string `json:"h5_html"`
 		Status  string `json:"status"`
 		Grade   string `json:"grade"`
 		Subject string `json:"subject"`
+		ThemeID string `json:"theme_id"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
@@ -183,16 +191,83 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	existing.Tag = body.Tag
 	existing.URL = body.URL
 	existing.Content = body.Content
+	existing.H5HTML = body.H5HTML
 	if body.Status != "" {
 		existing.Status = body.Status
 	}
 	existing.Grade = body.Grade
 	existing.Subject = body.Subject
+	existing.ThemeID = body.ThemeID
 	if err := h.repo.Update(existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, existing)
+}
+
+// GetMaterialH5 公开端点：按素材 ID 返回投屏互动 H5 课件 HTML（供手机扫码访问，无需登录）
+// GET /api/materials/:id/h5
+func (h *MaterialHandler) GetMaterialH5(c *gin.Context) {
+	id := c.Param("id")
+	m, err := h.repo.GetByID(id)
+	if err != nil {
+		c.Data(http.StatusNotFound, "text/html;charset=utf-8", []byte("<h1>课件不存在</h1>"))
+		return
+	}
+	// 优先返回前端自动生成的完整互动 HTML；若无则按 content 兜底渲染纯展示页
+	if strings.TrimSpace(m.H5HTML) != "" {
+		c.Data(http.StatusOK, "text/html;charset=utf-8", []byte(m.H5HTML))
+		return
+	}
+	if strings.TrimSpace(m.Content) != "" {
+		c.Data(http.StatusOK, "text/html;charset=utf-8", []byte(renderH5Fallback(m.Content, m.Name)))
+		return
+	}
+	c.Data(http.StatusOK, "text/html;charset=utf-8", []byte("<h1>"+escapeHtml(m.Name)+"</h1><p>该课件暂无可展示内容</p>"))
+}
+
+// renderH5Fallback 将素材 content（OutlineSlide[] JSON）兜底渲染为纯展示 H5 页
+func renderH5Fallback(content, name string) string {
+	type slide struct {
+		Title   string   `json:"title"`
+		Heading string   `json:"heading"`
+		Points  []string `json:"points"`
+		Body    string   `json:"body"`
+	}
+	var slides []slide
+	json.Unmarshal([]byte(content), &slides)
+	if len(slides) == 0 {
+		return "<h1>" + escapeHtml(name) + "</h1>"
+	}
+	var sb strings.Builder
+	sb.WriteString(`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + escapeHtml(name) + `</title><style>body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f1226;margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh}.card{background:#fff;color:#222;border-radius:20px;padding:40px 56px;max-width:860px;box-shadow:0 20px 60px rgba(0,0,0,.4)}h1{color:#1A3A6B;margin:0 0 18px}h2{color:#1A3A6B;margin:18px 0 10px}ul{line-height:1.9;font-size:18px}.brand{position:fixed;top:16px;right:24px;color:rgba(255,255,255,.4);font-size:12px}</style></head><body><div class="brand">知微 · 互动课件</div><div class="card">`)
+	sb.WriteString("<h1>" + escapeHtml(name) + "</h1>")
+	for _, s := range slides {
+		t := s.Title
+		if t == "" {
+			t = s.Heading
+		}
+		if t != "" {
+			sb.WriteString("<h2>" + escapeHtml(t) + "</h2>")
+		}
+		if len(s.Points) > 0 {
+			sb.WriteString("<ul>")
+			for _, p := range s.Points {
+				sb.WriteString("<li>" + escapeHtml(p) + "</li>")
+			}
+			sb.WriteString("</ul>")
+		}
+		if s.Body != "" {
+			sb.WriteString("<p>" + escapeHtml(s.Body) + "</p>")
+		}
+	}
+	sb.WriteString("</div></body></html>")
+	return sb.String()
+}
+
+func escapeHtml(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;")
+	return r.Replace(s)
 }
 
 func formatFileSize(sz int64) string {

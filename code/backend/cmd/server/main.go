@@ -162,7 +162,7 @@ func main() {
 	// 初始化 handler
 	authHandler := handler.NewAuthHandler(userRepo, cfg.JWTSecret)
 	analyticsHandler := handler.NewAnalyticsHandler(dashboardRepo)
-	lessonHandler := handler.NewLessonHandler(lessonRepo)
+	lessonHandler := handler.NewLessonHandler(lessonRepo, db)
 	exerciseHandler := handler.NewExerciseHandler(exerciseRepo)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo, sheetRepo, exerciseSheetRepo)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
@@ -236,6 +236,9 @@ func main() {
 	// P1：云登录绑定端点（不挂 CloudTokenAuth，接收 email+password，自调 cloud 验证）
 	r.POST("/api/auth/cloud/login", middleware.AuthRateLimiter(20, time.Minute), authHandler.CloudLogin)
 
+	// 公开：投屏互动 H5 课件扫码访问端点（无需登录，供手机扫码打开）
+	r.GET("/api/materials/:id/h5", materialHandler.GetMaterialH5)
+
 	// 需要 JWT 认证的路由
 	api := r.Group("/api")
 	api.Use(middleware.JWTAuth(cfg.JWTSecret))
@@ -252,6 +255,14 @@ func main() {
 		teacher.GET("/lesson-plans/:id", lessonHandler.GetLessonPlan)
 		teacher.PUT("/lesson-plans/:id", lessonHandler.UpdateLessonPlan)
 		teacher.DELETE("/lesson-plans/:id", lessonHandler.DeleteLessonPlan)
+		teacher.POST("/lesson-plans/:id/finalize", lessonHandler.FinalizeLessonPlan)
+		// 教案互审评审（本校任意教师/组长可看，不限作者）
+		teacher.GET("/lesson-plans/:id/review", lessonHandler.GetLessonPlanForReview)
+		teacher.GET("/review/pending", lessonHandler.ListPendingReviews)
+		teacher.POST("/lesson-plans/:id/review-decision", lessonHandler.ReviewDecision)
+		// 教案互审开关（教师/IT 可配，默认关闭）
+		teacher.GET("/me/school-review-config", lessonHandler.GetSchoolReviewConfig)
+		teacher.PUT("/me/school-review-config", lessonHandler.UpdateSchoolReviewConfig)
 		// 出题
 		teacher.GET("/exercises", exerciseHandler.ListQuestions)
 		teacher.GET("/exercises/:id", exerciseHandler.GetQuestion)

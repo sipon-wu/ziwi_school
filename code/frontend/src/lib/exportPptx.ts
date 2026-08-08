@@ -286,6 +286,7 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
   outline.forEach((s, i) => {
     slides.push({
       kind: 'content', title: s.title, notes: s.notes || '',
+      layout: s.layout,
       rich: (s.bullets.length ? s.bullets : [s.title]).map(b => ({
         text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),

@@ -275,12 +275,26 @@ export interface CwTemplate {
   subjects?: string[]                               // 适配学科（空=通用）
   grades?: ('小学' | '初中' | '高中')[]             // 适配学段
   cover?: string                                    // 封面缩微图（dataURL/SVG）；留空则由 renderTemplateThumb 自动生成
+  demoOutline?: OutlineSlide[]                      // 示例提纲：空课件套用时注入，立即可见版式预览（教师填空式替换）
 }
 
 // ── PPT 模板池：基于现有 56 套 CwTheme 配色铺满 8 类风格（各标签下素材积累多少算多少） ──
 // themeId 全部复用 pptThemes.ts 真实存在的 CwTheme；名称取「主题名·风格课件」形式，所见即所得。
 import { getTheme } from './pptThemes'
 import type { OutlineSlide } from './exportPptx'
+
+// 教学通用示例提纲：空课件套模板时注入，立即可见版式预览（教师填空式替换）
+function eduDemoOutline(): OutlineSlide[] {
+  return [
+    { title: '封面', bullets: ['《课程标题》', '学科 · 年级 · 班级', '授课教师：XXX'], layout: 'edu-cover', notes: '' },
+    { title: '学习目标', bullets: ['知识点一：能理解并表述', '知识点二：能运用解决', '核心素养：培养探究能力'], layout: 'edu-goal', notes: '' },
+    { title: '情境导入', bullets: ['生活/旧知情境引出问题', '激发兴趣、明确学习任务'], layout: 'title-body', notes: '' },
+    { title: '新知讲解', bullets: ['核心概念与原理', '关键步骤与要点', '易错点提示'], layout: 'edu-explain', notes: '' },
+    { title: '例题精讲', bullets: ['典型例题呈现', '思路分析 + 分步解答', '方法归纳'], layout: 'edu-example', notes: '' },
+    { title: '课堂小结', bullets: ['本节课核心收获', '知识结构梳理'], layout: 'edu-summary', notes: '' },
+    { title: '课后作业', bullets: ['基础巩固练习', '拓展提升任务'], layout: 'edu-homework', notes: '' },
+  ]
+}
 
 function pptTemplate(
   id: string,
@@ -301,6 +315,7 @@ function pptTemplate(
     layouts: { ...EDU_LAYOUT_SKELETONS },
     subjects,
     grades,
+    demoOutline: eduDemoOutline(),
   }
 }
 
@@ -329,6 +344,11 @@ const H5_STYLE_THEMES: Record<StyleTag, string[]> = {
   cartoon: ['sp-cartoon', 'sp-doodle', 'sp-party-red', 'sp-festive'],
   flat: ['mo-haze-blue', 'mo-gray-purple', 'mo-bean-green', 'mo-rose-gray'],
   business: ['gr-blue-purple', 'wa-elegant-purple'],
+}
+
+// 风格 → 默认落地配色（AI 生成风格时用于自动套用；取该风格下首个 themeId）
+export function defaultThemeForStyle(style: StyleTag): string {
+  return PPT_STYLE_THEMES[style]?.[0] || 'min-classic-blue'
 }
 
 function buildTemplates(kind: TemplateKind, styleThemes: Record<StyleTag, string[]>): CwTemplate[] {
@@ -413,6 +433,10 @@ export function applyTemplate(
   curThemeId: string,
   ctx?: ApplyContext,
 ): ApplyResult {
+  // 空课件套用模板：注入模板自带的示例提纲，立即可见版式预览（填空式替换）
+  if (outline.length === 0 && tpl.demoOutline && tpl.demoOutline.length) {
+    outline = tpl.demoOutline
+  }
   // 解析真实骨架：有 ctx 走二维索引，否则用模板自带 layouts
   const layouts: EduSkeletons = ctx?.stage
     ? skeletonFor(ctx.stage, ctx.subject ?? '')
@@ -442,25 +466,53 @@ export function revertTemplate(
   return { outline: reverted, themeId: prevThemeId }
 }
 
-// ── 封面缩微图：用真实配色实时渲染"封面版式示意"SVG（零外部图片依赖、所见即所得） ──
+// ── 封面缩微图：用真实配色实时渲染"多页版式示意"SVG（零外部图片依赖、所见即所得） ──
 // 不抓任何第三方站点图片（版权 + 格式不兼容），缩微图完全由本模板的 themeId 派生。
+// 改为"三页缩微服务"：封面 / 两栏讲解 / 要点列表，直观体现版式结构差异，而非只有色系。
+const THUMB_PAGES: { kind: 'cover' | 'twocol' | 'bullets' }[] = [
+  { kind: 'cover' },
+  { kind: 'twocol' },
+  { kind: 'bullets' },
+]
 export function renderTemplateThumb(tpl: CwTemplate): string {
   if (tpl.cover) return tpl.cover
   const th = getTheme(tpl.themeId)
   const W = 160, H = 90
-  const bg = th.coverGradient || th.coverBg || '#FFFFFF'
-  const bars = [0.42, 0.56, 0.70].map((y) =>
-    `<rect x="14" y="${H * y}" width="92" height="5" rx="2.5" fill="${th.subtle || '#E7E7EB'}"/>`
-  ).join('')
+  const bg = svgColor(th.coverBg, '#FFFFFF')
+  const primary = svgColor(th.primary, '#1A3A6B')
+  const onPrimary = svgColor(th.onPrimary, '#FFFFFF')
+  const subtle = svgColor(th.subtle, '#E7E7EB')
+  const text = svgColor(th.body, '#333333')
+  const footer = svgColor(th.footer, primary)
+
+  // 三张微缩页并排，呈现"封面→两栏→要点"的版式节奏
+  const pw = 42, gap = 5, startX = 8, topY = 14, ph = 58
+  const pages = THUMB_PAGES.map((p, i) => {
+    const x = startX + i * (pw + gap)
+    let body = ''
+    if (p.kind === 'cover') {
+      body = `<rect x="${x + pw / 2 - 12}" y="${topY + 14}" width="24" height="5" rx="2.5" fill="${primary}"/>`
+        + `<rect x="${x + 8}" y="${topY + 26}" width="${pw - 16}" height="3" rx="1.5" fill="${subtle}"/>`
+        + `<rect x="${x + 12}" y="${topY + 33}" width="${pw - 24}" height="3" rx="1.5" fill="${subtle}"/>`
+    } else if (p.kind === 'twocol') {
+      body = `<rect x="${x + 4}" y="${topY + 6}" width="${pw / 2 - 7}" height="${ph - 12}" rx="2" fill="${subtle}"/>`
+        + `<rect x="${x + pw / 2 + 3}" y="${topY + 6}" width="${pw / 2 - 7}" height="${ph - 12}" rx="2" fill="${subtle}"/>`
+        + `<rect x="${x + 4}" y="${topY + 11}" width="${pw / 2 - 12}" height="3" rx="1.5" fill="${primary}" opacity="0.5"/>`
+    } else {
+      body = [0.18, 0.40, 0.62, 0.84].map((r) =>
+        `<rect x="${x + 4}" y="${topY + ph * r}" width="${pw - 8}" height="3.4" rx="1.7" fill="${subtle}"/>`).join('')
+    }
+    return `<g><rect x="${x}" y="${topY}" width="${pw}" height="${ph}" rx="3" fill="#FFFFFF" stroke="${subtle}" stroke-width="1"/>${body}</g>`
+  }).join('')
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs><clipPath id="r"><rect width="${W}" height="${H}" rx="6"/></clipPath></defs>
     <g clip-path="url(#r)">
       <rect width="${W}" height="${H}" fill="${bg}"/>
-      <rect x="0" y="0" width="${W}" height="22" fill="${th.primary}"/>
-      <text x="14" y="15" font-family="${th.font || 'sans-serif'}" font-size="10" font-weight="700" fill="${th.onPrimary || '#FFFFFF'}">${escapeXml(tpl.name)}</text>
-      <rect x="14" y="32" width="60" height="9" rx="4" fill="${th.primary}"/>
-      ${bars}
-      <rect x="116" y="64" width="30" height="14" rx="3" fill="${th.footer || th.primary}" opacity="0.85"/>
+      <rect x="0" y="0" width="${W}" height="11" fill="${primary}"/>
+      <text x="8" y="8" font-family="${th.font || 'sans-serif'}" font-size="7" font-weight="700" fill="${onPrimary}">${escapeXml(tpl.name.slice(0, 14))}</text>
+      ${pages}
+      <rect x="${startX}" y="${topY + ph + 5}" width="${pw * 3 + gap * 2}" height="3" rx="1.5" fill="${footer}" opacity="0.5"/>
     </g>
   </svg>`
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
@@ -468,6 +520,14 @@ export function renderTemplateThumb(tpl: CwTemplate): string {
 
 function escapeXml(s: string): string {
   return s.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c] as string))
+}
+
+/** SVG fill 颜色规范化：theme 库中 hex 不带 #，SVG 属性必须带 #，否则 Chrome 会回退成黑色 */
+function svgColor(c?: string, fallback = '#CCCCCC'): string {
+  if (!c) return fallback
+  if (c.startsWith('#')) return c
+  if (c.startsWith('linear-gradient') || c.startsWith('rgb') || c.startsWith('hsl')) return fallback
+  return '#' + c
 }
 
 // ── 「通用」结构模板：不绑固定配色，仅提供一套百搭版式骨架 ──
@@ -481,6 +541,7 @@ export function makeBasicTemplate(kind: TemplateKind = 'ppt'): CwTemplate {
     style: 'basic',
     themeId: 'min-classic-blue', // 占位，实际套用由色系覆盖
     layouts: { ...EDU_LAYOUT_SKELETONS },
+    demoOutline: eduDemoOutline(),
   }
 }
 
@@ -495,18 +556,19 @@ export function basicTemplateForFamily(family: ColorFamily, kind: TemplateKind =
 // 色系缩微图（色卡 + 结构示意，不依赖具体主题名）
 export function renderFamilyThumb(family: ColorFamily): string {
   const W = 160, H = 90
+  const sw = svgColor(family.swatch, '#1A3A6B')
   const bars = [0.42, 0.56, 0.70].map((y) =>
-    `<rect x="14" y="${H * y}" width="92" height="5" rx="2.5" fill="${family.swatch}" opacity="0.35"/>`
+    `<rect x="14" y="${H * y}" width="92" height="5" rx="2.5" fill="${sw}" opacity="0.35"/>`
   ).join('')
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs><clipPath id="r"><rect width="${W}" height="${H}" rx="6"/></clipPath></defs>
     <g clip-path="url(#r)">
       <rect width="${W}" height="${H}" fill="#FFFFFF"/>
-      <rect x="0" y="0" width="${W}" height="22" fill="${family.swatch}"/>
+      <rect x="0" y="0" width="${W}" height="22" fill="${sw}"/>
       <text x="14" y="15" font-family="sans-serif" font-size="10" font-weight="700" fill="#FFFFFF">通用 · ${escapeXml(family.label)}</text>
-      <rect x="14" y="32" width="60" height="9" rx="4" fill="${family.swatch}"/>
+      <rect x="14" y="32" width="60" height="9" rx="4" fill="${sw}"/>
       ${bars}
-      <rect x="116" y="64" width="30" height="14" rx="3" fill="${family.swatch}" opacity="0.85"/>
+      <rect x="116" y="64" width="30" height="14" rx="3" fill="${sw}" opacity="0.85"/>
     </g>
   </svg>`
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`

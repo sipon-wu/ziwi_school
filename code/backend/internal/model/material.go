@@ -13,9 +13,11 @@ type Material struct {
 	Tag       string    `json:"tag"`
 	URL       string    `json:"url"`
 	Content   string    `gorm:"type:text" json:"content,omitempty"`
+	H5HTML    string    `gorm:"type:text" json:"h5_html,omitempty"` // 自动生成的投屏互动 H5 课件完整 HTML（扫码可访问）
 	Status    string    `json:"status"` // draft | active（课件草稿/已发布，与 exercises.status 对齐）
 	Grade     string    `json:"grade"`
 	Subject   string    `json:"subject"`
+	ThemeID   string    `json:"theme_id,omitempty"` // 课件主题（配色方案），对应前端 pptThemes.ts 的 CwTheme.id
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

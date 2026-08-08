@@ -209,6 +209,9 @@ export const aiAPI = {
     consult_answers?: string
     edge_enabled?: boolean
     edge_categories?: string[]
+    style_tag?: string
+    style_profile?: string
+    style_mode?: 'auto' | 'preset' | 'free'
   }) =>
     request<any>('/ai/courseware/generate', {
       method: 'POST',
@@ -254,6 +257,8 @@ export const aiAPI = {
     title: string
     subject: string
     grade: string
+    style_tag?: string
+    theme_id?: string
   }) =>
     request<any>('/ai/courseware/render-ppt', {
       method: 'POST',
@@ -308,6 +313,27 @@ export const lessonPlanAPI = {
     request<any>(`/lesson-plans/${id}/finalize`, { method: 'POST' }),
   delete: (id: string) =>
     request<any>(`/lesson-plans/${id}`, { method: 'DELETE' }),
+}
+
+// ── 教案互审评审（正文查看 / 待审列表 / 评审结论）──
+export const reviewAPI = {
+  pending: () => request<any>('/review/pending'),
+  get: (id: string) => request<any>(`/lesson-plans/${id}/review`),
+  decide: (id: string, decision: 'approve' | 'reject', comment?: string) =>
+    request<any>(`/lesson-plans/${id}/review-decision`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, comment: comment || '' }),
+    }),
+}
+
+// ── 教案互审开关（学校级，教师/IT 可配，默认关闭）──
+export const schoolReviewConfigAPI = {
+  get: () => request<any>('/me/school-review-config'),
+  update: (enabled: boolean) =>
+    request<any>('/me/school-review-config', {
+      method: 'PUT',
+      body: JSON.stringify({ lesson_review_enabled: enabled }),
+    }),
 }
 
 // ── 素材/课件接口 ──
@@ -700,4 +726,4 @@ export const careAPI = {
 
 // 注意：default 导出必须放在所有具名 const（含 careAPI/coverageAPI/coordinateAPI）之后，
 // 否则对象字面量立即访问这些 const 会触发 TDZ（Cannot access 'careAPI' before initialization）。
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI }
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI, schoolReviewConfigAPI, reviewAPI }

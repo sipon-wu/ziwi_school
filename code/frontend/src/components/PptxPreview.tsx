@@ -9,6 +9,203 @@ import { DEFAULT_THEME } from '../lib/pptThemes'
 
 const FONT = 'Microsoft YaHei'
 
+/** 根据主题封面底色判断是否为暗色背景，用于编辑态自适应默认文字色（所见即所得） */
+function themeIsDark(t: CwTheme): boolean {
+  const h = (t.coverBg || t.primary || '').replace('#', '')
+  if (h.length < 6) return false
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return 0.299 * r + 0.587 * g + 0.114 * b < 128
+}
+
+/** 将主题库存的 6 位 hex 转为合法 CSS 颜色（coverGradient 等完整字符串原样返回） */
+function c(v?: string): string {
+  if (!v) return '#000000'
+  if (v.startsWith('#') || v.startsWith('rgb') || v.startsWith('hsl') || v.includes('gradient')) return v
+  if (/^[0-9A-Fa-f]{6}$/.test(v) || /^[0-9A-Fa-f]{3}$/.test(v)) return '#' + v
+  return v
+}
+
+/**
+ * 版式框架层（纯装饰，非交互）：按 slide.layout 绘制各版式的「容器造型」，
+ * 垫在元素层之下，使「选模板→自动按语义分配版式」真正在画布上呈现布局差异，
+ * 而不只是换色系。所有造型均绝对定位 + pointer-events-none，不干扰编辑。
+ */
+function SlideFrame({ theme, layout }: { theme: CwTheme; layout: string }) {
+  const p = c(theme.primary)
+  const f = c(theme.footer || theme.primary)
+  const sub = c(theme.subtle)
+  const band = (top: string, h: string) => (
+    <div className="absolute left-0 w-full" style={{ top, height: h, background: p, opacity: 0.92 }} />
+  )
+  switch (layout) {
+    case 'edu-cover':
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          {/* 底部信息条（年级/学科/教师三栏底纹） */}
+          <div className="absolute bottom-[8%] left-[12%] flex w-[76%] items-center justify-between rounded-md px-5 py-3"
+               style={{ background: 'rgba(255,255,255,0.16)', backdropFilter: 'blur(2px)' }}>
+            <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
+              <div className="text-[10px] opacity-70">年级</div>
+              <div className="text-sm font-bold">—</div>
+            </div>
+            <div className="h-6 w-px" style={{ background: 'rgba(255,255,255,0.4)' }} />
+            <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
+              <div className="text-[10px] opacity-70">学科</div>
+              <div className="text-sm font-bold">—</div>
+            </div>
+            <div className="h-6 w-px" style={{ background: 'rgba(255,255,255,0.4)' }} />
+            <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
+              <div className="text-[10px] opacity-70">教师</div>
+              <div className="text-sm font-bold">—</div>
+            </div>
+          </div>
+        </div>
+      )
+    case 'edu-goal':
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[5.3%] top-[22%] flex w-[89.4%] gap-3" style={{ height: '64%' }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex-1 rounded-xl border" style={{ borderColor: `${p}55`, background: `${p}0D` }}>
+                <div className="mx-auto mt-3 h-1.5 w-10 rounded-full" style={{ background: p }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    case 'edu-explain':
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[5.3%] top-[20%] w-[89.4%] rounded-lg border-2" style={{ height: '34%', borderColor: `${p}66`, background: `${p}0A` }} />
+          <div className="absolute left-[5.3%] top-[58%] w-[89.4%] border-t-2" style={{ borderColor: `${sub}66` }} />
+        </div>
+      )
+    case 'edu-example':
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[5.3%] top-[20%] flex w-[89.4%] items-stretch rounded-md" style={{ height: '24%', borderLeft: `6px solid ${p}`, background: `${p}0F` }} />
+          <div className="absolute left-[5.3%] top-[50%] grid w-[89.4%] grid-cols-3 gap-2" style={{ height: '34%' }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-md border" style={{ borderColor: `${f}55`, background: 'rgba(255,255,255,0.6)' }} />
+            ))}
+          </div>
+        </div>
+      )
+    case 'edu-summary':
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute right-[7%] top-[26%] h-[52%] w-[30%] rounded-full border-2 border-dashed" style={{ borderColor: `${p}77` }} />
+          <div className="absolute left-[5.3%] top-[22%] w-[52%] border-t-2" style={{ borderColor: `${sub}66` }} />
+        </div>
+      )
+    case 'edu-homework':
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[5.3%] top-[20%] w-[89.4%] space-y-2" style={{ height: '68%' }}>
+            {[0.16, 0.5, 0.84].map((op, i) => (
+              <div key={i} className="h-[28%] rounded-md border" style={{ borderColor: `${p}44`, background: `${p}${i === 0 ? '14' : i === 1 ? '0E' : '08'}` }} />
+            ))}
+          </div>
+        </div>
+      )
+    default:
+      return (
+        <div className="pointer-events-none absolute inset-0">
+          {band('0%', '15.3%')}
+          <div className="absolute bottom-0 left-0 h-[2.5%] w-full" style={{ background: f }} />
+        </div>
+      )
+  }
+}
+
+/**
+ * 装饰层（中等丰富度，纯 SVG/CSS，无外部图依赖）：按 theme.decor 渲染风格化角标/版眉，
+ * 使同一色系下不同 decor 也呈现不同版式气质。绝对定位 + pointer-events-none，不干扰编辑。
+ */
+function SlideDecor({ theme, layout }: { theme: CwTheme; layout: string }) {
+  const decor = theme.decor || 'minimal'
+  const p = c(theme.primary)
+  const onP = c(theme.onPrimary)
+  const sub = c(theme.subtle)
+  const isCover = layout === 'edu-cover'
+
+  if (decor === 'china') {
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        {isCover ? (
+          <div className="absolute right-[7%] top-[9%] flex h-14 w-14 items-center justify-center rounded-md text-center text-[11px] font-bold leading-tight"
+               style={{ background: p, color: onP, fontFamily: '"KaiTi","STKaiti",serif', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+            知<br />微
+          </div>
+        ) : (
+          <>
+            <div className="absolute left-0 top-[15.3%] h-[84.7%] w-[3px]" style={{ background: p }} />
+            <div className="absolute right-[5%] bottom-[6%] h-12 w-12 rounded-sm" style={{ background: p, opacity: 0.9 }} />
+          </>
+        )}
+      </div>
+    )
+  }
+  if (decor === 'tech') {
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 opacity-[0.06]" style={{
+          backgroundImage: `linear-gradient(${p} 1px, transparent 1px), linear-gradient(90deg, ${p} 1px, transparent 1px)`,
+          backgroundSize: '28px 28px',
+        }} />
+        <div className="absolute right-0 top-0 h-0 w-0" style={{ borderTop: `36px solid ${p}`, borderLeft: '36px solid transparent' }} />
+      </div>
+    )
+  }
+  if (decor === 'fresh' || decor === 'warm') {
+    const accent = decor === 'warm' ? `${p}AA` : p
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        {isCover ? (
+          <div className="absolute right-[8%] top-[10%] h-16 w-16 rounded-full" style={{ background: `${accent}22`, border: `2px solid ${accent}66` }} />
+        ) : (
+          <div className="absolute right-[4%] bottom-[5%] h-10 w-10 rounded-full" style={{ background: `${accent}1F`, border: `1.5px dashed ${accent}88` }} />
+        )}
+        <div className="absolute left-0 top-[15.3%] h-[2px] w-full" style={{ background: accent, opacity: decor === 'warm' ? 0.7 : 0.4 }} />
+      </div>
+    )
+  }
+  if (decor === 'academic') {
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-0 top-[15.3%] h-[2px] w-full" style={{ background: sub }} />
+        <div className="absolute left-0 top-[15.3%] h-[5px] w-full" style={{ background: sub, opacity: 0.35 }} />
+        <div className="absolute bottom-[3%] left-[3%] h-2 w-2" style={{ background: p }} />
+      </div>
+    )
+  }
+  if (decor === 'gradient') {
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-0 top-[15.3%] h-[84.7%] w-[14px]" style={{ background: `linear-gradient(${p}, transparent)`, opacity: 0.5 }} />
+        <div className="absolute right-[3%] top-[6%] h-8 w-8 rounded-lg" style={{ background: p, opacity: 0.55 }} />
+      </div>
+    )
+  }
+  if (decor === 'special') {
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        <svg className="absolute bottom-0 left-0 w-full" height="22" viewBox="0 0 300 22" preserveAspectRatio="none">
+          <path d="M0 14 Q 25 4 50 14 T 100 14 T 150 14 T 200 14 T 250 14 T 300 14" fill="none" stroke={p} strokeWidth="2" />
+        </svg>
+      </div>
+    )
+  }
+  // minimal：极简右下小圆点
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      <div className="absolute bottom-[4%] right-[3%] h-2.5 w-2.5 rounded-full" style={{ background: p, opacity: 0.6 }} />
+    </div>
+  )
+}
+
 interface PptxPreviewProps {
   slides: CwSlide[]
   theme?: CwTheme
@@ -118,38 +315,42 @@ export default function PptxPreview({
 /* ───────────────────────── 静态（放映/预览）渲染 ───────────────────────── */
 
 function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio: '16/9' | '4/3') {
+  const lay = s.layout || (s.kind === 'cover' ? 'edu-cover' : 'title-body')
   if (s.kind === 'cover') {
     return (
-      <div className="relative" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', background: theme.coverBg }}>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
-          <h2 className="text-4xl font-bold" style={{ color: theme.onPrimary }}>{s.title}</h2>
-          {s.subtitle && <p className="mt-4 text-lg" style={{ color: theme.lightText }}>{s.subtitle}</p>}
+      <div className="relative" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', background: c(theme.coverBg) }}>
+        <SlideFrame theme={theme} layout={lay} />
+        <SlideDecor theme={theme} layout={lay} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8" style={{ fontFamily: theme.font }}>
+          <h2 className="text-4xl font-bold" style={{ color: c(theme.onPrimary) }}>{s.title}</h2>
+          {s.subtitle && <p className="mt-4 text-lg" style={{ color: c(theme.lightText) }}>{s.subtitle}</p>}
         </div>
         {s.footer && (
-          <div className="absolute bottom-5 w-full text-center text-xs" style={{ color: theme.footer }}>{s.footer}</div>
+          <div className="absolute bottom-5 w-full text-center text-xs" style={{ color: c(theme.footer), fontFamily: theme.font }}>{s.footer}</div>
         )}
       </div>
     )
   }
   return (
-    <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9' }}>
-      <div className="absolute left-0 top-0 h-[15.3%] w-full" style={{ background: theme.primary }} />
+    <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', fontFamily: theme.font }}>
+      <SlideFrame theme={theme} layout={lay} />
+      <SlideDecor theme={theme} layout={lay} />
       <div className="absolute left-[2%] top-0 flex h-[15.3%] items-center" style={{ width: '96%' }}>
-        <span className="truncate text-2xl font-bold" style={{ color: theme.onPrimary }}>{s.title}</span>
+        <span className="truncate text-2xl font-bold" style={{ color: c(theme.onPrimary) }}>{s.title}</span>
       </div>
       {s.elements && s.elements.length ? (
         renderElementsStatic(s.elements)
       ) : (
         <div className="absolute left-[5.3%] top-[20%]" style={{ width: '89.4%', height: '70%' }}>
           {(s.rich || []).map((line, k) => (
-            <p key={k} className="mb-2" style={{ color: theme.body, fontSize: 16, fontFamily: FONT }}>
+            <p key={k} className="mb-2" style={{ color: c(theme.body), fontSize: 16, fontFamily: FONT }}>
               {line.options.bullet ? '• ' : ''}{line.text}
             </p>
           ))}
         </div>
       )}
       {s.footer && (
-        <div className="absolute bottom-[2%] right-[3%] text-[10px]" style={{ color: theme.footer }}>{s.footer}</div>
+        <div className="absolute bottom-[2%] right-[3%] text-[10px]" style={{ color: c(theme.footer), fontFamily: theme.font }}>{s.footer}</div>
       )}
     </div>
   )
@@ -261,6 +462,10 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   const [elements, setElements] = useState<CwElement[]>(slide.elements || [])
   const [title, setTitle] = useState(slide.title)
   const [layout, setLayout] = useState<string>(slide.layout || 'title-body')
+  // 所见即所得：编辑画布随模板主题视觉变化
+  const isCover = layout === 'edu-cover'
+  const darkTheme = themeIsDark(theme)
+  const defaultTextColor = darkTheme ? 'FFFFFF' : '222222'
   // 历史栈（撤销/重做）
   const [history, setHistory] = useState<Snap[]>([{ elements: slide.elements || [], title: slide.title, layout: slide.layout || 'title-body' }])
   const [hIndex, setHIndex] = useState(0)
@@ -380,7 +585,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
       id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
       type,
       x: 30, y: 35, w: 40, h: type === 'text' ? 12 : 25,
-      ...(type === 'text' ? { text: '双击编辑文本', fontSize: 18, color: '222222' } : {}),
+      ...(type === 'text' ? { text: '双击编辑文本', fontSize: 18, color: defaultTextColor } : {}),
       ...(type === 'shape' ? { shape: 'rect', fill: '4472C4' } : {}),
       ...extra,
     }
@@ -831,19 +1036,19 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
               onPointerDown={onCanvasPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
-              className="relative overflow-hidden bg-white rounded-md ring-1 ring-[#E7E7EB] shadow"
-              style={{ width: cw, height: ch, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+              className="relative overflow-hidden rounded-md ring-1 ring-[#E7E7EB] shadow"
+              style={{ width: cw, height: ch, transform: `scale(${scale})`, transformOrigin: 'top left', background: isCover ? (theme.coverGradient || c(theme.coverBg)) : '#FFFFFF', fontFamily: theme.font }}
             >
-              {/* 标题条 */}
-              <div className="absolute left-0 top-0 h-[15.3%] w-full" style={{ background: theme.primary }} />
+              {/* 版式框架层（按 layout 绘制容器造型，垫在元素层下） */}
+              <SlideFrame theme={theme} layout={layout} />
               {editingTitle ? (
                 <input
                   autoFocus value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onBlur={() => { setEditingTitle(false); commit(elementsRef.current, titleRef.current) }}
                   onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                  className="absolute left-[2%] top-[3%] z-20 text-2xl font-bold bg-white/90 rounded px-1 outline-none"
-                  style={{ width: '90%', color: '#222' }}
+                  className="absolute left-[2%] top-[3%] z-20 text-2xl font-bold rounded px-1 outline-none"
+                  style={{ width: '90%', color: isCover ? c(theme.onPrimary) : '#222', background: isCover ? 'transparent' : 'rgba(255,255,255,0.9)' }}
                 />
               ) : (
                 <div
@@ -852,7 +1057,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                   onDoubleClick={() => setEditingTitle(true)}
                   title="双击编辑标题"
                 >
-                  <span className="truncate text-2xl font-bold" style={{ color: theme.onPrimary }}>{title}</span>
+                  <span className="truncate text-2xl font-bold" style={{ color: c(theme.onPrimary) }}>{title}</span>
                 </div>
               )}
 
@@ -916,6 +1121,9 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                 )
               })}
 
+              {/* 装饰层（按 theme.decor 渲染风格化角标，视觉最前但不挡交互） */}
+              <SlideDecor theme={theme} layout={layout} />
+
               {/* 对齐参考线 */}
               {guide.v != null && (
                 <div className="absolute top-0 pointer-events-none" style={{ left: `${guide.v}%`, width: 1, height: '100%', background: '#FF4D4F', zIndex: 50 }} />
@@ -928,6 +1136,9 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
               {marquee && (
                 <div className="absolute pointer-events-none border bg-opacity-10" style={{ left: `${marquee.x}%`, top: `${marquee.y}%`, width: `${marquee.w}%`, height: `${marquee.h}%`, zIndex: 60, borderColor: SEL, background: `${SEL}1A` }} />
               )}
+
+              {/* 内容页底部主题色带（增强模板风格辨识，封面整页已用主题底故不叠） */}
+              {!isCover && <div className="absolute left-0 bottom-0 h-[2.5%] w-full" style={{ background: c(theme.footer || theme.primary) }} />}
             </div>
           </div>
         </div>

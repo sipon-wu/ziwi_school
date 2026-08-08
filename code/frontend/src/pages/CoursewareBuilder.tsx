@@ -15,7 +15,7 @@ import { exportH5Courseware, buildH5FromOutline, buildH5Html, type H5Slide } fro
 import QRCode from 'qrcode'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { getTheme, recommendTheme } from '../lib/pptThemes'
-import { PPT_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, gradeToStage, type StyleTag } from '../lib/cwTemplate'
+import { PPT_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, type StyleTag } from '../lib/cwTemplate'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
@@ -93,6 +93,8 @@ export default function CoursewareBuilder() {
 
   // ── 表单状态 ──
   const [genTitle, setGenTitle] = useState('')
+  const [genStyleTag, setGenStyleTag] = useState<StyleTag | ''>('')
+  const [genStyleProfile, setGenStyleProfile] = useState('')
   const [cwExtra, setCwExtra] = useState('')
   const [genBaseId, setGenBaseId] = useState('')
   const [divergenceLevel, setDivergenceLevel] = useState<'conservative' | 'standard' | 'expansive'>('standard')
@@ -129,6 +131,16 @@ export default function CoursewareBuilder() {
   const tplAppliedId = useRef<string | null>(null)
   const tplPrevTheme = useRef<string | null>(null)
   const tplPrevLayouts = useRef<(string | undefined)[] | null>(null)
+
+  // 加载「参照课件」提纲：文档模式套用模板时，若当前为空课件且已选参照，则先把参照内容载入，再套新模板版式
+  const loadRefOutline = async (): Promise<OutlineSlide[]> => {
+    if (!genBaseId) return []
+    try {
+      const base: any = await materialAPI.get(genBaseId)
+      const md: string = base?.content || ''
+      return materializeOutline(markdownToOutline(md))
+    } catch { return [] }
+  }
 
   // 参照课件下拉数据
   const [materials, setMaterials] = useState<Array<{ id: string; name: string }>>([])
@@ -168,7 +180,11 @@ export default function CoursewareBuilder() {
       setCwOutline(materializeOutline(markdownToOutline(m.content || '')))
       setCwMarkdown(m.content || '')
       setCwExtra(m.tag || '')
-      if (m.grade) setThemeId(recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId)
+      if (m.theme_id) {
+        setThemeId(m.theme_id)
+      } else if (m.grade) {
+        setThemeId(recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId)
+      }
     }).catch(() => {}).finally(() => setCwLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -220,6 +236,9 @@ export default function CoursewareBuilder() {
         consult_answers: consultText || undefined,
         edge_enabled: edgeEnabled,
         edge_categories: edgeEnabled ? cats : [],
+        style_tag: genStyleTag || undefined,
+        style_profile: genStyleProfile.trim() || undefined,
+        style_mode: genStyleTag ? 'preset' : (genStyleProfile.trim() ? 'free' : 'auto'),
       })
       setCwMarkdown(res.courseware_markdown || '')
       setCwOutline(materializeOutline(markdownToOutline(res.courseware_markdown || '')))
@@ -227,6 +246,9 @@ export default function CoursewareBuilder() {
       setRemovedDivergence({})
       setCwSimilar(res.similar_material || null)
       setValidateIssues(null)
+      // 风格模板（P1）：AI 生成后自动套用对应配色，无需教师再手动挑模板
+      const styleEcho = (res.style_tag as StyleTag) || genStyleTag
+      if (styleEcho) setThemeId(defaultThemeForStyle(styleEcho))
       ctrl.setWorkMode('doc')
       toast('课件已生成，可在右侧编辑提纲', 'success')
     } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
@@ -289,8 +311,13 @@ export default function CoursewareBuilder() {
     setPolishing(true)
     try {
       const md = outlineToMarkdown(cwOutline, cwOpts())
-      const r: any = await aiAPI.renderPptCourseware({ markdown: md, title: `${genTitle.trim()}_课件`, subject: teaching.subject, grade: gradeName })
+      const r: any = await aiAPI.renderPptCourseware({
+        markdown: md, title: `${genTitle.trim()}_课件`, subject: teaching.subject, grade: gradeName,
+        style_tag: genStyleTag || undefined,
+        theme_id: themeId,
+      })
       const out = materializeOutline(pptToOutline(r.ppt_slides || []))
+      if (r.theme_id) setThemeId(r.theme_id)
       if (out.length) { setCwOutline(out); setCwMarkdown(md); toast('提纲已 AI 润色（含讲稿）', 'success') }
       else toast('润色未返回内容', 'warning')
     }     catch (e: any) { toast('润色失败: ' + (e.message || '未知错误'), 'error') }
@@ -553,6 +580,21 @@ export default function CoursewareBuilder() {
           className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
       </div>
 
+      {/* 风格模板（P1）：AI 一键生成不同视觉风格 */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">课件风格（AI 一键定调）</label>
+        <select value={genStyleTag} onChange={e => setGenStyleTag(e.target.value as StyleTag | '')}
+          className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0]">
+          <option value="">AI 智能推荐（按学科/学段）</option>
+          {(Object.keys(STYLE_LABELS) as StyleTag[]).map(s => (
+            <option key={s} value={s}>{STYLE_LABELS[s]}</option>
+          ))}
+        </select>
+        <input value={genStyleProfile} onChange={e => setGenStyleProfile(e.target.value)} placeholder="或描述想要的感觉，如：科技感强一点、活泼卡通"
+          className="w-full mt-2 px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
+        <span className="text-[10px] text-[#9A9A9A] mt-1 block">生成后自动套用对应配色，无需再手动挑模板。</span>
+      </div>
+
       {/* 参照课件 */}
       <div className="px-5 py-3 border-t border-[#F0F0F0]">
         <label className="block text-[12px] font-medium text-[#353535] mb-2">参照课件（可选）</label>
@@ -754,9 +796,10 @@ export default function CoursewareBuilder() {
                   {COLOR_FAMILIES.map(f => {
                     const applied = tplAppliedId.current === `basic-${f.id}`
                     return (
-                      <button key={f.id} onClick={() => {
+                      <button key={f.id} onClick={async () => {
+                        const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
                         const tpl = basicTemplateForFamily(f)
-                        const r = applyTemplate(cwOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                        const r = applyTemplate(baseOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
                         setCwOutline(r.outline); setThemeId(r.themeId)
                         tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
                         setTplPanelOpen(false)
@@ -774,8 +817,9 @@ export default function CoursewareBuilder() {
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).map(t => (
-                    <button key={t.id} onClick={() => {
-                      const r = applyTemplate(cwOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                    <button key={t.id} onClick={async () => {
+                      const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+                      const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
                       setCwOutline(r.outline); setThemeId(r.themeId)
                       tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
                       setTplPanelOpen(false)

@@ -68,6 +68,8 @@ interface EditorController<T = any> {
   saving: boolean
   /** 内容变更时调用，触发 debounce 自动保存 */
   touch: () => void
+  /** 立即执行一次保存（用于预览前 flush） */
+  flush: () => Promise<void>
   saveDraft: () => Promise<void>
   publish: () => Promise<void>
 
@@ -152,6 +154,7 @@ export function useEditorController<T = any>(
     status: lifecycle.status,
     saving: lifecycle.saving,
     touch: lifecycle.touch,
+    flush: lifecycle.flush,
     saveDraft: lifecycle.saveDraft,
     publish: lifecycle.publish,
 

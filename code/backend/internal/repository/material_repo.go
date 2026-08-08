@@ -29,6 +29,7 @@ func (r *MaterialRepository) Update(m *model.Material) error {
 		"tag":       m.Tag,
 		"url":       m.URL,
 		"content":   m.Content,
+		"h5_html":   m.H5HTML,
 		"status":    m.Status,
 		"grade":     m.Grade,
 		"subject":   m.Subject,
