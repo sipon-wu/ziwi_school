@@ -510,7 +510,7 @@ export function renderTemplateThumb(tpl: CwTemplate): string {
     <g clip-path="url(#r)">
       <rect width="${W}" height="${H}" fill="${bg}"/>
       <rect x="0" y="0" width="${W}" height="11" fill="${primary}"/>
-      <text x="8" y="8" font-family="${th.font || 'sans-serif'}" font-size="7" font-weight="700" fill="${onPrimary}">${escapeXml(tpl.name.slice(0, 14))}</text>
+      <text x="8" y="8" font-family="${escapeXmlAttr(th.font || 'sans-serif')}" font-size="7" font-weight="700" fill="${onPrimary}">${escapeXml(tpl.name.slice(0, 14))}</text>
       ${pages}
       <rect x="${startX}" y="${topY + ph + 5}" width="${pw * 3 + gap * 2}" height="3" rx="1.5" fill="${footer}" opacity="0.5"/>
     </g>
@@ -522,12 +522,65 @@ function escapeXml(s: string): string {
   return s.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c] as string))
 }
 
+/** 属性值转义：除标准 XML 实体外，把属性内双引号换成 &quot;，防止 font-family 等含引号的值破坏 SVG */
+function escapeXmlAttr(s: string): string {
+  return s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] as string))
+}
+
 /** SVG fill 颜色规范化：theme 库中 hex 不带 #，SVG 属性必须带 #，否则 Chrome 会回退成黑色 */
 function svgColor(c?: string, fallback = '#CCCCCC'): string {
   if (!c) return fallback
   if (c.startsWith('#')) return c
   if (c.startsWith('linear-gradient') || c.startsWith('rgb') || c.startsWith('hsl')) return fallback
   return '#' + c
+}
+
+/** 课件单页缩微图：按主题色 + 版式生成 SVG dataURL，用于左侧页面列表预览 */
+export function renderSlideThumb(
+  slide: { title?: string; bullets?: string[]; layout?: string },
+  theme: CwTheme,
+  index: number,
+): string {
+  const W = 160
+  const H = 90
+  const primary = svgColor(theme.primary, '#1A3A6B')
+  const onPrimary = svgColor(theme.onPrimary, '#FFFFFF')
+  const subtle = svgColor(theme.subtle, '#9A9A9A')
+  const body = svgColor(theme.body, '#333333')
+  const title = escapeXml((slide.title || '（无标题）').slice(0, 18))
+  const layout = slide.layout || 'title-body'
+  const isTwoCol = layout.includes('two') || layout.includes('col')
+
+  let contentSvg = ''
+  if (isTwoCol) {
+    const cw = 62
+    const ch = 44
+    const cy = 28
+    contentSvg = `<rect x="12" y="${cy}" width="${cw}" height="${ch}" rx="2" fill="#F2F3F5" stroke="${subtle}" stroke-width="0.5"/>`
+      + `<rect x="86" y="${cy}" width="${cw}" height="${ch}" rx="2" fill="#F2F3F5" stroke="${subtle}" stroke-width="0.5"/>`
+      + `<rect x="16" y="${cy + 6}" width="40" height="3" rx="1.5" fill="${subtle}"/>`
+      + `<rect x="90" y="${cy + 6}" width="40" height="3" rx="1.5" fill="${subtle}"/>`
+  } else {
+    const bullets = (slide.bullets || []).filter(Boolean).slice(0, 3)
+    const lines = bullets.length
+      ? bullets.map((b, i) => `<rect x="20" y="${34 + i * 11}" width="${Math.max(40, Math.min(110, (b.length || 4) * 8))}" height="4" rx="2" fill="${subtle}"/>`)
+      : [0, 1, 2].map((i) => `<rect x="20" y="${34 + i * 11}" width="${90 - i * 15}" height="4" rx="2" fill="${subtle}"/>`)
+    contentSvg = `<circle cx="14" cy="37" r="2" fill="${primary}"/>`
+      + lines.map((l, i) => `<circle cx="14" cy="${48 + i * 11}" r="2" fill="${primary}"/>` + l).join('')
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs><clipPath id="r${index}"><rect width="${W}" height="${H}" rx="5"/></clipPath></defs>
+    <g clip-path="url(#r${index})">
+      <rect width="${W}" height="${H}" fill="#FFFFFF"/>
+      <rect x="0" y="0" width="${W}" height="16" fill="${primary}"/>
+      <text x="8" y="11" font-family="${escapeXmlAttr(theme.font || 'sans-serif')}" font-size="7" font-weight="600" fill="${onPrimary}">${title}</text>
+      ${contentSvg}
+      <rect x="126" y="72" width="26" height="12" rx="3" fill="${primary}" opacity="0.85"/>
+      <text x="139" y="81" text-anchor="middle" font-family="sans-serif" font-size="8" font-weight="700" fill="#FFFFFF">${index + 1}</text>
+    </g>
+  </svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 // ── 「通用」结构模板：不绑固定配色，仅提供一套百搭版式骨架 ──

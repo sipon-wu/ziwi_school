@@ -15,7 +15,7 @@ import { exportH5Courseware, buildH5FromOutline, buildH5Html, type H5Slide } fro
 import QRCode from 'qrcode'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { getTheme, recommendTheme } from '../lib/pptThemes'
-import { PPT_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, type StyleTag } from '../lib/cwTemplate'
+import { PPT_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, type StyleTag } from '../lib/cwTemplate'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
@@ -848,19 +848,19 @@ export default function CoursewareBuilder() {
       <div className="flex-1 flex min-h-0 relative">
         {/* 缩略图页管理（可收起，腾讯文档范式） */}
         {!thumbCollapsed && (
-          <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
+          <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-2">
             {cwOutline.map((s, idx) => (
               <div key={idx} onClick={() => setDocSlide(idx)}
-                className={`group cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
-                    <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 text-[10px] text-[#353535] hover:text-[#02A7F0] disabled:opacity-30">↑</button>
-                    <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 text-[10px] text-[#353535] hover:text-[#02A7F0] disabled:opacity-30">↓</button>
-                    <button onClick={(e) => { e.stopPropagation(); deleteCwPage(idx) }} className="px-1 text-[10px] text-[#F5222D] hover:bg-[#FFF1F0]">✕</button>
+                className={`group cursor-pointer rounded-[4px] border overflow-hidden ${idx === docSlide ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                <div className="relative">
+                  <img src={renderSlideThumb(s, getTheme(themeId), idx)} alt={s.title || `P${idx + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
+                  <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↑</button>
+                    <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↓</button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteCwPage(idx) }} className="px-1 py-0.5 text-[10px] text-[#F5222D] bg-white/90 rounded hover:bg-[#FFF1F0] shadow-sm">✕</button>
                   </div>
                 </div>
-                <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
+                <p className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{s.title || '（无标题）'}</p>
               </div>
             ))}
           </div>
@@ -1217,12 +1217,12 @@ export default function CoursewareBuilder() {
         {/* 主体：缩略图 + 画布 */}
         <div className="flex-1 flex min-h-0">
           {cwFsThumb && cwOutline.length > 1 && (
-            <div className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2">
+            <div className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2 px-1.5 space-y-2">
               {cwOutline.map((s, i) => (
                 <button key={i} onClick={() => setDocSlide(i)}
-                  className={`w-full text-left px-2.5 py-2 mb-1 mx-1 rounded text-[11px] leading-snug transition-colors ${i === docSlide ? 'bg-[#02A7F0] text-white' : 'text-[#595959] hover:bg-[#ECECF0]'}`}>
-                  <span className="block opacity-60 text-[10px] mb-0.5">P{i + 1}</span>
-                  {(s.title || '未命名').slice(0, 16)}
+                  className={`w-full text-left rounded-[4px] border overflow-hidden transition-colors ${i === docSlide ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                  <img src={renderSlideThumb(s, getTheme(themeId), i)} alt={s.title || `P${i + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
+                  <div className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{(s.title || '未命名').slice(0, 16)}</div>
                 </button>
               ))}
             </div>
