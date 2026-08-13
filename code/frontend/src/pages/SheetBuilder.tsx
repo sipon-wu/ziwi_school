@@ -10,7 +10,7 @@ import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
-import DocEditorPanel from '../components/DocEditorPanel'
+import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
 import { api } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import QuestionNav from '../components/QuestionNav'
@@ -62,6 +62,7 @@ export default function SheetBuilder() {
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
   const [saving, setSaving] = useState(false)
   const [published, setPublished] = useState(false)
+  const [showFsEditor, setShowFsEditor] = useState(false)
 
   // 发布分流对话框
   const [showPublishDialog, setShowPublishDialog] = useState(false)
@@ -411,6 +412,7 @@ export default function SheetBuilder() {
           resourceType="sheet"
           resourceId={id}
           locked={published}
+          onFullscreen={() => setShowFsEditor((prev: boolean) => !prev)}
         />
       }
       mode={ctrl.workMode === 'ai' ? 'primary' : 'secondary'}
@@ -422,6 +424,22 @@ export default function SheetBuilder() {
       footerAlign="left"
       footerLifecycle={sheetFooterLifecycle}
     />
+      {showFsEditor && renderFullscreenEditor({
+        value: docContent,
+        onChange: (v) => setDocContent(v || ''),
+        docTitle: sheetTitle || '练习题',
+        toolbarExtra: (
+          <>
+            <button onClick={handleExportWord} disabled={!previewQuestions.length}
+              className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出 Word">Word</button>
+            <button onClick={handleExportPdf} disabled={!previewQuestions.length}
+              className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出 PDF">PDF</button>
+          </>
+        ),
+        onExit: () => setShowFsEditor(false),
+      })}
 
       {/* 发布分流对话框 */}
       {showPublishDialog && (

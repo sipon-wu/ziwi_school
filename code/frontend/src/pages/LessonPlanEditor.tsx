@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type JSX, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Minimize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
 import { aiAPI, lessonPlanAPI, materialAPI, classAPI, reviewAPI } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
@@ -20,7 +20,7 @@ import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
-import DocEditorPanel from '../components/DocEditorPanel'
+import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
 import { marked } from 'marked'
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 
@@ -932,32 +932,20 @@ export default function LessonPlanEditor() {
       previewSlot={previewSlot}
     />
 
-    {/* 富媒体编辑器全屏（A4 纸面，文档模式专属） */}
-    {showFullscreenEditor && (
-      <div className="fixed inset-0 z-[80] bg-white flex flex-col" onClick={(e) => { if (e.target === e.currentTarget) setShowFullscreenEditor(false) }}>
-        <div className="h-12 bg-[#212529] flex items-center px-5 shrink-0 text-white">
-          <span className="text-[13px] font-medium">教案正文 · 全屏编辑（文档模式 · A4 纸面）</span>
-          <span className="ml-4 text-[11px] text-white/50">{lessonTitle || '未命名教案'}</span>
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={() => setShowFullscreenEditor(false)}
-              className="flex items-center gap-1 px-3 py-1 text-[12px] bg-white/10 hover:bg-white/20 rounded transition-colors"
-            >
-              <Minimize2 size={12} /> 退出全屏
-            </button>
-            <button onClick={() => setShowFullscreenEditor(false)}
-              className="px-3 py-1 text-[12px] bg-[#02A7F0] hover:bg-[#0288D1] rounded"
-            >
-              完成
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          {/* 全屏编辑必须与文档模式一致：value 必须是 HTML（contentToHtml 把 Markdown 转 HTML），
-              不能传原始 content（Markdown），否则编辑器会把 #/## 当成纯文本显示 */}
-          <TipTapEditor value={contentToHtml(content)} onChange={(v) => setContent(v || '')} placeholder="开始编写教案正文..." fullscreen resourceType="lesson_plan" resourceId={planId || undefined} locked={planStatus === 'published'} />
-        </div>
-      </div>
-    )}
+    {/* 富媒体编辑器全屏（A4 纸面，文档模式专属）— 复用共享编辑态全屏覆盖层 */}
+    {showFullscreenEditor && renderFullscreenEditor({
+      value: contentToHtml(content),
+      onChange: (v) => setContent(v || ''),
+      docTitle: lessonTitle || '未命名教案',
+      readOnly: planStatus === 'published',
+      toolbarExtra: (
+        <button onClick={handleExportDocx}
+          className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors"
+          title="导出教案正文为 Word（公式以图片嵌入）"
+        >导出教案</button>
+      ),
+      onExit: () => setShowFullscreenEditor(false),
+    })}
 
     {/* Dialogs */}
       {/* 定稿确认弹窗 */}

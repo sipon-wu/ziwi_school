@@ -15,7 +15,7 @@ import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import ResourcePicker from '../components/ResourcePicker'
 import TipTapEditor from '../components/TipTapEditor'
-import DocEditorPanel from '../components/DocEditorPanel'
+import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 import { exportExamPaper } from '../lib/exportExamDocx'
 import { printExamPaper } from '../lib/printPdf'
@@ -88,6 +88,7 @@ export default function ExamBuilder() {
   // 选题状态
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [showFsEditor, setShowFsEditor] = useState(false)
   // 课标对齐（来自 AI 组卷返回的 curriculum_alignments，保存试卷时一并落库）
   const [curriculumAlign, setCurriculumAlign] = useState<any[]>([])
 
@@ -527,6 +528,7 @@ export default function ExamBuilder() {
                   title="导出 PDF">PDF</button>
               </>
             }
+            onFullscreen={() => setShowFsEditor((prev: boolean) => !prev)}
           />
         }
         mode={(ctrl.workMode === 'ai' ? 'primary' : 'secondary')}
@@ -538,6 +540,22 @@ export default function ExamBuilder() {
           <TipTapEditor value={examDocContent} readOnly onChange={() => {}} docTitle={examTitle || '未命名试卷'} />
         }
       />
+      {showFsEditor && renderFullscreenEditor({
+        value: examDocContent,
+        onChange: (v) => setExamDocContent(v || ''),
+        docTitle: examTitle || '未命名试卷',
+        toolbarExtra: (
+          <>
+            <button onClick={handleExportWord} disabled={!selectedQuestions.length}
+              className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出 Word">Word</button>
+            <button onClick={handleExportPdf} disabled={!selectedQuestions.length}
+              className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出 PDF">PDF</button>
+          </>
+        ),
+        onExit: () => setShowFsEditor(false),
+      })}
       <ResourcePicker
         open={pickerOpen}
         mode="questions"

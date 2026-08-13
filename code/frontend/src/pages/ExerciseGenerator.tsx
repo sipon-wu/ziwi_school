@@ -21,7 +21,7 @@ import ResourcePicker from '../components/ResourcePicker'
 import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/ExamPreview'
 import TipTapEditor from '../components/TipTapEditor'
 import { marked } from 'marked'
-import DocEditorPanel from '../components/DocEditorPanel'
+import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
 import QuestionNav from '../components/QuestionNav'
 
 const PURPOSES = [
@@ -197,6 +197,7 @@ export default function ExerciseGenerator() {
   // 素材选择
   const [selectedMaterials, setSelectedMaterials] = useState<any[]>([])
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false)
+  const [showFsEditor, setShowFsEditor] = useState(false)
 
   // 退出提醒：已选知识点或有生成的题目时拦截
   const hasUnsavedWork = picker.selectedIds.length > 0 || questions.length > 0
@@ -1187,6 +1188,7 @@ export default function ExerciseGenerator() {
               resourceType="question"
               resourceId={id}
               locked={editQuestion?.status === 'published'}
+              onFullscreen={() => setShowFsEditor((prev: boolean) => !prev)}
             />
           }
           mode={(ctrl.workMode === 'ai' ? 'primary' : 'secondary')}
@@ -1200,6 +1202,22 @@ export default function ExerciseGenerator() {
           }
         />
       )}
+      {showFsEditor && renderFullscreenEditor({
+        value: docContent,
+        onChange: (v) => setDocContent(v || ''),
+        docTitle: previewMeta.title || '习题',
+        toolbarExtra: (
+          <>
+            <button onClick={handleExportWord} disabled={!previewQuestions.length}
+              className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出 Word">Word</button>
+            <button onClick={handleExportPdf} disabled={!previewQuestions.length}
+              className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出 PDF">PDF</button>
+          </>
+        ),
+        onExit: () => setShowFsEditor(false),
+      })}
       {!isEditing && (
         <ResourcePicker
           open={materialPickerOpen}
