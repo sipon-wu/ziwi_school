@@ -1,9 +1,11 @@
-// 真浏览器验证：教学课件三频道（PPT / H5 / 视频）导航与交互 + 视频配置草稿持久化
-// 注意：CoursewareBuilder 是无侧边栏全屏编辑器，三频道在编辑器顶部 segment 互切；
-// 侧边栏「教学课件」分组仅用于在 /teacher 等列表页进入各频道入口。
+// 真浏览器验证：教学课件三频道（PPT / H5 互动 / 视频）独立路由导航与可达性
+// 方案2 起三频道改为独立路由：/courseware/ppt · /courseware/h5 · /courseware/video，
+// 侧边栏「教学课件」分组下各有入口，H5/视频页内顶部也有频道互切 a 链接（非单路由 segment）。
+// 注意：频道深层编辑器（新建/导出）交互由 verify_h5_template / verify_h5_interactive /
+// verify_scenario_template 专项覆盖；本脚本只验证导航结构 + 三页可达 + 无报错。
 const { chromium } = require('playwright')
 
-const BASE = process.env.BASE || 'http://localhost:5173'
+const BASE = process.env.BASE || 'http://school1.ziwi.cn'
 const PHONE = process.env.PHONE || '13800000002'
 const PASS = process.env.PASS || 'teacher123'
 
@@ -32,53 +34,49 @@ const PASS = process.env.PASS || 'teacher123'
   const results = {}
   const ok = (k, v) => { results[k] = v }
 
-  // 1) 侧边栏「教学课件」分组 + 三个子频道入口可见
-  ok('NAV_GROUP', await page.locator('text=教学课件').first().isVisible().catch(() => false))
-  ok('NAV_PPT', await page.locator('a:has-text("PPT 课件")').first().isVisible().catch(() => false))
-  ok('NAV_H5', await page.locator('a:has-text("H5 互动课件")').first().isVisible().catch(() => false))
-  ok('NAV_VIDEO', await page.locator('a:has-text("视频课件")').first().isVisible().catch(() => false))
+  // 1) 侧边栏「教学课件」分组下三频道入口可见且 href 正确
+  const navMap = await page.$$eval('a', els => {
+    const out = {}
+    for (const e of els) {
+      const t = e.textContent.trim()
+      const h = e.getAttribute('href') || ''
+      if (t === 'PPT 课件') out.ppt = h
+      if (t === 'H5 互动课件') out.h5 = h
+      if (t === '视频课件') out.video = h
+    }
+    return out
+  })
+  ok('NAV_PPT', navMap.ppt === '/courseware/ppt')
+  ok('NAV_H5', navMap.h5 === '/courseware/h5')
+  ok('NAV_VIDEO', navMap.video === '/courseware/video')
 
-  // 2) PPT 频道：点击侧边栏入口（整页跳转）
-  await page.locator('a:has-text("PPT 课件")').first().click()
+  // 2) 三频道页各自可达（进 URL 后不被踢回 /login，URL 命中预期）
+  const reach = async (path, key, expectIn) => {
+    await page.goto(BASE + path, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+    const url = page.url()
+    ok(key, url.includes(expectIn) && !url.includes('/login'))
+  }
+  await reach('/courseware/ppt', 'REACH_PPT', '/courseware/ppt')
+  await reach('/courseware/h5', 'REACH_H5', '/courseware/h5')
+  await reach('/courseware/video', 'REACH_VIDEO', '/courseware/video')
+
+  // 3) H5 页内顶部频道互切 a 链接存在（PPT / H5 / 视频）
+  await page.goto(BASE + '/courseware/h5', { waitUntil: 'networkidle' })
   await page.waitForTimeout(900)
-  ok('PPT_URL', page.url().includes('/courseware/new'))
-  ok('PPT_CHIP', await page.locator('button:has-text("PPT 课件")').first().isVisible().catch(() => false))
-  ok('PPT_EXPORT', await page.locator('button:has-text("导出 PPT")').first().isVisible().catch(() => false))
+  const h5Switch = await page.$$eval('a', els => {
+    const ts = els.map(e => e.textContent.trim())
+    return {
+      ppt: ts.includes('PPT 课件'),
+      h5: ts.includes('H5 互动课件'),
+      video: ts.includes('视频课件'),
+    }
+  })
+  ok('H5_SWITCH_PPT', h5Switch.ppt)
+  ok('H5_SWITCH_H5', h5Switch.h5)
+  ok('H5_SWITCH_VIDEO', h5Switch.video)
 
-  // 3) H5 频道：编辑器顶部 segment 切换（SPA 内，不卸载）
-  await page.locator('button:has-text("H5 互动课件")').first().click()
-  await page.waitForTimeout(700)
-  ok('H5_URL', page.url().includes('/courseware/h5'))
-  ok('H5_CHIP', await page.locator('button:has-text("H5 互动课件")').first().isVisible().catch(() => false))
-  const h5Btn = page.locator('button:has-text("导出 H5")').first()
-  ok('H5_EXPORT_VISIBLE', await h5Btn.isVisible().catch(() => false))
-  ok('H5_EXPORT_ENABLED', await h5Btn.isDisabled().then(d => !d).catch(() => false))
-
-  // 4) 视频频道：segment 切换 + 配置面板 + 选择 + 保存草稿后 videoConfig 落入 localStorage
-  await page.locator('button:has-text("视频课件")').first().click()
-  await page.waitForTimeout(700)
-  ok('VIDEO_URL', page.url().includes('/courseware/video'))
-  ok('VIDEO_PANEL', await page.locator('text=出镜形象').first().isVisible().catch(() => false))
-  ok('VIDEO_STYLE', await page.locator('text=讲解风格').first().isVisible().catch(() => false))
-  await page.locator('button:has-text("平台数字人")').first().click()
-  await page.waitForTimeout(200)
-  await page.locator('button:has-text("实验演示")').first().click()
-  await page.waitForTimeout(200)
-  await page.locator('button:has-text("保存草稿")').first().click()
-  await page.waitForTimeout(600)
-  const draft = await page.evaluate(() => localStorage.getItem('zhiwei_cw_draft'))
-  let vc = null
-  try { vc = JSON.parse(draft).videoConfig } catch {}
-  ok('VIDEO_CONFIG_SAVED', !!vc && vc.presenter === 'avatar' && vc.style === 'experiment')
-
-  // 5) 切回 PPT 频道，内容/草稿不应丢失（单路由不卸载）
-  await page.locator('button:has-text("PPT 课件")').first().click()
-  await page.waitForTimeout(500)
-  ok('BACK_PPT_URL', page.url().includes('/courseware/new'))
-
-  const functional = Object.values(results)
-  const allFunc = functional.every(v => v === true)
-  const pass = allFunc && pageErrors.length === 0
+  const pass = Object.values(results).every(v => v === true) && pageErrors.length === 0
 
   console.log('RESULTS:', JSON.stringify(results))
   console.log('PAGE_ERRORS:', pageErrors.length ? pageErrors.join(' | ') : 'none')
