@@ -10,12 +10,15 @@ import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
-import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets } from '../lib/exportPptx'
-import { exportH5Courseware, buildH5FromOutline, buildH5Html, type H5Slide } from '../lib/exportH5'
+import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets, isValidComponent, type H5Component } from '../lib/exportPptx'
+import { exportH5Courseware, buildH5FromOutline, buildH5Html, renderInteractive, type H5Slide } from '../lib/exportH5'
+import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import QRCode from 'qrcode'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { getTheme, recommendTheme } from '../lib/pptThemes'
-import { PPT_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, type StyleTag } from '../lib/cwTemplate'
+import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, type StyleTag } from '../lib/cwTemplate'
+// 触发模板资产域注册（子项目库模板经适配器并入 PPT_TEMPLATES，副作用导入即可，无需引用）
+import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
@@ -33,6 +36,133 @@ const CW_CHANNEL: Record<CwFormat, { name: string; chip: string; color: string; 
   ppt:   { name: 'PPT 课件',    chip: 'PPT',  color: '#722ED1', scene: 'PPT 课件',    previewSuffix: 'PPT 放映' },
   h5:    { name: 'H5 互动课件', chip: 'H5',   color: '#FA8C16', scene: 'H5 互动课件', previewSuffix: 'H5 预览' },
   video: { name: '视频课件',    chip: '视频', color: '#52C41A', scene: '视频课件',    previewSuffix: '分镜预览' },
+}
+
+// ── H5 互动组件：手动挂编辑器（选择器 + 表单）──
+const INTERACTIVE_META: { type: H5Component['type']; label: string; icon: string; hint: string }[] = [
+  { type: 'reveal', label: '点击揭示', icon: '🔍', hint: '答案翻牌（平日常隐藏，点击显示）' },
+  { type: 'quiz', label: '随堂选择题', icon: '✅', hint: '全班即时反馈，点选判对错' },
+  { type: 'audio', label: '音频', icon: '🔊', hint: '课文朗读/听力（上传或素材库）' },
+  { type: 'video', label: '视频', icon: '🎬', hint: '实验演示/微课' },
+  { type: 'gallery', label: '图册', icon: '🖼', hint: '美术/文物/图谱滑动翻看' },
+  { type: 'popup', label: '弹层', icon: '📌', hint: '拓展阅读/知识卡' },
+  { type: 'readalong', label: '点读', icon: '📖', hint: '英语/拼音：点击文字播音频' },
+  { type: 'drawing', label: '绘图', icon: '✏️', hint: '投屏白板：教师现场边讲边画（对话气泡/句型树/简笔画）' },
+]
+
+function defaultInteractive(type: H5Component['type']): H5Component {
+  switch (type) {
+    case 'reveal': return { type: 'reveal', prompt: '点击揭示：教师讲解要点', answer: '' }
+    case 'quiz': return { type: 'quiz', question: '', options: ['', ''], correct: 0 }
+    case 'audio': return { type: 'audio', src: '', title: '' }
+    case 'video': return { type: 'video', src: '' }
+    case 'gallery': return { type: 'gallery', images: [''], direction: 'h' }
+    case 'popup': return { type: 'popup', triggerText: '查看拓展', content: '' }
+    case 'readalong': return { type: 'readalong', sentences: [{ text: '', src: '' }] }
+    case 'drawing': return { type: 'drawing', title: '现场绘图区', prompt: '' }
+  }
+}
+
+function InteractiveForm({ value, onChange, locked }: { value: H5Component; onChange: (it: H5Component) => void; locked: boolean }) {
+  if (locked) return <div className="text-[11px] text-[#9A9A9A] px-1 py-2">已发布定版，互动不可编辑（可重新编辑草稿）</div>
+  const upd = (patch: Partial<H5Component>) => onChange({ ...value, ...patch } as H5Component)
+  const field = 'w-full px-2 py-1 text-[12px] border border-[#E7E7EB] rounded focus:border-[#02A7F0] outline-none'
+  const label = 'block text-[11px] text-[#595959] mb-1 mt-2'
+  switch (value.type) {
+    case 'reveal':
+      return (
+        <div>
+          <label className={label}>引导语（可选）</label>
+          <input className={field} value={value.prompt || ''} onChange={e => upd({ prompt: e.target.value })} placeholder="如：点击揭示答案" />
+          <label className={label}>答案内容</label>
+          <textarea className={field} rows={2} value={value.answer} onChange={e => upd({ answer: e.target.value })} placeholder="点击后显示的内容" />
+        </div>
+      )
+    case 'quiz':
+      return (
+        <div>
+          <label className={label}>题干</label>
+          <input className={field} value={value.question} onChange={e => upd({ question: e.target.value })} placeholder="如：下列哪个是…" />
+          <label className={label}>选项（每项）</label>
+          {value.options.map((o, i) => (
+            <div key={i} className="flex gap-1 mb-1">
+              <input className={field} value={o} onChange={e => { const ns = value.options.slice(); ns[i] = e.target.value; upd({ options: ns }) }} placeholder={`选项 ${i + 1}`} />
+              <button className={`px-2 text-[11px] rounded ${value.correct === i ? 'bg-[#0a7c2e] text-white' : 'bg-[#F0F2F5] text-[#595959]'}`} onClick={() => upd({ correct: i })}>正确</button>
+            </div>
+          ))}
+          <button className="text-[11px] text-[#02A7F0] mt-1" onClick={() => upd({ options: [...value.options, ''] })}>+ 选项</button>
+        </div>
+      )
+    case 'audio':
+      return (
+        <div>
+          <label className={label}>音频标题（可选）</label>
+          <input className={field} value={value.title || ''} onChange={e => upd({ title: e.target.value })} />
+          <label className={label}>音频 URL（/uploads/xxx 或完整 http(s)）</label>
+          <input className={field} value={value.src} onChange={e => upd({ src: e.target.value })} placeholder="/uploads/xxx.mp3 或 https://…" />
+        </div>
+      )
+    case 'video':
+      return (
+        <div>
+          <label className={label}>视频 URL（/uploads/xxx 或完整 http(s)）</label>
+          <input className={field} value={value.src} onChange={e => upd({ src: e.target.value })} placeholder="/uploads/xxx.mp4 或 https://…" />
+        </div>
+      )
+    case 'gallery':
+      return (
+        <div>
+          <label className={label}>方向</label>
+          <div className="flex gap-2 mb-1">
+            <button className={`px-2 text-[11px] rounded ${value.direction !== 'v' ? 'bg-[#02A7F0] text-white' : 'bg-[#F0F2F5] text-[#595959]'}`} onClick={() => upd({ direction: 'h' })}>横向滑动</button>
+            <button className={`px-2 text-[11px] rounded ${value.direction === 'v' ? 'bg-[#02A7F0] text-white' : 'bg-[#F0F2F5] text-[#595959]'}`} onClick={() => upd({ direction: 'v' })}>纵向滑动</button>
+          </div>
+          <label className={label}>图片 URL（每行一项）</label>
+          {value.images.map((img, i) => (
+            <div key={i} className="flex gap-1 mb-1">
+              <input className={field} value={img} onChange={e => { const ns = value.images.slice(); ns[i] = e.target.value; upd({ images: ns }) }} placeholder="/uploads/xxx.png" />
+              {value.images.length > 1 && <button className="px-2 text-[11px] text-red-400" onClick={() => upd({ images: value.images.filter((_, k) => k !== i) })}>✕</button>}
+            </div>
+          ))}
+          <button className="text-[11px] text-[#02A7F0] mt-1" onClick={() => upd({ images: [...value.images, ''] })}>+ 图片</button>
+        </div>
+      )
+    case 'popup':
+      return (
+        <div>
+          <label className={label}>触发按钮文字</label>
+          <input className={field} value={value.triggerText} onChange={e => upd({ triggerText: e.target.value })} />
+          <label className={label}>弹层内容</label>
+          <textarea className={field} rows={3} value={value.content} onChange={e => upd({ content: e.target.value })} />
+        </div>
+      )
+    case 'readalong':
+      return (
+        <div>
+          <label className={label}>句子（按标点断句，每句绑定音频；点击句子播放）</label>
+          {value.sentences.map((s, i) => (
+            <div key={i} className="flex gap-1 mb-1">
+              <input className={`${field} flex-1`} value={s.text} onChange={e => { const ns = value.sentences.slice(); ns[i] = { ...ns[i], text: e.target.value }; upd({ sentences: ns }) }} placeholder="句子文字" />
+              <input className={`${field} flex-1`} value={s.src} onChange={e => { const ns = value.sentences.slice(); ns[i] = { ...ns[i], src: e.target.value }; upd({ sentences: ns }) }} placeholder="音频 URL" />
+              {value.sentences.length > 1 && <button className="px-2 text-[11px] text-red-400" onClick={() => upd({ sentences: value.sentences.filter((_, k) => k !== i) })}>✕</button>}
+            </div>
+          ))}
+          <button className="text-[11px] text-[#02A7F0] mt-1" onClick={() => upd({ sentences: [...value.sentences, { text: '', src: '' }] })}>+ 句子</button>
+        </div>
+      )
+    case 'drawing':
+      return (
+        <div>
+          <label className={label}>绘图区标题（可选）</label>
+          <input className={field} value={value.title || ''} onChange={e => upd({ title: e.target.value })} placeholder="如：对话气泡图 / 句型结构树" />
+          <label className={label}>绘制说明（投屏白板提示教师画什么）</label>
+          <textarea className={field} rows={2} value={value.prompt || ''} onChange={e => upd({ prompt: e.target.value })} placeholder="如：画出 A/B 两个角色的气泡，填入本课重点句型" />
+          <p className="text-[10px] text-[#9A9A9A] mt-1">预览/导出后该页会出现可书写的投屏白板，教师可现场手绘。</p>
+        </div>
+      )
+    default:
+      return null
+  }
 }
 
 // 视频课件配置（数据位）：本期仅定义与选择，不接入生成/持久化；token 平权后再做深
@@ -108,6 +238,7 @@ export default function CoursewareBuilder() {
   // ── 产物状态 ──
   const [genLoading, setGenLoading] = useState(false)
   const [cwMarkdown, setCwMarkdown] = useState('')
+  const [cwH5Html, setCwH5Html] = useState('')
   const [cwSimilar, setCwSimilar] = useState<any>(null)
   const [cwOutline, setCwOutline] = useState<OutlineSlide[]>([])
   const [cwDivergence, setCwDivergence] = useState<any[]>([])
@@ -120,6 +251,8 @@ export default function CoursewareBuilder() {
   const [polishing, setPolishing] = useState(false)
   const [genVideo, setGenVideo] = useState(false)
   const [docSlide, setDocSlide] = useState(0)
+  // 当前页互动编辑：选择器 + 表单弹层（手动挂 H5 互动组件）
+  const [interactivePickerOpen, setInteractivePickerOpen] = useState(false)
   // 新建课件默认套用「按学科+年级」推荐主题（仅默认，不强制；教师可随时手改，恢复草稿时以草稿为准）
   const [themeId, setThemeId] = useState<string>(() => recommendTheme(teaching.subject, teaching.grade).themeId)
   // workMode 已收口到 useEditorController
@@ -159,6 +292,7 @@ export default function CoursewareBuilder() {
         setCwExtra(d.extra || '')
         setCwMarkdown(d.markdown || '')
         setCwOutline(materializeOutline(Array.isArray(d.outline) ? d.outline : []))
+        setCwH5Html(d.h5Html || '')
         setCwDivergence(Array.isArray(d.divergence) ? d.divergence : [])
         if (d.divergenceLevel) setDivergenceLevel(d.divergenceLevel)
         if (d.themeId) setThemeId(d.themeId)
@@ -179,7 +313,17 @@ export default function CoursewareBuilder() {
       setGenTitle((m.name || '').replace(/_课件$/, ''))
       setCwOutline(materializeOutline(markdownToOutline(m.content || '')))
       setCwMarkdown(m.content || '')
-      setCwExtra(m.tag || '')
+      // H5 绘本态：优先用服务端已有的 h5_html，否则本地由 content 重新渲染
+      if (cwFormat === 'h5') {
+        if (m.h5_html) {
+          setCwH5Html(m.h5_html)
+        } else if (m.content) {
+          setCwH5Html(markdownToStorybookH5(m.content, {
+            subject: m.subject || teaching.subject, grade: m.grade || gradeName,
+            title: m.name || '', teacherName: safeGetUser().name || '教师', themeId: 'storybook',
+          }))
+        }
+      }
       if (m.theme_id) {
         setThemeId(m.theme_id)
       } else if (m.grade) {
@@ -222,6 +366,7 @@ export default function CoursewareBuilder() {
       const consultText = consultQuestions.length
         ? consultQuestions.map((q: any) => `· ${q.question} → ${consultAnswers[q.id] || '（未答）'}`).join('；')
         : ''
+      const isH5 = cwFormat === 'h5'
       const res = await aiAPI.generateCourseware({
         subject: teaching.subject, grade: gradeName, lesson_title: genTitle.trim(),
         content: (base as any)?.content || '', school_id: getSchoolId(),
@@ -239,9 +384,19 @@ export default function CoursewareBuilder() {
         style_tag: genStyleTag || undefined,
         style_profile: genStyleProfile.trim() || undefined,
         style_mode: genStyleTag ? 'preset' : (genStyleProfile.trim() ? 'free' : 'auto'),
+        format: isH5 ? 'h5' : 'ppt',
       })
       setCwMarkdown(res.courseware_markdown || '')
       setCwOutline(materializeOutline(markdownToOutline(res.courseware_markdown || '')))
+      // H5 频道：同时渲染为绘本式 HTML，预览/发布均直接使用
+      if (isH5 && res.courseware_markdown) {
+        setCwH5Html(markdownToStorybookH5(res.courseware_markdown, {
+          subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+          teacherName: safeGetUser().name || '教师', themeId: 'storybook',
+        }))
+      } else {
+        setCwH5Html('')
+      }
       setCwDivergence(Array.isArray(res.divergence_map) ? res.divergence_map : [])
       setRemovedDivergence({})
       setCwSimilar(res.similar_material || null)
@@ -278,6 +433,11 @@ export default function CoursewareBuilder() {
   // 提纲编辑
   const setSlideTitle = (i: number, v: string) => setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, title: v } : s))
   const setSlideBullets = (i: number, v: string) => setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, bullets: v.split('\n') } : s))
+  // 当前页手动挂互动组件（互动态，永久未保存标记）
+  const setSlideInteractive = (i: number, it: H5Component | null) => {
+    setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, interactive: it } : s))
+    ctrl.touch()
+  }
   const moveSlide = (i: number, dir: number) => setCwOutline(arr => {
     const j = i + dir
     if (j < 0 || j >= arr.length) return arr
@@ -367,14 +527,15 @@ export default function CoursewareBuilder() {
     printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
   }
   // H5 互动课件：直接消费与 PPT 同源的提纲 OutlideSlide[]，首段作封面、其余为内容页。
-  // 教师备注(notes)转为「点击揭示」互动——投屏时平时隐藏，点击后翻牌显示给全班看，贴合上课节奏。
+  // 手动互动插槽优先：若某页有合法 interactive 用真互动；否则 notes 兜底 reveal；否则纯内容页。
   const buildH5Slides = (): H5Slide[] => {
     if (!cwOutline.length) return []
     return cwOutline.map((s, i) => {
       const bs = s.elements && s.elements.length ? extractBullets(s.elements) : (s.bullets || [])
-      const interactive = s.notes
-        ? { reveal: { prompt: '点击揭示：教师讲解要点', answer: s.notes } }
-        : null
+      const interactive: H5Component | null =
+        isValidComponent(s.interactive)
+          ? s.interactive
+          : (s.notes ? { type: 'reveal', prompt: '点击揭示：教师讲解要点', answer: s.notes } : null)
       return {
         title: s.title,
         points: bs,
@@ -430,7 +591,7 @@ export default function CoursewareBuilder() {
       // 本地兜底暂存（未发布前可恢复）
       localStorage.setItem(getDraftKey(materialId), JSON.stringify({
         title: genTitle, extra: cwExtra, markdown: cwMarkdown,
-        outline: cwOutline, divergence: cwDivergence, divergenceLevel, themeId,
+        outline: cwOutline, h5Html: cwH5Html, divergence: cwDivergence, divergenceLevel, themeId,
         videoConfig,
       }))
       if (materialId) {
@@ -474,13 +635,19 @@ export default function CoursewareBuilder() {
         status: 'active',
         grade: gradeName,
         subject: teaching.subject,
+        // 互动插槽摘要快照（每页 interactive 序列化）；留空串=真清空（指针区分）
+        interactive_slots: JSON.stringify(cwOutline.map(s => isValidComponent(s.interactive) ? s.interactive : null)),
       }
       // H5 互动课件：将完整互动 HTML 一并写入 h5_html，供手机扫码访问端点直接渲染
       if (cwFormat === 'h5') {
-        payload.h5_html = buildH5Html(buildH5Slides(), {
-          subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
-          teacherName: safeGetUser().name || '教师',
-        })
+        if (cwH5Html) {
+          payload.h5_html = cwH5Html
+        } else {
+          payload.h5_html = markdownToStorybookH5(outlineToMarkdown(cwOutline, cwOpts()), {
+            subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+            teacherName: safeGetUser().name || '教师', themeId: 'storybook',
+          })
+        }
       }
       let newId = materialId
       if (materialId) await materialAPI.update(materialId, payload)
@@ -580,6 +747,38 @@ export default function CoursewareBuilder() {
         <label className="block text-[12px] font-medium text-[#353535] mb-2">课题名称 <span className="text-red-500">*</span></label>
         <input value={genTitle} onChange={e => setGenTitle(e.target.value)} placeholder="如：光的折射定律"
           className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
+      </div>
+
+      {/* 场景化课件快捷模板（小微/场景化制作入口） */}
+      <div className="px-5 py-3 border-t border-[#F0F0F0]">
+        <label className="block text-[12px] font-medium text-[#353535] mb-2">场景化课件（一键套用）</label>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => {
+            setCwExtra('英语场景对话：购物/问路/就餐情景对话，带绘图（句型结构树与场景简笔画），满足10分钟讲课时长，配点读跟读')
+            toast('已带入「英语场景对话」场景要求，点 AI 生成即可', 'success')
+          }} className="px-2.5 py-1.5 text-[12px] bg-[#EAF7FF] text-[#0284C7] rounded-full hover:bg-[#D6EEFF] transition-colors">
+            🗣 英语场景对话
+          </button>
+          <button onClick={() => {
+            setCwExtra('带绘图：重难点页用投屏白板现场绘制（思维导图/句型树/实验示意图），满足10分钟讲课时长')
+            toast('已带入「带绘图」场景要求', 'success')
+          }} className="px-2.5 py-1.5 text-[12px] bg-[#EAF7FF] text-[#0284C7] rounded-full hover:bg-[#D6EEFF] transition-colors">
+            ✏️ 带绘图讲解
+          </button>
+          <button onClick={() => {
+            setCwExtra('满足10分钟讲课时长：不少于12页，含热身导入→对话示范→句型操练→小组活动→巩固练习→小结作业，配点读跟读与自动播放')
+            toast('已带入「10分钟课时」场景要求', 'success')
+          }} className="px-2.5 py-1.5 text-[12px] bg-[#EAF7FF] text-[#0284C7] rounded-full hover:bg-[#D6EEFF] transition-colors">
+            ⏱ 10分钟课时
+          </button>
+          <button onClick={() => {
+            setCwExtra('英语场景对话：校园生活/购物/问路情景对话，带绘图（对话气泡图+句型结构树），配点读跟读与自动播放，满足10分钟讲课时长')
+            toast('已组好完整场景，点 AI 生成即可', 'success')
+          }} className="px-2.5 py-1.5 text-[12px] bg-[#02A7F0] text-white rounded-full hover:bg-[#0398D8] transition-colors">
+            ✨ 英语对话·绘图·点读·自动（全套）
+          </button>
+        </div>
+        <span className="text-[10px] text-[#9A9A9A] mt-1.5 block">也可在左下角小微对话提需求，点「应用到当前内容」自动带入并生成。</span>
       </div>
 
       {/* 风格模板（P1）：AI 一键生成不同视觉风格 */}
@@ -714,142 +913,38 @@ export default function CoursewareBuilder() {
           H5 文档编辑模式建设中，当前可预览/导出。如需编辑内容，请使用 AI 模式按知识点与模板自动生成 H5 课件。
         </div>
       )}
-      {/* 顶部独立工具条（参照教案编辑布局）：把高频操作统一到顶部，左右栏从其下方开始、顶端齐平不再冲顶 */}
-      <div className="h-10 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white">
-        {/* 左：缩微页标题与操作 */}
-        <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
-        <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">+ 页</button>
-        <button onClick={() => setThumbCollapsed(true)} title="收起页列表" className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
-        <div className="w-px h-4 bg-[#EEE]" />
-        {/* 中：高频操作 */}
-        <div className="relative" ref={exportMenuRef}>
-          <button onClick={() => setExportMenuOpen(v => !v)} title="导出格式（可多选）"
-            className="px-2.5 py-1 text-[12px] text-white bg-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] flex items-center gap-1">
-            <Download size={13} /> 导出 <ChevronDown size={12} />
-          </button>
-          {exportMenuOpen && (
-            <div className="absolute left-0 top-full mt-1 w-[176px] bg-white border border-[#E7E7EB] rounded-[6px] shadow-lg z-30 py-1">
-              <p className="px-3 pt-1 pb-0.5 text-[10px] text-[#9A9A9A]">选择导出格式（可多选）</p>
-              {(['ppt', 'docx', 'pdf', 'h5'] as const).map(f => (
-                <label key={f} className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-[#353535] hover:bg-[#F6F7F8] cursor-pointer">
-                  <input type="checkbox" checked={exportSel[f]} onChange={e => setExportSel(s => ({ ...s, [f]: e.target.checked }))} className="shrink-0" />
-                  {f === 'ppt' ? 'PPT' : f === 'docx' ? 'Word' : f === 'pdf' ? 'PDF' : 'H5 互动课件'}
-                </label>
-              ))}
-              <button onClick={() => exportCwFormats(['ppt', 'docx', 'pdf', 'h5'])}
-                className="w-full mt-1 px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-b-[6px] hover:bg-[#0398D8]">一键导出所选 ({Object.values(exportSel).filter(Boolean).length})</button>
-            </div>
-          )}
-        </div>
-        <button onClick={polishOutline} disabled={polishing} className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#E8F7FF] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色'}</button>
-        {cwFormat === 'video' && (
-          <button onClick={genVideoScript} disabled={genVideo}
-            className="px-2.5 py-1 text-[12px] text-[#52C41A] border border-[#52C41A] rounded-[4px] hover:bg-[#F6FFED] disabled:opacity-50 flex items-center gap-1">
-            {genVideo ? <><Loader2 size={13} className="animate-spin" /> 生成分镜…</> : '🎬 AI 生成视频分镜'}
-          </button>
-        )}
-        <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
-          className="px-2 py-1 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F7F7F8]" title="版心比例">
-          <option value="16/9">16:9</option>
-          <option value="4/3">4:3</option>
-        </select>
-        <div className="flex-1" />
-        {/* 批注 / 版本（与全屏态一致的功能按钮） */}
-        <button onClick={() => setCwHistoryVisible(v => !v)} title="批注 / 版本" className={`px-2.5 py-1 text-[12px] border rounded-[4px] flex items-center gap-1 ${cwHistoryVisible ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
-          <MessageSquare size={13} /> 批注
-        </button>
-        {/* 右：全屏 + 主题 */}
-        <button onClick={() => setCwFullscreen(true)} title="全屏编辑"
-          className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F9] rounded-[4px] hover:bg-[#E6F7FF] flex items-center gap-1">
-          <Maximize2 size={13} /> 全屏
-        </button>
-        {/* 模板库：统一弹层（风格 / 色系多维度分类，选中即全文换肤套用） */}
-        <div className="relative">
-          <button onClick={() => setTplPanelOpen(v => !v)} title="模板库"
-            className={`px-2.5 py-1 text-[12px] border rounded-[4px] flex items-center gap-1 ${tplPanelOpen || tplAppliedId.current ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
-            <Shapes size={13} /> 模板{tplAppliedId.current ? '✓' : ''}
-          </button>
-          {tplPanelOpen && (
-            <div className="absolute right-0 top-9 z-50 w-[340px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[13px] font-medium text-[#353535]">课件模板库</span>
-                {tplAppliedId.current && (
-                  <button onClick={() => {
-                    if (tplPrevTheme.current != null && tplPrevLayouts.current) {
-                      const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current)
-                      setCwOutline(r.outline); setThemeId(r.themeId)
-                      tplAppliedId.current = null; tplPrevTheme.current = null; tplPrevLayouts.current = null
-                      toast('已撤销模板套用', 'info')
-                    }
-                  }} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
-                )}
-              </div>
-              {/* 维度切换：风格 / 色系（色系由模板实际配色聚类而来，不再单独成下拉） */}
-              <div className="flex gap-1 mb-2 bg-[#F2F3F5] rounded p-0.5">
-                {([['style', '按风格'], ['color', '按色系']] as const).map(([k, lbl]) => (
-                  <button key={k} onClick={() => setTplDim(k)} className={`flex-1 px-2 py-1 rounded text-[12px] ${tplDim === k ? 'bg-white text-[#02A7F0] shadow-sm' : 'text-[#666]'}`}>{lbl}</button>
-                ))}
-              </div>
-              {tplDim === 'style' ? (
-                <>
-                  {/* 风格筛选（PPT/H5 共用风格标签文案，不含 basic——色系已独立成维度） */}
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    <button onClick={() => setTplStyleFilter('')} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === '' ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>全部</button>
-                    {(Object.keys(STYLE_LABELS) as StyleTag[]).filter(s => s !== 'basic').map(s => (
-                      <button key={s} onClick={() => setTplStyleFilter(s)} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === s ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>{STYLE_LABELS[s]}</button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).map(t => (
-                      <button key={t.id} onClick={async () => {
-                        const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                        const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                        setCwOutline(r.outline); setThemeId(r.themeId)
-                        tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                        setTplPanelOpen(false)
-                        toast(`已套用模板：${t.name}`, 'success')
-                      }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                        <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
-                        <div className="p-1.5">
-                          <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
-                          <div className="text-[10px] text-[#999] mt-0.5">{STYLE_LABELS[t.style]} · {t.layouts ? Object.keys(t.layouts).length : 0} 版式</div>
-                        </div>
-                      </button>
-                    ))}
-                    {PPT_TEMPLATES.filter(t => !tplStyleFilter || t.style === tplStyleFilter).length === 0 && (
-                      <p className="col-span-2 text-[11px] text-[#999] text-center py-4">该风格暂无 PPT 模板，后续素材积累后可见</p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                // 按色系维度：结构固定 + 色系自由叠加（色系由模板实配色聚类而来）
-                <div className="grid grid-cols-2 gap-2">
-                  {COLOR_FAMILIES.map(f => {
-                    const applied = tplAppliedId.current === `basic-${f.id}`
-                    return (
-                      <button key={f.id} onClick={async () => {
-                        const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                        const tpl = basicTemplateForFamily(f)
-                        const r = applyTemplate(baseOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                        setCwOutline(r.outline); setThemeId(r.themeId)
-                        tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                        setTplPanelOpen(false)
-                        toast(`已套用：通用结构 · ${f.label}`, 'success')
-                      }} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                        <img src={renderFamilyThumb(f)} alt={f.label} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
-                        <div className="p-1.5">
-                          <div className="text-[12px] font-medium text-[#353535] truncate">通用 · {f.label}</div>
-                          <div className="text-[10px] text-[#999] mt-0.5">结构 × 色系 · {Object.keys(BASIC_TEMPLATE.layouts).length} 版式</div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
+      {/* 编辑态文档模式：本页互动挂接（仅编辑态可见；查看态预览只只读渲染，不显示此编辑条） */}
+      {!ctrl.readOnly && cwFormat === 'h5' && (
+        <div className="shrink-0 border-b border-[#E7E7EB] bg-white p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[12px] font-medium text-[#353535]">本页互动（H5 投屏/扫码生效）</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setInteractivePickerOpen(o => !o)} className="px-2.5 py-1 text-[12px] text-white bg-[#FA8C16] rounded hover:bg-[#E67E00]">+ 互动</button>
+              {isValidComponent(cwOutline[docSlide]?.interactive) && (
+                <button onClick={() => setSlideInteractive(docSlide, null)} className="px-2 py-1 text-[12px] text-[#9A9A9A] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8]">清空</button>
               )}
             </div>
+          </div>
+          {interactivePickerOpen && (
+            <div className="flex flex-wrap gap-2 mb-3 p-2 bg-[#FAFBFC] rounded">
+              {INTERACTIVE_META.map(m => (
+                <button key={m.type} title={m.hint} onClick={() => { setSlideInteractive(docSlide, defaultInteractive(m.type)); setInteractivePickerOpen(false) }}
+                  className="flex flex-col items-center w-[88px] p-2 rounded border border-[#E7E7EB] hover:border-[#FA8C16] hover:bg-[#FFF7EF]">
+                  <span className="text-[18px]">{m.icon}</span>
+                  <span className="text-[11px] text-[#353535] mt-1">{m.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {isValidComponent(cwOutline[docSlide]?.interactive) ? (
+            <InteractiveForm value={cwOutline[docSlide].interactive as H5Component} onChange={it => setSlideInteractive(docSlide, it)} locked={cwLocked} />
+          ) : (
+            <p className="text-[11px] text-[#C0C0C0]">未挂互动。点「+ 互动」选择一种（点击揭示/选择题/音频/视频/图册/弹层/点读），内容将随课件导出为 H5 投屏课件，手机扫码可交互查看。</p>
           )}
         </div>
-      </div>
+      )}
+      {/* 顶部统一工具条：非全屏与全屏编辑态复用同一套按钮（含模板库入口），仅容器形态不同 */}
+      {renderToolbar(false)}
 
       {/* 主体三栏：左缩微页 / 中画布 / 右批注，顶端齐平 */}
       <div className="flex-1 flex min-h-0 relative">
@@ -1099,27 +1194,60 @@ export default function CoursewareBuilder() {
       return null
     }
   }, [cwOutline])
-  const previewSlideElems = previewSlides && previewSlides.length > 0 ? (
-    <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide} viewMode="single" autoPlay />
-  ) : (
-    <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
-  )
+  const previewSlideElems = (() => {
+    if (cwFormat === 'h5' && cwH5Html) {
+      return (
+        <div className="w-full h-full bg-[#F5F5F5] rounded overflow-hidden">
+          <iframe
+            title="H5 绘本预览"
+            srcDoc={cwH5Html}
+            className="w-full h-full border-0"
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      )
+    }
+    if (previewSlides && previewSlides.length > 0) {
+      return <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide} viewMode="single" autoPlay />
+    }
+    return <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
+  })()
   const previewPane = (
     <div className="flex-1 flex overflow-hidden bg-[#FAFAFA] h-full">
-      {/* 左：只读缩略图页导航 */}
-      <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
-        <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</div>
-        {cwOutline.map((s, idx) => (
-          <div key={idx} onClick={() => setDocSlide(idx)}
-            className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
-            <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
-            <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
-          </div>
-        ))}
-      </div>
-      {/* 中：可滚动只读放映 */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {docSlide + 1}/{cwOutline.length} 页</div>
+      {/* 左：只读缩略图页导航（H5 绘本态隐藏左侧目录，让整本绘本占据视口） */}
+      {!(cwFormat === 'h5' && cwH5Html) && (
+        <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
+          <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</div>
+          {cwOutline.map((s, idx) => (
+            <div key={idx} onClick={() => setDocSlide(idx)}
+              className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
+              <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
+              <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* 中：可滚动只读放映 + 当前页互动（预览态只只读渲染，编辑按钮统一在编辑态文档模式右栏） */}
+      <div className={`${cwFormat === 'h5' && cwH5Html ? 'flex-1 h-full p-0' : 'flex-1 overflow-y-auto px-6 py-4'}`}>
+        {!(cwFormat === 'h5' && cwH5Html) && (
+          <>
+            <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {docSlide + 1}/{cwOutline.length} 页</div>
+            {(() => {
+              // 只读放映：只渲染当页互动的只读组件，不显示任何编辑按钮
+              const roIt = buildH5Slides()[docSlide]?.interactive
+              const roHtml = isValidComponent(roIt) ? renderInteractive(roIt) : ''
+              return (
+                <div className="mb-4">
+                  {roHtml ? (
+                    <div className="border border-[#E7E7EB] rounded bg-white p-3" dangerouslySetInnerHTML={{ __html: roHtml }} />
+                  ) : (
+                    <p className="text-[11px] text-[#C0C0C0] mb-3">本页无互动组件。互动课件需在「编辑」态挂接，发布后在此以只读形式呈现并可投屏/扫码交互。</p>
+                  )}
+                </div>
+              )
+            })()}
+          </>
+        )}
         {previewSlideElems}
       </div>
       {/* 右：批注 / 版本（与全屏态一致，预览态下默认展开） */}
@@ -1168,58 +1296,193 @@ export default function CoursewareBuilder() {
     </div>
   )
 
+  // 模板库面板（PPT / H5 共用）：抽出为函数，非全屏态与全屏编辑态共用同一份逻辑与状态
+  // fixed=true 时用于全屏编辑顶栏（面板 fixed 到屏幕右上），否则 absolute 贴着触发按钮
+  function renderTemplatePanel(fixed = false) {
+    return (<div className={fixed ? 'relative' : 'relative'}>
+      <button onClick={() => setTplPanelOpen(v => !v)} title="模板库"
+        className={`px-2.5 py-1.5 text-[12px] border rounded flex items-center gap-1 ${tplPanelOpen || tplAppliedId.current ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
+        <Shapes size={13} /> 模板{tplAppliedId.current ? '✓' : ''}
+      </button>
+      {tplPanelOpen && (
+        <div className={`${fixed ? 'fixed top-12 right-3 z-[60]' : 'absolute right-0 top-9 z-50'} w-[340px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3`}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-medium text-[#353535]">课件模板库</span>
+            {tplAppliedId.current && (
+              <button onClick={() => {
+                if (tplPrevTheme.current != null && tplPrevLayouts.current) {
+                  const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current)
+                  setCwOutline(r.outline); setThemeId(r.themeId)
+                  tplAppliedId.current = null; tplPrevTheme.current = null; tplPrevLayouts.current = null
+                  toast('已撤销模板套用', 'info')
+                }
+              }} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
+            )}
+          </div>
+          {/* 维度切换：风格 / 色系（色系由模板实际配色聚类而来，不再单独成下拉） */}
+          <div className="flex gap-1 mb-2 bg-[#F2F3F5] rounded p-0.5">
+            {([['style', '按风格'], ['color', '按色系']] as const).map(([k, lbl]) => (
+              <button key={k} onClick={() => setTplDim(k)} className={`flex-1 px-2 py-1 rounded text-[12px] ${tplDim === k ? 'bg-white text-[#02A7F0] shadow-sm' : 'text-[#666]'}`}>{lbl}</button>
+            ))}
+          </div>
+          {tplDim === 'style' ? (
+            <>
+              {/* 风格筛选（PPT/H5 共用风格标签文案，不含 basic——色系已独立成维度） */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                <button onClick={() => setTplStyleFilter('')} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === '' ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>全部</button>
+                {(Object.keys(STYLE_LABELS) as StyleTag[]).filter(s => s !== 'basic').map(s => (
+                  <button key={s} onClick={() => setTplStyleFilter(s)} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === s ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>{STYLE_LABELS[s]}</button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {(cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES).filter(t => !tplStyleFilter || t.style === tplStyleFilter).map(t => {
+                  // 模板资产域计费元数据（本期仅展示来源/计价标签，不触发计费 UI）
+                  const cost = t.id.startsWith('lib-') ? getLibraryCostMeta(t.id.slice(4)) : undefined
+                  const costLabel = cost
+                    ? (cost.base_cost > 0 ? `· ${cost.base_cost} token` : '· 官方免费')
+                    : ''
+                  return (
+                  <button key={t.id} onClick={async () => {
+                    const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+                    const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                    setCwOutline(r.outline); setThemeId(r.themeId)
+                    tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
+                    setTplPanelOpen(false)
+                    toast(`已套用模板：${t.name}`, 'success')
+                  }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                    <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
+                    <div className="p-1.5">
+                      <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
+                      <div className="text-[10px] text-[#999] mt-0.5">{STYLE_LABELS[t.style]} · {t.layouts ? Object.keys(t.layouts).length : 0} 版式{costLabel}</div>
+                    </div>
+                  </button>
+                  )
+                })}
+                {(cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES).filter(t => !tplStyleFilter || t.style === tplStyleFilter).length === 0 && (
+                  <p className="col-span-2 text-[11px] text-[#999] text-center py-4">{cwFormat === 'h5' ? '该风格暂无 H5 模板，后续素材积累后可见' : '该风格暂无 PPT 模板，后续素材积累后可见'}</p>
+                )}
+              </div>
+            </>
+          ) : (
+            // 按色系维度：结构固定 + 色系自由叠加（色系由模板实配色聚类而来）
+            <div className="grid grid-cols-2 gap-2">
+              {COLOR_FAMILIES.map(f => {
+                const applied = tplAppliedId.current === `basic-${f.id}`
+                return (
+                  <button key={f.id} onClick={async () => {
+                    const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+                    const tpl = basicTemplateForFamily(f)
+                    const r = applyTemplate(baseOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                    setCwOutline(r.outline); setThemeId(r.themeId)
+                    tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
+                    setTplPanelOpen(false)
+                    toast(`已套用：通用结构 · ${f.label}`, 'success')
+                  }} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                    <img src={renderFamilyThumb(f)} alt={f.label} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
+                    <div className="p-1.5">
+                      <div className="text-[12px] font-medium text-[#353535] truncate">通用 · {f.label}</div>
+                      <div className="text-[10px] text-[#999] mt-0.5">结构 × 色系 · {Object.keys(BASIC_TEMPLATE.layouts).length} 版式</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>)
+  }
+
+  // 统一工具栏：非全屏（fullscreen=false）与全屏编辑态（fullscreen=true）复用同一套按钮与状态，
+  // 仅 fullscreen 态把「全屏」按钮替换为「退出全屏」并隐藏增/删页的页列表操作（全屏态无独立页列表栏）。
+  // 模板库入口统一走 renderTemplatePanel（同一逻辑 / 同一份状态）。
+  function renderToolbar(fullscreen = false) {
+    return (<div className={`h-10 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white ${fullscreen ? 'flex-1 min-w-0' : 'w-full'}`}>
+      {!fullscreen && (
+        <>
+          <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
+          <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">+ 页</button>
+          <button onClick={() => setThumbCollapsed(true)} title="收起页列表" className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
+          <div className="w-px h-4 bg-[#EEE]" />
+        </>
+      )}
+      {/* 中：高频操作 */}
+      <div className="relative" ref={exportMenuRef}>
+        <button onClick={() => setExportMenuOpen(v => !v)} title="导出格式（可多选）"
+          className="px-2.5 py-1 text-[12px] text-white bg-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] flex items-center gap-1">
+          <Download size={13} /> 导出 <ChevronDown size={12} />
+        </button>
+        {exportMenuOpen && (
+          <div className="absolute left-0 top-full mt-1 w-[176px] bg-white border border-[#E7E7EB] rounded-[6px] shadow-lg z-30 py-1">
+            <p className="px-3 pt-1 pb-0.5 text-[10px] text-[#9A9A9A]">选择导出格式（可多选）</p>
+            {(['ppt', 'docx', 'pdf', 'h5'] as const).map(f => (
+              <label key={f} className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-[#353535] hover:bg-[#F6F7F8] cursor-pointer">
+                <input type="checkbox" checked={exportSel[f]} onChange={e => setExportSel(s => ({ ...s, [f]: e.target.checked }))} className="shrink-0" />
+                {f === 'ppt' ? 'PPT' : f === 'docx' ? 'Word' : f === 'pdf' ? 'PDF' : 'H5 互动课件'}
+              </label>
+            ))}
+            <button onClick={() => exportCwFormats(['ppt', 'docx', 'pdf', 'h5'])}
+              className="w-full mt-1 px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-b-[6px] hover:bg-[#0398D8]">一键导出所选 ({Object.values(exportSel).filter(Boolean).length})</button>
+          </div>
+        )}
+      </div>
+      <button onClick={polishOutline} disabled={polishing} className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded-[4px] hover:bg-[#E8F7FF] disabled:opacity-50">{polishing ? '润色中...' : '✨ AI 润色'}</button>
+      {cwFormat === 'video' && (
+        <button onClick={genVideoScript} disabled={genVideo}
+          className="px-2.5 py-1 text-[12px] text-[#52C41A] border border-[#52C41A] rounded-[4px] hover:bg-[#F6FFED] disabled:opacity-50 flex items-center gap-1">
+          {genVideo ? <><Loader2 size={13} className="animate-spin" /> 生成分镜…</> : '🎬 AI 生成视频分镜'}
+        </button>
+      )}
+      <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
+        className="px-2 py-1 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] bg-white hover:bg-[#F7F7F8]" title="版心比例">
+        <option value="16/9">16:9</option>
+        <option value="4/3">4:3</option>
+      </select>
+      {!fullscreen && <div className="flex-1" />}
+      {/* 批注 / 版本（两种形态一致） */}
+      <button onClick={() => setCwHistoryVisible(v => !v)} title="批注 / 版本" className={`px-2.5 py-1 text-[12px] border rounded-[4px] flex items-center gap-1 ${cwHistoryVisible ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
+        <MessageSquare size={13} /> 批注
+      </button>
+      {/* 全屏态：此处按钮变为「退出全屏」（外层已放「退出全屏」入口，这里隐藏以免重复）；非全屏态放「全屏编辑」进入 */}
+      {fullscreen ? (
+        <button onClick={() => setCwFullscreen(false)} title="退出全屏 (Esc)"
+          className="px-2.5 py-1 text-[12px] text-[#353535] border border-[#E0E0E0] rounded-[4px] hover:bg-[#F5F5F5] flex items-center gap-1">
+          <Maximize2 size={13} /> 退出全屏
+        </button>
+      ) : (
+        <button onClick={() => setCwFullscreen(true)} title="全屏编辑"
+          className="px-2.5 py-1 text-[12px] text-[#02A7F0] border border-[#02A7F9] rounded-[4px] hover:bg-[#E6F7FF] flex items-center gap-1">
+          <Maximize2 size={13} /> 全屏
+        </button>
+      )}
+      {/* 模板库：两种形态共用同一逻辑与状态 */}
+      {renderTemplatePanel(fullscreen)}
+    </div>)
+  }
+
   // 全屏编辑：最大化画布，隐藏左右栏与发散/校验面板，但顶栏整合左栏关键信息与编辑控件（优先级最高，覆盖查看态/编辑态）
   if (cwFullscreen) {
     const slides = outlineToSlides(cwOutline, cwOpts())
     return (
       <div className="fixed inset-0 z-50 bg-[#FAFAFA] flex flex-col">
-        {/* 顶栏：退出 / 课题信息（左栏关键信息）/ 编辑控件 / 比例 / 显示页 / 导出 */}
+        {/* 顶栏：课题信息（左栏关键信息）+ 统一工具栏（右端：导出/润色/比例/批注/退出全屏/模板库），
+            与教案一致——全屏的「退出全屏」按钮只放在右端工具栏内，不在左端重复 */}
         <div className="h-11 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white">
-          <button onClick={() => setCwFullscreen(false)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-[12px] text-[#353535] border border-[#E0E0E0] rounded hover:bg-[#F5F5F5]">
-            <X size={13} /> 退出全屏 (Esc)
-          </button>
           <div className="min-w-0 flex flex-col leading-tight">
             <span className="text-[13px] text-[#353535] font-medium truncate">{genTitle.trim() || '未命名课件'}</span>
             <span className="text-[10px] text-[#9A9A9A] truncate">{teaching.subject} · {gradeName} · {teaching.semester || '学期'}</span>
           </div>
           <div className="w-px h-5 bg-[#EEE]" />
-          {/* 编辑控件：对照腾讯文档工具栏 */}
-          <button onClick={polishOutline} disabled={polishing} title="AI 润色提纲"
-            className="px-2 py-1.5 text-[12px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF] disabled:opacity-50 flex items-center gap-1">
-            <Sparkles size={13} /> 润色
-          </button>
-          <button onClick={addCwPage} title="新增页" className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white flex items-center gap-1">
-            <Plus size={13} /> 页
-          </button>
-          <button onClick={() => deleteCwPage(docSlide)} disabled={cwOutline.length <= 1} title="删除当前页"
-            className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white disabled:opacity-40 flex items-center gap-1">
-            <X size={13} /> 删
-          </button>
-          <button onClick={() => setCwHistoryVisible(v => !v)} title="批注 / 版本" className={`px-2 py-1.5 text-[12px] border rounded flex items-center gap-1 ${cwHistoryVisible ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
-            <MessageSquare size={13} /> 批注
-          </button>
+          {/* 统一工具栏：与非全屏态完全相同的按钮（含模板库入口），fullscreen=true 时「全屏」按钮变为「退出全屏」 */}
+          {renderToolbar(true)}
           <div className="flex-1" />
-          {/* 版心比例切换 */}
-          <select value={cwAr} onChange={(e) => setCwAr(e.target.value as '16/9' | '4/3')}
-            className="px-2 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded bg-white hover:bg-[#F7F7F8]" title="版心比例">
-            <option value="16/9">16:9</option>
-            <option value="4/3">4:3</option>
-          </select>
+          {/* 全屏特有：显示/隐藏缩略图栏（非全屏态无此概念，其页列表在左栏），与右端工具栏视觉分离、单独置右 */}
           {cwOutline.length > 1 && (
             <button onClick={() => setCwFsThumb(v => !v)} title="显示/隐藏缩略图栏"
               className="px-2.5 py-1.5 text-[12px] text-[#595959] border border-[#E0E0E0] rounded hover:bg-[#F5F5F5]">
               {cwFsThumb ? '隐藏页' : '显示页'}
             </button>
           )}
-          {/* 导出（与非全屏态一致的完整格式：PPT/Word/PDF/H5） */}
-          <button onClick={exportCwPptx}
-            className="px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded hover:bg-[#0398D8]">导出 PPT</button>
-          <button onClick={exportCwDocx} title="导出 Word"
-            className="px-2.5 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white">导出 Word</button>
-          <button onClick={exportCwPdf} title="导出 PDF"
-            className="px-2.5 py-1.5 text-[12px] text-[#353535] border border-[#E7E7EB] rounded hover:bg-white">导出 PDF</button>
-          <button onClick={exportCwH5} title="导出 H5" className={`px-2.5 py-1.5 text-[12px] border rounded ${cwFormat === 'h5' ? 'text-white bg-[#FA8C16] border-[#FA8C16] hover:bg-[#E67E00]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>导出 H5</button>
         </div>
         {/* 主体：缩略图 + 画布 */}
         <div className="flex-1 flex min-h-0">
@@ -1373,6 +1636,7 @@ export default function CoursewareBuilder() {
     )
   }
 
+// ── H5 互动组件：手动挂编辑器（选择器 + 表单）──
   return (
     <>
     <EditorLayout

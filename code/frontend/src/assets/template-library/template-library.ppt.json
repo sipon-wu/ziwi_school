@@ -1,0 +1,34 @@
+{
+  "category": "style",
+  "generatedBy": "风格模板子项目/PPT 工厂 (manifest)",
+  "note": "本清单由子项目 generate.js / manifest 合并产出，经 deploy.rsync 进前端 assets。字段约定见《模板资产域架构与计价抽象层》§5。source/base_cost 由运营在纳入时填定；官方公共模板计价为 0。",
+  "templates": [
+    { "templateId": "ppt_k12_078", "name": "暖色活泼系", "category": "style", "version": "1.0",
+      "tags": { "stage": ["小学低年级","小学高年级"], "subject": ["语文","英语","综合"], "lessonType": ["新授课"], "style": ["暖色","活泼","橙黄红"] },
+      "theme": { "colors": { "primary": "#FF7043", "secondary": "#FFCA28", "background": "#FFF9F2", "text": "#3E2723", "accent": "#FF5252", "gradient": ["#FFAB40","#FF7043"] } },
+      "fonts": { "title": "思源黑体 Bold", "body": "思源黑体 Regular", "titleSize": 38, "bodySize": 17, "subSize": 21, "noteSize": 12 },
+      "layouts": { "cover": {"type":"cover"}, "toc": {"type":"toc"}, "content": {"type":"content"}, "chart": {"type":"chart"}, "section": {"type":"section"}, "summary": {"type":"summary"} },
+      "source": "official", "base_cost": 0 },
+
+    { "templateId": "ppt_k12_079", "name": "冷色沉稳系", "category": "style", "version": "1.0",
+      "tags": { "stage": ["初中","高中"], "subject": ["数学","物理","化学"], "lessonType": ["新授课","复习课"], "style": ["冷色","沉稳","蓝灰紫"] },
+      "theme": { "colors": { "primary": "#1565C0", "secondary": "#5C6BC0", "background": "#F4F7FB", "text": "#1A237E", "accent": "#26A69A", "gradient": ["#42A5F5","#7E57C2"] } },
+      "fonts": { "title": "思源黑体 Bold", "body": "思源宋体 Regular", "titleSize": 36, "bodySize": 16, "subSize": 20, "noteSize": 11 },
+      "layouts": { "cover": {"type":"cover"}, "toc": {"type":"toc"}, "content": {"type":"content"}, "chart": {"type":"chart"}, "section": {"type":"section"}, "summary": {"type":"summary"} },
+      "source": "official", "base_cost": 0 },
+
+    { "templateId": "ppt_k12_080", "name": "清新自然系", "category": "style", "version": "1.0",
+      "tags": { "stage": ["小学高年级","初中"], "subject": ["语文","英语","生物"], "lessonType": ["新授课"], "style": ["清新","自然","绿白米"] },
+      "theme": { "colors": { "primary": "#66BB6A", "secondary": "#FFB74D", "background": "#F6FBF4", "text": "#33691E", "accent": "#4DB6AC", "gradient": ["#AED581","#80DEEA"] } },
+      "fonts": { "title": "思源黑体 Bold", "body": "思源宋体 Regular", "titleSize": 36, "bodySize": 16, "subSize": 20, "noteSize": 11 },
+      "layouts": { "cover": {"type":"cover"}, "toc": {"type":"toc"}, "content": {"type":"content"}, "chart": {"type":"chart"}, "section": {"type":"section"}, "summary": {"type":"summary"} },
+      "source": "official", "base_cost": 0 },
+
+    { "templateId": "ppt_k12_081", "name": "经典黑白系", "category": "style", "version": "1.0",
+      "tags": { "stage": ["初中","高中"], "subject": ["数学","物理","语文"], "lessonType": ["新授课","复习课"], "style": ["黑白","极简","灰"] },
+      "theme": { "colors": { "primary": "#212121", "secondary": "#757575", "background": "#FFFFFF", "text": "#212121", "accent": "#F57C00", "gradient": ["#424242","#9E9E9E"] } },
+      "fonts": { "title": "思源黑体 Bold", "body": "思源宋体 Regular", "titleSize": 36, "bodySize": 16, "subSize": 20, "noteSize": 11 },
+      "layouts": { "cover": {"type":"cover"}, "toc": {"type":"toc"}, "content": {"type":"content"}, "chart": {"type":"chart"}, "section": {"type":"section"}, "summary": {"type":"summary"} },
+      "source": "official", "base_cost": 0 }
+  ]
+}

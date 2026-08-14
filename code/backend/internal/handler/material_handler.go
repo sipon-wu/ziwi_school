@@ -108,17 +108,18 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	schoolID, _ := c.Get("school_id")
 	var body struct {
-		Name    string `json:"name"`
-		Type    string `json:"type"`
-		Format  string `json:"format"`
-		Tag     string `json:"tag"`
-		URL     string `json:"url"`
-		Content string `json:"content"`
-		H5HTML  string `json:"h5_html"`
-		Status  string `json:"status"`
-		Grade   string `json:"grade"`
-		Subject string `json:"subject"`
-		ThemeID string `json:"theme_id"`
+		Name    string  `json:"name"`
+		Type    string  `json:"type"`
+		Format  string  `json:"format"`
+		Tag     string  `json:"tag"`
+		URL     string  `json:"url"`
+		Content string  `json:"content"`
+		H5HTML  string  `json:"h5_html"`
+		Status  string  `json:"status"`
+		Grade   string  `json:"grade"`
+		Subject string  `json:"subject"`
+		ThemeID string  `json:"theme_id"`
+		InteractiveSlots *string `json:"interactive_slots"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
@@ -144,6 +145,9 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		ThemeID:   body.ThemeID,
 		CreatedAt: time.Now(),
 	}
+	if body.InteractiveSlots != nil {
+		m.InteractiveSlots = *body.InteractiveSlots
+	}
 	if m.Type == "" {
 		m.Type = "courseware"
 	}
@@ -167,17 +171,18 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Name    string `json:"name"`
-		Type    string `json:"type"`
-		Format  string `json:"format"`
-		Tag     string `json:"tag"`
-		URL     string `json:"url"`
-		Content string `json:"content"`
-		H5HTML  string `json:"h5_html"`
-		Status  string `json:"status"`
-		Grade   string `json:"grade"`
-		Subject string `json:"subject"`
-		ThemeID string `json:"theme_id"`
+		Name    string  `json:"name"`
+		Type    string  `json:"type"`
+		Format  string  `json:"format"`
+		Tag     string  `json:"tag"`
+		URL     string  `json:"url"`
+		Content string  `json:"content"`
+		H5HTML  string  `json:"h5_html"`
+		Status  string  `json:"status"`
+		Grade   string  `json:"grade"`
+		Subject string  `json:"subject"`
+		ThemeID string  `json:"theme_id"`
+		InteractiveSlots *string `json:"interactive_slots"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
@@ -198,6 +203,10 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	existing.Grade = body.Grade
 	existing.Subject = body.Subject
 	existing.ThemeID = body.ThemeID
+	// 指针区分：nil=未传不动；传空串=真清空（解决"删光互动无法清快照"）
+	if body.InteractiveSlots != nil {
+		existing.InteractiveSlots = *body.InteractiveSlots
+	}
 	if err := h.repo.Update(existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

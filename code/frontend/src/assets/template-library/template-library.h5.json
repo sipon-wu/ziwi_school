@@ -1,0 +1,92 @@
+{
+  "templates": [
+    {
+      "templateId": "h5-001",
+      "name": "国风·水墨交互",
+      "version": "1.0.0",
+      "tags": {
+        "style": ["国风", "水墨", "传统"],
+        "lessonType": ["互动", "赏析"]
+      },
+      "theme": {
+        "colors": {
+          "primary": "#6b5444",
+          "background": "linear-gradient(135deg,#3a2f2a 0%,#6b5444 100%)",
+          "text": "#f5efe9",
+          "accent": "#c8a07a",
+          "secondary": "#8a7259",
+          "gradient": ["#3a2f2a", "#6b5444"]
+        }
+      },
+      "fonts": { "title": "宋体" },
+      "source": "official",
+      "base_cost": 0
+    },
+    {
+      "templateId": "h5-002",
+      "name": "清新·自然课堂",
+      "version": "1.0.0",
+      "tags": {
+        "style": ["清新", "自然", "活力"],
+        "lessonType": ["探究", "互动"]
+      },
+      "theme": {
+        "colors": {
+          "primary": "#1f8f6b",
+          "background": "linear-gradient(135deg,#1f8f6b 0%,#7fd1a8 100%)",
+          "text": "#eafff5",
+          "accent": "#3ad29f",
+          "secondary": "#5cb38a",
+          "gradient": ["#1f8f6b", "#7fd1a8"]
+        }
+      },
+      "fonts": { "title": "黑体" },
+      "source": "official",
+      "base_cost": 0
+    },
+    {
+      "templateId": "h5-003",
+      "name": "科技·蓝色引擎",
+      "version": "1.0.0",
+      "tags": {
+        "style": ["科技", "未来", "冷色"],
+        "lessonType": ["实操", "演示"]
+      },
+      "theme": {
+        "colors": {
+          "primary": "#2f6fb0",
+          "background": "linear-gradient(135deg,#0a2a4a 0%,#2f6fb0 100%)",
+          "text": "#eaf3ff",
+          "accent": "#5aa6e8",
+          "secondary": "#3f7fc0",
+          "gradient": ["#0a2a4a", "#2f6fb0"]
+        }
+      },
+      "fonts": { "title": "黑体" },
+      "source": "official",
+      "base_cost": 0
+    },
+    {
+      "templateId": "h5-004",
+      "name": "学术·沉稳蓝灰",
+      "version": "1.0.0",
+      "tags": {
+        "style": ["学术", "严谨", "理性"],
+        "lessonType": ["复习", "串联"]
+      },
+      "theme": {
+        "colors": {
+          "primary": "#3a4a5a",
+          "background": "linear-gradient(135deg,#2b3a4a 0%,#5a6b7a 100%)",
+          "text": "#eef2f6",
+          "accent": "#7f93a6",
+          "secondary": "#54657a",
+          "gradient": ["#2b3a4a", "#5a6b7a"]
+        }
+      },
+      "fonts": { "title": "黑体" },
+      "source": "official",
+      "base_cost": 0
+    }
+  ]
+}

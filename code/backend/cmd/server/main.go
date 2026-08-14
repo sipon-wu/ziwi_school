@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -194,6 +195,10 @@ func main() {
 
 	// 创建路由
 	r := gin.Default()
+
+	// 上传资源静态服务：H5 课件引用的 /uploads/xxx 媒体（图片/音频/视频）经此后端域直接可达（手机扫码访问时同源解析）
+	os.MkdirAll("uploads", 0755)
+	r.Static("/uploads", "./uploads")
 
 	// 全局中间件
 	r.Use(middleware.CORS())

@@ -6,7 +6,9 @@ import {
   Minimize2, ArrowUp, Send,
   Settings, KeyRound, ServerCog, Wrench
 } from 'lucide-react'
-import { aiAPI } from '@/lib/api'
+import { aiAPI, materialAPI, openWorkspace } from '@/lib/api'
+import { buildH5Html, mdToH5Slides } from '@/lib/exportH5'
+import { markdownToStorybookH5 } from '@/lib/courseware-h5'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useTeaching } from '@/lib/TeachingContext'
 import { useToast } from '../components/Toast'
@@ -18,6 +20,52 @@ interface Message {
   imageUrl?: string
   suggestions?: string[]
   time?: string
+  // 课件产出卡片（小微直接制作的成品，可跳转查看）
+  coursewareCard?: { name: string; id: string; format: string }
+}
+
+const safeGetUser = () => {
+  try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} }
+}
+
+// ── 意图识别：操作者是否让小微「直接产出一个 H5 互动课件成品」 ──
+// 命中条件：含"课件/互动课件/h5"且含"做/生成/来一个/制作/出/给我/要一个"等动作词
+function detectCoursewareIntent(text: string): { hit: boolean; extra: string } {
+  const t = text.toLowerCase()
+  const isCourseware = /课件|互动课件|h5|白板课件|投屏课件/.test(text)
+  const hasAction = /(做|生成|来一个|制作|出|给我|要一个|弄|产|整|搞|交|生成个|来份|来个)/.test(text)
+  if (!isCourseware || !hasAction) return { hit: false, extra: '' }
+  // 把"英语场景对话/绘图/点读/自动/10分钟"等关键诉求提取为 extra_requirements
+  const parts: string[] = []
+  if (/英语|english/.test(t)) parts.push('英语')
+  if (/场景对话|对话|dialogue|role.?play|情景|口语/.test(t)) parts.push('英语场景对话')
+  if (/绘图|画|drawing|白板|黑板|手绘|示意图/.test(t)) parts.push('带绘图（投屏白板现场绘制句型树/对话气泡/简笔画）')
+  if (/点读|跟读|read.?along|朗读/.test(t)) parts.push('配点读跟读（句子可点击播音频）')
+  if (/自动|播放|自动播放|autoplay/.test(t)) parts.push('自动播放')
+  if (/10分钟|十分钟|讲课时长|课时|分钟|minute/.test(t)) parts.push('满足10分钟讲课时长（不少于12页，含热身→对话示范→句型操练→小组活动→巩固→小结作业完整节奏）')
+  if (parts.length === 0) parts.push('H5 互动课件（可投屏/扫码，含自动播放与互动）')
+  return { hit: true, extra: parts.join('，') }
+}
+
+// 从操作者表述中尽量提取课题名/学科/年级
+function parseCoursewareMeta(text: string, teaching: { subject: string; grade: string | number }) {
+  // 课题名：引号内、或"关于X的"、"X课件"、"X对话"
+  let title = ''
+  const q = text.match(/[《""]([^《""]+)[》""]/)
+  if (q) title = q[1]
+  else {
+    const m = text.match(/(?:做|生成|来|制作|出|弄|产|整|搞|交|要)(?:一个|一份|个|份)?\s*([^，,。.；;的]+?)(?:的)?\s*(?:课件|互动课件|h5|对话|情景)/i)
+    if (m) title = m[1].replace(/^(英语|小学|初中)?/, '').trim()
+  }
+  if (!title) title = teaching.subject ? `${teaching.subject}互动课件` : '互动课件'
+  const subject = /英语|english/.test(text.toLowerCase()) ? '英语' : (teaching.subject || '英语')
+  const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
+  let grade = ''
+  if (typeof teaching.grade === 'number') grade = GRADE_NAMES[teaching.grade - 1] || ''
+  else grade = teaching.grade || ''
+  const g = text.match(/(一年级|二年级|三年级|四年级|五年级|六年级|七年级|八年级|九年级|高一|高二|高三)/)
+  if (g) grade = g[1]
+  return { title, subject, grade }
 }
 
 // 功能推荐卡片
@@ -225,6 +273,65 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
     setInput('')
     setPreviewImage(null)
     setLoading(true)
+
+    // ── 场景化课件产出：操作者让小微直接做一个 H5 互动课件成品 ──
+    const intent = detectCoursewareIntent(text)
+    if (intent.hit) {
+      const meta = parseCoursewareMeta(text, { subject: teaching.subject, grade: teaching.grade })
+      // 进度提示气泡
+      const progressMsg: Message = {
+        role: 'xiaowei',
+        content: `好的，正在为你制作 H5 互动课件《${meta.title}》……（生成中，预计十几秒）`,
+        time: getTimeString(),
+      }
+      setMessages(prev => [...prev, progressMsg])
+      try {
+        const res = await aiAPI.generateCourseware({
+          subject: meta.subject, grade: meta.grade, lesson_title: meta.title,
+          content: '', school_id: '', extra_requirements: intent.extra,
+          format: 'h5',
+        })
+        const md = res.courseware_markdown || ''
+        if (!md) throw new Error('生成内容为空')
+        const teacherName = safeGetUser().name || '教师'
+        // 绘本式互动课件：markdown → 结构化 Story → 自包含 H5（点读/跟读/翻页引擎）
+        const h5Html = markdownToStorybookH5(md, {
+          subject: meta.subject, grade: meta.grade, title: meta.title, teacherName,
+          themeId: 'storybook',
+        })
+        const saveRes = await materialAPI.createJSON({
+          name: meta.title,
+          type: 'courseware',
+          format: 'h5',
+          tag: meta.subject,
+          content: md,
+          h5_html: h5Html,
+          status: 'active',
+          grade: meta.grade,
+          subject: meta.subject,
+        })
+        const newId = saveRes?.id || saveRes?.data?.id || ''
+        setMessages(prev => prev.concat([
+          {
+            role: 'xiaowei',
+            content: `✅ 已为你生成 H5 互动课件《${meta.title}》，已放入「教学课件 → H5 互动课件」列表。\n\n包含：${intent.extra}；支持自动播放、点读跟读、绘图页投屏手绘。点击下方按钮即可查看放映。`,
+            coursewareCard: { name: meta.title, id: newId, format: 'h5' },
+            time: getTimeString(),
+          },
+        ]))
+      } catch (e: any) {
+        console.error('[XW] 课件生成失败:', e)
+        setMessages(prev => prev.concat([
+          {
+            role: 'xiaowei',
+            content: `抱歉老师，课件生成失败了：${e?.message || '请稍后重试'}。你也可以改用「教学课件 → H5 互动课件 → 新建」手动生成。`,
+            time: getTimeString(),
+          },
+        ]))
+      }
+      setLoading(false)
+      return
+    }
 
     try {
       const ctx = getContext()
@@ -474,6 +581,14 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
                     </button>
                   ))}
                 </div>
+              )}
+              {m.coursewareCard && (
+                <button
+                  onClick={() => openWorkspace(`/courseware/h5/${m.coursewareCard!.id}`)}
+                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1] transition-colors"
+                >
+                  📲 查看 H5 课件《{m.coursewareCard.name}》
+                </button>
               )}
               {m.time && <span className={`text-[10px] text-[#BBB] ${m.role === 'user' ? 'text-right' : 'text-left'}`}>{m.time}</span>}
             </div>

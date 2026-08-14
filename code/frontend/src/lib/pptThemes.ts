@@ -173,6 +173,19 @@ export function getTheme(id: string | undefined): CwTheme {
   return _byId.get(id) || DEFAULT_THEME
 }
 
+/**
+ * 运行时注册外部主题（模板资产域用）。
+ * 子项目/模板库产出的 CwTheme 通过此函数注入，使 getTheme(themeId) 可取到，
+ * 无需把 95/112 套硬编码进本文件。重复 id 以最后一次注册为准。
+ */
+export function registerTheme(theme: CwTheme): void {
+  const full = withDecor(theme)
+  const idx = THEMES.findIndex(t => t.id === full.id)
+  if (idx >= 0) THEMES[idx] = full
+  else THEMES.push(full)
+  _byId.set(full.id, full)
+}
+
 // ── 学段分级与推荐（按学科 + 年级观感，推荐不强制） ──
 
 export const GRADE_BAND_LABEL: Record<GradeBand, string> = {

@@ -221,6 +221,17 @@ export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
   return slides
 }
 
+/** H5 互动组件（与 PPT 提纲同源；PPT/Word/PDF 导出忽略，H5 消费） */
+export type H5Component =
+  | { type: 'reveal'; prompt?: string; answer: string }
+  | { type: 'quiz'; question: string; options: string[]; correct: number }
+  | { type: 'audio'; src: string; title?: string }
+  | { type: 'video'; src: string; poster?: string }
+  | { type: 'gallery'; images: string[]; direction?: 'h' | 'v' }
+  | { type: 'popup'; triggerText: string; content: string }
+  | { type: 'readalong'; sentences: { text: string; src: string }[] }
+  | { type: 'drawing'; title?: string; prompt?: string }
+
 /** 可编辑提纲（PPT 课件编辑态：提纲修改 + 页面排序调整） */
 export interface OutlineSlide {
   title: string
@@ -230,6 +241,25 @@ export interface OutlineSlide {
   layout?: string
   /** 自由编辑态元素层；为空时按 title+bullets 默认布局 */
   elements?: CwElement[]
+  /** H5 互动组件（手动插槽）；null/缺省=无互动；PPT 等导出忽略 */
+  interactive?: H5Component | null
+}
+
+/** 互动组件白名单校验（防止残缺/非法对象静默丢失互动） */
+export function isValidComponent(it: any): it is H5Component {
+  if (!it || typeof it !== 'object' || typeof it.type !== 'string') return false
+  const types = ['reveal', 'quiz', 'audio', 'video', 'gallery', 'popup', 'readalong']
+  if (!types.includes(it.type)) return false
+  switch (it.type) {
+    case 'reveal': return typeof it.answer === 'string'
+    case 'quiz': return typeof it.question === 'string' && Array.isArray(it.options) && typeof it.correct === 'number'
+    case 'audio': return typeof it.src === 'string'
+    case 'video': return typeof it.src === 'string'
+    case 'gallery': return Array.isArray(it.images)
+    case 'popup': return typeof it.triggerText === 'string' && typeof it.content === 'string'
+    case 'readalong': return Array.isArray(it.sentences)
+    default: return false
+  }
 }
 
 /** 从课件 Markdown 解析为可编辑提纲（按 ## 分节，每段作为一条要点） */
@@ -239,10 +269,18 @@ export function markdownToOutline(md: string): OutlineSlide[] {
   for (const raw of md.split('\n')) {
     const line = raw.trim()
     if (!line) continue
-    // 自由元素层内嵌注释：<!-- CW-EL:[...] --> 还原到当前页 elements
-    const elMatch = line.match(/^<!--\s*CW-EL:(.*)\s*-->$/)
+    // 自由元素层内嵌注释：<!-- CW-EL:base64 --> 还原到当前页 elements
+    const elMatch = line.match(/^<!--\s*CW-EL:([A-Za-z0-9+/=]+)\s*-->$/)
     if (elMatch && cur) {
-      try { cur.elements = JSON.parse(elMatch[1]) } catch { /* 解析失败则忽略，保留 bullets */ }
+      const els = b64dec(elMatch[1])
+      if (els) cur.elements = els
+      continue
+    }
+    // H5 互动组件内嵌注释：<!-- CW-IT:base64 --> 还原到当前页 interactive
+    const itMatch = line.match(/^<!--\s*CW-IT:([A-Za-z0-9+/=]+)\s*-->$/)
+    if (itMatch && cur) {
+      const it = b64dec<H5Component>(itMatch[1])
+      if (it && isValidComponent(it)) cur.interactive = it
       continue
     }
     // 版式标注注释：<!-- layout: edu-xxx --> 写入当前页 layout（AI 生成时自动带上教学版式）
@@ -306,10 +344,28 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
     bs.forEach(b => lines.push(`- ${b}`))
     if (s.notes) lines.push('', `> 教师备注：${s.notes}`)
     // 内嵌自由元素层（坐标/图片/形状），重新打开时还原；不影响人类可读提纲
-    if (s.elements && s.elements.length) lines.push(`<!-- CW-EL:${JSON.stringify(s.elements)} -->`)
+    if (s.elements && s.elements.length) lines.push(`<!-- CW-EL:${b64enc(s.elements)} -->`)
+    // 内嵌 H5 互动组件（base64，避免 -->/换行/引号截断注释）
+    if (s.interactive && isValidComponent(s.interactive)) lines.push(`<!-- CW-IT:${b64enc(s.interactive)} -->`)
     lines.push('')
   })
   return lines.join('\n')
+}
+
+/** 将任意对象 base64 化（UTF-8 安全），用于内嵌注释，规避特殊字符截断 */
+function b64enc(x: any): string {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify(x)))) }
+  catch { return '' }
+}
+/** base64 还原（对应 b64enc）；失败返回 null 并上报 */
+function b64dec<T = any>(s: string): T | null {
+  try { return JSON.parse(decodeURIComponent(escape(atob(s)))) as T }
+  catch (e) { reportPersistError('CW-IT/CW-EL 解析失败', e); return null }
+}
+/** 持久化解析失败上报（不静默吞，便于排查“保存后互动丢失”） */
+function reportPersistError(msg: string, e: any) {
+  // 仅在开发环境打印，避免污染生产；如需上报可在此接日志端
+  if (typeof console !== 'undefined') console.warn('[persist]', msg, e)
 }
 
 // ───────────────────────────────────────────────────────────

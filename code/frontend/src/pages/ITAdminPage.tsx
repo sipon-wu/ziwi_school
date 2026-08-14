@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { importAPI, adminAPI } from '../lib/api'
 import { SUBJECTS_CN } from '@shared/subjects'
 import XiaoWeiChat from '../components/XiaoWeiChat'
+// 模板资产域：读取经适配器注册的库模板清单（PPT/H5 同源注册，含来源/计价元数据）
+import { listLibraryTemplateIds, getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 
 interface RowResult {
   line: number
@@ -25,7 +27,7 @@ const TYPES = [
   { key: 'relations', label: '任课关系', tpl: 'relations_template.csv' },
 ]
 
-const TABS = ['数据导入', '角色管理', '教材版本', '学期配置']
+const TABS = ['数据导入', '角色管理', '教材版本', '学期配置', '模板资产']
 
 const ROLE_OPTIONS = [
   { value: 'teacher', label: '教师' },
@@ -64,12 +66,48 @@ export default function ITAdminPage() {
   const [semForm, setSemForm] = useState({ name: '', start_date: '', end_date: '' })
   const [semMsg, setSemMsg] = useState('')
 
+  // ── 模板资产（运营治理·只读视图，依赖前端适配器注册，不写后端） ──
+  // 本期仅呈现已注册库模板（来源/计价/媒介），pending/active 为前端内存预览态，
+  // 真实治理（审批流/上下架）待后端模板生命周期 API 落地后接入。
+  const [templates, setTemplates] = useState<{
+    id: string; medium: 'ppt' | 'h5'; source: string; baseCost: number; name: string; status: 'pending' | 'active'
+  }[]>([])
+  const [tplMsg, setTplMsg] = useState('')
+
   useEffect(() => {
     if (tab === '数据导入') loadHistory()
     else if (tab === '角色管理') loadUsers()
     else if (tab === '教材版本') loadBooks()
     else if (tab === '学期配置') loadSemesters()
+    else if (tab === '模板资产') loadTemplates()
   }, [tab])
+
+  // ── 模板资产 handlers ──
+  function loadTemplates() {
+    try {
+      const ids = listLibraryTemplateIds()
+      const rows = ids.map((id) => {
+        const meta = getLibraryCostMeta(id) // { source, base_cost, name }
+        const medium: 'ppt' | 'h5' = id.startsWith('h5-') ? 'h5' : 'ppt'
+        return {
+          id,
+          medium,
+          source: meta?.source || 'official',
+          baseCost: meta?.base_cost ?? 0,
+          name: meta?.name || id,
+          status: 'active' as 'pending' | 'active', // 前端内存预览态
+        }
+      })
+      setTemplates(rows)
+    } catch (e) {
+      setTplMsg('读取模板资产失败：' + String(e))
+    }
+  }
+  function toggleTplStatus(id: string) {
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, status: t.status === 'active' ? 'pending' : 'active' } : t)),
+    )
+  }
 
   // ── 数据导入 handlers ──
   const loadHistory = async () => {
@@ -424,6 +462,50 @@ export default function ITAdminPage() {
                 <button onClick={onCreateSemester} className="px-3 py-1.5 bg-[#15A85F] text-white text-[13px] rounded">创建学期</button>
               </div>
               {semMsg && <div className="mt-3 text-[12px] text-[#02A7F0]">{semMsg}</div>}
+            </div>
+          )}
+
+          {tab === '模板资产' && (
+            <div className="bg-white border border-[#E7E7EB] rounded p-4">
+              <div className="text-[13px] font-medium mb-2">模板资产（运营治理）</div>
+              <div className="text-[12px] text-[#9A9A9A] mb-3">
+                展示经模板注册中心接入的官方/精品模板（PPT 与 H5 同源）。来源与计价由运营维护，本期仅只读呈现；
+                pending/active 为前端预览态，真实审批下架流待后端模板生命周期 API 落地后接入。
+              </div>
+              {tplMsg && <div className="mb-3 text-[12px] text-[#E54545]">{tplMsg}</div>}
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="text-left text-[#9A9A9A]">
+                    <th className="py-1">模板</th><th>媒介</th><th>来源</th><th>计价</th><th>状态</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templates.map((t) => (
+                    <tr key={t.id} className="border-t border-[#F0F0F2]">
+                      <td className="py-1">{t.name} <span className="text-[#B5B5B5]">({t.id})</span></td>
+                      <td>{t.medium.toUpperCase()}</td>
+                      <td>{t.source === 'official' ? '官方' : t.source}</td>
+                      <td>{t.baseCost > 0 ? `${t.baseCost} token` : '免费'}</td>
+                      <td>
+                        <span className={t.status === 'active' ? 'text-[#15A85F]' : 'text-[#E5A100]'}>
+                          {t.status === 'active' ? '已上架' : '待审'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => toggleTplStatus(t.id)}
+                          className="border border-[#E7E7EB] rounded px-2 py-0.5 text-[12px] hover:border-[#02A7F0]"
+                        >
+                          {t.status === 'active' ? '下架' : '上架'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {templates.length === 0 && (
+                    <tr><td colSpan={6} className="py-2 text-[#9A9A9A]">未注册任何库模板</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </main>
