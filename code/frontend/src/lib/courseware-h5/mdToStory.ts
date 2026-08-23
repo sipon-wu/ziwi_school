@@ -191,7 +191,7 @@ function inferRole(name: string, ctx: ParseCtx, idx: number): StoryRole {
   return role
 }
 
-export function mdToStory(md: string, opts?: { title?: string; subject?: string; grade?: string; teacherName?: string }): Story {
+export function mdToStory(md: string, opts?: { title?: string; subject?: string; grade?: string; teacherName?: string; themeId?: string }): Story {
   const lines = (md || '').split(/\r?\n/)
   const ctx: ParseCtx = {
     roles: new Map(),
@@ -307,6 +307,9 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     subject: ctx.subject,
     grade: ctx.grade,
     teacherName: ctx.teacherName,
+    // 绘本式 H5 默认风格基线：卡通化装饰层 + 卡通图标（见方案文档 §5）。
+    // 缺省 storybook（童趣绘本），保证 AI 不指定主题时卡通装饰一定生效，而非裸排版。
+    themeId: opts?.themeId || 'storybook',
     roles,
     scenes,
   }

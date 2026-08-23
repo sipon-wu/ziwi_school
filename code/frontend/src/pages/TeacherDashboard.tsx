@@ -3,6 +3,7 @@ import { Trash2, Copy, Eye, FileText, PenTool, Files, Send, Image as ImgIcon, Mu
 import AppLayout from '../components/AppLayout'
 import { api, notifyError, assignmentAPI, materialAPI } from '../lib/api'
 import { useTeaching } from '../lib/TeachingContext'
+import { ICP_BEIAN } from '../lib/site'
 
 function safeGetUser() {
   try { return JSON.parse(localStorage.getItem('user') || '{}') || {} } catch { return {} }
@@ -221,7 +222,7 @@ export default function TeacherDashboard() {
 
       {/* Footer */}
       <div className="flex items-center justify-end gap-4 text-[11px] text-[#9A9A9A] py-4">
-        <span>蜀ICP备2026000247号</span>
+        <span>{ICP_BEIAN}</span>
       </div>
 
       {/* 催办通知弹层 */}

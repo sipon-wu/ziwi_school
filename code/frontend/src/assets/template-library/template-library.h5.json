@@ -1,9 +1,13 @@
 {
+  "category": "style",
+  "generatedBy": "风格模板子项目/H5 工厂 (manifest)",
+  "note": "本清单由子项目 generate.js / manifest 合并产出，经 deploy.rsync 进前端 assets。字段约定见《模板资产域架构与计价抽象层》§5。source/base_cost 由运营在纳入时填定；官方公共模板计价为 0。",
   "templates": [
     {
       "templateId": "h5-001",
       "name": "国风·水墨交互",
-      "version": "1.0.0",
+      "category": "style",
+      "version": "1.0",
       "tags": {
         "style": ["国风", "水墨", "传统"],
         "lessonType": ["互动", "赏析"]
@@ -25,7 +29,8 @@
     {
       "templateId": "h5-002",
       "name": "清新·自然课堂",
-      "version": "1.0.0",
+      "category": "style",
+      "version": "1.0",
       "tags": {
         "style": ["清新", "自然", "活力"],
         "lessonType": ["探究", "互动"]
@@ -47,7 +52,8 @@
     {
       "templateId": "h5-003",
       "name": "科技·蓝色引擎",
-      "version": "1.0.0",
+      "category": "style",
+      "version": "1.0",
       "tags": {
         "style": ["科技", "未来", "冷色"],
         "lessonType": ["实操", "演示"]
@@ -69,7 +75,8 @@
     {
       "templateId": "h5-004",
       "name": "学术·沉稳蓝灰",
-      "version": "1.0.0",
+      "category": "style",
+      "version": "1.0",
       "tags": {
         "style": ["学术", "严谨", "理性"],
         "lessonType": ["复习", "串联"]

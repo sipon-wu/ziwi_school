@@ -20,9 +20,30 @@ function roleColor(roles: StoryRole[] | undefined, name: string | undefined, idx
   return ROLE_COLORS[idx % ROLE_COLORS.length]
 }
 
+/** 装饰层：按主题取一组 emoji，散布到页面四角/边缘（绝对定位 + CSS 动画，纯文本零依赖） */
+function renderDeco(story: Story): string {
+  const theme = STORY_THEMES[story.themeId || 'storybook'] || STORY_THEMES.storybook
+  const deco = theme.deco || STORY_THEMES.storybook.deco
+  // 8 个预设占位点（top/left/right/bottom + 字号 + 动画延迟），循环取 deco
+  const slots = [
+    { pos: 'top:14px;left:18px',  fs: 46, d: 0 },
+    { pos: 'top:54px;right:24px', fs: 38, d: 1.4 },
+    { pos: 'top:16px;right:30px', fs: 60, d: 0.6 },
+    { pos: 'top:120px;left:30px', fs: 26, d: 2.2 },
+    { pos: 'top:200px;right:42px',fs: 24, d: 1.1 },
+    { pos: 'bottom:18px;left:22px',fs: 40, d: 3.0 },
+    { pos: 'bottom:60px;right:26px',fs: 34, d: 1.8 },
+    { pos: 'top:160px;left:48px', fs: 22, d: 2.6 },
+  ]
+  return slots.map((sl, i) =>
+    `<span class="deco" style="font-size:${sl.fs}px;${sl.pos};animation-delay:${sl.d}s">${deco[i % deco.length]}</span>`
+  ).join('')
+}
+
 /** 单场景 → HTML 片段 */
 function renderScene(s: StoryScene, index: number, story: Story): string {
   const theme = STORY_THEMES[story.themeId || 'storybook'] || STORY_THEMES.storybook
+  const decoHtml = renderDeco(story)
   const moodBg: Record<string, string> = {
     warm: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.5), transparent 40%)',
     playful: 'radial-gradient(circle at 80% 10%, rgba(255,255,255,.45), transparent 45%)',
@@ -90,6 +111,7 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
 
   return `
   <section class="scene" data-index="${index}" style="background:${bg}">
+    ${decoHtml}
     ${s.title ? `<div class="scene-title">${esc(s.title)}</div>` : ''}
     ${s.narration ? `<div class="narration">${esc(s.narration)}</div>` : ''}
     <div class="stage">${bubblesHtml}</div>
@@ -231,24 +253,28 @@ const RUNTIME_JS = `
 `
 
 const RUNTIME_CSS = `
-.story-root{position:relative;width:100%;max-width:960px;margin:0 auto;min-height:560px;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:#3A2E2E;outline:none;}
-.scene{display:none;padding:32px 28px 72px;border-radius:24px;box-shadow:0 12px 40px rgba(0,0,0,.12);min-height:480px;animation:fade .4s ease;}
+.story-root{position:relative;width:100%;max-width:960px;margin:0 auto;min-height:560px;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--text,#3A2E2E);outline:none;}
+.story-root{--bg1:#FFE8C9;--bg2:#FFD6E0;--card:#FFFDF8;--accent:#FF8A5B;--accent2:#FFB454;--text:#3A2E2E;--ink:#5A4A4A;}
+.scene{display:none;padding:36px 30px 84px;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.16);min-height:480px;animation:fade .45s ease;overflow:hidden;position:relative;background:var(--card);}
 .scene.active{display:block;}
-@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.scene-title{font-size:24px;font-weight:800;color:#FF7A3D;margin-bottom:12px;letter-spacing:1px;}
-.narration{font-size:16px;line-height:1.7;background:rgba(255,255,255,.6);padding:12px 16px;border-radius:14px;margin-bottom:16px;color:#5A4A4A;}
-.stage{display:flex;flex-direction:column;gap:14px;}
-.bubble-row{display:flex;gap:10px;align-items:flex-start;}
-.avatar{width:42px;height:42px;border-radius:50%;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 4px 10px rgba(0,0,0,.15);}
-.bubble{position:relative;background:#fff;padding:12px 16px;border-radius:18px;border-top-left-radius:4px;max-width:78%;box-shadow:0 4px 12px rgba(0,0,0,.08);}
-.role-name{font-size:12px;font-weight:700;color:var(--c);margin-bottom:4px;}
+@keyframes fade{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.deco{position:absolute;pointer-events:none;z-index:0;opacity:.92;filter:drop-shadow(0 6px 10px rgba(0,0,0,.08));animation:decoFloat 6s ease-in-out infinite;}
+@keyframes decoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.scene-title{position:relative;z-index:2;font-size:26px;font-weight:900;color:var(--accent);margin-bottom:14px;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+.scene-title::before{content:"🌟";font-size:22px;}
+.narration{position:relative;z-index:2;font-size:16px;line-height:1.75;background:rgba(255,255,255,.66);padding:14px 18px;border-radius:16px;margin-bottom:18px;color:var(--ink);border:2px dashed rgba(0,0,0,.06);}
+.stage{position:relative;z-index:2;display:flex;flex-direction:column;gap:14px;}
+.bubble-row{display:flex;gap:12px;align-items:flex-start;}
+.avatar{width:46px;height:46px;border-radius:50%;color:#fff;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 6px 14px rgba(0,0,0,.18);border:3px solid #fff;}
+.bubble{position:relative;background:#fff;padding:13px 18px;border-radius:20px;border-top-left-radius:6px;max-width:78%;box-shadow:0 6px 16px rgba(0,0,0,.1);border:2px solid rgba(0,0,0,.04);}
+.role-name{font-size:12px;font-weight:800;color:var(--c);margin-bottom:4px;}
 .bubble-text{font-size:16px;line-height:1.6;}
-.interact{margin-top:18px;background:rgba(255,255,255,.65);border-radius:16px;padding:14px 16px;}
-.interact-label{font-weight:700;font-size:14px;color:#FF7A3D;margin-bottom:10px;}
+.interact{position:relative;z-index:2;margin-top:18px;background:rgba(255,255,255,.72);border-radius:18px;padding:16px 18px;border:2px solid rgba(0,0,0,.05);}
+.interact-label{font-weight:800;font-size:14px;color:var(--accent);margin-bottom:10px;display:inline-flex;align-items:center;gap:6px;}
 .read-list{display:flex;flex-wrap:wrap;gap:10px;}
-.read-word{position:relative;border:2px solid #FFB454;background:#FFF7E8;color:#C2541B;border-radius:30px;padding:8px 16px;font-size:16px;cursor:pointer;transition:.2s;font-weight:600;}
-.read-word:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(255,138,91,.3);}
-.read-word.on{background:#FF8A5B;color:#fff;border-color:#FF8A5B;}
+.read-word{position:relative;border:2px solid var(--accent2);background:#FFF7E8;color:#C2541B;border-radius:30px;padding:9px 18px;font-size:16px;cursor:pointer;transition:.2s;font-weight:700;}
+.read-word:hover{transform:translateY(-3px);box-shadow:0 8px 18px rgba(255,138,91,.35);}
+.read-word.on{background:var(--accent);color:#fff;border-color:var(--accent);}
 .read-word .hint{display:block;font-size:11px;color:#999;font-weight:400;}
 .read-word.on .hint{color:#ffe;}
 .readalong-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;background:#fff;border-radius:12px;padding:8px 12px;}
@@ -256,17 +282,17 @@ const RUNTIME_CSS = `
 .ra-play,.ra-rec{border:none;background:#5B8DEF;color:#fff;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:13px;}
 .ra-rec{background:#FF6B6B;}
 .ra-status a{color:#3FA34D;font-weight:600;}
-.quiz-zone .quiz-q{font-weight:700;margin-bottom:10px;}
+.quiz-zone .quiz-q{font-weight:800;margin-bottom:10px;}
 .quiz-opts{display:flex;flex-direction:column;gap:8px;}
-.quiz-opt{border:2px solid #FFB454;background:#fff;border-radius:12px;padding:10px 14px;text-align:left;cursor:pointer;font-size:15px;transition:.15s;}
-.quiz-opt:hover{background:#FFF7E8;}
+.quiz-opt{border:2px solid var(--accent2);background:#fff;border-radius:14px;padding:11px 15px;text-align:left;cursor:pointer;font-size:15px;transition:.15s;font-weight:600;}
+.quiz-opt:hover{background:#FFF7E8;transform:translateX(3px);}
 .quiz-opt.right{background:#3FA34D;color:#fff;border-color:#3FA34D;}
 .quiz-opt.wrong{background:#FF6B6B;color:#fff;border-color:#FF6B6B;}
 .quiz-feedback{margin-top:10px;font-weight:700;}
 .quiz-feedback.ok{color:#3FA34D;} .quiz-feedback.no{color:#FF6B6B;}
 .reveal-btn{border:none;background:#C065D6;color:#fff;border-radius:24px;padding:10px 20px;cursor:pointer;font-size:15px;}
 .reveal-answer{margin-top:10px;background:#fff;border-radius:12px;padding:12px 16px;color:#5A4A4A;}
-.draw-canvas{border:2px dashed #FFB454;border-radius:12px;background:#fff;width:100%;touch-action:none;cursor:crosshair;}
+.draw-canvas{border:2px dashed var(--accent2);border-radius:12px;background:#fff;width:100%;touch-action:none;cursor:crosshair;}
 .draw-tools{display:flex;gap:10px;align-items:center;margin-top:8px;}
 .draw-clear{border:none;background:#FF6B6B;color:#fff;border-radius:16px;padding:6px 14px;cursor:pointer;}
 .draw-hint{font-size:12px;color:#999;margin-top:6px;}
@@ -274,30 +300,32 @@ const RUNTIME_CSS = `
 .popup-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99;}
 .popup-box{background:#fff;border-radius:18px;padding:24px 28px;max-width:80%;position:relative;}
 .popup-close{position:absolute;top:8px;right:14px;font-size:22px;cursor:pointer;color:#999;}
-.focus-bar{margin-top:18px;background:linear-gradient(90deg,#FF8A5B,#FFB454);color:#fff;padding:10px 16px;border-radius:14px;font-weight:700;font-size:14px;box-shadow:0 6px 16px rgba(255,138,91,.4);}
-.nav-bar{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:14px;}
-.nav-bar button{border:none;width:46px;height:46px;border-radius:50%;background:#FF8A5B;color:#fff;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(255,138,91,.35);transition:.15s;}
-.nav-bar button:hover{transform:scale(1.08);}
+.focus-bar{position:relative;z-index:2;margin-top:18px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;padding:11px 18px;border-radius:16px;font-weight:800;font-size:14px;box-shadow:0 8px 20px rgba(0,0,0,.16);display:flex;align-items:center;gap:8px;}
+.focus-bar::before{content:"✨";}
+.nav-bar{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:16px;}
+.nav-bar button{border:none;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.2);transition:.15s;display:flex;align-items:center;justify-content:center;}
+.nav-bar button:hover{transform:scale(1.12) rotate(-4deg);}
 .nav-bar button.disabled{opacity:.35;cursor:not-allowed;transform:none;}
-.pg-info{font-weight:700;color:#FF7A3D;min-width:54px;text-align:center;}
-.progress{height:6px;background:rgba(0,0,0,.08);border-radius:6px;overflow:hidden;margin-top:10px;}
-.progress-bar{height:100%;background:linear-gradient(90deg,#FF8A5B,#5B8DEF);width:0;transition:.3s;}
-.story-header{text-align:center;margin-bottom:14px;}
-.story-header .h-title{font-size:22px;font-weight:900;color:#FF7A3D;}
-.story-header .h-meta{font-size:13px;color:#999;margin-top:4px;}
+.pg-info{font-weight:800;color:var(--accent);min-width:56px;text-align:center;font-size:16px;}
+.progress{height:8px;background:rgba(0,0,0,.1);border-radius:6px;overflow:hidden;margin-top:10px;}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;transition:.3s;border-radius:6px;}
+.story-header{text-align:center;margin-bottom:16px;}
+.story-header .h-title{font-size:24px;font-weight:900;color:var(--accent);text-shadow:0 2px 0 rgba(255,255,255,.5);}
+.story-header .h-meta{font-size:13px;color:#888;margin-top:4px;}
 `
 
 export function buildStoryH5(story: Story): string {
   const theme = STORY_THEMES[story.themeId || 'storybook'] || STORY_THEMES.storybook
   const scenesHtml = story.scenes.map((s, i) => renderScene(s, i, story)).join('')
   const meta = [story.subject, story.grade].filter(Boolean).join(' · ')
+  const themeId = story.themeId || 'storybook'
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>${esc(story.title)}</title>
 <style>${RUNTIME_CSS}</style>
-<style>:root{--bg1:${theme.bg1};--bg2:${theme.bg2};}</style>
+<style>:root{--bg1:${theme.bg1};--bg2:${theme.bg2};--card:${theme.card};--accent:${theme.accent};--accent2:${theme.accent2};--text:${theme.text};--ink:${theme.ink};}</style>
 </head>
-<body style="margin:0;background:linear-gradient(135deg,${theme.bg1},${theme.bg2});min-height:100vh;padding:20px 0;">
+<body data-theme="${themeId}" style="margin:0;background:linear-gradient(135deg,${theme.bg1},${theme.bg2});min-height:100vh;padding:20px 0;">
 <div class="story-root" data-auto="${story.autoPlay ? '1' : '0'}" data-interval="${story.autoPlayInterval || 5000}">
   <div class="story-header">
     <div class="h-title">📖 ${esc(story.title)}</div>

@@ -113,15 +113,21 @@ export interface Story {
 /** 绘本皮肤（配色，不含布局） */
 export const STORY_THEMES: Record<string, {
   bg1: string; bg2: string; card: string; accent: string; accent2: string; text: string; ink: string
+  /** 装饰集：页面四角/边缘的卡通化点缀 emoji（纯文本，零依赖） */
+  deco: string[]
 }> = {
   // 童趣绘本（小学低段英语情景通用）
-  storybook: { bg1: '#FFE8C9', bg2: '#FFD6E0', card: '#FFFDF8', accent: '#FF8A5B', accent2: '#5B8DEF', text: '#3A2E2E', ink: '#5A4A4A' },
+  storybook: { bg1: '#FFE8C9', bg2: '#FFD6E0', card: '#FFFDF8', accent: '#FF8A5B', accent2: '#FFB454', text: '#3A2E2E', ink: '#5A4A4A',
+    deco: ['☁️', '☁️', '🌞', '⭐', '✨', '🌈', '🍎', '🍌'] },
   // 森林晨光
-  forest:   { bg1: '#DFF5E1', bg2: '#CDEBFF', card: '#FCFEF8', accent: '#3FA34D', accent2: '#2B8ACB', text: '#2C3A2E', ink: '#4A5A4A' },
+  forest:   { bg1: '#DFF5E1', bg2: '#CDEBFF', card: '#FCFEF8', accent: '#3FA34D', accent2: '#2B8ACB', text: '#2C3A2E', ink: '#4A5A4A',
+    deco: ['🌿', '🍃', '🌳', '🌸', '🍂', '🌞', '🐞', '🍄'] },
   // 星空夜读
-  night:    { bg1: '#2A2350', bg2: '#3D2B6B', card: '#FFFDF8', accent: '#FFB454', accent2: '#7C6FF0', text: '#2A2350', ink: '#3A2E5A' },
+  night:    { bg1: '#2A2350', bg2: '#3D2B6B', card: '#FFFDF8', accent: '#FFB454', accent2: '#7C6FF0', text: '#2A2350', ink: '#3A2E5A',
+    deco: ['🌕', '🌙', '⭐', '✨', '💫', '🌟', '🪐', '🌌'] },
   // 海洋 (适配旧 ocean 默认)
-  ocean:    { bg1: '#0f1226', bg2: '#16203f', card: '#FFFDF8', accent: '#1A3A6B', accent2: '#2B5DA8', text: '#222', ink: '#333' },
+  ocean:    { bg1: '#0f1226', bg2: '#16203f', card: '#FFFDF8', accent: '#1A3A6B', accent2: '#2B5DA8', text: '#222', ink: '#333',
+    deco: ['🌊', '🐠', '🐚', '⭐', '💧', '🐙', '🪸', '🌟'] },
 }
 
 /** 角色配色环（无 color 时按序号分配） */
