@@ -44,6 +44,48 @@ func (h *MaterialHandler) GetMaterial(c *gin.Context) {
 	c.JSON(http.StatusOK, m)
 }
 
+// ListDecor 装饰元件查询接口（P2）。
+// scope=public 查平台公共装饰库（user_id 为空）；scope=mine 查当前账号装饰元件。
+// 支持 facet 过滤: medium(ppt|h5|common) / motif(母题一级) / kind(decor_element|decor_component)。
+func (h *MaterialHandler) ListDecor(c *gin.Context) {
+	scope := c.DefaultQuery("scope", "public")
+	medium := c.Query("medium")
+	motif := c.Query("motif")
+	kind := c.Query("kind")
+
+	var items []model.Material
+	var err error
+	if scope == "public" {
+		items, err = h.repo.ListPublicDecor(c, medium, motif)
+	} else {
+		uidVal, ok := c.Get("user_id")
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+			return
+		}
+		var uid string
+		switch v := uidVal.(type) {
+		case string:
+			uid = v
+		case float64:
+			uid = fmt.Sprintf("%.0f", v)
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户标识类型异常"})
+			return
+		}
+		if uid == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+			return
+		}
+		items, err = h.repo.ListDecorByFacets(c, uid, medium, motif, kind)
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
+}
+
 func (h *MaterialHandler) UploadMaterial(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	schoolID, _ := c.Get("school_id")
@@ -305,4 +347,125 @@ func guessType(ext string) string {
 	default:
 		return "other"
 	}
+}
+
+// ── 装饰组件模板（P2 生产端）：元件组合 = 组件层级 ──
+
+// SaveDecorTemplate 保存草稿或提交审核（status: draft | pending）。
+func (h *MaterialHandler) SaveDecorTemplate(c *gin.Context) {
+	uidVal, ok := c.Get("user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+	uid := extractUserID(uidVal)
+	if uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
+		return
+	}
+
+	var body struct {
+		ID     string           `json:"id"`
+		Name   string           `json:"name"`
+		Slots  model.DecorSlots `json:"slots"`
+		Facets []string         `json:"facets"`
+		Submit bool             `json:"submit"` // true=提交审核, false=存草稿
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数解析失败: " + err.Error()})
+		return
+	}
+	if strings.TrimSpace(body.Name) == "" {
+		body.Name = "未命名装饰模板"
+	}
+
+	t := &model.DecorTemplate{
+		ID:     body.ID,
+		UserID: uid,
+		Name:   body.Name,
+		Slots:  body.Slots,
+		Facets: body.Facets,
+		Status: "draft",
+	}
+	if body.Submit {
+		t.Status = "pending"
+	}
+	if err := h.repo.SaveDecorTemplate(c, t); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, t)
+}
+
+// ListDecorTemplates 列出装饰模板（scope=mine|public; public 仅返回审核通过）。
+func (h *MaterialHandler) ListDecorTemplates(c *gin.Context) {
+	scope := c.DefaultQuery("scope", "mine")
+	uidVal, _ := c.Get("user_id")
+	uid := extractUserID(uidVal)
+	list, err := h.repo.ListDecorTemplates(c, uid, scope)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": list, "total": len(list)})
+}
+
+// extractUserID 从 gin context 的 user_id 值中解析出字符串（与 ListDecor 一致）。
+func extractUserID(v interface{}) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case float64:
+		return fmt.Sprintf("%.0f", x)
+	default:
+		return ""
+	}
+}
+
+// ── facet 受控词表（运营维护母题/媒介等词库）──
+
+// ListFacets 按 type 返回受控词（motif/medium...）。
+func (h *MaterialHandler) ListFacets(c *gin.Context) {
+	typ := c.Query("type")
+	if typ == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 type 参数"})
+		return
+	}
+	list, err := h.repo.ListFacets(c, typ)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": list, "total": len(list)})
+}
+
+// UpsertFacet 新增/更新受控词（运营后台）。
+func (h *MaterialHandler) UpsertFacet(c *gin.Context) {
+	var f model.FacetVocab
+	if err := c.ShouldBindJSON(&f); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数解析失败: " + err.Error()})
+		return
+	}
+	if f.Type == "" || f.Value == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "type 与 value 必填"})
+		return
+	}
+	if f.Label == "" {
+		f.Label = f.Value
+	}
+	if err := h.repo.UpsertFacet(c, &f); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, f)
+}
+
+// DeleteFacet 删除受控词（运营后台）。
+func (h *MaterialHandler) DeleteFacet(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.repo.DeleteFacet(c, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

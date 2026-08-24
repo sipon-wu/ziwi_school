@@ -493,6 +493,69 @@ func main() {
 		must(db.Create(&m).Error, "create material")
 	}
 
+	// ── 11b. 装饰元件公共库（P1）：平台公共装饰元件，user_id 留空表示平台所有。
+	// facet 受控词表（平台运营维护），教师上传只能选受控标签，避免标签污染。
+	// 媒介适用性 applicable: ppt|h5|common；母题一级 motif_root 冗余索引。
+	decorElements := []model.Material{
+		{
+			SchoolID: school.ID, UserID: "", Name: "卡通太阳图标", Type: "image",
+			Format: "h5", Tag: "装饰元件", Size: "12KB",
+			URL:    "https://cdn.ziwi.cn/decor/cartoon-sun.svg",
+			Category: "decor_element", Applicable: "common", MotifRoot: "自然", Interaction: "静态",
+			DecorFacets: model.DecorFacets{
+				"motif.自然.天体.太阳", "visual.风格.卡通", "applicable.common", "interaction.静态",
+			},
+		},
+		{
+			SchoolID: school.ID, UserID: "", Name: "卡通树叶（绿）", Type: "image",
+			Format: "h5", Tag: "装饰元件", Size: "10KB",
+			URL:    "https://cdn.ziwi.cn/decor/cartoon-leaf-green.svg",
+			Category: "decor_element", Applicable: "common", MotifRoot: "自然", Interaction: "静态",
+			DecorFacets: model.DecorFacets{
+				"motif.自然.植物.树叶", "visual.风格.卡通", "applicable.common", "interaction.静态",
+			},
+		},
+		{
+			SchoolID: school.ID, UserID: "", Name: "点线五角星边框", Type: "image",
+			Format: "h5", Tag: "装饰元件", Size: "8KB",
+			URL:    "https://cdn.ziwi.cn/decor/dotted-star-border.svg",
+			Category: "decor_element", Applicable: "common", MotifRoot: "几何", Interaction: "静态",
+			DecorFacets: model.DecorFacets{
+				"motif.几何.点线.五角星", "visual.风格.手绘感", "applicable.common", "interaction.静态",
+			},
+		},
+		{
+			SchoolID: school.ID, UserID: "", Name: "手绘插画·读书小孩", Type: "image",
+			Format: "h5", Tag: "装饰元件", Size: "24KB",
+			URL:    "https://cdn.ziwi.cn/decor/illu-reading-kid.svg",
+			Category: "decor_element", Applicable: "h5", MotifRoot: "人文", Interaction: "动效.浮动",
+			DecorFacets: model.DecorFacets{
+				"motif.人文.活动.阅读", "visual.风格.手绘感", "applicable.h5", "interaction.动效.浮动",
+			},
+		},
+	}
+	for i := range decorElements {
+		must(db.Create(&decorElements[i]).Error, "create decor element")
+	}
+	fmt.Println("装饰元件公共库种子: 已插入", len(decorElements), "个")
+
+	// ── 11c. facet 受控词表（平台运营维护母题/媒介等词库）。
+	// 教师上传装饰元件 / 筛选只能选受控标签，避免标签污染。
+	facetSeed := []model.FacetVocab{
+		{Type: "motif", Value: "自然", Label: "自然", Sort: 1},
+		{Type: "motif", Value: "几何", Label: "几何", Sort: 2},
+		{Type: "motif", Value: "人文", Label: "人文", Sort: 3},
+		{Type: "medium", Value: "ppt", Label: "PPT", Sort: 1},
+		{Type: "medium", Value: "h5", Label: "H5", Sort: 2},
+		{Type: "medium", Value: "common", Label: "通用", Sort: 3},
+	}
+	for i := range facetSeed {
+		// 幂等: 以 type+value 为主键语义（UpsertFacet 用 id=type-value）
+		facetSeed[i].ID = "fv-" + facetSeed[i].Type + "-" + facetSeed[i].Value
+		must(db.Where("id = ?", facetSeed[i].ID).FirstOrCreate(&facetSeed[i]).Error, "create facet "+facetSeed[i].ID)
+	}
+	fmt.Println("facet 受控词表种子: 已插入", len(facetSeed), "个")
+
 	// ── 12. 作业 4（语文/四年级，挂在 c-001）──
 	assignQuestions := `[{"q":"《观潮》作者是谁？","type":"choice","score":10},{"q":"概括主要内容","type":"essay","score":20}]`
 	for i := 1; i <= 4; i++ {

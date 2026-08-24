@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
-import { api, aiAPI, materialAPI, type MaterialItem } from '../lib/api'
+import { api, aiAPI, materialAPI, decorTemplateAPI, notifyError, type MaterialItem, type DecorTemplate } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
@@ -264,6 +264,22 @@ export default function CoursewareBuilder() {
   const tplAppliedId = useRef<string | null>(null)
   const tplPrevTheme = useRef<string | null>(null)
   const tplPrevLayouts = useRef<(string | undefined)[] | null>(null)
+
+  // ── 装饰模板套用（P2 装修）：从我的/公共装饰模板选 → 一键挂到每页 decor 插槽 ──
+  const [decorPanelOpen, setDecorPanelOpen] = useState(false)
+  const [decorTpls, setDecorTpls] = useState<DecorTemplate[]>([])
+  const [decorScope, setDecorScope] = useState<'mine' | 'public'>('mine')
+  const applyDecorTemplate = (t: DecorTemplate) => {
+    if (!cwOutline.length) { toast('请先生成课件', 'warning'); return }
+    // 模板 slots 映射到每页 decor（封面页不挂装饰，保持干净）
+    setCwOutline(arr => arr.map((s, i) => i === 0 ? s : { ...s, decor: t.slots }))
+    toast('已套用装饰模板「' + t.name + '」', 'success')
+    setDecorPanelOpen(false)
+  }
+  const loadDecorTpls = (sc: 'mine' | 'public') => {
+    setDecorScope(sc)
+    decorTemplateAPI.list(sc).then(res => setDecorTpls(res.items || [])).catch(e => notifyError('装饰模板加载失败', e))
+  }
 
   // 加载「参照课件」提纲：文档模式套用模板时，若当前为空课件且已选参照，则先把参照内容载入，再套新模板版式
   const loadRefOutline = async (): Promise<OutlineSlide[]> => {
@@ -542,6 +558,7 @@ export default function CoursewareBuilder() {
         body: '',
         isTitle: i === 0,
         interactive,
+        decor: s.decor || null,
       }
     })
   }
@@ -549,14 +566,20 @@ export default function CoursewareBuilder() {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
     try {
       const slides = buildH5Slides()
+      // 零依赖红线：检测个人素材（user_upload 标记 → 需联网，离线打开失效）
+      const haystack = (cwH5Html || '') + '\n' + JSON.stringify(slides) + '\n' + JSON.stringify(cwOutline)
+      const hasPersonal = /personal:\/\/|user-upload\/|u-teacher\/assets\/personal/i.test(haystack)
       const blob = exportH5Courseware(slides, {
         subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
         teacherName: safeGetUser().name || '教师',
         autoPlay: true,
         autoPlayInterval: 8,
+        // 个人素材标注：导出 HTML 顶部注入提示（离线打开需联网）
+        personalAssetsNote: hasPersonal ? '本课件含个人素材，离线打开需联网加载' : undefined,
       })
       downloadBlob(blob, `${genTitle.trim()}_${teaching.subject}${gradeName}.html`)
-      toast('H5 互动课件已生成并下载', 'success')
+      if (hasPersonal) toast('已导出：含个人素材，离线打开需联网', 'warning')
+      else toast('H5 互动课件已生成并下载', 'success')
     } catch (e: any) { toast('H5 导出失败: ' + (e.message || '未知错误'), 'error') }
   }
 
@@ -1304,6 +1327,10 @@ export default function CoursewareBuilder() {
         className={`px-2.5 py-1.5 text-[12px] border rounded flex items-center gap-1 ${tplPanelOpen || tplAppliedId.current ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
         <Shapes size={13} /> 模板{tplAppliedId.current ? '✓' : ''}
       </button>
+      <button onClick={() => { setDecorPanelOpen(v => !v); if (!decorTpls.length) loadDecorTpls('mine') }} title="装饰模板"
+        className={`px-2.5 py-1.5 text-[12px] border rounded flex items-center gap-1 ${decorPanelOpen ? 'text-[#7B61FF] border-[#7B61FF] hover:bg-[#F3F0FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
+        <ImageIcon size={13} /> 装饰
+      </button>
       {tplPanelOpen && (
         <div className={`${fixed ? 'fixed top-12 right-3 z-[60]' : 'absolute right-0 top-9 z-50'} w-[340px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3`}>
           <div className="flex items-center justify-between mb-2">
@@ -1393,7 +1420,40 @@ export default function CoursewareBuilder() {
     </div>)
   }
 
-  // 统一工具栏：非全屏（fullscreen=false）与全屏编辑态（fullscreen=true）复用同一套按钮与状态，
+  // 装饰模板面板（P2 装修）：列出我的/公共装饰模板，一键套用到每页 decor 插槽
+  function renderDecorPanel(fixed = false) {
+    return (
+      <div className={`${fixed ? 'relative' : 'relative'}`}>
+        {decorPanelOpen && (
+          <div className={`${fixed ? 'fixed top-12 right-3 z-[60]' : 'absolute right-0 top-9 z-50'} w-[320px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[13px] font-medium text-[#353535]">装饰模板</span>
+              <button onClick={() => setDecorPanelOpen(false)} className="text-[#9A9A9A] hover:text-[#353535] text-[16px] leading-none">×</button>
+            </div>
+            <p className="text-[10px] text-[#9A9A9A] mb-2">套用后装饰元件按插槽自动布局到每页（封面除外）。去「装修工作室」可新建装饰模板。</p>
+            <div className="flex gap-1 mb-2">
+              {(['mine', 'public'] as const).map(s => (
+                <button key={s} onClick={() => loadDecorTpls(s)}
+                  className={`px-2 py-1 text-[11px] rounded ${decorScope === s ? 'bg-[#7B61FF] text-white' : 'bg-[#F6F7F8] text-[#6B6B6B]'}`}>
+                  {s === 'mine' ? '我的' : '公共'}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {decorTpls.length === 0 && <div className="text-[11px] text-[#9A9A9A] text-center py-4">暂无模板（去装修工作室新建）</div>}
+              {decorTpls.map(t => (
+                <div key={t.id} className="border border-[#F0F0F0] rounded-[6px] p-2 hover:border-[#7B61FF]">
+                  <div className="text-[12px] font-medium text-[#353535]">{t.name}</div>
+                  <div className="text-[10px] text-[#9A9A9A] mb-1">{(t.facets || []).join('，') || '—'}</div>
+                  <button onClick={() => applyDecorTemplate(t)} className="w-full px-2 py-1 text-[11px] text-white bg-[#7B61FF] rounded hover:bg-[#6a4fe0]">套用</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
   // 仅 fullscreen 态把「全屏」按钮替换为「退出全屏」并隐藏增/删页的页列表操作（全屏态无独立页列表栏）。
   // 模板库入口统一走 renderTemplatePanel（同一逻辑 / 同一份状态）。
   function renderToolbar(fullscreen = false) {
@@ -1457,6 +1517,8 @@ export default function CoursewareBuilder() {
       )}
       {/* 模板库：两种形态共用同一逻辑与状态 */}
       {renderTemplatePanel(fullscreen)}
+      {/* 装饰模板（P2 装修）：套用装饰组件模板到每页 */}
+      {renderDecorPanel(fullscreen)}
     </div>)
   }
 

@@ -19,6 +19,16 @@ type Material struct {
 	Grade     string    `json:"grade"`
 	Subject   string    `json:"subject"`
 	ThemeID   string    `json:"theme_id,omitempty"` // 课件主题（配色方案），对应前端 pptThemes.ts 的 CwTheme.id
+
+	// ── 装饰元件架构扩展（P0）──
+	// 仅新增字段，不动既有字段语义。存量数据 category 默认 'courseware'。
+	Category    string    `json:"category" gorm:"type:varchar(30);default:courseware"` // courseware|decor_element|decor_component
+	DecorFacets DecorFacets `json:"decor_facets" gorm:"type:jsonb"` // 6维 facet 标签路径数组
+	Applicable  string    `json:"applicable" gorm:"type:varchar(10)"` // ppt|h5|common（媒介适用性，冗余自 facet 便于索引）
+	MotifRoot   string    `json:"motif_root" gorm:"type:varchar(40)"` // 母题一级（冗余自 facet 便于索引）
+	Interaction string    `json:"interaction" gorm:"type:varchar(30)"` // 交互类型：静态|动效.浮动|响应.点读高亮 ...
+	ParentIDs   StringSlice `json:"parent_ids" gorm:"type:jsonb"` // 组件指向其元件的 asset_id 数组
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import PresentationMode from '../components/PresentationMode'
 import PreviewOverlay from '../components/PreviewOverlay'
-import { api, materialAPI, notifyError, type MaterialItem } from '../lib/api'
+import { api, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem } from '../lib/api'
 
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
 
@@ -66,6 +66,8 @@ export default function Materials() {
   const [uploading, setUploading] = useState(false)
   const [showChannel, setShowChannel] = useState(false)
   const [materials, setMaterials] = useState<Material[]>([])
+  const [tab, setTab] = useState<'materials' | 'decor'>('materials')
+  const [showDecor, setShowDecor] = useState(false)
 
   // 刷新素材库列表
   const refreshMaterials = () => {
@@ -171,6 +173,13 @@ export default function Materials() {
               className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] transition-colors"
             >
               <Sparkles size={14} /> AI 生成课件
+            </button>
+            {/* 装饰元件库（P2）：facet 筛选 + 公共库/个人库 */}
+            <button
+              onClick={() => setShowDecor(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-[#7B61FF] border border-[#7B61FF] rounded-[4px] hover:bg-[#7B61FF]/5 transition-colors"
+            >
+              <Grid3X3 size={14} /> 装饰元件库
             </button>
             {/* 上传 */}
             <button onClick={handleUpload} disabled={uploading}
@@ -398,6 +407,94 @@ export default function Materials() {
           />
         </PreviewOverlay>
       )}
+
+      {/* 装饰元件库（P2）：facet 筛选 + 公共库/个人库切换 */}
+      {showDecor && <DecorPanel onClose={() => setShowDecor(false)} />}
     </AppLayout>
+  )
+}
+
+/** 装饰元件库弹层：调用 /decor 接口，按 facet 过滤；scope=public 平台公共库 / scope=mine 个人库 */
+function DecorPanel({ onClose }: { onClose: () => void }) {
+  const [scope, setScope] = useState<'public' | 'mine'>('public')
+  const [medium, setMedium] = useState('')
+  const [motif, setMotif] = useState('')
+  const [items, setItems] = useState<MaterialItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [motifs, setMotifs] = useState<{ k: string; l: string }[]>([{ k: '', l: '全部母题' }])
+  const { toast } = useToast()
+
+  const load = () => {
+    setLoading(true)
+    decorAPI.list({ scope, medium: medium || undefined, motif: motif || undefined })
+      .then(res => setItems(res.items || []))
+      .catch(e => notifyError('装饰元件加载失败', e))
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { load() }, [scope]) // eslint-disable-line
+  useEffect(() => {
+    facetAPI.list('motif')
+      .then(res => setMotifs([{ k: '', l: '全部母题' }, ...(res.items || []).map(f => ({ k: f.value, l: f.label }))]))
+      .catch(() => {})
+  }, []) // eslint-disable-line
+
+  const MEDIA = [{ k: '', l: '全部媒介' }, { k: 'ppt', l: 'PPT' }, { k: 'h5', l: 'H5' }, { k: 'common', l: '通用' }]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-[8px] w-[860px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-[#F0F0F0] flex items-center justify-between">
+          <h3 className="text-[15px] font-bold text-[#353535]">装饰元件库</h3>
+          <button onClick={onClose} className="text-[#9A9A9A] hover:text-[#353535] text-[18px] leading-none">×</button>
+        </div>
+        <div className="px-5 py-3 border-b border-[#F0F0F0] flex items-center gap-3 flex-wrap">
+          <div className="flex rounded-[4px] overflow-hidden border border-[#E7E7EB]">
+            {(['public', 'mine'] as const).map(s => (
+              <button key={s} onClick={() => setScope(s)}
+                className={`px-3 py-1.5 text-[12px] ${scope === s ? 'bg-[#7B61FF] text-white' : 'text-[#6B6B6B]'}`}>
+                {s === 'public' ? '平台公共库' : '我的素材库'}
+              </button>
+            ))}
+          </div>
+          <select value={medium} onChange={e => setMedium(e.target.value)} className="px-2 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px]">
+            {MEDIA.map(m => <option key={m.k} value={m.k}>{m.l}</option>)}
+          </select>
+          <select value={motif} onChange={e => setMotif(e.target.value)} className="px-2 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px]">
+            {motifs.map(m => <option key={m.k} value={m.k}>{m.l}</option>)}
+          </select>
+          <button onClick={load} className="px-3 py-1.5 text-[12px] text-white bg-[#7B61FF] rounded-[4px] hover:bg-[#6a4fe0]">筛选</button>
+          {loading && <span className="text-[11px] text-[#9A9A9A]">加载中…</span>}
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 grid grid-cols-3 gap-3">
+          {items.length === 0 && !loading && (
+            <div className="col-span-3 text-center text-[12px] text-[#9A9A9A] py-10">暂无装饰元件（可运行 seed 初始化公共库）</div>
+          )}
+          {items.map(it => (
+            <div key={it.id} className="border border-[#F0F0F0] rounded-[6px] p-3 hover:border-[#7B61FF] transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                {(it.url && /\.(svg|png|jpg|jpeg|gif|webp)$/i.test(it.url)) ? (
+                  <img src={it.url} alt={it.name} className="w-10 h-10 object-contain rounded bg-[#F6F7F8]" />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-[#7B61FF]/10 text-[#7B61FF] flex items-center justify-center text-[10px]">元件</div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-[12px] font-medium text-[#353535] truncate" title={it.name}>{it.name}</div>
+                  <div className="text-[10px] text-[#9A9A9A]">{it.applicable || '—'} · {it.motif_root || '—'}</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {(it.decor_facets || []).slice(0, 3).map((f: string, i: number) => (
+                  <span key={i} className="text-[9px] px-1.5 py-0.5 bg-[#F6F7F8] text-[#6B6B6B] rounded">{f}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-[#F0F0F0] flex justify-between items-center">
+          <span className="text-[11px] text-[#9A9A9A]">共 {items.length} 个装饰元件 · facet 受控词表由平台运营维护</span>
+          <button onClick={onClose} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">关闭</button>
+        </div>
+      </div>
+    </div>
   )
 }

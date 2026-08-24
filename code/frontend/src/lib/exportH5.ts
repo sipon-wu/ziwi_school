@@ -5,6 +5,7 @@
  */
 
 import { isValidComponent, extractBullets, type H5Component, type OutlineSlide } from './exportPptx'
+import type { DecorSlots } from './api'
 
 export interface H5Slide {
   title: string
@@ -18,6 +19,8 @@ export interface H5Slide {
   interactive?: H5Component | null
   /** 大纲备注（兼容性，旧课件可能带 notes 派生 reveal 时由调用方处理） */
   notes?: string
+  /** 装饰插槽（插槽式装修）：渲染时叠加到画面 */
+  decor?: DecorSlots | null
 }
 
 export interface CoursewareOptions {
@@ -31,6 +34,8 @@ export interface CoursewareOptions {
   autoPlayInterval?: number
   /** 皮肤：ocean/vibrant/fresh，控配色/圆角/阴影/字号，不控布局 */
   themeId?: string
+  /** 个人素材标注：含个人素材时，离线打开需联网加载 */
+  personalAssetsNote?: string
 }
 
 /** 将 OutlineSlide[]（编辑态提纲）转为 H5Slide[]：手动插槽优先，notes 兜底 reveal，否则 null */
@@ -49,6 +54,7 @@ export function buildH5FromOutline(outline: OutlineSlide[]): H5Slide[] {
       body: '',
       isTitle: i === 0,
       interactive,
+      decor: s.decor || null,
     }
   })
 }
@@ -60,6 +66,22 @@ function esc(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/** 插槽式装饰渲染：背景铺满 + 页眉/页脚/四角/浮动区绝对定位装饰元件。url 经 abs() 转义防注入。 */
+function renderDecor(d: DecorSlots): string {
+  const bg = d.background ? `<div class="dc-bg" style="background-image:url('${abs(d.background)}')"></div>` : ''
+  const img = (it: { url: string; name?: string }, cls: string) =>
+    `<img class="dc-el ${cls}" src="${abs(it.url)}" alt="${esc(it.name || '装饰')}" loading="lazy">`
+  const layer = (items: { url: string; name?: string }[] | undefined, cls: string) =>
+    (items || []).map(it => img(it, cls)).join('')
+  return `<div class="dc-layer">
+    ${bg}
+    ${layer(d.header, 'dc-header')}
+    ${layer(d.footer, 'dc-footer')}
+    ${layer(d.corners, 'dc-corner')}
+    ${layer(d.floating, 'dc-float')}
+  </div>`
 }
 
 /**
@@ -190,6 +212,7 @@ export function buildH5Html(slides: H5Slide[], opts: CoursewareOptions): string 
     const tip = needLandscapeTip(s.interactive)
       ? `<div class="h5-orient-tip">📱 建议横屏使用，体验更佳</div>` : ''
     return `<div class="slide${i === 0 ? ' active' : ''}${s.isTitle ? ' title-slide' : ''}" id="s${i}">
+  ${s.decor ? renderDecor(s.decor) : ''}
   <div class="slide-inner">
     ${s.isTitle
       ? `<h1>${esc(s.title)}</h1><div class="meta">${esc(opts.subject)} · ${esc(opts.grade)}${opts.teacherName ? ' · ' + esc(opts.teacherName) : ''}</div>`
@@ -287,8 +310,22 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg)
 .h5-draw-title{font-size:15px;font-weight:600;color:#1f4e9b;margin:6px 0}
 .h5-draw-canvas{width:100%;height:180px;background:#fff;border:2px dashed #b9c7e0;border-radius:12px;touch-action:none;cursor:crosshair}
 .h5-draw-tip{font-size:12px;color:#6b7280;margin-top:6px}
+/* 插槽式装饰层（非自由画布，系统自动布局） */
+.dc-layer{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.dc-bg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.18}
+.dc-el{position:absolute;max-width:18vw;max-height:18vh;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(0,0,0,.18))}
+.dc-header{top:3%;left:50%;transform:translateX(-50%);max-width:42vw;max-height:12vh}
+.dc-footer{bottom:3%;left:50%;transform:translateX(-50%);max-width:42vw;max-height:12vh}
+.dc-corner:nth-child(1){top:4%;left:4%}
+.dc-corner:nth-child(2){top:4%;right:4%}
+.dc-corner:nth-child(3){bottom:4%;left:4%}
+.dc-corner:nth-child(4){bottom:4%;right:4%}
+.dc-float{top:42%;left:8%}
+.dc-float:nth-child(2){top:58%;right:8%;left:auto}
+.dc-float:nth-child(3){top:30%;right:10%;left:auto}
 </style></head><body>
 <div class="brand">知微 · 互动课件</div>
+${opts.personalAssetsNote ? `<div style="position:fixed;top:0;left:0;right:0;z-index:60;background:#FFF3CD;color:#8a6d00;font-size:12px;text-align:center;padding:6px 12px;line-height:1.4">⚠ ${opts.personalAssetsNote}</div>` : ''}
 ${slidesHtml}
 <div class="page-num" id="pageNum">1 / ${N}</div>
 <div class="nav">

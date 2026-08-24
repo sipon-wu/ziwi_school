@@ -32,6 +32,8 @@ const SIDEBAR: SidebarGroup[] = [
     { label: '作业布置', icon: <Send size={14} />, to: '/assignments' },
   ]},
   { id: '素材', label: '素材库', icon: <ImgIcon size={16} />, to: '/materials' },
+  { id: '装修', label: '装修工作室', icon: <ImgIcon size={16} />, to: '/decor-studio' },
+  { id: '词表', label: '受控词表', icon: <ImgIcon size={16} />, to: '/facet-admin' },
   { id: '数据', label: '教学数据', icon: <BarChart3 size={16} />, children: [
     { label: '学情分析', icon: <BarChart3 size={14} />, to: '/analytics' },
     { label: '成长足迹', icon: <Footprints size={14} />, to: '/growth' },

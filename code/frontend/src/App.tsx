@@ -29,6 +29,8 @@ const ClassSwitchPage = lazy(() => import('./pages/ClassSwitchPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const ITAdminPage = lazy(() => import('./pages/ITAdminPage'))
 const PrincipalPage = lazy(() => import('./pages/PrincipalPage'))
+const DecorStudio = lazy(() => import('./pages/DecorStudio'))
+const FacetAdmin = lazy(() => import('./pages/FacetAdmin'))
 
 const Loading = () => <div className="flex items-center justify-center h-screen bg-[#F6F7F8]"><div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" /></div>
 
@@ -73,6 +75,8 @@ export default function App() {
         <Route path="/parent-sign" element={<Suspense fallback={<Loading />}><ParentSignPage /></Suspense>} />
         <Route path="/published-lessons" element={<Suspense fallback={<Loading />}><PublishedLessons /></Suspense>} />
         <Route path="/review-pool" element={<Suspense fallback={<Loading />}><ReviewPool /></Suspense>} />
+        <Route path="/decor-studio" element={<Suspense fallback={<Loading />}><DecorStudio /></Suspense>} />
+        <Route path="/facet-admin" element={<Suspense fallback={<Loading />}><FacetAdmin /></Suspense>} />
         <Route path="/classes" element={<Suspense fallback={<Loading />}><ClassSwitchPage /></Suspense>} />
         <Route path="/settings" element={<Suspense fallback={<Loading />}><SettingsPage /></Suspense>} />
         <Route path="/it-admin" element={<Suspense fallback={<Loading />}><ITAdminPage /></Suspense>} />

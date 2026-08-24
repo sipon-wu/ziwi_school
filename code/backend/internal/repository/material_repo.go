@@ -34,7 +34,13 @@ func (r *MaterialRepository) Update(m *model.Material) error {
 		"grade":            m.Grade,
 		"subject":          m.Subject,
 		"interactive_slots": m.InteractiveSlots,
-		"updated_at":       time.Now(),
+		"category":          m.Category,
+		"decor_facets":      m.DecorFacets,
+		"applicable":        m.Applicable,
+		"motif_root":        m.MotifRoot,
+		"interaction":       m.Interaction,
+		"parent_ids":        m.ParentIDs,
+		"updated_at":        time.Now(),
 	}).Error
 }
 

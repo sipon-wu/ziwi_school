@@ -10,6 +10,7 @@ import pptxgen from 'pptxgenjs'
 import { parseSections } from './parseSections'
 import type { CwTheme } from './pptThemes'
 import { DEFAULT_THEME } from './pptThemes'
+import type { DecorSlots, DecorItem } from './api'
 
 const NAVY = '1A3A6B'
 const INK = '333333'
@@ -243,6 +244,8 @@ export interface OutlineSlide {
   elements?: CwElement[]
   /** H5 互动组件（手动插槽）；null/缺省=无互动；PPT 等导出忽略 */
   interactive?: H5Component | null
+  /** 装饰插槽（插槽式，非自由画布）：各槽位挂装饰元件引用或背景图 URL */
+  decor?: DecorSlots | null
 }
 
 /** 互动组件白名单校验（防止残缺/非法对象静默丢失互动） */

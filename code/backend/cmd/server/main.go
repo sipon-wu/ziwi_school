@@ -55,6 +55,7 @@ func main() {
 		&model.UserSubmittedTextbookVersion{},
 		&model.Sheet{},
 		&model.Annotation{}, &model.Version{},
+		&model.DecorTemplate{}, &model.FacetVocab{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
@@ -326,6 +327,15 @@ func main() {
 		teacher.POST("/materials", materialHandler.UploadMaterial)
 		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		teacher.PUT("/materials/:id", materialHandler.UpdateMaterial)
+		// 装饰元件资产架构（P2）：facet 过滤查询
+		teacher.GET("/decor", materialHandler.ListDecor)
+		// 装饰组件模板（P2 生产端）：元件组合保存/提交审核/列表
+		teacher.GET("/decor-templates", materialHandler.ListDecorTemplates)
+		teacher.POST("/decor-templates", materialHandler.SaveDecorTemplate)
+		// facet 受控词表（运营维护母题/媒介等词库）
+		teacher.GET("/facets", materialHandler.ListFacets)
+		teacher.POST("/facets", materialHandler.UpsertFacet)
+		teacher.DELETE("/facets/:id", materialHandler.DeleteFacet)
 		// 通用批注 + 版本快照（挂任意作品；版本仅草稿期可存/回退，发布后只读）
 		teacher.GET("/annotations", annotationHandler.ListAnnotations)
 		teacher.POST("/annotations", annotationHandler.CreateAnnotation)
