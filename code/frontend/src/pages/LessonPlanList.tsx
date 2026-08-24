@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { BookOpen, Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
@@ -41,7 +40,6 @@ const subjectColors: Record<string, string> = {
 const GRADE_MAP: Record<number, string> = { 1:'一年级',2:'二年级',3:'三年级',4:'四年级',5:'五年级',6:'六年级',7:'七年级',8:'八年级',9:'九年级' }
 
 export default function LessonPlanList() {
-  const navigate = useNavigate()
   const teaching = useTeaching()
   const [plans, setPlans] = useState<LessonPlan[]>([])
   const [searchTerm, setSearchTerm] = useState('')

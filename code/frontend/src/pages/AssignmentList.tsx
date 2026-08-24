@@ -23,17 +23,6 @@ interface AssignmentItem {
   updated_at: string
 }
 
-const MOCK_DATA: AssignmentItem[] = [
-  { id: 'a1', title: '《观潮》课内阅读练习', class_name: '四年级 (1)班', subject: '语文', grade: '四年级', question_count: 8, status: 'published', due_at: '2026-07-06', submissions: 32, total_students: 42, updated_at: '2026-07-01 14:30' },
-  { id: 'a2', title: '修辞手法专项训练', class_name: '四年级 (1)班', subject: '语文', grade: '四年级', question_count: 10, status: 'published', due_at: '2026-07-04', submissions: 28, total_students: 42, updated_at: '2026-06-28 10:15' },
-  { id: 'a3', title: '第一单元综合检测', class_name: '四年级 (2)班', subject: '语文', grade: '四年级', question_count: 15, status: 'scheduled', scheduled_at: '2026-07-08 08:00', due_at: '2026-07-10', submissions: 0, total_students: 40, updated_at: '2026-07-05 09:00' },
-  { id: 'a4', title: '自然之美写景练习', class_name: '四年级 (1)班', subject: '语文', grade: '四年级', question_count: 5, status: 'draft', due_at: '', submissions: 0, total_students: 42, updated_at: '2026-07-03 16:45' },
-  { id: 'a5', title: '阅读摘抄积累任务', class_name: '四年级 (3)班', subject: '语文', grade: '四年级', question_count: 3, status: 'published', due_at: '2026-07-05', submissions: 35, total_students: 38, updated_at: '2026-06-30 11:20' },
-  // 来自其他班级的分享
-  { id: 'a6', title: '《观潮》课内阅读练习', class_name: '四年级 (2)班', subject: '语文', grade: '四年级', question_count: 8, status: 'shared', shared_from: '四年级 (1)班', due_at: '2026-07-06', submissions: 0, total_students: 40, updated_at: '2026-07-01 14:30' },
-  { id: 'a7', title: '修辞手法专项训练', class_name: '四年级 (3)班', subject: '语文', grade: '四年级', question_count: 10, status: 'shared', shared_from: '四年级 (1)班', due_at: '2026-07-04', submissions: 0, total_students: 38, updated_at: '2026-06-28 10:15' },
-]
-
 const GRADE_MAP: Record<number, string> = { 1: '一年级', 2: '二年级', 3: '三年级', 4: '四年级', 5: '五年级', 6: '六年级', 7: '七年级', 8: '八年级', 9: '九年级' }
 
 export default function AssignmentList() {

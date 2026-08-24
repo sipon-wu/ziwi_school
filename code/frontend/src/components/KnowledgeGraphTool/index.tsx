@@ -9,7 +9,7 @@
  */
 import { useState, Suspense, lazy } from 'react'
 import { Search } from 'lucide-react'
-import { filterKnowledgeNodes, searchNodes } from './filter'
+import { searchNodes } from './filter'
 import type { KnowledgeGraphToolProps, LayoutMode, ColorDimension } from './types'
 
 const KnowledgeGraph = lazy(() => import('../KnowledgeGraph'))
