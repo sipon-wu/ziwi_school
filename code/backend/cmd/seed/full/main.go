@@ -59,7 +59,6 @@ func main() {
 		&repository.Question{}, &repository.Assignment{},
 		&model.TextbookVersion{}, &model.StandardClause{},
 		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
-		&model.Sheet{},
 	), "automigrate")
 
 	// 无 GORM model 但 QA 需要的表（按 001 schema 关键列建立）
@@ -120,7 +119,6 @@ func main() {
 		"growth_care_records", "parent_signatures", "submissions", "grading_results",
 		"student_observations", "lesson_plans", "questions", "exams", "materials",
 		"assignments", "teacher_classes", "student_classes", "classes", "users", "schools",
-		"sheets",
 	} {
 		db.Exec("TRUNCATE TABLE " + t + " CASCADE")
 	}
@@ -582,58 +580,40 @@ func main() {
 		must(db.Create(&a).Error, "create assignment")
 	}
 
-	// ── 12b. 课件 / 题单 4（语文/四年级，挂在 13800000002，引用素材里的课件PPT）──
-	// SheetBuilder 直接读 sheets 表；之前种子脚本缺此段，staging 课件列表为空。
-	sheetQuestions := func(stems ...string) string {
-		type q struct {
-			Stem     string `json:"stem"`
-			Type     string `json:"type"`
-			Score    int    `json:"score"`
-			Sort     int    `json:"sort"`
-		}
-		qs := make([]q, 0, len(stems))
-		for i, s := range stems {
-			qs = append(qs, q{Stem: s, Type: "choice", Score: 10, Sort: i + 1})
-		}
-		b, _ := json.Marshal(qs)
-		return string(b)
-	}
-	sheets := []model.Sheet{
+	// ── 12b. 课件（CoursewareList 读 materials 表 type='courseware'；前端按 format 分 PPT/H5/视频频道）──
+	// 之前种子脚本缺此段，staging 课件列表为空。content 为 markdown，供 CoursewareBuilder 打开解析。
+	coursewares := []model.Material{
 		{
-			ID: "sh-001", SchoolID: school.ID, TeacherID: teacherID,
-			Title: "《观潮》课堂练习题单", Subject: "语文", Grade: "四年级",
-			TargetClassID: "c-001", TargetClassName: "四年级(1)班",
-			Questions: sheetQuestions("《观潮》的作者是谁？", "下列加点字读音正确的是？", "概括《观潮》主要内容"),
-			Difficulty: "L2", TotalCount: 3, Status: "published", PublishMode: "bank",
+			ID: "cw-ppt-001", SchoolID: school.ID, UserID: teacherID,
+			Name: "《观潮》PPT课件", Type: "courseware", Format: "ppt", Size: "1.2MB", Tag: "语文",
+			Content:  "# 《观潮》\n\n## 教学目标\n- 体会潮来时的壮观景象\n- 学习按时间顺序描写\n\n## 第一页\n潮来前：江面平静\n\n## 第二页\n潮来时：白浪翻滚，犹如千万匹白色战马齐头并进",
+			Status: "active", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 		{
-			ID: "sh-002", SchoolID: school.ID, TeacherID: teacherID,
-			Title: "《桂花雨》同步练习", Subject: "语文", Grade: "四年级",
-			TargetClassID: "c-001", TargetClassName: "四年级(1)班",
-			Questions: sheetQuestions("《桂花雨》中作者借什么表达思乡？", "仿写一种花表达情感"),
-			Difficulty: "L2", TotalCount: 2, Status: "published", PublishMode: "bank",
+			ID: "cw-h5-001", SchoolID: school.ID, UserID: teacherID,
+			Name: "《桂花雨》H5互动课件", Type: "courseware", Format: "h5", Tag: "语文",
+			Content:  "# 《桂花雨》\n\n## 互动\n- 点击揭示：作者借桂花表达思乡之情\n- 随堂选择：课文描写了哪些场景",
+			Status: "active", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 		{
-			ID: "sh-003", SchoolID: school.ID, TeacherID: teacherID,
-			Title: "四年级语文第一单元复习题单", Subject: "语文", Grade: "四年级",
-			TargetClassID: "c-002", TargetClassName: "四年级(2)班",
-			Questions: sheetQuestions("《走月亮》描写哪里景色？", "《繁星》的作者是？", "谈谈对“不识庐山真面目”的理解"),
-			Difficulty: "L3", TotalCount: 3, Status: "draft", PublishMode: "",
+			ID: "cw-video-001", SchoolID: school.ID, UserID: teacherID,
+			Name: "《普罗米修斯》微课视频", Type: "courseware", Format: "video", Size: "36MB", Tag: "语文",
+			URL:      "https://example.com/lesson/prometheus.mp4",
+			Status:   "active", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 		{
-			ID: "sh-004", SchoolID: school.ID, TeacherID: teacherID,
-			Title: "《普罗米修斯》阅读理解题单", Subject: "语文", Grade: "四年级",
-			TargetClassID: "c-001", TargetClassName: "四年级(1)班",
-			Questions: sheetQuestions("普罗米修斯从谁那里盗取火种？", "你认为普罗米修斯是个怎样的神？"),
-			Difficulty: "L2", TotalCount: 2, Status: "published", PublishMode: "assignment",
+			ID: "cw-ppt-002", SchoolID: school.ID, UserID: teacherID,
+			Name: "《走月亮》PPT课件", Type: "courseware", Format: "ppt", Size: "0.9MB", Tag: "语文",
+			Content:  "# 《走月亮》\n\n## 赏析\n- 月下溪边\n- 月下田园\n\n## 重点\n体会虚实结合的写法",
+			Status: "draft", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 	}
-	for i := range sheets {
-		sheets[i].CreatedAt = now
-		sheets[i].UpdatedAt = now
-		must(db.Create(&sheets[i]).Error, "create sheet "+sheets[i].ID)
+	for i := range coursewares {
+		coursewares[i].CreatedAt = now
+		coursewares[i].UpdatedAt = now
+		must(db.Create(&coursewares[i]).Error, "create courseware "+coursewares[i].ID)
 	}
-	fmt.Println("课件/题单种子: 已插入", len(sheets), "个")
+	fmt.Println("课件种子: 已插入", len(coursewares), "个")
 
 	// ── 13. 成长关爱 7（teacher_id=13800000002，student_id 取前7名学生）──
 	careStatuses := []string{
@@ -678,7 +658,7 @@ func main() {
 
 	fmt.Println("\n=== 增强版种子数据完成 ===")
 	fmt.Println("学校: 树人实验小学 (sch-0001)")
-	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4 / 课件 4")
+	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4 / 课件素材 4")
 	fmt.Println("\n=== 演示账号（QA专用）===")
 	fmt.Println("13800000002 / teacher123  - 李老师 (teacher, 语文, 主力测试)")
 	fmt.Println("13800000005 / teacher123  - 赵校长 (principal)")
