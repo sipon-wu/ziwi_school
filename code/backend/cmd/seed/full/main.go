@@ -59,6 +59,7 @@ func main() {
 		&repository.Question{}, &repository.Assignment{},
 		&model.TextbookVersion{}, &model.StandardClause{},
 		&model.VersionStandardMap{}, &model.KGNode{}, &model.KGEdge{},
+		&model.Sheet{},
 	), "automigrate")
 
 	// 无 GORM model 但 QA 需要的表（按 001 schema 关键列建立）
@@ -119,6 +120,7 @@ func main() {
 		"growth_care_records", "parent_signatures", "submissions", "grading_results",
 		"student_observations", "lesson_plans", "questions", "exams", "materials",
 		"assignments", "teacher_classes", "student_classes", "classes", "users", "schools",
+		"sheets",
 	} {
 		db.Exec("TRUNCATE TABLE " + t + " CASCADE")
 	}
@@ -580,6 +582,59 @@ func main() {
 		must(db.Create(&a).Error, "create assignment")
 	}
 
+	// ── 12b. 课件 / 题单 4（语文/四年级，挂在 13800000002，引用素材里的课件PPT）──
+	// SheetBuilder 直接读 sheets 表；之前种子脚本缺此段，staging 课件列表为空。
+	sheetQuestions := func(stems ...string) string {
+		type q struct {
+			Stem     string `json:"stem"`
+			Type     string `json:"type"`
+			Score    int    `json:"score"`
+			Sort     int    `json:"sort"`
+		}
+		qs := make([]q, 0, len(stems))
+		for i, s := range stems {
+			qs = append(qs, q{Stem: s, Type: "choice", Score: 10, Sort: i + 1})
+		}
+		b, _ := json.Marshal(qs)
+		return string(b)
+	}
+	sheets := []model.Sheet{
+		{
+			ID: "sh-001", SchoolID: school.ID, TeacherID: teacherID,
+			Title: "《观潮》课堂练习题单", Subject: "语文", Grade: "四年级",
+			TargetClassID: "c-001", TargetClassName: "四年级(1)班",
+			Questions: sheetQuestions("《观潮》的作者是谁？", "下列加点字读音正确的是？", "概括《观潮》主要内容"),
+			Difficulty: "L2", TotalCount: 3, Status: "published", PublishMode: "bank",
+		},
+		{
+			ID: "sh-002", SchoolID: school.ID, TeacherID: teacherID,
+			Title: "《桂花雨》同步练习", Subject: "语文", Grade: "四年级",
+			TargetClassID: "c-001", TargetClassName: "四年级(1)班",
+			Questions: sheetQuestions("《桂花雨》中作者借什么表达思乡？", "仿写一种花表达情感"),
+			Difficulty: "L2", TotalCount: 2, Status: "published", PublishMode: "bank",
+		},
+		{
+			ID: "sh-003", SchoolID: school.ID, TeacherID: teacherID,
+			Title: "四年级语文第一单元复习题单", Subject: "语文", Grade: "四年级",
+			TargetClassID: "c-002", TargetClassName: "四年级(2)班",
+			Questions: sheetQuestions("《走月亮》描写哪里景色？", "《繁星》的作者是？", "谈谈对“不识庐山真面目”的理解"),
+			Difficulty: "L3", TotalCount: 3, Status: "draft", PublishMode: "",
+		},
+		{
+			ID: "sh-004", SchoolID: school.ID, TeacherID: teacherID,
+			Title: "《普罗米修斯》阅读理解题单", Subject: "语文", Grade: "四年级",
+			TargetClassID: "c-001", TargetClassName: "四年级(1)班",
+			Questions: sheetQuestions("普罗米修斯从谁那里盗取火种？", "你认为普罗米修斯是个怎样的神？"),
+			Difficulty: "L2", TotalCount: 2, Status: "published", PublishMode: "assignment",
+		},
+	}
+	for i := range sheets {
+		sheets[i].CreatedAt = now
+		sheets[i].UpdatedAt = now
+		must(db.Create(&sheets[i]).Error, "create sheet "+sheets[i].ID)
+	}
+	fmt.Println("课件/题单种子: 已插入", len(sheets), "个")
+
 	// ── 13. 成长关爱 7（teacher_id=13800000002，student_id 取前7名学生）──
 	careStatuses := []string{
 		"需要重点关注", "稳步提升", "情绪需疏导", "学习习惯待加强",
@@ -623,7 +678,7 @@ func main() {
 
 	fmt.Println("\n=== 增强版种子数据完成 ===")
 	fmt.Println("学校: 树人实验小学 (sch-0001)")
-	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4")
+	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4 / 课件 4")
 	fmt.Println("\n=== 演示账号（QA专用）===")
 	fmt.Println("13800000002 / teacher123  - 李老师 (teacher, 语文, 主力测试)")
 	fmt.Println("13800000005 / teacher123  - 赵校长 (principal)")
