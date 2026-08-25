@@ -381,17 +381,124 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
       {s.elements && s.elements.length ? (
         renderElementsStatic(s.elements)
       ) : (
-        <div className="absolute left-[5.3%] top-[20%]" style={{ width: '89.4%', height: '70%' }}>
-          {(s.rich || []).map((line, k) => (
-            <p key={k} className="mb-2" style={{ color: c(theme.body), fontSize: 16, fontFamily: FONT }}>
-              {line.options.bullet ? '• ' : ''}{line.text}
-            </p>
-          ))}
-        </div>
+        renderLayoutContent(s, theme)
       )}
       {s.footer && (
         <div className="absolute bottom-[2%] right-[3%] text-[10px]" style={{ color: c(theme.footer), fontFamily: theme.font }}>{s.footer}</div>
       )}
+    </div>
+  )
+}
+
+/* ───────────────────────── 版式感内容渲染（把 bullet 按模板分区放置） ───────────────────────── */
+function renderLayoutContent(s: CwSlide, theme: CwTheme) {
+  const lines = (s.rich || []).map((line) => `${line.options.bullet ? '• ' : ''}${line.text}`)
+  const p = c(theme.primary)
+  const body = c(theme.body)
+
+  // 通用单行文本块：自动缩放到容器内
+  const Line = ({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) => (
+    <div className={`flex h-full w-full items-center overflow-hidden ${className || ''}`} style={style}>
+      <div className="w-full text-[3mm] leading-snug" style={{ color: body }}>
+        {text}
+      </div>
+    </div>
+  )
+
+  const lay = s.layout || 'title-body'
+
+  // 教学目标：3 个纵向卡片
+  if (lay === 'edu-goal') {
+    const chunks = [lines[0] || '', lines[1] || '', lines[2] || '']
+    return (
+      <div className="pointer-events-none absolute left-[5.3%] top-[22%] flex w-[89.4%] gap-3" style={{ height: '64%' }}>
+        {chunks.map((txt, i) => (
+          <div key={i} className="relative flex flex-1 flex-col rounded-xl border p-3" style={{ borderColor: `${p}55`, background: `${p}0D` }}>
+            <div className="mb-2 h-1.5 w-10 shrink-0 rounded-full" style={{ background: p }} />
+            <Line text={txt} className="items-start" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // 知识讲解：第 1 条放进概念框，其余在线条下方
+  if (lay === 'edu-explain') {
+    return (
+      <>
+        <div className="absolute left-[6.3%] top-[22%] w-[87.4%] rounded-lg border-2 px-4 py-3" style={{ height: '30%', borderColor: `${p}66`, background: `${p}0A` }}>
+          <Line text={lines[0] || ''} />
+        </div>
+        <div className="absolute left-[6.3%] top-[56%] w-[87.4%]" style={{ height: '40%' }}>
+          {lines.slice(1).map((txt, k) => (
+            <div key={k} className="mb-2 text-[3mm] leading-snug" style={{ color: body }}>{txt}</div>
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  // 例题演练：第 1 条放进题干栏，第 2~4 条分别放进 3 个卡片
+  if (lay === 'edu-example') {
+    const stem = lines[0] || ''
+    const steps = [lines[1] || '', lines[2] || '', lines[3] || '']
+    return (
+      <>
+        <div className="absolute left-[6.3%] top-[22%] flex w-[87.4%] items-stretch rounded-md px-4 py-3" style={{ height: '20%', borderLeft: `6px solid ${p}`, background: `${p}0F` }}>
+          <Line text={stem} />
+        </div>
+        <div className="absolute left-[5.3%] top-[50%] grid w-[89.4%] grid-cols-3 gap-2" style={{ height: '34%' }}>
+          {steps.map((txt, i) => (
+            <div key={i} className="rounded-md border p-2" style={{ borderColor: `${p}55`, background: 'rgba(255,255,255,0.7)' }}>
+              <Line text={txt} className="items-start" />
+            </div>
+          ))}
+        </div>
+        {lines.slice(4).map((txt, k) => (
+          <div key={k} className="absolute left-[6.3%] text-[3mm] leading-snug" style={{ top: `${86 + k * 6}%`, width: '87.4%', color: body }}>{txt}</div>
+        ))}
+      </>
+    )
+  }
+
+  // 课堂小结：左侧文字 + 右侧装饰圆环
+  if (lay === 'edu-summary') {
+    return (
+      <div className="absolute left-[5.3%] top-[22%]" style={{ width: '52%', height: '70%' }}>
+        {lines.map((txt, k) => (
+          <div key={k} className="mb-3 flex items-start gap-2 text-[3mm] leading-snug" style={{ color: body }}>
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: p }} />
+            <span>{txt}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // 作业布置：3 行横向条
+  if (lay === 'edu-homework') {
+    const rows = [lines[0] || '', lines[1] || '', lines[2] || '']
+    const bgOp = ['14', '0E', '08']
+    return (
+      <div className="absolute left-[5.3%] top-[20%] w-[89.4%] space-y-2" style={{ height: '68%' }}>
+        {rows.map((txt, i) => (
+          <div key={i} className="h-[28%] rounded-md border px-4" style={{ borderColor: `${p}44`, background: `${p}${bgOp[i]}` }}>
+            <Line text={txt} />
+          </div>
+        ))}
+        {lines.slice(3).map((txt, k) => (
+          <div key={k} className="text-[3mm] leading-snug" style={{ color: body }}>{txt}</div>
+        ))}
+      </div>
+    )
+  }
+
+  // 默认/封面兜底：保持原来的顺序块
+  return (
+    <div className="absolute left-[5.3%] top-[20%]" style={{ width: '89.4%', height: '70%' }}>
+      {lines.map((txt, k) => (
+        <p key={k} className="mb-2 text-[3mm] leading-snug" style={{ color: body }}>{txt}</p>
+      ))}
     </div>
   )
 }
