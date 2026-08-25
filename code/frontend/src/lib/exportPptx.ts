@@ -286,6 +286,8 @@ export function markdownToOutline(md: string): OutlineSlide[] {
       if (it && isValidComponent(it)) cur.interactive = it
       continue
     }
+    // 文档级总标题（# 课件名）不属于任何一页，仅作为元数据跳过
+    if (line.match(/^#\s+/) && !cur) continue
     // 版式标注注释：<!-- layout: edu-xxx --> 写入当前页 layout（AI 生成时自动带上教学版式）
     const layoutMatch = line.match(/^<!--\s*layout:\s*([\w-]+)\s*-->$/)
     if (layoutMatch && cur) {
@@ -295,9 +297,7 @@ export function markdownToOutline(md: string): OutlineSlide[] {
     if (line.startsWith('## ')) {
       if (cur) slides.push(cur)
       const title = line.slice(3).trim()
-      // 总标题页（# 后的首个 ## 或标题等于课件名）视为封面
-      const isCover: boolean = !cur && /封面|^课件$|^《.+》$/.test(title)
-      cur = { title, bullets: [], layout: isCover ? 'edu-cover' : undefined }
+      cur = { title, bullets: [] }
     } else if (cur) {
       cur.bullets.push(line.replace(/^[-*]\s*/, '').replace(/\*{1,3}/g, '').replace(/`/g, ''))
     } else {

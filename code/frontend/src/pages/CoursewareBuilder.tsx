@@ -1231,7 +1231,8 @@ export default function CoursewareBuilder() {
       )
     }
     if (previewSlides && previewSlides.length > 0) {
-      return <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide} viewMode="single" autoPlay />
+      // outlineToSlides 在 cwOutline 前自动插入了封面页，所以放映索引需要 +1
+      return <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide + 1} viewMode="single" autoPlay />
     }
     return <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   })()
@@ -1562,7 +1563,8 @@ export default function CoursewareBuilder() {
           <div className="flex-1 overflow-y-auto p-6 flex justify-center">
             <div className="w-full max-w-[960px]">
               {cwOutline.length > 0 && slides.length > 0 ? (
-                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} index={docSlide} viewMode="scroll" editable embedFullscreen={true} />
+                // outlineToSlides 在 cwOutline 前自动插入了封面页，编辑画布索引需 +1
+                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} index={docSlide + 1} viewMode="scroll" editable embedFullscreen={true} />
               ) : (
                 <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
               )}
