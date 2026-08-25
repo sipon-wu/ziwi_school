@@ -261,6 +261,7 @@ export default function PptxPreview({
   const [i, setI] = useState(0)
   useEffect(() => { if (typeof index === 'number') setI(clamp(index, 0, slides.length - 1)) }, [index, slides.length])
   const current = clamp(index ?? i, 0, slides.length - 1)
+  const wheelLock = useRef(false)
 
   const setIndex = (n: number) => {
     const c = clamp(n, 0, slides.length - 1)
@@ -295,7 +296,17 @@ export default function PptxPreview({
           <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} onSelect={onSelect} />
         ) : viewMode === 'single' ? (
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
+            <div
+              className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5"
+              onWheel={e => {
+                if (wheelLock.current || slides.length <= 1) return
+                const dir = e.deltaY > 0 ? 1 : -1
+                if ((dir === -1 && current === 0) || (dir === 1 && current === slides.length - 1)) return
+                wheelLock.current = true
+                setIndex(current + dir)
+                window.setTimeout(() => { wheelLock.current = false }, 320)
+              }}
+            >
               {renderStaticSlide(slides[current], theme, current, ar)}
             </div>
           </div>

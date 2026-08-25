@@ -17,6 +17,7 @@ export default function PresentationMode({ content, title, subject, grade, teach
   const sections = parseSections(content).filter(s => !s.collapsed && s.body.trim())
   const [slideIdx, setSlideIdx] = useState(0)
   const dragStart = useRef<{ x: number; y: number } | null>(null)
+  const wheelLock = useRef(false)
   const onStagePointerDown = (e: React.PointerEvent) => { dragStart.current = { x: e.clientX, y: e.clientY } }
   const onStagePointerUp = (e: React.PointerEvent) => {
     const s = dragStart.current
@@ -76,6 +77,19 @@ export default function PresentationMode({ content, title, subject, grade, teach
         className="flex-1 overflow-auto p-8"
         onPointerDown={onStagePointerDown}
         onPointerUp={onStagePointerUp}
+        onWheel={e => {
+          if (wheelLock.current || sections.length <= 1) return
+          const dir = e.deltaY > 0 ? 1 : -1
+          if ((dir === -1 && slideIdx === 0) || (dir === 1 && slideIdx === sections.length - 1)) return
+          // 仅在内容已滚到顶/底时翻页，避免与页内文本滚动冲突
+          const el = e.currentTarget as HTMLDivElement
+          const atTop = el.scrollTop <= 0
+          const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+          if ((dir === -1 && !atTop) || (dir === 1 && !atBottom)) return
+          wheelLock.current = true
+          setSlideIdx(i => Math.max(0, Math.min(sections.length - 1, i + dir)))
+          window.setTimeout(() => { wheelLock.current = false }, 320)
+        }}
         style={{ touchAction: 'pan-y' }}
       >
         <div className="min-h-full flex items-center justify-center">
