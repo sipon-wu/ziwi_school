@@ -582,30 +582,58 @@ func main() {
 
 	// ── 12b. 课件（CoursewareList 读 materials 表 type='courseware'；前端按 format 分 PPT/H5/视频频道）──
 	// 之前种子脚本缺此段，staging 课件列表为空。content 为 markdown，供 CoursewareBuilder 打开解析。
+	// 每个课件完整采用一个明确风格（theme_id 指向 pptThemes.ts 中的具体主题），
+	// content 用结构化教学版式 markdown（封面/目标/讲解/例题/小结/作业），
+	// 打开 CoursewareBuilder 即呈现对应风格的完整课件。
 	coursewares := []model.Material{
 		{
+			// 风格：国风 · 山水青绿（zgf-shanshui）
 			ID: "cw-ppt-001", SchoolID: school.ID, UserID: teacherID,
-			Name: "《观潮》PPT课件", Type: "courseware", Format: "ppt", Size: "1.2MB", Tag: "语文",
-			Content:  "# 《观潮》\n\n## 教学目标\n- 体会潮来时的壮观景象\n- 学习按时间顺序描写\n\n## 第一页\n潮来前：江面平静\n\n## 第二页\n潮来时：白浪翻滚，犹如千万匹白色战马齐头并进",
+			Name: "《观潮》PPT课件", Type: "courseware", Format: "ppt", Size: "1.4MB", Tag: "语文",
+			ThemeID:  "zgf-shanshui",
+			Content:  "# 《观潮》\n\n## 教学目标\n- 知识与技能：会写“笼罩、横贯”等生字，有感情朗读课文\n- 过程与方法：学习按时间顺序、抓潮来前—潮来时—潮头过后的写作方法\n- 情感态度：感受钱塘江大潮的壮丽，激发热爱祖国河山之情\n\n## 知识讲解\n- 概念：天下奇观——钱塘江大潮被誉为“天下第一潮”\n- 要点：潮来前（平静）→ 潮来时（汹涌）→ 潮头过后（余波）\n\n## 例题演练\n- 题干：读“浪潮越来越近，犹如千万匹白色战马齐头并进”，说说这样写的好处\n- 解答：运用比喻，把浪潮比作战马，写出潮水逼近时气势磅礴、不可抗拒\n\n## 课堂小结\n- 按时间顺序描写，动静结合，突出“奇”字\n\n## 作业布置\n- 基础：抄写本课生字词各两遍\n- 提高：摘抄文中描写潮水的精彩句子\n- 拓展：搜集描写江河湖海的古诗词一首",
 			Status: "active", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 		{
+			// 风格：清新 · 薄荷绿（fr-mint）
 			ID: "cw-h5-001", SchoolID: school.ID, UserID: teacherID,
 			Name: "《桂花雨》H5互动课件", Type: "courseware", Format: "h5", Tag: "语文",
-			Content:  "# 《桂花雨》\n\n## 互动\n- 点击揭示：作者借桂花表达思乡之情\n- 随堂选择：课文描写了哪些场景",
+			ThemeID:  "fr-mint",
+			Content:  "# 《桂花雨》\n\n## 教学目标\n- 体会作者借桂花表达的思乡之情\n- 学习借物抒情、以小见大的写法\n\n## 知识讲解\n- 概念：借物抒情——借桂花这一具体物象寄托深沉情感\n- 要点：摇花乐的童年记忆 → 故乡桂花的香甜 → 异地桂花“比不上家乡”\n\n## 互动\n- 点击揭示：作者为什么写“这里的桂花再香，也比不上家乡院子里的桂花”？\n- 随堂选择：课文主要表达了哪种情感？A.思乡 B.喜悦 C.伤感\n\n## 课堂小结\n- 一缕桂花香，浓浓故乡情\n\n## 作业布置\n- 基础：有感情朗读课文\n- 提高：写一段话，借一种事物表达对某人的情感",
 			Status: "active", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 		{
+			// 风格：科技 · 蓝紫极光渐变（gr-aurora），视频课件
 			ID: "cw-video-001", SchoolID: school.ID, UserID: teacherID,
 			Name: "《普罗米修斯》微课视频", Type: "courseware", Format: "video", Size: "36MB", Tag: "语文",
+			ThemeID:  "gr-aurora",
 			URL:      "https://example.com/lesson/prometheus.mp4",
+			Content:  "# 《普罗米修斯》\n\n## 教学目标\n- 了解古希腊神话，把握故事脉络\n- 体会普罗米修斯造福人类、不畏强暴的精神\n\n## 知识讲解\n- 概念：神话——远古先民对自然与英雄的想象性解释\n- 要点：盗火受罚 → 坚贞不屈 → 终获解救\n\n## 课堂小结\n- 普罗米修斯是“人类的恩主”，象征反抗与献身\n\n## 作业布置\n- 基础：复述故事\n- 拓展：比较中外神话中的“盗火”形象",
 			Status:   "active", Grade: "四年级", Subject: "语文", Category: "courseware",
 		},
 		{
+			// 风格：严谨 · 教研蓝（aca-edu-blue），数学
 			ID: "cw-ppt-002", SchoolID: school.ID, UserID: teacherID,
-			Name: "《走月亮》PPT课件", Type: "courseware", Format: "ppt", Size: "0.9MB", Tag: "语文",
-			Content:  "# 《走月亮》\n\n## 赏析\n- 月下溪边\n- 月下田园\n\n## 重点\n体会虚实结合的写法",
-			Status: "draft", Grade: "四年级", Subject: "语文", Category: "courseware",
+			Name: "《小数乘法》PPT课件", Type: "courseware", Format: "ppt", Size: "1.1MB", Tag: "数学",
+			ThemeID:  "aca-edu-blue",
+			Content:  "# 小数乘法\n\n## 教学目标\n- 理解小数乘整数的算理，掌握计算方法\n- 能正确进行小数乘整数、乘小数的笔算\n\n## 知识讲解\n- 概念：小数乘法先按整数乘法算，再看因数共有几位小数，就从积的右边起数出几位点上小数点\n- 推导：0.72 × 5 = 3.60，因数共两位小数，积末尾去0得3.6\n- 要点：积的小数位数不够时，用0补足\n\n## 例题演练\n- 题干：计算 2.4 × 0.8\n- 思路：24×8=192，因数共两位小数→1.92\n- 解答：2.4 × 0.8 = 1.92\n\n## 课堂小结\n- 一看（因数小数位）二算（整数乘法）三点（点小数点）\n\n## 作业布置\n- 基础：完成练习册第1、2题\n- 提高：0.25 × 0.4 先计算再验算\n- 拓展：思考积与因数大小关系的规律",
+			Status: "draft", Grade: "五年级", Subject: "数学", Category: "courseware",
+		},
+		{
+			// 风格：卡通插画（sp-cartoon），语文低段
+			ID: "cw-ppt-003", SchoolID: school.ID, UserID: teacherID,
+			Name: "《小蝌蚪找妈妈》PPT课件", Type: "courseware", Format: "ppt", Size: "2.0MB", Tag: "语文",
+			ThemeID:  "sp-cartoon",
+			Content:  "# 小蝌蚪找妈妈\n\n## 教学目标\n- 借助图画读通课文，了解小蝌蚪变青蛙的生长过程\n- 喜欢阅读童话，乐于表达\n\n## 知识讲解\n- 概念：变态发育——小蝌蚪先长后腿，再长前腿，尾巴变短成青蛙\n- 要点：鲤鱼阿姨 → 乌龟 → 白鹅 → 青蛙妈妈\n\n## 互动\n- 随堂选择：小蝌蚪最后找到了谁？A.鲤鱼 B.乌龟 C.青蛙\n\n## 课堂小结\n- 小蝌蚪长成青蛙，是自然界的奇妙变化\n\n## 作业布置\n- 基础：把故事讲给家人听\n- 提高：画一画小蝌蚪变成青蛙的过程",
+			Status: "active", Grade: "二年级", Subject: "语文", Category: "courseware",
+		},
+		{
+			// 风格：自然生机 · 森林绿（na-forest），科学
+			ID: "cw-ppt-004", SchoolID: school.ID, UserID: teacherID,
+			Name: "《植物的生长》PPT课件", Type: "courseware", Format: "ppt", Size: "1.8MB", Tag: "科学",
+			ThemeID:  "na-forest",
+			Content:  "# 植物的生长\n\n## 教学目标\n- 知道种子萌发需要水、空气和适宜温度\n- 观察并记录植物生长变化\n\n## 知识讲解\n- 概念：光合作用——植物用阳光把水和二氧化碳变成养分\n- 原理：根吸水 → 茎运输 → 叶制造养分\n- 要点：发芽、长叶、开花、结果是一个连续过程\n\n## 例题演练\n- 问题：把两盆豆苗一盆放黑暗处、一盆放阳光下，几天后哪盆更绿？\n- 步骤：对比观察叶片颜色\n- 结论：阳光下更绿，说明光对生长重要\n\n## 课堂小结\n- 植物生长离不开光、水、空气\n\n## 作业布置\n- 基础：种一颗绿豆，每天记录高度\n- 拓展：查资料了解光合作用公式",
+			Status: "active", Grade: "三年级", Subject: "科学", Category: "courseware",
 		},
 	}
 	for i := range coursewares {
@@ -658,7 +686,7 @@ func main() {
 
 	fmt.Println("\n=== 增强版种子数据完成 ===")
 	fmt.Println("学校: 树人实验小学 (sch-0001)")
-	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4 / 课件素材 4")
+	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4 / 课件素材 6")
 	fmt.Println("\n=== 演示账号（QA专用）===")
 	fmt.Println("13800000002 / teacher123  - 李老师 (teacher, 语文, 主力测试)")
 	fmt.Println("13800000005 / teacher123  - 赵校长 (principal)")
