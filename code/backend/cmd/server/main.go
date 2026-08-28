@@ -21,6 +21,7 @@ import (
 
 	"github.com/zhiwei/backend/internal/cloud"
 	"github.com/zhiwei/backend/internal/heartbeat"
+	"github.com/zhiwei/backend/internal/scheduler"
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 		&model.UserSubmittedTextbookVersion{},
 		&model.Sheet{},
 		&model.Annotation{}, &model.Version{},
-		&model.DecorTemplate{}, &model.FacetVocab{},
+		&model.FacetVocab{},
 	); err != nil {
 		log.Printf("Warning: AutoMigrate failed: %v", err)
 	}
@@ -194,6 +195,10 @@ func main() {
 	heartbeatClient := heartbeat.New(db, cfg.HeartbeatURL, cfg.HeartbeatAPIKey, cfg.HeartbeatEnabled, "saas")
 	heartbeatClient.Start()
 
+	// AI 标签巡增调度器（2026-08-28）：每月定期扫未打标装饰，调 AI 补 facet 标签
+	aiTagScheduler := scheduler.New(materialRepo, cfg.AIBaseURL, cfg.AITagSchedulerEnabled, 30*24*time.Hour)
+	aiTagScheduler.Start()
+
 	// 创建路由
 	r := gin.Default()
 
@@ -327,12 +332,9 @@ func main() {
 		teacher.POST("/materials", materialHandler.UploadMaterial)
 		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		teacher.PUT("/materials/:id", materialHandler.UpdateMaterial)
-		// 装饰元件资产架构（P2）：facet 过滤查询
+		// 装饰元件查询（素材库装饰元件，facet 自动匹配）
 		teacher.GET("/decor", materialHandler.ListDecor)
-		// 装饰组件模板（P2 生产端）：元件组合保存/提交审核/列表
-		teacher.GET("/decor-templates", materialHandler.ListDecorTemplates)
-		teacher.POST("/decor-templates", materialHandler.SaveDecorTemplate)
-		// facet 受控词表（运营维护母题/媒介等词库）
+		// facet 受控词表（运营维护母题/媒介/色系/页型等词库）
 		teacher.GET("/facets", materialHandler.ListFacets)
 		teacher.POST("/facets", materialHandler.UpsertFacet)
 		teacher.DELETE("/facets/:id", materialHandler.DeleteFacet)

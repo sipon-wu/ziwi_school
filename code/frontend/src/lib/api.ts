@@ -10,9 +10,11 @@ export interface MaterialItem {
   tag?: string
   size?: number
   created_at?: string
-  // 装饰元件字段（/decor 接口）
+  // 装饰元件字段（/decor 接口，facet 4 维：applicable/motif/color/page_type）
   applicable?: string
   motif_root?: string
+  color_root?: string
+  page_type?: string
   decor_facets?: string[]
   url?: string
 }
@@ -372,7 +374,7 @@ export const materialAPI = {
   get: (id: string) => request<any>(`/materials/${id}`),
 }
 
-// ── 装饰元件资产架构（P2）：facet 过滤查询 ──
+// ── 装饰元件（素材库图片，facet 自动匹配）──
 
 /** 装饰元件引用（挂到槽位时记录 id 归属 + url 渲染） */
 export interface DecorItem {
@@ -380,7 +382,7 @@ export interface DecorItem {
   url: string
   name?: string
 }
-/** 装饰插槽结构（组件模板用）：各槽位挂装饰元件引用；背景为图片 URL */
+/** 装饰插槽结构（模板内置装饰 / 用户替换装饰用）：各槽位挂装饰元件引用；背景为图片 URL */
 export interface DecorSlots {
   header?: DecorItem[]
   footer?: DecorItem[]
@@ -389,39 +391,20 @@ export interface DecorSlots {
   floating?: DecorItem[]
 }
 
-/** 个人装饰模板（组件层级=元件组合）；本期存 localStorage，预留后端 Registry 接入 */
-export interface DecorTemplate {
-  id: string
-  name: string
-  slots: DecorSlots
-  /** facet 受控词表（母题等），便于检索与运营审核归类 */
-  facets?: string[]
-  /** 状态：draft 草稿 | pending 待审核 | approved 已发布 | rejected 已驳回 */
-  status?: string
-  created_at?: string
-}
-
 export const decorAPI = {
   /** 装饰元件库查询。scope=public 平台公共库；scope=mine 当前账号。
-   *  facet 过滤: medium(ppt|h5|common) / motif(母题一级) / kind(decor_element|decor_component) */
-  list: (params: { scope?: 'public' | 'mine'; medium?: string; motif?: string; kind?: string }) => {
+   *  facet 过滤（AI 自动匹配）: medium(ppt|h5|common) / motif(母题一级，多值OR)
+   *  / color(色系一级，多值OR) / pageType(适用页型) / kind(decor_element|decor_component) */
+  list: (params: { scope?: 'public' | 'mine'; medium?: string; motif?: string; color?: string; pageType?: string; kind?: string }) => {
     const qs = new URLSearchParams()
     if (params.scope) qs.set('scope', params.scope)
     if (params.medium) qs.set('medium', params.medium)
     if (params.motif) qs.set('motif', params.motif)
+    if (params.color) qs.set('color', params.color)
+    if (params.pageType) qs.set('page_type', params.pageType)
     if (params.kind) qs.set('kind', params.kind)
     return request<{ items: MaterialItem[]; total: number }>(`/decor?${qs.toString()}`)
   },
-}
-
-/** 装饰组件模板（P2 生产端）：元件组合保存/提交审核/列表 */
-export const decorTemplateAPI = {
-  /** 列出装饰模板。scope=mine 我的；scope=public 审核通过的公共模板 */
-  list: (scope: 'mine' | 'public' = 'mine') =>
-    request<{ items: DecorTemplate[]; total: number }>(`/decor-templates?scope=${scope}`),
-  /** 保存草稿或提交审核。submit=true 提交运营审核 */
-  save: (tpl: { id?: string; name: string; slots: DecorSlots; facets?: string[]; submit?: boolean }) =>
-    request<DecorTemplate>(`/decor-templates`, { method: 'POST', body: JSON.stringify(tpl) }),
 }
 
 /** facet 受控词表（运营维护母题/媒介等词库） */

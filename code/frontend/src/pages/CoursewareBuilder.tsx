@@ -5,25 +5,34 @@ import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
-import { api, aiAPI, materialAPI, decorTemplateAPI, notifyError, type MaterialItem, type DecorTemplate } from '../lib/api'
+import { api, aiAPI, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots, type FacetVocab } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
-import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets, isValidComponent, type H5Component } from '../lib/exportPptx'
+import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets, isValidComponent, normalizeInteractive, type H5Component } from '../lib/exportPptx'
+import { distributeToSlots } from '../lib/cwTemplate'
 import { exportH5Courseware, buildH5FromOutline, buildH5Html, renderInteractive, type H5Slide } from '../lib/exportH5'
 import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import QRCode from 'qrcode'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { getTheme, recommendTheme } from '../lib/pptThemes'
-import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, type StyleTag } from '../lib/cwTemplate'
+import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
 // 触发模板资产域注册（子项目库模板经适配器并入 PPT_TEMPLATES，副作用导入即可，无需引用）
 import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
-import PptxPreview from '../components/PptxPreview'
+import PptxPreview, { type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
@@ -49,6 +58,21 @@ const INTERACTIVE_META: { type: H5Component['type']; label: string; icon: string
   { type: 'readalong', label: '点读', icon: '📖', hint: '英语/拼音：点击文字播音频' },
   { type: 'drawing', label: '绘图', icon: '✏️', hint: '投屏白板：教师现场边讲边画（对话气泡/句型树/简笔画）' },
 ]
+
+// 互动组件摘要（卡片收起态展示）
+function interactiveSummary(it: H5Component): string {
+  switch (it.type) {
+    case 'reveal': return it.prompt || it.answer || '点击揭示'
+    case 'quiz': return it.question || '选择题'
+    case 'audio': return it.title || it.src || '音频'
+    case 'video': return it.title || it.src || '视频'
+    case 'gallery': return `图册(${(it.images || []).length}张)`
+    case 'popup': return it.triggerText || '弹层'
+    case 'readalong': return `点读(${(it.sentences || []).length}句)`
+    case 'drawing': return it.title || '绘图白板'
+    default: return it.type
+  }
+}
 
 function defaultInteractive(type: H5Component['type']): H5Component {
   switch (type) {
@@ -190,6 +214,94 @@ const DRAFT_KEY_PREFIX = 'zhiwei_cw_draft'
 const getDraftKey = (materialId: string) => `${DRAFT_KEY_PREFIX}_${materialId || 'new'}`
 const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2))
 
+/** 替换装饰面板：浮层在编辑层最外层（z-90），全屏态与非全屏态共用。
+ *  从素材库装饰元件挑一个替换当前选中的装饰图（slot + index）。
+ *  顶部「AI 推荐」分组：按模板风格/色系 facet 自动匹配的推荐装饰，可一键应用。
+ *  设计意图：装饰是画布上的可编辑元素，替换入口与画布选中态绑定。 */
+function DecorPickerModal({
+  open, onClose, decorElems, decorScope, decorMedium, onScopeChange, onMediumChange, onPick,
+  suggestions, onApplySuggestion, onApplyAll, onSmartMatch, smartMatching,
+}: {
+  open: boolean
+  onClose: () => void
+  decorElems: MaterialItem[]
+  decorScope: 'public' | 'mine'
+  decorMedium: string
+  onScopeChange: (s: 'public' | 'mine') => void
+  onMediumChange: (m: string) => void
+  onPick: (it: MaterialItem) => void
+  suggestions?: MaterialItem[]
+  onApplySuggestion?: (it: MaterialItem) => void
+  onApplyAll?: () => void
+  onSmartMatch?: () => void
+  smartMatching?: boolean
+}) {
+  if (!open) return null
+  const hasSuggest = suggestions && suggestions.length > 0
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-lg w-[520px] max-h-[70vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-[#F0F0F0] flex items-center justify-between">
+          <h3 className="text-[14px] font-bold text-[#353535]">替换装饰元件</h3>
+          <button onClick={onClose} className="text-[#9A9A9A] hover:text-[#353535] text-[18px] leading-none">×</button>
+        </div>
+        {/* AI 推荐分组（手动触发：按当前模板风格/色系 facet 匹配，套模板不自动弹） */}
+        <div className="px-4 py-2.5 border-b border-[#F0F0F0] bg-[#F8FAFF]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[12px] font-medium text-[#02A7F0]">✨ AI 智能配饰（按风格匹配素材库）</span>
+            <button onClick={onSmartMatch} disabled={smartMatching}
+              className="text-[11px] px-2 py-0.5 rounded border border-[#02A7F0] text-[#02A7F0] hover:bg-[#02A7F0] hover:text-white disabled:opacity-50 transition-colors">
+              {smartMatching ? '匹配中…' : '智能配饰'}
+            </button>
+          </div>
+          {hasSuggest ? (
+            <div className="flex gap-2 flex-wrap">
+              {suggestions!.map(it => (
+                <button key={it.id} onClick={() => onApplySuggestion?.(it)}
+                  className="flex items-center gap-1 px-2 py-1 rounded border border-[#02A7F0]/40 bg-white hover:border-[#02A7F0] transition-colors">
+                  {(it.url && /\.(svg|png|jpg|jpeg|gif|webp|data:image)/i.test(it.url)) ? (
+                    <img src={it.url} alt={it.name} className="w-6 h-6 object-contain" />
+                  ) : <div className="w-6 h-6 rounded bg-[#7B61FF]/10 flex items-center justify-center text-[8px] text-[#7B61FF]">元件</div>}
+                  <span className="text-[10px] text-[#353535]">{it.name}</span>
+                </button>
+              ))}
+              <button onClick={onApplyAll} className="self-center text-[11px] text-[#02A7F0] hover:underline ml-1">一键应用到全部内容页</button>
+            </div>
+          ) : (
+            <span className="text-[11px] text-[#9A9A9A]">点击「智能配饰」按当前风格自动匹配装饰元件（可选增强，不覆盖模板内置装饰）</span>
+          )}
+        </div>
+        <div className="px-4 py-2 border-b border-[#F0F0F0] flex items-center gap-2 flex-wrap">
+          {(['public', 'mine'] as const).map(s => (
+            <button key={s} onClick={() => onScopeChange(s)}
+              className={`px-2.5 py-1 text-[12px] rounded ${decorScope === s ? 'bg-[#7B61FF] text-white' : 'bg-[#F6F7F8] text-[#6B6B6B]'}`}>
+              {s === 'public' ? '平台公共库' : '我的素材'}
+            </button>
+          ))}
+          <select value={decorMedium} onChange={e => onMediumChange(e.target.value)} className="px-2 py-1 text-[12px] border border-[#E7E7EB] rounded">
+            {[{ k: '', l: '全部媒介' }, { k: 'ppt', l: 'PPT' }, { k: 'h5', l: 'H5' }, { k: 'common', l: '通用' }].map(o => <option key={o.k} value={o.k}>{o.l}</option>)}
+          </select>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 grid grid-cols-3 gap-3">
+          {decorElems.length === 0 && <div className="col-span-3 text-center text-[12px] text-[#9A9A9A] py-8">暂无装饰元件</div>}
+          {decorElems.map(it => (
+            <button key={it.id} onClick={() => onPick(it)}
+              className="border border-[#F0F0F0] rounded-[6px] p-2 hover:border-[#7B61FF] transition-colors text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                {(it.url && /\.(svg|png|jpg|jpeg|gif|webp|data:image)/i.test(it.url)) ? (
+                  <img src={it.url} alt={it.name} className="w-8 h-8 object-contain rounded bg-[#F6F7F8]" />
+                ) : <div className="w-8 h-8 rounded bg-[#7B61FF]/10 text-[#7B61FF] flex items-center justify-center text-[9px]">元件</div>}
+                <span className="text-[11px] font-medium text-[#353535] truncate">{it.name}</span>
+              </div>
+              <span className="text-[9px] text-[#9A9A9A]">{it.applicable || '—'}{it.motif_root ? ` · ${it.motif_root}` : ''}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /**
  * P4 课件编辑器页（PPT 课件 · H5 预留）：与教案/出题/组卷同一套 EditorLayout 四件套。
  * AI 模式 = 左栏参数 + 右栏知识图谱；文档模式 = 左栏参数 + 右栏可编辑提纲/发散地图/校验；
@@ -224,6 +336,11 @@ export default function CoursewareBuilder() {
   const [genTitle, setGenTitle] = useState('')
   const [genStyleTag, setGenStyleTag] = useState<StyleTag | ''>('')
   const [genStyleProfile, setGenStyleProfile] = useState('')
+  // 风格标签云：从后端 facet 词表（motif）动态拉取，AI 巡增新标签后自动增多
+  const [motifTags, setMotifTags] = useState<FacetVocab[]>([])
+  useEffect(() => {
+    facetAPI.list('motif').then(r => setMotifTags(r.items || [])).catch(() => setMotifTags([]))
+  }, [])
   const [cwExtra, setCwExtra] = useState('')
   const [genBaseId, setGenBaseId] = useState('')
   const [divergenceLevel, setDivergenceLevel] = useState<'conservative' | 'standard' | 'expansive'>('standard')
@@ -253,32 +370,127 @@ export default function CoursewareBuilder() {
   const [docSlide, setDocSlide] = useState(0)
   // 当前页互动编辑：选择器 + 表单弹层（手动挂 H5 互动组件）
   const [interactivePickerOpen, setInteractivePickerOpen] = useState(false)
+  // 当前页互动组件卡片的"展开编辑"索引（-1=全部收起）
+  const [editingItIdx, setEditingItIdx] = useState(-1)
   // 新建课件默认套用「按学科+年级」推荐主题（仅默认，不强制；教师可随时手改，恢复草稿时以草稿为准）
   const [themeId, setThemeId] = useState<string>(() => recommendTheme(teaching.subject, teaching.grade).themeId)
   // workMode 已收口到 useEditorController
 
   // ── 模板套用（PPT 课件）：从模板库选 → 一键换肤套用、内容不变、可撤销 ──
   const [tplPanelOpen, setTplPanelOpen] = useState(false)
-  const [tplDim, setTplDim] = useState<'style' | 'color'>('style')
-  const [tplStyleFilter, setTplStyleFilter] = useState<StyleTag | ''>('')
+  // ★ 聚类标签：风格/色系多选（OR 语义），替代互斥分类导航
+  const [tplStyleTags, setTplStyleTags] = useState<StyleTag[]>([])
+  const [tplColorTags, setTplColorTags] = useState<string[]>([])
   const tplAppliedId = useRef<string | null>(null)
   const tplPrevTheme = useRef<string | null>(null)
   const tplPrevLayouts = useRef<(string | undefined)[] | null>(null)
 
-  // ── 装饰模板套用（P2 装修）：从我的/公共装饰模板选 → 一键挂到每页 decor 插槽 ──
-  const [decorPanelOpen, setDecorPanelOpen] = useState(false)
-  const [decorTpls, setDecorTpls] = useState<DecorTemplate[]>([])
-  const [decorScope, setDecorScope] = useState<'mine' | 'public'>('mine')
-  const applyDecorTemplate = (t: DecorTemplate) => {
-    if (!cwOutline.length) { toast('请先生成课件', 'warning'); return }
-    // 模板 slots 映射到每页 decor（封面页不挂装饰，保持干净）
-    setCwOutline(arr => arr.map((s, i) => i === 0 ? s : { ...s, decor: t.slots }))
-    toast('已套用装饰模板「' + t.name + '」', 'success')
-    setDecorPanelOpen(false)
-  }
-  const loadDecorTpls = (sc: 'mine' | 'public') => {
+  // ── 装饰元件：选中画布装饰元素 → 工具条「替换/删除」→ 替换打开素材库装饰元件面板 ──
+  const [decorElems, setDecorElems] = useState<MaterialItem[]>([])
+  const [decorScope, setDecorScope] = useState<'public' | 'mine'>('public')
+  const [decorMedium, setDecorMedium] = useState('')
+  // 画布上当前选中的装饰（由 PptxPreview 冒泡）
+  const [selDecor, setSelDecor] = useState<DecorSelection | null>(null)
+  // 替换面板开关
+  const [decorPickerOpen, setDecorPickerOpen] = useState(false)
+  const loadDecorElems = (sc: 'public' | 'mine', medium = '') => {
     setDecorScope(sc)
-    decorTemplateAPI.list(sc).then(res => setDecorTpls(res.items || [])).catch(e => notifyError('装饰模板加载失败', e))
+    setDecorMedium(medium)
+    decorAPI.list({ scope: sc, medium: medium || undefined, motif: undefined, color: undefined, pageType: undefined })
+      .then(res => setDecorElems(res.items || []))
+      .catch(e => notifyError('装饰元件加载失败', e))
+  }
+  // 替换当前选中的装饰：把素材库选中的元件写入选中装饰所在的槽位/索引
+  const replaceDecorAt = (it: MaterialItem) => {
+    if (!selDecor) return
+    const idx = docSlide
+    const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
+    setCwOutline(arr => arr.map((s, i) => {
+      if (i !== idx) return s
+      const cur: DecorSlots = s.decor || {}
+      if (selDecor.slot === 'background') {
+        return { ...s, decor: { ...cur, background: it.url || '' } }
+      }
+      const key = selDecor.slot === 'corner' ? 'corners' : selDecor.slot
+      const list = (cur as any)[key] || []
+      const nextList = list.map((x: DecorItem, j: number) => j === selDecor.index ? item : x)
+      return { ...s, decor: { ...cur, [key]: nextList } }
+    }))
+    toast(`已替换装饰为「${it.name}」`, 'success')
+    setDecorPickerOpen(false)
+  }
+
+  // ── AI 装饰推荐（AI 辅助平台差异化）：套模板后按模板风格/色系 facet 自动匹配装饰元件 ──
+  // 推荐结果先存 state，在「替换装饰」面板顶部展示，用户确认后应用（不静默写页面）。
+  const [aiDecorating, setAiDecorating] = useState(false)
+  const [aiDecorSuggestions, setAiDecorSuggestions] = useState<MaterialItem[]>([])
+  // 套模板后按 facet 匹配装饰元件。outline 由调用方传入（避免闭包陷阱）。
+  // motif/color 字段值与后端 materials.motif_root / color_root 一致（中文 label，如"国风"/"红金系"）。
+  // excludeNames：排除模板已内置的装饰（避免推荐与内置重复）。
+  const fetchAiDecorSuggestions = async (styleLabels?: string[], colorIds?: string[], excludeNames?: string[], medium?: string) => {
+    const motif = (styleLabels && styleLabels.length ? styleLabels.join(',') : undefined)
+    const color = (colorIds && colorIds.length ? colorIds.join(',') : undefined)
+    if (!motif && !color) return
+    setAiDecorating(true)
+    try {
+      const res = await decorAPI.list({ scope: 'public', motif, color, medium: medium || undefined })
+      const items = (res.items || []).filter(it => !(excludeNames || []).includes(it.name))
+      if (!items.length) { toast('暂无更多匹配该风格的装饰元件', 'info'); return }
+      setAiDecorSuggestions(items.slice(0, 4))
+      toast(`已生成 ${items.slice(0, 4).length} 个 AI 装饰推荐（在装饰面板中查看）`, 'success')
+    } catch (e) {
+      notifyError('AI 装饰推荐失败', e)
+    } finally {
+      setAiDecorating(false)
+    }
+  }
+  // 手动「智能配饰」：按当前已套用模板的风格/色系 + 媒介匹配装饰（B 方案，不自动弹）。
+  // PPT/H5 同理：medium 由 cwFormat 决定，避免把 PPT 装饰推给 H5 课件。
+  const smartMatchDecor = () => {
+    const pool = cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES
+    const tpl = pool.find(t => t.id === tplAppliedId.current) || null
+    const styleTags = tpl ? templateStyleTags(tpl) : (genStyleTag ? [genStyleTag] : [])
+    if (!styleTags.length && !(tpl && templateColorTags(tpl).length)) {
+      toast('请先套用模板或选择课件风格', 'info'); return
+    }
+    fetchAiDecorSuggestions(
+      styleTags.map(s => STYLE_LABELS[s] || s),
+      tpl ? templateColorTags(tpl) : undefined,
+      tpl ? (tpl.globalDecor || []).map(d => d.name).filter(Boolean) as string[] : undefined,
+      cwFormat === 'h5' ? 'h5' : 'ppt',
+    )
+  }
+  // 应用单个 AI 推荐装饰到当前页的浮动区（若当前页已有浮动装饰则追加）
+  const applyDecorSuggestion = (it: MaterialItem) => {
+    const idx = docSlide
+    const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
+    setCwOutline(arr => arr.map((s, i) => {
+      if (i !== idx) return s
+      const cur: DecorSlots = s.decor || {}
+      const list = cur.floating || []
+      return { ...s, decor: { ...cur, floating: [...list, item] } }
+    }))
+    toast(`已应用装饰「${it.name}」到当前页`, 'success')
+  }
+  // 一键应用全部推荐：给所有内容页（封面除外）的浮动区追加推荐装饰（轮转）。
+  // 作为模板内置装饰的"增强点缀"——浮动区可叠加多个装饰，避免重复追加同名元件。
+  const applyAllDecorSuggestions = () => {
+    const picks = aiDecorSuggestions
+    if (!picks.length) { toast('暂无 AI 推荐', 'info'); return }
+    // ★ 先同步计算应用页数（不能在 setCwOutline 回调里累加，回调异步执行会导致 applied 恒为 0）
+    const contentLen = Math.max(0, cwOutline.length - 1)
+    if (contentLen === 0) { toast('请先生成课件内容', 'info'); return }
+    setCwOutline(arr => arr.map((s, i) => {
+      if (i === 0) return s // 封面保持干净
+      const it = picks[i % picks.length]
+      const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
+      const cur: DecorSlots = s.decor || {}
+      const floating = cur.floating || []
+      // 仅避免同名重复（同页已有该推荐元件则跳过），其余页一律追加（即使已有模板内置装饰）
+      if (floating.some(f => f.name === item.name)) return s
+      return { ...s, decor: { ...cur, floating: [...floating, item] } }
+    }))
+    toast(`已应用 AI 推荐装饰到 ${contentLen} 个内容页（每页按风格轮转）`, 'success')
   }
 
   // 加载「参照课件」提纲：文档模式套用模板时，若当前为空课件且已选参照，则先把参照内容载入，再套新模板版式
@@ -363,8 +575,10 @@ export default function CoursewareBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 进入任一课件频道默认文档模式：视频频道需文档模式才显示配置面板，PPT/H5 也围绕提纲；用户仍可手动切 AI 选知识点
-  useEffect(() => { if (ctrl.workMode !== 'doc') ctrl.setWorkMode('doc') }, [cwFormat, ctrl])
+  // 进入任一课件频道默认文档模式：视频频道需文档模式才显示配置面板，PPT/H5 也围绕提纲；用户仍可手动切 AI 选知识点。
+  // ★ 依赖只留 [cwFormat]：ctrl 每次渲染都是新对象，若放进依赖会导致每次渲染都强制 setWorkMode('doc')，
+  //   用户点击「AI 模式」后立刻被此 effect 打回 doc（表现为模式按钮高亮但内容切不过去）。
+  useEffect(() => { if (ctrl.workMode !== 'doc') ctrl.setWorkMode('doc') }, [cwFormat]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 版心比例：16:9（默认，投影标准）或 4:3（传统屏），预览与导出同步
   const [cwAr, setCwAr] = useState<'16/9' | '4/3'>('16/9')
@@ -417,11 +631,31 @@ export default function CoursewareBuilder() {
       setRemovedDivergence({})
       setCwSimilar(res.similar_material || null)
       setValidateIssues(null)
-      // 风格模板（P1）：AI 生成后自动套用对应配色，无需教师再手动挑模板
+      // 风格模板（P1）：AI 生成后自动套用"最匹配模板"（风格+学段+学科多维匹配），无需教师再手动挑
       const styleEcho = (res.style_tag as StyleTag) || genStyleTag
-      if (styleEcho) setThemeId(defaultThemeForStyle(styleEcho))
+      // 多维匹配：风格优先，叠加学段/学科 facet（OR 语义），取首个命中模板自动套用
+      const matches = getTemplates(
+        cwFormat,
+        {
+          styles: styleEcho ? [styleEcho] : undefined,
+          stages: [gradeToStageTag(teaching.grade)],
+          subjects: subjectToTag(teaching.subject) ? [subjectToTag(teaching.subject)!] : undefined,
+        },
+      )
+      const autoTpl = matches[0] || (styleEcho ? PPT_TEMPLATES.find(t => templateStyleTags(t).includes(styleEcho)) : undefined)
+      if (autoTpl) {
+        const r = applyTemplate(cwOutline, autoTpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+        setCwOutline(r.outline)
+        setThemeId(r.themeId)
+        tplAppliedId.current = autoTpl.id
+        tplPrevTheme.current = r.prevThemeId
+        tplPrevLayouts.current = r.prevLayouts
+        if (styleEcho) setThemeId(defaultThemeForStyle(styleEcho)) // 风格强制优先于模板 theme（保持一致）
+      } else if (styleEcho) {
+        setThemeId(defaultThemeForStyle(styleEcho))
+      }
       ctrl.setWorkMode('doc')
-      toast('课件已生成，可在右侧编辑提纲', 'success')
+      toast('课件已生成并自动套用推荐模板，可在右侧编辑提纲', 'success')
     } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
     finally { setGenLoading(false) }
   }
@@ -454,6 +688,11 @@ export default function CoursewareBuilder() {
     setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, interactive: it } : s))
     ctrl.touch()
   }
+  // 当前页写入互动组件数组（可视化拖拽编辑器：每页可多组件、可排序）
+  const setSlideInteractives = (i: number, its: H5Component[]) => {
+    setCwOutline(arr => arr.map((s, k) => k === i ? { ...s, interactive: its } : s))
+    ctrl.touch()
+  }
   const moveSlide = (i: number, dir: number) => setCwOutline(arr => {
     const j = i + dir
     if (j < 0 || j >= arr.length) return arr
@@ -478,8 +717,9 @@ export default function CoursewareBuilder() {
       return n
     })
   }
-  const handleDocSlideChange = (index: number, slide: CwSlide) =>
-    setCwOutline(arr => arr.map((s, k) => (k === index ? { ...s, title: slide.title, elements: slide.elements } : s)))
+  // slideIndex 为 slides（outlineToSlides 含封面，index 0 = 封面）的索引，映射回 cwOutline 需 -1
+  const handleDocSlideChange = (slideIndex: number, slide: CwSlide) =>
+    setCwOutline(arr => arr.map((s, k) => (k === slideIndex - 1 ? { ...s, title: slide.title, elements: slide.elements, layout: slide.layout, decor: slide.decor ?? null } : s)))
 
   // AI 润色提纲（render-ppt：精炼要点 + 讲稿）
   const polishOutline = async () => {
@@ -492,7 +732,15 @@ export default function CoursewareBuilder() {
         style_tag: genStyleTag || undefined,
         theme_id: themeId,
       })
-      const out = materializeOutline(pptToOutline(r.ppt_slides || []))
+      // 润色只改内容、不改版式：以原 outline 的 layout 为骨架，用润色后的 bullets 重新分发 slots
+      const polished = pptToOutline(r.ppt_slides || [])
+      const out = materializeOutline(cwOutline.map((s, i) => {
+        const p = polished[i]
+        if (!p) return s
+        const layout = s.layout || 'title-body'
+        const slots = layout.startsWith('edu-') ? distributeToSlots(layout as any, p.bullets) : s.slots
+        return { ...s, title: p.title, bullets: p.bullets, slots }
+      }))
       if (r.theme_id) setThemeId(r.theme_id)
       if (out.length) { setCwOutline(out); setCwMarkdown(md); toast('提纲已 AI 润色（含讲稿）', 'success') }
       else toast('润色未返回内容', 'warning')
@@ -548,10 +796,10 @@ export default function CoursewareBuilder() {
     if (!cwOutline.length) return []
     return cwOutline.map((s, i) => {
       const bs = s.elements && s.elements.length ? extractBullets(s.elements) : (s.bullets || [])
-      const interactive: H5Component | null =
-        isValidComponent(s.interactive)
-          ? s.interactive
-          : (s.notes ? { type: 'reveal', prompt: '点击揭示：教师讲解要点', answer: s.notes } : null)
+      const interactiveArr = normalizeInteractive(s.interactive)
+      const interactive: H5Component[] | null = interactiveArr.length
+        ? interactiveArr
+        : (s.notes ? [{ type: 'reveal', prompt: '点击揭示：教师讲解要点', answer: s.notes }] : null)
       return {
         title: s.title,
         points: bs,
@@ -658,8 +906,8 @@ export default function CoursewareBuilder() {
         status: 'active',
         grade: gradeName,
         subject: teaching.subject,
-        // 互动插槽摘要快照（每页 interactive 序列化）；留空串=真清空（指针区分）
-        interactive_slots: JSON.stringify(cwOutline.map(s => isValidComponent(s.interactive) ? s.interactive : null)),
+        // 互动插槽摘要快照（每页 interactive 序列化，支持数组）；留空数组=真清空（指针区分）
+        interactive_slots: JSON.stringify(cwOutline.map(s => normalizeInteractive(s.interactive))),
       }
       // H5 互动课件：将完整互动 HTML 一并写入 h5_html，供手机扫码访问端点直接渲染
       if (cwFormat === 'h5') {
@@ -804,19 +1052,24 @@ export default function CoursewareBuilder() {
         <span className="text-[10px] text-[#9A9A9A] mt-1.5 block">也可在左下角小微对话提需求，点「应用到当前内容」自动带入并生成。</span>
       </div>
 
-      {/* 风格模板（P1）：AI 一键生成不同视觉风格 */}
+      {/* 风格模板（P1）：AI 一键生成不同视觉风格，标签由后端 facet 词表动态提供（AI 巡增） */}
       <div className="px-5 py-3 border-t border-[#F0F0F0]">
         <label className="block text-[12px] font-medium text-[#353535] mb-2">课件风格（AI 一键定调）</label>
-        <select value={genStyleTag} onChange={e => setGenStyleTag(e.target.value as StyleTag | '')}
-          className="w-full px-2.5 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] bg-white outline-none focus:border-[#02A7F0]">
-          <option value="">AI 智能推荐（按学科/学段）</option>
-          {(Object.keys(STYLE_LABELS) as StyleTag[]).map(s => (
-            <option key={s} value={s}>{STYLE_LABELS[s]}</option>
+        <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => setGenStyleTag('')}
+            className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${genStyleTag === '' ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#555] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+            AI 智能推荐
+          </button>
+          {(motifTags.length ? motifTags.map(t => t.value) : (Object.keys(STYLE_LABELS) as StyleTag[])).map(s => (
+            <button key={s} onClick={() => setGenStyleTag(s as StyleTag)}
+              className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${genStyleTag === s ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#555] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+              {motifTags.find(t => t.value === s)?.label || STYLE_LABELS[s as StyleTag] || s}
+            </button>
           ))}
-        </select>
+        </div>
         <input value={genStyleProfile} onChange={e => setGenStyleProfile(e.target.value)} placeholder="或描述想要的感觉，如：科技感强一点、活泼卡通"
           className="w-full mt-2 px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
-        <span className="text-[10px] text-[#9A9A9A] mt-1 block">生成后自动套用对应配色，无需再手动挑模板。</span>
+        <span className="text-[10px] text-[#9A9A9A] mt-1 block">风格标签由 AI 每月巡增，生成后自动套用最匹配模板配色。</span>
       </div>
 
       {/* 参照课件 */}
@@ -932,40 +1185,84 @@ export default function CoursewareBuilder() {
   const rightPanelDoc = (
     <div className="flex-1 flex flex-col min-h-0 bg-[#FAFAFA] relative">
       {cwFormat === 'h5' && (
-        <div className="shrink-0 px-3 py-2 bg-[#FFF7E6] border-b border-[#FFE7BA] text-[12px] text-[#AD6800]">
-          H5 文档编辑模式建设中，当前可预览/导出。如需编辑内容，请使用 AI 模式按知识点与模板自动生成 H5 课件。
+        <div className="shrink-0 px-3 py-2 bg-[#F0FBF4] border-b border-[#B7EBC8] text-[12px] text-[#1A7F48]">
+          H5 可视化编辑器已启用：从「+ 互动」拖入组件、拖动卡片排序、点击编辑。改动随课件导出为投屏 H5，手机扫码可交互查看。
         </div>
       )}
       {/* 编辑态文档模式：本页互动挂接（仅编辑态可见；查看态预览只只读渲染，不显示此编辑条） */}
-      {!ctrl.readOnly && cwFormat === 'h5' && (
-        <div className="shrink-0 border-b border-[#E7E7EB] bg-white p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-medium text-[#353535]">本页互动（H5 投屏/扫码生效）</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setInteractivePickerOpen(o => !o)} className="px-2.5 py-1 text-[12px] text-white bg-[#FA8C16] rounded hover:bg-[#E67E00]">+ 互动</button>
-              {isValidComponent(cwOutline[docSlide]?.interactive) && (
-                <button onClick={() => setSlideInteractive(docSlide, null)} className="px-2 py-1 text-[12px] text-[#9A9A9A] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8]">清空</button>
-              )}
+      {!ctrl.readOnly && cwFormat === 'h5' && (() => {
+        const curIdx = docSlide
+        const comps = normalizeInteractive(cwOutline[curIdx]?.interactive)
+        const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+        const onDragEnd = (e: DragEndEvent) => {
+          const { active, over } = e
+          if (over && active.id !== over.id) {
+            const oldI = comps.findIndex(c => (c as any).__id === active.id)
+            const newI = comps.findIndex(c => (c as any).__id === over.id)
+            if (oldI >= 0 && newI >= 0) setSlideInteractives(curIdx, arrayMove(comps, oldI, newI))
+          }
+        }
+        const SortableCard = ({ comp, idx }: { comp: H5Component; idx: number }) => {
+          const id = (comp as any).__id || `c${idx}`
+          const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+          const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+          const meta = INTERACTIVE_META.find(m => m.type === comp.type)
+          return (
+            <div ref={setNodeRef} style={style}
+              className={`flex items-start gap-2 rounded border border-[#E7E7EB] bg-white p-2 ${editingItIdx === idx ? 'ring-1 ring-[#FA8C16]' : 'hover:border-[#FA8C16]'}`}>
+              <button {...attributes} {...listeners} className="cursor-grab text-[#C0C0C0] hover:text-[#FA8C16] select-none mt-0.5" title="拖动排序">⠿</button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[13px]">{meta?.icon}</span>
+                  <span className="text-[12px] font-medium text-[#353535]">{meta?.label || comp.type}</span>
+                </div>
+                {editingItIdx === idx
+                  ? <InteractiveForm value={comp} onChange={it => { const n = comps.slice(); n[idx] = it; setSlideInteractives(curIdx, n) }} locked={cwLocked} />
+                  : <p className="text-[11px] text-[#9A9A9A] truncate">{interactiveSummary(comp)}</p>}
+              </div>
+              <div className="flex flex-col gap-1">
+                <button onClick={() => setEditingItIdx(editingItIdx === idx ? -1 : idx)} className="px-1.5 py-0.5 text-[11px] text-[#02A7F0] border border-[#CFEFFB] rounded hover:bg-[#F0FAFE]">{editingItIdx === idx ? '收起' : '编辑'}</button>
+                <button onClick={() => setSlideInteractives(curIdx, comps.filter((_, k) => k !== idx))} className="px-1.5 py-0.5 text-[11px] text-[#E15C5C] border border-[#F6D6D6] rounded hover:bg-[#FDF0F0]">删除</button>
+              </div>
             </div>
+          )
+        }
+        return (
+          <div className="shrink-0 border-b border-[#E7E7EB] bg-white p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-medium text-[#353535]">本页互动组件（H5 投屏/扫码生效，可多组件）</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setInteractivePickerOpen(o => !o)} className="px-2.5 py-1 text-[12px] text-white bg-[#FA8C16] rounded hover:bg-[#E67E00]">+ 互动</button>
+                {comps.length > 0 && (
+                  <button onClick={() => setSlideInteractives(curIdx, [])} className="px-2 py-1 text-[12px] text-[#9A9A9A] border border-[#E7E7EB] rounded hover:bg-[#F6F7F8]">清空</button>
+                )}
+              </div>
+            </div>
+            {interactivePickerOpen && (
+              <div className="flex flex-wrap gap-2 mb-3 p-2 bg-[#FAFBFC] rounded">
+                {INTERACTIVE_META.map(m => (
+                  <button key={m.type} title={m.hint} onClick={() => { setSlideInteractives(curIdx, [...comps, { ...defaultInteractive(m.type), __id: `c${Date.now()}-${Math.random().toString(36).slice(2, 6)}` } as any]); setInteractivePickerOpen(false) }}
+                    className="flex flex-col items-center w-[88px] p-2 rounded border border-[#E7E7EB] hover:border-[#FA8C16] hover:bg-[#FFF7EF]">
+                    <span className="text-[18px]">{m.icon}</span>
+                    <span className="text-[11px] text-[#353535] mt-1">{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {comps.length > 0 ? (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                <SortableContext items={comps.map((c, i) => (c as any).__id || `c${i}`)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {comps.map((c, i) => <SortableCard key={(c as any).__id || `c${i}`} comp={c} idx={i} />)}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <p className="text-[11px] text-[#C0C0C0]">未挂互动。点「+ 互动」选择一种（点击揭示/选择题/音频/视频/图册/弹层/点读），内容将随课件导出为 H5 投屏课件，手机扫码可交互查看。</p>
+            )}
           </div>
-          {interactivePickerOpen && (
-            <div className="flex flex-wrap gap-2 mb-3 p-2 bg-[#FAFBFC] rounded">
-              {INTERACTIVE_META.map(m => (
-                <button key={m.type} title={m.hint} onClick={() => { setSlideInteractive(docSlide, defaultInteractive(m.type)); setInteractivePickerOpen(false) }}
-                  className="flex flex-col items-center w-[88px] p-2 rounded border border-[#E7E7EB] hover:border-[#FA8C16] hover:bg-[#FFF7EF]">
-                  <span className="text-[18px]">{m.icon}</span>
-                  <span className="text-[11px] text-[#353535] mt-1">{m.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {isValidComponent(cwOutline[docSlide]?.interactive) ? (
-            <InteractiveForm value={cwOutline[docSlide].interactive as H5Component} onChange={it => setSlideInteractive(docSlide, it)} locked={cwLocked} />
-          ) : (
-            <p className="text-[11px] text-[#C0C0C0]">未挂互动。点「+ 互动」选择一种（点击揭示/选择题/音频/视频/图册/弹层/点读），内容将随课件导出为 H5 投屏课件，手机扫码可交互查看。</p>
-          )}
-        </div>
-      )}
+        )
+      })()}
       {/* 顶部统一工具条：非全屏与全屏编辑态复用同一套按钮（含模板库入口），仅容器形态不同 */}
       {renderToolbar(false)}
 
@@ -1029,11 +1326,13 @@ export default function CoursewareBuilder() {
             slides={outlineToSlides(cwOutline, cwOpts())}
             theme={getTheme(themeId)}
             editable
-            index={docSlide}
-            onIndexChange={setDocSlide}
+            index={docSlide + 1}
+            onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))}
             onSlideChange={handleDocSlideChange}
             aspectRatio={cwAr}
             embedFullscreen={true}
+            onSelectDecor={(sel) => setSelDecor(sel)}
+            onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }}
           />
         ) : (
           <div className="flex flex-col items-center gap-4 py-8">
@@ -1328,10 +1627,8 @@ export default function CoursewareBuilder() {
         className={`px-2.5 py-1.5 text-[12px] border rounded flex items-center gap-1 ${tplPanelOpen || tplAppliedId.current ? 'text-[#02A7F0] border-[#02A7F0] hover:bg-[#E8F7FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
         <Shapes size={13} /> 模板{tplAppliedId.current ? '✓' : ''}
       </button>
-      <button onClick={() => { setDecorPanelOpen(v => !v); if (!decorTpls.length) loadDecorTpls('mine') }} title="装饰模板"
-        className={`px-2.5 py-1.5 text-[12px] border rounded flex items-center gap-1 ${decorPanelOpen ? 'text-[#7B61FF] border-[#7B61FF] hover:bg-[#F3F0FF]' : 'text-[#353535] border-[#E7E7EB] hover:bg-white'}`}>
-        <ImageIcon size={13} /> 装饰
-      </button>
+      {/* 装饰入口已下沉为：选中画布上的装饰元素 → 工具条「替换/删除」按钮 → 打开素材库装饰元件。
+          顶部不再保留独立装饰按钮，避免与模板入口并列导致「装饰是另一个模板」的误读。 */}
       {tplPanelOpen && (
         <div className={`${fixed ? 'fixed top-12 right-3 z-[60]' : 'absolute right-0 top-9 z-50'} w-[340px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3`}>
           <div className="flex items-center justify-between mb-2">
@@ -1347,114 +1644,107 @@ export default function CoursewareBuilder() {
               }} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
             )}
           </div>
-          {/* 维度切换：风格 / 色系（色系由模板实际配色聚类而来，不再单独成下拉） */}
-          <div className="flex gap-1 mb-2 bg-[#F2F3F5] rounded p-0.5">
-            {([['style', '按风格'], ['color', '按色系']] as const).map(([k, lbl]) => (
-              <button key={k} onClick={() => setTplDim(k)} className={`flex-1 px-2 py-1 rounded text-[12px] ${tplDim === k ? 'bg-white text-[#02A7F0] shadow-sm' : 'text-[#666]'}`}>{lbl}</button>
-            ))}
-          </div>
-          {tplDim === 'style' ? (
-            <>
-              {/* 风格筛选（PPT/H5 共用风格标签文案，不含 basic——色系已独立成维度） */}
-              <div className="flex flex-wrap gap-1 mb-2">
-                <button onClick={() => setTplStyleFilter('')} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === '' ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>全部</button>
-                {(Object.keys(STYLE_LABELS) as StyleTag[]).filter(s => s !== 'basic').map(s => (
-                  <button key={s} onClick={() => setTplStyleFilter(s)} className={`px-2 py-0.5 rounded text-[11px] ${tplStyleFilter === s ? 'bg-[#02A7F0] text-white' : 'bg-[#F2F3F5] text-[#666]'}`}>{STYLE_LABELS[s]}</button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {(cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES).filter(t => !tplStyleFilter || t.style === tplStyleFilter).map(t => {
-                  // 模板资产域计费元数据（本期仅展示来源/计价标签，不触发计费 UI）
-                  const cost = t.id.startsWith('lib-') ? getLibraryCostMeta(t.id.slice(4)) : undefined
-                  const costLabel = cost
-                    ? (cost.base_cost > 0 ? `· ${cost.base_cost} token` : '· 官方免费')
-                    : ''
-                  return (
-                  <button key={t.id} onClick={async () => {
-                    const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                    const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                    setCwOutline(r.outline); setThemeId(r.themeId)
-                    tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                    setTplPanelOpen(false)
-                    toast(`已套用模板：${t.name}`, 'success')
-                  }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                    <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
-                    <div className="p-1.5">
-                      <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
-                      <div className="text-[10px] text-[#999] mt-0.5">{STYLE_LABELS[t.style]} · {t.layouts ? Object.keys(t.layouts).length : 0} 版式{costLabel}</div>
-                    </div>
-                  </button>
-                  )
-                })}
-                {(cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES).filter(t => !tplStyleFilter || t.style === tplStyleFilter).length === 0 && (
-                  <p className="col-span-2 text-[11px] text-[#999] text-center py-4">{cwFormat === 'h5' ? '该风格暂无 H5 模板，后续素材积累后可见' : '该风格暂无 PPT 模板，后续素材积累后可见'}</p>
-                )}
-              </div>
-            </>
-          ) : (
-            // 按色系维度：结构固定 + 色系自由叠加（色系由模板实配色聚类而来）
-            <div className="grid grid-cols-2 gap-2">
-              {COLOR_FAMILIES.map(f => {
-                const applied = tplAppliedId.current === `basic-${f.id}`
+          {/* ★ 聚类标签：风格/色系可多选（OR 语义），替代互斥分类导航 */}
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-[#9A9A9A]">风格（可多选）</span>
+              {tplStyleTags.length > 0 && <button onClick={() => setTplStyleTags([])} className="text-[10px] text-[#02A7F0] hover:underline">清空</button>}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {(Object.keys(STYLE_LABELS) as StyleTag[]).filter(s => s !== 'basic').map(s => {
+                const on = tplStyleTags.includes(s)
                 return (
-                  <button key={f.id} onClick={async () => {
-                    const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                    const tpl = basicTemplateForFamily(f)
-                    const r = applyTemplate(baseOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                    setCwOutline(r.outline); setThemeId(r.themeId)
-                    tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                    setTplPanelOpen(false)
-                    toast(`已套用：通用结构 · ${f.label}`, 'success')
-                  }} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                    <img src={renderFamilyThumb(f)} alt={f.label} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
-                    <div className="p-1.5">
-                      <div className="text-[12px] font-medium text-[#353535] truncate">通用 · {f.label}</div>
-                      <div className="text-[10px] text-[#999] mt-0.5">结构 × 色系 · {Object.keys(BASIC_TEMPLATE.layouts).length} 版式</div>
-                    </div>
+                  <button key={s} onClick={() => setTplStyleTags(prev => on ? prev.filter(x => x !== s) : [...prev, s])}
+                    className={`px-2 py-0.5 rounded-full text-[11px] border ${on ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#666] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>{STYLE_LABELS[s]}</button>
+                )
+              })}
+            </div>
+          </div>
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-[#9A9A9A]">色系（可多选）</span>
+              {tplColorTags.length > 0 && <button onClick={() => setTplColorTags([])} className="text-[10px] text-[#02A7F0] hover:underline">清空</button>}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {COLOR_FAMILIES.map(f => {
+                const on = tplColorTags.includes(f.id)
+                return (
+                  <button key={f.id} onClick={() => setTplColorTags(prev => on ? prev.filter(x => x !== f.id) : [...prev, f.id])}
+                    className={`px-2 py-0.5 rounded-full text-[11px] border flex items-center gap-1 ${on ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#666] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: f.swatch }} />{f.label}
                   </button>
                 )
               })}
             </div>
-          )}
+          </div>
+          {/* 模板列表：按聚类标签 OR 过滤（风格与色系各自 OR，组间 AND） */}
+          {(function () {
+            const pool = cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES
+            const filtered = pool.filter(t => {
+              const styleHit = tplStyleTags.length === 0 || templateStyleTags(t).some(s => tplStyleTags.includes(s))
+              const colorHit = tplColorTags.length === 0 || templateColorTags(t).some(c => tplColorTags.includes(c))
+              return styleHit && colorHit
+            })
+            return (
+              <div className="grid grid-cols-2 gap-2">
+                {filtered.map(t => {
+                  const cost = t.id.startsWith('lib-') ? getLibraryCostMeta(t.id.slice(4)) : undefined
+                  const costLabel = cost
+                    ? (cost.base_cost > 0 ? `· ${cost.base_cost} token` : '· 官方免费')
+                    : ''
+                  const styleLabels = templateStyleTags(t).map(s => STYLE_LABELS[s]).join('·')
+                  return (
+                    <button key={t.id} onClick={async () => {
+                      const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+                      const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                      setCwOutline(r.outline); setThemeId(r.themeId)
+                      tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
+                      setTplPanelOpen(false)
+                      toast(`已套用模板：${t.name}`, 'success')
+                      // 装饰匹配改为手动：教师在替换装饰面板点「智能配饰」才按风格匹配（B 方案，不干扰套模板主流程）
+                    }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                      <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
+                      <div className="p-1.5">
+                        <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
+                        <div className="text-[10px] text-[#999] mt-0.5">{styleLabels} · {t.layouts ? Object.keys(t.layouts).length : 0} 版式{costLabel}</div>
+                      </div>
+                    </button>
+                  )
+                })}
+                {filtered.length === 0 && (
+                  <p className="col-span-2 text-[11px] text-[#999] text-center py-4">无匹配模板，试试减少标签或切换「通用结构」</p>
+                )}
+                {/* 通用结构（结构 × 色系自由组合）始终可见 */}
+                {COLOR_FAMILIES.map(f => {
+                  const applied = tplAppliedId.current === `basic-${f.id}`
+                  return (
+                    <button key={`basic-${f.id}`} onClick={async () => {
+                      const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+                      const tpl = basicTemplateForFamily(f)
+                      const r = applyTemplate(baseOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+                      setCwOutline(r.outline); setThemeId(r.themeId)
+                      tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
+                      setTplPanelOpen(false)
+                      toast(`已套用：通用结构 · ${f.label}`, 'success')
+                    }} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                      <img src={renderFamilyThumb(f)} alt={f.label} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
+                      <div className="p-1.5">
+                        <div className="text-[12px] font-medium text-[#353535] truncate">通用 · {f.label}</div>
+                        <div className="text-[10px] text-[#999] mt-0.5">结构 × 色系 · {Object.keys(BASIC_TEMPLATE.layouts).length} 版式</div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>)
   }
 
-  // 装饰模板面板（P2 装修）：列出我的/公共装饰模板，一键套用到每页 decor 插槽
-  function renderDecorPanel(fixed = false) {
-    return (
-      <div className={`${fixed ? 'relative' : 'relative'}`}>
-        {decorPanelOpen && (
-          <div className={`${fixed ? 'fixed top-12 right-3 z-[60]' : 'absolute right-0 top-9 z-50'} w-[320px] max-h-[440px] overflow-y-auto bg-white border border-[#E7E7EB] rounded-lg shadow-2xl p-3`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[13px] font-medium text-[#353535]">装饰模板</span>
-              <button onClick={() => setDecorPanelOpen(false)} className="text-[#9A9A9A] hover:text-[#353535] text-[16px] leading-none">×</button>
-            </div>
-            <p className="text-[10px] text-[#9A9A9A] mb-2">套用后装饰元件按插槽自动布局到每页（封面除外）。去「装修工作室」可新建装饰模板。</p>
-            <div className="flex gap-1 mb-2">
-              {(['mine', 'public'] as const).map(s => (
-                <button key={s} onClick={() => loadDecorTpls(s)}
-                  className={`px-2 py-1 text-[11px] rounded ${decorScope === s ? 'bg-[#7B61FF] text-white' : 'bg-[#F6F7F8] text-[#6B6B6B]'}`}>
-                  {s === 'mine' ? '我的' : '公共'}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {decorTpls.length === 0 && <div className="text-[11px] text-[#9A9A9A] text-center py-4">暂无模板（去装修工作室新建）</div>}
-              {decorTpls.map(t => (
-                <div key={t.id} className="border border-[#F0F0F0] rounded-[6px] p-2 hover:border-[#7B61FF]">
-                  <div className="text-[12px] font-medium text-[#353535]">{t.name}</div>
-                  <div className="text-[10px] text-[#9A9A9A] mb-1">{(t.facets || []).join('，') || '—'}</div>
-                  <button onClick={() => applyDecorTemplate(t)} className="w-full px-2 py-1 text-[11px] text-white bg-[#7B61FF] rounded hover:bg-[#6a4fe0]">套用</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
+  // 装饰入口已下沉到画布选中态（待实现：选中装饰元素 → 工具条「替换/删除」按钮 → 替换弹层打开素材库装饰元件）。
+  // 底层能力保留：loadDecorElems / addDecorToCurrentSlide / removeDecorFromCurrentSlide，状态 decorElems / decorScope / decorMedium / decorSlot 待第二步接入。
   // 仅 fullscreen 态把「全屏」按钮替换为「退出全屏」并隐藏增/删页的页列表操作（全屏态无独立页列表栏）。
   // 模板库入口统一走 renderTemplatePanel（同一逻辑 / 同一份状态）。
   function renderToolbar(fullscreen = false) {
@@ -1516,10 +1806,8 @@ export default function CoursewareBuilder() {
           <Maximize2 size={13} /> 全屏
         </button>
       )}
-      {/* 模板库：两种形态共用同一逻辑与状态 */}
+      {/* 模板库：两种形态共用同一逻辑与状态。装饰入口已下沉到画布选中态。 */}
       {renderTemplatePanel(fullscreen)}
-      {/* 装饰模板（P2 装修）：套用装饰组件模板到每页 */}
-      {renderDecorPanel(fullscreen)}
     </div>)
   }
 
@@ -1564,7 +1852,7 @@ export default function CoursewareBuilder() {
             <div className="w-full max-w-[960px]">
               {cwOutline.length > 0 && slides.length > 0 ? (
                 // outlineToSlides 在 cwOutline 前自动插入了封面页，编辑画布索引需 +1
-                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} index={docSlide + 1} viewMode="scroll" editable embedFullscreen={true} />
+                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} index={docSlide + 1} onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))} onSlideChange={handleDocSlideChange} viewMode="scroll" editable embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
               ) : (
                 <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
               )}
@@ -1668,6 +1956,22 @@ export default function CoursewareBuilder() {
             </button>
           )}
         </div>
+        {/* 替换装饰面板（与主 return 共用子组件，避免 z-index/return 路径丢失） */}
+        <DecorPickerModal
+          open={decorPickerOpen}
+          onClose={() => setDecorPickerOpen(false)}
+          decorElems={decorElems}
+          decorScope={decorScope}
+          decorMedium={decorMedium}
+          onScopeChange={(sc) => loadDecorElems(sc, decorMedium)}
+          onMediumChange={(m) => loadDecorElems(decorScope, m)}
+          onPick={replaceDecorAt}
+          suggestions={aiDecorSuggestions}
+          onApplySuggestion={applyDecorSuggestion}
+          onApplyAll={applyAllDecorSuggestions}
+          onSmartMatch={smartMatchDecor}
+          smartMatching={aiDecorating}
+        />
       </div>
     )
   }
@@ -1729,6 +2033,17 @@ export default function CoursewareBuilder() {
       previewSlot={cwOutline.length > 0 ? previewPane : (
           <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
         )}
+    />
+    {/* 替换装饰面板：渲染在编辑层最外层（z-90），全屏态与非全屏态都可见。 */}
+    <DecorPickerModal
+      open={decorPickerOpen}
+      onClose={() => setDecorPickerOpen(false)}
+      decorElems={decorElems}
+      decorScope={decorScope}
+      decorMedium={decorMedium}
+      onScopeChange={(sc) => loadDecorElems(sc, decorMedium)}
+      onMediumChange={(m) => loadDecorElems(decorScope, m)}
+      onPick={replaceDecorAt}
     />
     {h5Qr && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setH5Qr(null)}>

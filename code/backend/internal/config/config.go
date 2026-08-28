@@ -16,6 +16,8 @@ type Config struct {
 	HeartbeatURL     string
 	HeartbeatAPIKey  string
 	OSS              OSSConfig
+	// AI 标签巡增调度器（2026-08-28 新增）：每月定期扫未打标装饰，调 AI 补 facet
+	AITagSchedulerEnabled bool
 }
 
 type OSSConfig struct {
@@ -36,6 +38,7 @@ func Load() (*Config, error) {
 		HeartbeatEnabled: getEnv("HEARTBEAT_ENABLED", "") == "true",
 		HeartbeatURL:     getEnv("HEARTBEAT_URL", "https://heartbeat.ziwi.cn/api/v1/heartbeat"),
 		HeartbeatAPIKey:  getEnv("HEARTBEAT_API_KEY", ""),
+		AITagSchedulerEnabled: getEnv("AI_TAG_SCHEDULER_ENABLED", "") == "true",
 		OSS: OSSConfig{
 			Endpoint:  getEnv("OSS_ENDPOINT", ""),
 			Bucket:    getEnv("OSS_BUCKET", ""),
