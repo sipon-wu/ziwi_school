@@ -636,17 +636,19 @@ func main() {
 			decorElements[i].ID = id
 		}
 	}
-	// 幂等：按 (name + category) 去重，避免重复跑 seed 产生重复装饰元件
+	// 幂等 + 历史 id 迁移：装饰现已用稳定 assetId 作主键（对齐前端 DecorSlot.assetId）。
+	// 旧库里同名装饰可能是自动 uuid，这里按 name 找到后把 id 一并纠正为 assetId，并刷新全部内容字段，
+	// 避免"前端按 assetId 查不到 → 全回落内联 SVG 兜底"的后患。找不到才 Create。
 	for i := range decorElements {
 		var existing model.Material
 		err := db.Where("name = ? AND category = ?", decorElements[i].Name, decorElements[i].Category).First(&existing).Error
 		if err == nil {
-			// 已存在：更新 facet 与 URL（保证与代码最新一致）
 			must(db.Model(&existing).Updates(map[string]interface{}{
-				"url": decorElements[i].URL, "motif_root": decorElements[i].MotifRoot,
-				"color_root": decorElements[i].ColorRoot, "page_type": decorElements[i].PageType,
-				"applicable": decorElements[i].Applicable, "decor_facets": decorElements[i].DecorFacets,
-			}).Error, "update decor element")
+				"id": decorElements[i].ID, "url": decorElements[i].URL, "name": decorElements[i].Name,
+				"motif_root": decorElements[i].MotifRoot, "color_root": decorElements[i].ColorRoot,
+				"page_type": decorElements[i].PageType, "applicable": decorElements[i].Applicable,
+				"decor_facets": decorElements[i].DecorFacets,
+			}).Error, "migrate+update decor element")
 			continue
 		}
 		must(db.Create(&decorElements[i]).Error, "create decor element")
