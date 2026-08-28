@@ -6,6 +6,7 @@ import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { api, aiAPI, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots, type FacetVocab } from '../lib/api'
+import { loadDecorCatalog } from '../lib/decorCatalog'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
@@ -331,6 +332,8 @@ export default function CoursewareBuilder() {
   const picker = useKnowledgePicker({ autoSelect: false })
   const { setPicker: setKGPicker } = useKGContext()
   useEffect(() => { setKGPicker(picker as any); return () => setKGPicker(null) }, [picker, setKGPicker])
+  // 装饰素材库：进入编辑器即拉取，使模板装饰优先用素材库真实 URL（snapshot 内联 SVG 兜底）
+  useEffect(() => { loadDecorCatalog() }, [])
 
   // ── 表单状态 ──
   const [genTitle, setGenTitle] = useState('')

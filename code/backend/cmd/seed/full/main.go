@@ -616,6 +616,26 @@ func main() {
 			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
 			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
 	}
+	// 对齐前端 cwTemplate.ts STYLE_DECOR_MAP / SCENARIO_DECOR_MAP 的 assetId，
+	// 使模板 DecorSlot.assetId 能精确命中素材库元件（前端 resolveDecorUrl 按 assetId 取真实 URL）
+	decorNameToID := map[string]string{
+		"国风印章": "decor-china-seal", "国风竹枝": "decor-china-bamboo",
+		"素净同心圆": "decor-minimal-line", "素净圆点": "decor-minimal-dot",
+		"科技六边形": "decor-tech-hex", "科技网格": "decor-tech-grid",
+		"清新叶子": "decor-fresh-leaf", "清新小叶": "decor-fresh-leaf-sm",
+		"严谨斜线": "decor-aca-rule", "严谨横线": "decor-aca-line",
+		"卡通太阳": "decor-cartoon-sun", "卡通星星": "decor-cartoon-star",
+		"卡通云朵": "decor-cartoon-cloud", "卡通彩虹": "decor-cartoon-rainbow", "卡通爱心": "decor-cartoon-heart",
+		"科技电路": "decor-tech-circuit", "科技芯片": "decor-tech-chip",
+		"扁平双圆": "decor-flat-circle", "扁平圆点组": "decor-flat-dot",
+		"沉稳边框": "decor-biz-line", "沉稳色块条": "decor-biz-bar",
+		"通用角标": "decor-basic-corner", "通用圆点": "decor-basic-dot",
+	}
+	for i := range decorElements {
+		if id, ok := decorNameToID[decorElements[i].Name]; ok {
+			decorElements[i].ID = id
+		}
+	}
 	// 幂等：按 (name + category) 去重，避免重复跑 seed 产生重复装饰元件
 	for i := range decorElements {
 		var existing model.Material

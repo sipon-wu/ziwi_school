@@ -12,6 +12,7 @@
  */
 
 import type { DecorSlots, DecorItem } from './api'
+import { resolveDecorUrl } from './decorCatalog'
 
 // ── 媒介维度：仅负责素材池分流，不决定风格 ──
 export type TemplateKind = 'ppt' | 'h5'
@@ -1114,8 +1115,8 @@ function decorSlotsFor(tpl: CwTemplate, layout: SlideLayout): DecorSlots | null 
   if (!merged.length) return null
   const slots: DecorSlots = {}
   for (const d of merged) {
-    const item: DecorItem = { id: d.assetId, url: d.snapshot?.url || '', name: d.name || '' }
-    if (d.slot === 'background') { slots.background = d.snapshot?.url || ''; continue }
+    const item: DecorItem = { id: d.assetId, url: resolveDecorUrl(d.assetId, d.snapshot?.url || ''), name: d.name || '' }
+    if (d.slot === 'background') { slots.background = resolveDecorUrl(d.assetId, d.snapshot?.url || ''); continue }
     const key = d.slot === 'header' ? 'header' : d.slot === 'footer' ? 'footer' : d.slot === 'corner' ? 'corners' : 'floating'
     ;(slots as any)[key] = [...((slots as any)[key] || []), item]
   }
