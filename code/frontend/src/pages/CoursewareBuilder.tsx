@@ -70,7 +70,7 @@ function interactiveSummary(it: H5Component): string {
     case 'popup': return it.triggerText || '弹层'
     case 'readalong': return `点读(${(it.sentences || []).length}句)`
     case 'drawing': return it.title || '绘图白板'
-    default: return it.type
+    default: return '互动组件'
   }
 }
 
@@ -635,7 +635,7 @@ export default function CoursewareBuilder() {
       const styleEcho = (res.style_tag as StyleTag) || genStyleTag
       // 多维匹配：风格优先，叠加学段/学科 facet（OR 语义），取首个命中模板自动套用
       const matches = getTemplates(
-        cwFormat,
+        cwFormat === 'video' ? 'h5' : cwFormat,
         {
           styles: styleEcho ? [styleEcho] : undefined,
           stages: [gradeToStageTag(teaching.grade)],

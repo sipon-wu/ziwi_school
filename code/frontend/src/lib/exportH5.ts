@@ -106,10 +106,11 @@ const THEMES: Record<string, { bg: string; card: string; accent: string; accent2
   fresh: { bg: '#0f1f16', card: '#fff', accent: '#1b7a4b', accent2: '#2ec27e', text: '#222' },
 }
 
-/** 确定端适配提示：含 video/gallery/readalong ⇒ 提示建议横屏；其余自适应不提示 */
-function needLandscapeTip(it: H5Component | null | undefined): boolean {
-  if (!it || typeof it !== 'object') return false
-  return it.type === 'video' || it.type === 'gallery' || it.type === 'readalong'
+/** 确定端适配提示：含 video/gallery/readalong ⇒ 提示建议横屏；其余自适应不提示。
+ *  兼容单值或数组（可视化拖拽编辑器支持每页多组件）。 */
+function needLandscapeTip(it: H5Component | H5Component[] | null | undefined): boolean {
+  const arr = Array.isArray(it) ? it : (it ? [it] : [])
+  return arr.some(c => c.type === 'video' || c.type === 'gallery' || c.type === 'readalong')
 }
 
 /** 生成单页互动区 HTML（7 种组件；XSS 转义 + gallery 手势隔离） */

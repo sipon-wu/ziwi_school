@@ -236,7 +236,7 @@ export type H5Component =
   | { type: 'reveal'; prompt?: string; answer: string }
   | { type: 'quiz'; question: string; options: string[]; correct: number }
   | { type: 'audio'; src: string; title?: string }
-  | { type: 'video'; src: string; poster?: string }
+  | { type: 'video'; src: string; title?: string; poster?: string }
   | { type: 'gallery'; images: string[]; direction?: 'h' | 'v' }
   | { type: 'popup'; triggerText: string; content: string }
   | { type: 'readalong'; sentences: { text: string; src: string }[] }
@@ -279,7 +279,7 @@ export function isValidComponent(it: any): it is H5Component {
 
 /** 单值或数组统一归一化为 H5Component[]（可视化拖拽编辑器支持每页多组件） */
 export type SlideInteractive = H5Component | H5Component[] | null
-export function normalizeInteractive(it: SlideInteractive): H5Component[] {
+export function normalizeInteractive(it: SlideInteractive | undefined): H5Component[] {
   if (!it) return []
   return Array.isArray(it) ? it.filter(isValidComponent) : (isValidComponent(it) ? [it] : [])
 }
