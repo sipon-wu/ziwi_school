@@ -860,6 +860,7 @@ export default function CoursewareBuilder() {
       status: 'draft',
       grade: gradeName,
       subject: teaching.subject,
+      theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
     }
     try {
       // 本地兜底暂存（未发布前可恢复）
@@ -909,6 +910,7 @@ export default function CoursewareBuilder() {
         status: 'active',
         grade: gradeName,
         subject: teaching.subject,
+        theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
         // 互动插槽摘要快照（每页 interactive 序列化，支持数组）；留空数组=真清空（指针区分）
         interactive_slots: JSON.stringify(cwOutline.map(s => normalizeInteractive(s.interactive))),
       }

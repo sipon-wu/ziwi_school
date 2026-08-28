@@ -349,7 +349,7 @@ export const schoolReviewConfigAPI = {
 export const materialAPI = {
   list: () => request<{ items: MaterialItem[] }>('/materials'),
   /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
-  createJSON: (data: { name: string; type: string; format?: string; tag?: string; url?: string; content?: string; h5_html?: string; status?: string; grade?: string; subject?: string }) =>
+  createJSON: (data: { name: string; type: string; format?: string; tag?: string; url?: string; content?: string; h5_html?: string; status?: string; grade?: string; subject?: string; theme_id?: string }) =>
     request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
   /** 上传文件素材（视频课件等） */
   upload: async (file: File, extra?: { name?: string; type?: string; format?: string; tag?: string }) => {
@@ -369,7 +369,7 @@ export const materialAPI = {
     return res.json()
   },
   /** 更新素材（课件草稿/发布落库复用） */
-  update: (id: string, data: { name?: string; type?: string; format?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string }) =>
+  update: (id: string, data: { name?: string; type?: string; format?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string; theme_id?: string }) =>
     request<any>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   get: (id: string) => request<any>(`/materials/${id}`),
 }
