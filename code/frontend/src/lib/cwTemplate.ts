@@ -726,20 +726,130 @@ const DEMO_CARTOON_KINDER: OutlineSlide[] = [
   { title: '亲子小任务', bullets: ['和爸爸妈妈一起……', '拍照片分享'], layout: 'edu-homework', notes: '' },
 ]
 
+// ── 复用型示范提纲（按学科/学段聚类，覆盖 PPT 池真实标注的学科与场景）──
+const DEMO_MATH_PHYSICS: OutlineSlide[] = [
+  { title: '封面', bullets: ['《课题名称》', '年级 · 学科', '授课教师：XXX'], layout: 'edu-cover', notes: '可配几何/公式背景' },
+  { title: '学习目标', bullets: ['知识与技能：理解概念与规律', '过程与方法：经历探究与推导', '素养：建模与推理能力'], layout: 'edu-goal', notes: '' },
+  { title: '情境导入', bullets: ['生活中的现象 / 问题情境', '引出本节核心问题'], layout: 'title-body', notes: '' },
+  { title: '概念建构', bullets: ['核心概念与定义', '关键要素与条件'], layout: 'edu-explain', notes: '' },
+  { title: '公式与推导', bullets: ['核心公式呈现', '推导过程与思路', '适用条件与单位'], layout: 'content-2col', notes: '板书推导步骤' },
+  { title: '例题精讲', bullets: ['典型例题呈现', '审题 → 建模 → 求解', '易错点提示'], layout: 'edu-example', notes: '' },
+  { title: '课堂练习', bullets: ['变式训练', '分组板演与互评'], layout: 'edu-explain', notes: '' },
+  { title: '课堂小结', bullets: ['知识结构化梳理', '方法归纳'], layout: 'edu-summary', notes: '' },
+  { title: '课后作业', bullets: ['基础巩固', '拓展提升'], layout: 'edu-homework', notes: '' },
+]
+
+const DEMO_SCIENCE_BIO: OutlineSlide[] = [
+  { title: '封面', bullets: ['《课题名称》', '年级 · 学科', '授课教师：XXX'], layout: 'edu-cover', notes: '可配实验/自然背景' },
+  { title: '学习目标', bullets: ['观察与描述现象', '理解原理与机制', '形成科学探究意识'], layout: 'edu-goal', notes: '' },
+  { title: '现象观察', bullets: ['呈现观察 / 实验现象', '提出待解决问题'], layout: 'title-body', notes: '' },
+  { title: '提出假设', bullets: ['基于现象作出猜想', '明确探究变量'], layout: 'edu-explain', notes: '' },
+  { title: '实验探究', bullets: ['方案设计与步骤', '操作要点与安全', '记录数据'], layout: 'edu-example', notes: '演示/分组实验' },
+  { title: '分析结论', bullets: ['处理数据 / 现象', '得出结论并验证假设'], layout: 'content-2col', notes: '' },
+  { title: '应用拓展', bullets: ['联系生活实际', '前沿或跨学科链接'], layout: 'edu-explain', notes: '' },
+  { title: '课堂小结', bullets: ['核心概念回顾', '探究方法提炼'], layout: 'edu-summary', notes: '' },
+  { title: '课后作业', bullets: ['观察记录', '探究小报告'], layout: 'edu-homework', notes: '' },
+]
+
+const DEMO_ENGLISH: OutlineSlide[] = [
+  { title: '封面', bullets: ['Unit / Lesson Title', 'Grade · English', 'Teacher: XXX'], layout: 'edu-cover', notes: '可配情境插图' },
+  { title: 'Learning Goals', bullets: ['能听懂并说出目标语', '能读懂并运用结构', '乐于表达、跨文化意识'], layout: 'edu-goal', notes: '' },
+  { title: 'Warm-up', bullets: ['歌曲 / 游戏 / 视频导入', '激活已知、铺垫话题'], layout: 'title-body', notes: '' },
+  { title: 'Words & Expressions', bullets: ['目标词汇与短语', '发音与拼写操练'], layout: 'edu-explain', notes: '图文配对' },
+  { title: 'Reading / Listening', bullets: ['语篇呈现与理解', '获取关键信息'], layout: 'edu-example', notes: '' },
+  { title: 'Grammar Focus', bullets: ['目标句型 / 语法点', '归纳与例句'], layout: 'content-2col', notes: '' },
+  { title: 'Output Task', bullets: ['Speaking / Writing 任务', '合作展示'], layout: 'edu-explain', notes: '情景对话或写作' },
+  { title: 'Summary & Homework', bullets: ['本课小结', '听说读写作业'], layout: 'edu-homework', notes: '' },
+]
+
+const DEMO_HISTORY_POLITICS: OutlineSlide[] = [
+  { title: '封面', bullets: ['《课题名称》', '年级 · 学科', '授课教师：XXX'], layout: 'edu-cover', notes: '可配史料/时间轴背景' },
+  { title: '学习目标', bullets: ['了解基本史实', '理解因果与影响', '形成价值認识'], layout: 'edu-goal', notes: '' },
+  { title: '时代背景', bullets: ['社会环境与条件', '前因铺垫'], layout: 'title-body', notes: '' },
+  { title: '事件脉络', bullets: ['起因 → 经过 → 结果', '关键人物与节点'], layout: 'edu-explain', notes: '配合时间轴' },
+  { title: '分析探究', bullets: ['原因深度剖析', '历史/现实意义'], layout: 'edu-example', notes: '史料实证' },
+  { title: '史料实证', bullets: ['阅读材料 / 图片史料', '提取信息、论从史出'], layout: 'content-2col', notes: '' },
+  { title: '价值启示', bullets: ['经验与教训', '当代关照'], layout: 'edu-explain', notes: '' },
+  { title: '课堂小结', bullets: ['知识脉络梳理', '核心素养提升'], layout: 'edu-summary', notes: '' },
+  { title: '课后作业', bullets: ['梳理笔记', '小论文/思维导图'], layout: 'edu-homework', notes: '' },
+]
+
+const DEMO_ART_PE: OutlineSlide[] = [
+  { title: '封面', bullets: ['《课题名称》', '年级 · 学科', '授课教师：XXX'], layout: 'edu-cover', notes: '可配作品/动作示范' },
+  { title: '学习目标', bullets: ['感知与欣赏', '掌握技法 / 动作要领', '乐于表现与创造'], layout: 'edu-goal', notes: '' },
+  { title: '欣赏感知', bullets: ['名作 / 示范欣赏', '感受形式与情感'], layout: 'title-body', notes: '' },
+  { title: '技法解析', bullets: ['关键要领与步骤', '易错提醒'], layout: 'edu-explain', notes: '示范演示' },
+  { title: '实践创作', bullets: ['动手创作 / 动作练习', '巡回指导'], layout: 'edu-example', notes: '分组实践' },
+  { title: '展示评价', bullets: ['作品 / 成果展示', '自评互评'], layout: 'content-2col', notes: '' },
+  { title: '拓展延伸', bullets: ['生活中的应用', '名家/进阶赏析'], layout: 'edu-explain', notes: '' },
+  { title: '课堂小结', bullets: ['收获与体会', '审美/健康提升'], layout: 'edu-summary', notes: '' },
+]
+
+const DEMO_CLASS_MEETING: OutlineSlide[] = [
+  { title: '封面', bullets: ['主题班会：《主题》', '班级 · 日期', '主持人：XXX'], layout: 'edu-cover', notes: '可配励志/主题背景' },
+  { title: '班会目标', bullets: ['明确主题意义', '达成共识与行动'], layout: 'edu-goal', notes: '' },
+  { title: '情境故事', bullets: ['案例 / 视频 / 身边事', '引发共鸣与思考'], layout: 'title-body', notes: '' },
+  { title: '讨论交流', bullets: ['分组讨论议题', '分享观点'], layout: 'edu-example', notes: '' },
+  { title: '行动倡议', bullets: ['拟定班级公约', '制定行动计划'], layout: 'content-2col', notes: '' },
+  { title: '践行展示', bullets: ['承诺签名 / 成果墙', '小组表态'], layout: 'edu-explain', notes: '' },
+  { title: '总结感悟', bullets: ['班主任寄语', '我的收获'], layout: 'edu-summary', notes: '' },
+]
+
+const DEMO_LECTURE_OPEN: OutlineSlide[] = [
+  { title: '封面', bullets: ['《课题名称》', '说课 / 公开课', '授课教师：XXX'], layout: 'edu-cover', notes: '' },
+  { title: '教材与学情', bullets: ['教材地位与作用', '学情分析'], layout: 'edu-explain', notes: '' },
+  { title: '教学目标', bullets: ['知识与能力', '过程与方法', '重难点突破'], layout: 'edu-goal', notes: '' },
+  { title: '教法学法', bullets: ['教法选择', '学法指导'], layout: 'content-2col', notes: '' },
+  { title: '教学过程', bullets: ['环节设计与意图', '师生活动安排'], layout: 'edu-example', notes: '' },
+  { title: '板书设计', bullets: ['结构化板书', '逻辑呈现'], layout: 'edu-explain', notes: '' },
+  { title: '教学反思', bullets: ['亮点与不足', '改进方向'], layout: 'edu-summary', notes: '' },
+]
+
 const SCENARIO_OUTLINES: Record<string, OutlineSlide[]> = {
   'china-chinese': DEMO_CHINA_CHINESE,
   'cartoon-kindergarten': DEMO_CARTOON_KINDER,
+  'math-physics': DEMO_MATH_PHYSICS,
+  'science-bio': DEMO_SCIENCE_BIO,
+  'english': DEMO_ENGLISH,
+  'history-politics': DEMO_HISTORY_POLITICS,
+  'art-pe': DEMO_ART_PE,
+  'class-meeting': DEMO_CLASS_MEETING,
+  'lecture-open': DEMO_LECTURE_OPEN,
 }
 
-// 按风格 + 学科/学段自动匹配示范提纲（后续批量填充时复用，无需逐套手写）
-function lookupScenarioOutline(def: TplDef): OutlineSlide[] | undefined {
-  const subj = def.subjects?.[0]
-  if (def.style === 'china' && (subj === 'chinese' || subj === 'history'))
-    return SCENARIO_OUTLINES['china-chinese']
-  const isKinder = def.tags?.some((t) => t.kind === 'stage' && t.value === 'kindergarten')
-  if ((def.style === 'cartoon' || def.style === 'fresh') && isKinder)
-    return SCENARIO_OUTLINES['cartoon-kindergarten']
+// 按模板"学科 + 学段/场景"自动匹配套路 key（提纲与装饰共用同一套分类，保证二者一致）
+// 优先级：低龄风格+幼儿园 > 学科聚类 > 幼儿学段 > 场景(scenario) > 国风兜底 > undefined
+const SUBJECT_SCENARIO: Record<string, string> = {
+  math: 'math-physics', physics: 'math-physics', chemistry: 'math-physics', it: 'math-physics',
+  biology: 'science-bio', science: 'science-bio', geography: 'science-bio',
+  english: 'english',
+  history: 'history-politics', politics: 'history-politics',
+  art: 'art-pe', pe: 'art-pe',
+  chinese: 'china-chinese', // 语文默认国风文脉；china 风格模板会再被强化
+}
+function scenarioKeyFor(def: TplDef): string | undefined {
+  const stage = def.tags?.find((t) => t.kind === 'stage')?.value
+  const scenario = def.tags?.find((t) => t.kind === 'scenario')?.value
+  const lowAge = def.style === 'cartoon' || def.style === 'fresh'
+  if (lowAge && stage === 'kindergarten') return 'cartoon-kindergarten' // 童趣提纲（覆盖语数启蒙），优先于学科
+  if (lowAge && scenario === 'class-meeting') return 'class-meeting' // 低龄卡通班会优先于学科，避免被抢到非卡通提纲
+  for (const s of def.subjects ?? []) {
+    const key = SUBJECT_SCENARIO[s]
+    if (key) return key
+  }
+  if (stage === 'kindergarten') return 'cartoon-kindergarten'
+  if (scenario === 'class-meeting') return 'class-meeting'
+  if (scenario === 'lecture' || scenario === 'open-class' || scenario === 'training' || scenario === 'review') {
+    return 'lecture-open'
+  }
+  if (def.style === 'china') return 'china-chinese'
   return undefined
+}
+
+// 提纲：按套路 key 取差异化提纲；未命中回落通用骨架
+function lookupScenarioOutline(def: TplDef): OutlineSlide[] | undefined {
+  const key = scenarioKeyFor(def)
+  return key ? SCENARIO_OUTLINES[key] : undefined
 }
 
 // 模板定义输入：在「风格 + 多维标签 + 色系描述」上声明，配色 themeId 复用 pptThemes.ts 真实 CwTheme。
@@ -958,13 +1068,10 @@ const SCENARIO_DECOR_MAP: Record<string, DecorSlot[]> = {
   ],
 }
 
-// 套路装饰匹配：style × 学科/学段 → 专属点缀；无匹配则回落风格级通用装饰
+// 套路装饰匹配：与提纲共用 scenarioKeyFor 分类，key 命中且存在专属 SVG 则用专属点缀，
+// 否则回落风格级通用装饰（后续只需在 SCENARIO_DECOR_MAP 补 SVG 即可自动生效）
 function decorForScenario(def: TplDef): DecorSlot[] {
-  const subj = def.subjects?.[0]
-  let key: string | undefined
-  if (def.style === 'china' && (subj === 'chinese' || subj === 'history')) key = 'china-chinese'
-  else if ((def.style === 'cartoon' || def.style === 'fresh') &&
-    def.tags?.some((t) => t.kind === 'stage' && t.value === 'kindergarten')) key = 'cartoon-kindergarten'
+  const key = scenarioKeyFor(def)
   if (key && SCENARIO_DECOR_MAP[key]) return SCENARIO_DECOR_MAP[key]
   return decorForStyle(def.style)
 }
