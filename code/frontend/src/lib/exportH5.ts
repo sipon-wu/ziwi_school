@@ -4,7 +4,7 @@
  * 互动组件数据由 H5Slide[].interactive 结构化描述（H5Component），渲染进自包含 HTML，无需后端。
  */
 
-import { isValidComponent, extractBullets, type H5Component, type OutlineSlide } from './exportPptx'
+import { isValidComponent, normalizeInteractive, extractBullets, type H5Component, type OutlineSlide } from './exportPptx'
 import type { DecorSlots } from './api'
 
 export interface H5Slide {
@@ -15,8 +15,8 @@ export interface H5Slide {
   body?: string
   /** 是否为封面页 */
   isTitle?: boolean
-  /** 互动配置（H5Component）；缺省则纯内容页 */
-  interactive?: H5Component | null
+  /** 互动配置（H5Component[]，可视化拖拽编辑器支持每页多组件）；缺省则纯内容页 */
+  interactive?: H5Component[] | null
   /** 大纲备注（兼容性，旧课件可能带 notes 派生 reveal 时由调用方处理） */
   notes?: string
   /** 装饰插槽（插槽式装修）：渲染时叠加到画面 */
@@ -45,9 +45,12 @@ export function buildH5FromOutline(outline: OutlineSlide[]): H5Slide[] {
     const bs = s.elements && s.elements.length
       ? extractBullets(s.elements)
       : (s.bullets || [])
-    const interactive = isValidComponent(s.interactive)
-      ? s.interactive
-      : (s.notes ? { type: 'reveal' as const, prompt: '点击揭示：教师讲解要点', answer: s.notes } : null)
+    // 互动组件：可视化拖拽编辑器支持每页多组件（数组）；旧单值/notes 兜底 reveal 仍兼容
+    const interactive = (() => {
+      const arr = normalizeInteractive(s.interactive)
+      if (arr.length) return arr
+      return s.notes ? [{ type: 'reveal' as const, prompt: '点击揭示：教师讲解要点', answer: s.notes }] : null
+    })()
     return {
       title: s.title,
       points: bs,
@@ -110,8 +113,11 @@ function needLandscapeTip(it: H5Component | null | undefined): boolean {
 }
 
 /** 生成单页互动区 HTML（7 种组件；XSS 转义 + gallery 手势隔离） */
-export function renderInteractive(it: H5Component | null | undefined): string {
-  if (!it || typeof it !== 'object' || typeof it.type !== 'string') return ''
+export function renderInteractive(it: H5Component | H5Component[] | null | undefined): string {
+  if (!it) return ''
+  // 数组：逐个渲染并拼接（可视化拖拽编辑器支持每页多组件）
+  if (Array.isArray(it)) return it.map(renderInteractive).join('\n')
+  if (typeof it !== 'object' || typeof it.type !== 'string') return ''
   switch (it.type) {
     case 'reveal':
       return `

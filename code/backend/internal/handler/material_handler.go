@@ -44,19 +44,22 @@ func (h *MaterialHandler) GetMaterial(c *gin.Context) {
 	c.JSON(http.StatusOK, m)
 }
 
-// ListDecor 装饰元件查询接口（P2）。
+// ListDecor 装饰元件查询接口。
 // scope=public 查平台公共装饰库（user_id 为空）；scope=mine 查当前账号装饰元件。
-// 支持 facet 过滤: medium(ppt|h5|common) / motif(母题一级) / kind(decor_element|decor_component)。
+// 支持 facet 过滤: medium(ppt|h5|common) / motif(母题一级，逗号多值OR) /
+// color(色系一级，逗号多值OR) / pageType(适用页型) / kind(decor_element|decor_component)。
 func (h *MaterialHandler) ListDecor(c *gin.Context) {
 	scope := c.DefaultQuery("scope", "public")
 	medium := c.Query("medium")
 	motif := c.Query("motif")
+	color := c.Query("color")
+	pageType := c.Query("page_type")
 	kind := c.Query("kind")
 
 	var items []model.Material
 	var err error
 	if scope == "public" {
-		items, err = h.repo.ListPublicDecor(c, medium, motif)
+		items, err = h.repo.ListPublicDecor(c, medium, motif, color, pageType)
 	} else {
 		uidVal, ok := c.Get("user_id")
 		if !ok {
@@ -77,7 +80,7 @@ func (h *MaterialHandler) ListDecor(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
 			return
 		}
-		items, err = h.repo.ListDecorByFacets(c, uid, medium, motif, kind)
+		items, err = h.repo.ListDecorByFacets(c, uid, medium, motif, color, pageType, kind)
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -347,67 +350,6 @@ func guessType(ext string) string {
 	default:
 		return "other"
 	}
-}
-
-// ── 装饰组件模板（P2 生产端）：元件组合 = 组件层级 ──
-
-// SaveDecorTemplate 保存草稿或提交审核（status: draft | pending）。
-func (h *MaterialHandler) SaveDecorTemplate(c *gin.Context) {
-	uidVal, ok := c.Get("user_id")
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
-		return
-	}
-	uid := extractUserID(uidVal)
-	if uid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
-		return
-	}
-
-	var body struct {
-		ID     string           `json:"id"`
-		Name   string           `json:"name"`
-		Slots  model.DecorSlots `json:"slots"`
-		Facets []string         `json:"facets"`
-		Submit bool             `json:"submit"` // true=提交审核, false=存草稿
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数解析失败: " + err.Error()})
-		return
-	}
-	if strings.TrimSpace(body.Name) == "" {
-		body.Name = "未命名装饰模板"
-	}
-
-	t := &model.DecorTemplate{
-		ID:     body.ID,
-		UserID: uid,
-		Name:   body.Name,
-		Slots:  body.Slots,
-		Facets: body.Facets,
-		Status: "draft",
-	}
-	if body.Submit {
-		t.Status = "pending"
-	}
-	if err := h.repo.SaveDecorTemplate(c, t); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, t)
-}
-
-// ListDecorTemplates 列出装饰模板（scope=mine|public; public 仅返回审核通过）。
-func (h *MaterialHandler) ListDecorTemplates(c *gin.Context) {
-	scope := c.DefaultQuery("scope", "mine")
-	uidVal, _ := c.Get("user_id")
-	uid := extractUserID(uidVal)
-	list, err := h.repo.ListDecorTemplates(c, uid, scope)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"items": list, "total": len(list)})
 }
 
 // extractUserID 从 gin context 的 user_id 值中解析出字符串（与 ListDecor 一致）。

@@ -11,6 +11,8 @@ import { parseSections } from './parseSections'
 import type { CwTheme } from './pptThemes'
 import { DEFAULT_THEME } from './pptThemes'
 import type { DecorSlots, DecorItem } from './api'
+import type { SlideLayout, SlideSlots } from './cwTemplate'
+import { distributeToSlots, getSkeleton, isStructuredLayout, pickContentLayout } from './cwTemplate'
 
 const NAVY = '1A3A6B'
 const INK = '333333'
@@ -54,6 +56,8 @@ export interface CwElement {
   h: number
   /** 旋转角度（度），仅形状/图片支持 */
   rotation?: number
+  /** 锁定：锁定后不可拖动/缩放/旋转（防误触），需右键解锁 */
+  locked?: boolean
   // ── 文本 ──
   text?: string
   /** px 基准字号（960 宽画布），导出时约等于 pt */
@@ -87,10 +91,15 @@ export interface CwSlide {
   notes?: string
   pageNo?: number
   total?: number
-  /** 版式：title-body（默认）| title-only | two-col | blank */
+  /** 版式：title-body（默认）| title-only | two-col | blank | edu-* 教学版式 */
   layout?: string
+  /** 内容与模板分离的槽位绑定：key=骨架占位符（如 question/solution），value=该槽位内容条目。
+   *  有则按骨架几何渲染；无则回退 rich 平铺（兼容旧数据）。 */
+  slots?: SlideSlots
   /** 自由编辑态存在的绝对定位元素；非空时预览/导出优先按此渲染 */
   elements?: CwElement[]
+  /** 装饰插槽（插槽式，非自由画布）：各槽位挂装饰元件引用或背景图 URL */
+  decor?: DecorSlots | null
 }
 
 /** AI 渲染返回的 PPT 幻灯片（render-ppt 端点输出） */
@@ -238,12 +247,15 @@ export interface OutlineSlide {
   title: string
   bullets: string[]
   notes?: string
-  /** 版式：title-body（默认）| title-only | two-col | blank */
+  /** 版式：title-body（默认）| title-only | two-col | blank | edu-* 教学版式 */
   layout?: string
+  /** 内容与模板分离的槽位绑定：key=骨架占位符，value=该槽位内容条目。
+   *  有则按骨架几何渲染；无则回退 bullets 平铺（兼容旧数据）。 */
+  slots?: SlideSlots
   /** 自由编辑态元素层；为空时按 title+bullets 默认布局 */
   elements?: CwElement[]
-  /** H5 互动组件（手动插槽）；null/缺省=无互动；PPT 等导出忽略 */
-  interactive?: H5Component | null
+  /** H5 互动组件（手动插槽）；可为单个或数组（可视化拖拽编辑器支持每页多组件）；null/缺省=无互动；PPT 等导出忽略 */
+  interactive?: SlideInteractive
   /** 装饰插槽（插槽式，非自由画布）：各槽位挂装饰元件引用或背景图 URL */
   decor?: DecorSlots | null
 }
@@ -265,6 +277,13 @@ export function isValidComponent(it: any): it is H5Component {
   }
 }
 
+/** 单值或数组统一归一化为 H5Component[]（可视化拖拽编辑器支持每页多组件） */
+export type SlideInteractive = H5Component | H5Component[] | null
+export function normalizeInteractive(it: SlideInteractive): H5Component[] {
+  if (!it) return []
+  return Array.isArray(it) ? it.filter(isValidComponent) : (isValidComponent(it) ? [it] : [])
+}
+
 /** 从课件 Markdown 解析为可编辑提纲（按 ## 分节，每段作为一条要点） */
 export function markdownToOutline(md: string): OutlineSlide[] {
   const slides: OutlineSlide[] = []
@@ -279,11 +298,15 @@ export function markdownToOutline(md: string): OutlineSlide[] {
       if (els) cur.elements = els
       continue
     }
-    // H5 互动组件内嵌注释：<!-- CW-IT:base64 --> 还原到当前页 interactive
+    // H5 互动组件内嵌注释：<!-- CW-IT:base64 --> 还原到当前页 interactive（可多个，累积为数组）
     const itMatch = line.match(/^<!--\s*CW-IT:([A-Za-z0-9+/=]+)\s*-->$/)
     if (itMatch && cur) {
       const it = b64dec<H5Component>(itMatch[1])
-      if (it && isValidComponent(it)) cur.interactive = it
+      if (it && isValidComponent(it)) {
+        cur.interactive = Array.isArray(cur.interactive)
+          ? [...cur.interactive, it]
+          : (cur.interactive ? [cur.interactive as H5Component, it] : it)
+      }
       continue
     }
     // 文档级总标题（# 课件名）不属于任何一页，仅作为元数据跳过
@@ -295,17 +318,31 @@ export function markdownToOutline(md: string): OutlineSlide[] {
       continue
     }
     if (line.startsWith('## ')) {
-      if (cur) slides.push(cur)
+      if (cur) { flushSlide(cur); slides.push(cur) }
       const title = line.slice(3).trim()
       cur = { title, bullets: [] }
     } else if (cur) {
-      cur.bullets.push(line.replace(/^[-*]\s*/, '').replace(/\*{1,3}/g, '').replace(/`/g, ''))
+      cur.bullets.push(line.replace(/^[-*]\s*/, '').replace(/^#{1,2}\s*/, '').replace(/\*{1,3}/g, '').replace(/`/g, ''))
     } else {
-      cur = { title: '课件', bullets: [line.replace(/^[-*]\s*/, '')] }
+      cur = { title: '课件', bullets: [line.replace(/^[-*]\s*/, '').replace(/^#{1,2}\s*/, '')] }
     }
   }
-  if (cur) slides.push(cur)
+  if (cur) { flushSlide(cur); slides.push(cur) }
   return slides
+}
+
+// 将一页的扁平 bullets 按当前 layout 的骨架自动分发进 slots（内容与模板分离入口）。
+// 已带显式 slots 的页不覆盖；无 layout 或未知版式的页不处理。
+function flushSlide(s: OutlineSlide) {
+  if (s.slots) return
+  // 自适应：纯内容页（无显式 layout）按要点数自动选 content-* 版式（1+2→1+3 等）
+  if (!s.layout && s.bullets.length >= 2) {
+    s.layout = pickContentLayout(s.bullets.length)
+  }
+  if (isStructuredLayout(s.layout)) {
+    const dist = distributeToSlots(s.layout as SlideLayout, s.bullets)
+    if (Object.keys(dist).length) s.slots = dist
+  }
 }
 
 /** 将 AI 渲染的 PptSlide[] 转为可编辑提纲 */
@@ -328,10 +365,12 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
     slides.push({
       kind: 'content', title: s.title, notes: s.notes || '',
       layout: s.layout,
+      slots: s.slots,
       rich: (s.bullets.length ? s.bullets : [s.title]).map(b => ({
         text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),
       elements: s.elements,
+      decor: s.decor || null,
       pageNo: i + 1, total, footer: `${opts.title}  ·  ${i + 1}`,
     })
   })
@@ -383,6 +422,35 @@ function uid(prefix = 'el'): string {
 /** 按版式生成默认自由元素（标题色带由主题固定渲染，不在此层） */
 export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[] {
   const parts = slide.bullets.length ? slide.bullets : []
+  // 内容与模板分离：有 slots 时按骨架几何生成元素（与预览/导出一致）；无 slots 但 layout 命中骨架时即时分发（兼容存量）
+  const effSlots = slide.slots ?? (layout && isStructuredLayout(layout) ? distributeToSlots(layout as SlideLayout, slide.bullets) : undefined)
+  if (effSlots && layout && isStructuredLayout(layout)) {
+    const sk = getSkeleton(layout as SlideLayout)
+    if (sk) {
+      const els: CwElement[] = []
+      for (const ph of sk.placeholders) {
+        const content = effSlots[ph.key] ?? []
+        const display = content.length ? content.join('\n') : (ph.placeholder || '')
+        const r = ph.rect!
+        if (ph.kind === 'bullet' && ph.columns && ph.columns > 1) {
+          const colW = r.w / ph.columns
+          content.forEach((txt, i) => {
+            els.push({ id: uid(), type: 'text', x: r.x + i * colW, y: r.y, w: colW, h: r.h, text: txt, fontSize: ph.fontSize || 16, bullet: true })
+          })
+        } else {
+          els.push({
+            id: uid(), type: 'text', x: r.x, y: r.y, w: r.w, h: r.h,
+            text: display, fontSize: ph.fontSize || (ph.kind === 'title' ? 32 : 16),
+            bold: ph.bold ?? (ph.kind === 'title'), align: (ph.align as any) || 'left', bullet: ph.kind === 'bullet',
+          })
+        }
+      }
+      if (effSlots['__overflow']?.length) {
+        els.push({ id: uid(), type: 'text', x: 6, y: 90, w: 88, h: 8, text: effSlots['__overflow'].join('\n'), fontSize: 14, color: '999999' })
+      }
+      return els
+    }
+  }
   switch (layout) {
     case 'title-only':
       return []
@@ -524,6 +592,47 @@ export async function exportCoursewareToPptx(
 
     if (s.elements && s.elements.length) {
       s.elements.forEach((e) => renderElement(slide, e, CW_W, CW_H))
+    } else if (isStructuredLayout(s.layout)) {
+      // 内容与模板分离：按骨架几何把每个 slot 写成独立文本框（无 slots 时即时分发，兼容存量）
+      const effSlots = s.slots ?? distributeToSlots(s.layout as SlideLayout, (s.rich || []).map(r => r.text))
+      const sk = getSkeleton(s.layout as SlideLayout)
+      if (sk && effSlots) {
+        for (const ph of sk.placeholders) {
+          if (ph.key === 'title' && (s.layout as SlideLayout) !== 'cover') continue
+          const content = effSlots[ph.key] ?? []
+          const display = content.length ? content : (ph.placeholder ? [ph.placeholder] : [])
+          if (!display.length) continue
+          const r = ph.rect!
+          const x = (r.x / 100) * CW_W
+          const y = (r.y / 100) * CW_H
+          const w = (r.w / 100) * CW_W
+          const h = (r.h / 100) * CW_H
+          const textOpts: any = {
+            x, y, w, h,
+            fontFace: font,
+            fontSize: ph.fontSize || (ph.kind === 'title' ? 28 : 16),
+            bold: ph.bold ?? (ph.kind === 'title'),
+            color: theme.body,
+            align: ph.align || 'left',
+            valign: ph.kind === 'title' ? 'middle' : 'top',
+            fit: 'shrink',
+          }
+          if (ph.kind === 'bullet' && ph.columns && ph.columns > 1) {
+            // 多列 bullet：每列一个文本框
+            const colW = w / ph.columns
+            display.forEach((txt, i) => {
+              slide.addText(txt, { ...textOpts, x: x + i * colW, y, w: colW, h })
+            })
+          } else {
+            slide.addText(display.map((t) => ({ text: t, options: { bullet: ph.kind === 'bullet' ? { indent: 14 } : undefined, breakLine: true } })), textOpts)
+          }
+        }
+        if (effSlots['__overflow']?.length) {
+          slide.addText(effSlots['__overflow'].map((t) => ({ text: t, options: { breakLine: true } })), {
+            x: 0.7, y: CW_H - 1.2, w: titleW, h: 1, fontFace: font, fontSize: 14, color: theme.subtle,
+          })
+        }
+      }
     } else if (s.rich && s.rich.length) {
       slide.addText(s.rich, {
         x: 0.7, y: bandH + 0.3, w: titleW, h: CW_H - bandH - 0.6, fontFace: font, valign: 'top', align: 'left', color: theme.body, fontSize: 16, fit: 'shrink',

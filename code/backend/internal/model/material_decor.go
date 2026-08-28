@@ -4,14 +4,23 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"strings"
 )
 
-// ── 装饰元件资产架构扩展 ──
-// 本文件为装饰模板/facet 能力所需的 model 类型底座。
-// 仅定义装饰相关字段与 facet 结构类型，被 material.go / decor_template.go / seed 复用。
-
-// DecorFacets 6维 facet 标签（层级路径数组）。
-// 例: ["motif.自然.植物.树叶", "visual.风格.手绘感", "interaction.动效.浮动"]
+// ── 装饰元件 facet 标签（收敛版，P0）──
+// 本文件为装饰元件 facet 能力的 model 类型底座。
+//
+// 指导原则（用户拍板 2026-08-27）：AI 自动匹配是全局核心。facet 存在的唯一目的是
+// 让 AI 在「套模板 / 换装饰 / 上传PPT转模板」时自动推荐最匹配的装饰元件，
+// 而非让老师手动筛选。因此 facet 维度必须与模板的 styleTags / colorTags 同源。
+//
+// 收敛为 4 个维度（与前端 cwTemplate.ts 的 STYLE_LABELS / COLOR_FAMILIES 同源）：
+//   applicable 媒介: ppt | h5 | common
+//   page_type  页型: cover | content | summary | homework | ...（辅助按页型匹配）
+//   motif      母题: 与模板风格标签同源（国风/科技/清新/...）
+//   color      色系: 与模板色系标签同源（蓝系/红金系/暖棕系/...）
+//
+// DecorFacets 是层级路径数组，例: ["motif.国风", "color.蓝系", "page_type.cover", "applicable.ppt"]
 // 数据库 jsonb 类型由 Material.DecorFacets 字段的 gorm tag 指定。
 // 实现 Valuer/Scanner 使 gorm 以 JSON 文本读写 jsonb（避免被当成 Postgres record 类型）。
 type DecorFacets []string
@@ -94,27 +103,72 @@ func (s *StringSlice) Scan(src interface{}) error {
 // 待评审通过后由实施 PR 正式改 material.go。
 
 // MatchDecor 按 facet 过滤装饰资产（供 repository 查询复用）。
-// 返回 true 表示该 facet 集合命中给定维度约束（applicable/motif_root）。
-func (f DecorFacets) Matches(applicable, motifRoot string) bool {
-	okApp, okMotif := true, true
+// 返回 true 表示该 facet 集合命中给定维度约束（applicable/motifRoot/color/pageType）。
+// 约束为 OR 语义：传多个值（逗号分隔）时，任一中即命中，用于「聚类标签多选」。
+func (f DecorFacets) Matches(applicable, motifRoot, color, pageType string) bool {
+	// 无约束或空 facet（未打标签=不限维度）均视为命中
+	if len(f) == 0 {
+		return true
+	}
+	if applicable == "" && motifRoot == "" && color == "" && pageType == "" {
+		return true
+	}
+	appOk := applicable == ""
+	motifOk := motifRoot == ""
+	colorOk := color == ""
+	pageOk := pageType == ""
 	for _, p := range f {
-		switch {
-		case applicable != "" && len(p) > len("applicable.") && p[:len("applicable.")] == "applicable.":
-			okApp = p[len("applicable."):] == applicable
-		case motifRoot != "" && len(p) > len("motif.") && p[:len("motif.")] == "motif.":
-			// motif_root 为一级: motif.自然 -> "自然"
-			rest := p[len("motif."):]
-			first := rest
-			if idx := indexDot(rest); idx >= 0 {
-				first = rest[:idx]
+		dim, val := splitFacet(p)
+		switch dim {
+		case "applicable":
+			if applicable != "" && !appOk {
+				appOk = matchAny(val, applicable)
 			}
-			okMotif = first == motifRoot
+		case "motif":
+			if motifRoot != "" && !motifOk {
+				motifOk = matchAny(val, motifRoot)
+			}
+		case "color":
+			if color != "" && !colorOk {
+				colorOk = matchAny(val, color)
+			}
+		case "page_type":
+			if pageType != "" && !pageOk {
+				pageOk = matchAny(val, pageType)
+			}
 		}
-		if !okApp || !okMotif {
-			return false
+		if appOk && motifOk && colorOk && pageOk {
+			return true
 		}
 	}
-	return okApp && okMotif
+	return appOk && motifOk && colorOk && pageOk
+}
+
+// splitFacet 将 "dim.value" 拆成维度与一级值（"motif.国风.xx" -> "motif", "国风"）。
+func splitFacet(p string) (string, string) {
+	idx := indexDot(p)
+	if idx < 0 {
+		return p, ""
+	}
+	dim := p[:idx]
+	rest := p[idx+1:]
+	if j := indexDot(rest); j >= 0 {
+		rest = rest[:j]
+	}
+	return dim, rest
+}
+
+// matchAny 逗号分隔的多值 OR 匹配（聚类标签多选）。
+func matchAny(val, constraint string) bool {
+	if val == "" || constraint == "" {
+		return false
+	}
+	for _, c := range strings.Split(constraint, ",") {
+		if c != "" && c == val {
+			return true
+		}
+	}
+	return false
 }
 
 func indexDot(s string) int {

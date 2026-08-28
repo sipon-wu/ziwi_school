@@ -6,6 +6,9 @@ import type { CwElement, CwSlide } from '../lib/exportPptx'
 import { layoutElements, extractBullets } from '../lib/exportPptx'
 import type { CwTheme } from '../lib/pptThemes'
 import { DEFAULT_THEME } from '../lib/pptThemes'
+import { getSkeleton, distributeToSlots, isStructuredLayout } from '../lib/cwTemplate'
+import type { SlideLayout, SlideSlots } from '../lib/cwTemplate'
+import type { DecorSlots, DecorItem } from '../lib/api'
 
 const FONT = 'Microsoft YaHei'
 
@@ -206,6 +209,86 @@ function SlideDecor({ theme, layout }: { theme: CwTheme; layout: string }) {
   )
 }
 
+/**
+ * 装饰元件层（模板内置装饰 / 用户替换装饰）：
+ * 渲染 slide.decor（插槽式 DecorSlots）的装饰元件图片——背景铺满 + 页眉/页脚/四角/浮动区。
+ * 与 SlideDecor（按 theme.decor 绘制的风格化 SVG 角标）是两套东西：本层渲染真实图片资产。
+ * selectable=true 时（编辑态）每个装饰图可点击选中（高亮边框），onSelect 上报 {slot, index}；
+ * 否则 pointer-events-none 不干扰内容编辑。
+ */
+export interface DecorSelection { slot: 'header' | 'footer' | 'corner' | 'floating' | 'background'; index: number }
+
+function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu }: {
+  decor: DecorSlots | null | undefined
+  selectable?: boolean
+  selected?: DecorSelection | null
+  onSelect?: (sel: DecorSelection | null) => void
+  onContextMenu?: (e: React.MouseEvent, sel: DecorSelection) => void
+}) {
+  if (!decor) return null
+  const items = (arr: DecorItem[] | undefined) => arr || []
+  const isSel = (slot: DecorSelection['slot'], index: number) => !!selected && selected.slot === slot && selected.index === index
+  const stop = (e: React.MouseEvent) => { e.stopPropagation() }
+  const imgCls = (slot: DecorSelection['slot'], index: number, base: string) =>
+    `${base} ${selectable ? 'pointer-events-auto cursor-pointer' : ''} ${isSel(slot, index) ? 'ring-2 ring-[#02A7F0] ring-offset-1' : ''}`
+  // 右键装饰：先选中该装饰，再弹出上下文菜单
+  const onCtx = (slot: DecorSelection['slot'], index: number) => (e: React.MouseEvent) => {
+    if (!selectable) return
+    e.preventDefault(); e.stopPropagation()
+    const sel: DecorSelection = { slot, index }
+    onSelect?.(sel)
+    onContextMenu?.(e, sel)
+  }
+  return (
+    <div className={selectable ? 'absolute inset-0 z-[2]' : 'pointer-events-none absolute inset-0 z-[2]'}>
+      {decor.background && (
+        <div
+          onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('background', 0) ? null : { slot: 'background', index: 0 }) } : undefined}
+          onContextMenu={onCtx('background', 0)}
+          className={`absolute inset-0 ${selectable ? 'pointer-events-auto cursor-pointer' : ''} ${isSel('background', 0) ? 'ring-2 ring-inset ring-[#02A7F0]' : ''}`}
+          style={{ backgroundImage: `url(${decor.background})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.18 }}
+        />
+      )}
+      {/* 页眉 */}
+      <div className="absolute top-0 left-0 right-0 h-[18%] flex items-center justify-center gap-2">
+        {items(decor.header).map((it, i) => (
+          <img key={`h${i}`} src={it.url} alt={it.name || '装饰'}
+            onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('header', i) ? null : { slot: 'header', index: i }) } : undefined}
+            onContextMenu={onCtx('header', i)}
+            className={imgCls('header', i, 'max-h-[80%] max-w-[40%] object-contain')} />
+        ))}
+      </div>
+      {/* 页脚 */}
+      <div className="absolute bottom-0 left-0 right-0 h-[18%] flex items-center justify-center gap-2">
+        {items(decor.footer).map((it, i) => (
+          <img key={`f${i}`} src={it.url} alt={it.name || '装饰'}
+            onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('footer', i) ? null : { slot: 'footer', index: i }) } : undefined}
+            onContextMenu={onCtx('footer', i)}
+            className={imgCls('footer', i, 'max-h-[80%] max-w-[40%] object-contain')} />
+        ))}
+      </div>
+      {/* 四角 */}
+      {(['tl', 'tr', 'bl', 'br'] as const).map((pos, i) => {
+        const it = items(decor.corners)[i]
+        if (!it) return null
+        const style: React.CSSProperties = pos === 'tl' ? { top: '4%', left: '4%' } : pos === 'tr' ? { top: '4%', right: '4%' } : pos === 'bl' ? { bottom: '4%', left: '4%' } : { bottom: '4%', right: '4%' }
+        return <img key={pos} src={it.url} alt={it.name || '装饰'} style={style}
+          onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('corner', i) ? null : { slot: 'corner', index: i }) } : undefined}
+          onContextMenu={onCtx('corner', i)}
+          className={imgCls('corner', i, 'absolute max-w-[14%] max-h-[14%] object-contain')} />
+      })}
+      {/* 浮动 */}
+      {items(decor.floating).map((it, i) => {
+        const style: React.CSSProperties = i === 0 ? { top: '42%', left: '8%' } : i === 1 ? { top: '58%', right: '8%' } : { top: '30%', right: '10%' }
+        return <img key={`fl${i}`} src={it.url} alt={it.name || '装饰'} style={style}
+          onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('floating', i) ? null : { slot: 'floating', index: i }) } : undefined}
+          onContextMenu={onCtx('floating', i)}
+          className={imgCls('floating', i, 'absolute max-w-[16%] max-h-[16%] object-contain')} />
+      })}
+    </div>
+  )
+}
+
 interface PptxPreviewProps {
   slides: CwSlide[]
   theme?: CwTheme
@@ -226,6 +309,10 @@ interface PptxPreviewProps {
   embedFullscreen?: boolean
   /** 选中元素变化回调（向上冒泡，供外层自动唤起属性面板；null 表示点空白取消选择） */
   onSelect?: (id: string | null) => void
+  /** 选中装饰元件变化回调（向上冒泡，供外层唤起「替换/删除装饰」操作） */
+  onSelectDecor?: (sel: DecorSelection | null) => void
+  /** 请求替换当前选中装饰元件（外层打开素材库装饰元件面板） */
+  onReplaceDecor?: (sel: DecorSelection) => void
   /** single 模式下自动轮播播放 */
   autoPlay?: boolean
   /** 自动播放间隔（毫秒），默认 8000 */
@@ -250,6 +337,8 @@ export default function PptxPreview({
   viewMode = 'scroll',
   embedFullscreen = false,
   onSelect,
+  onSelectDecor,
+  onReplaceDecor,
   autoPlay = false,
   autoPlayInterval = 8000,
 }: PptxPreviewProps) {
@@ -293,7 +382,7 @@ export default function PptxPreview({
     <div className={`flex flex-col ${className || ''}`}>
       <div className="mx-auto max-w-4xl" style={{ width: 'min(896px, 100%)' }}>
         {editable ? (
-          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} onSelect={onSelect} />
+          <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} onSelect={onSelect} onSelectDecor={onSelectDecor} onReplaceDecor={onReplaceDecor} />
         ) : viewMode === 'single' ? (
           <div className="space-y-4">
             <div
@@ -361,6 +450,7 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
       <div className="relative" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', background: c(theme.coverBg) }}>
         <SlideFrame theme={theme} layout={lay} />
         <SlideDecor theme={theme} layout={lay} />
+        <DecorLayer decor={s.decor} />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8" style={{ fontFamily: theme.font }}>
           <h2 className="text-4xl font-bold" style={{ color: c(theme.onPrimary) }}>{s.title}</h2>
           {s.subtitle && <p className="mt-4 text-lg" style={{ color: c(theme.lightText) }}>{s.subtitle}</p>}
@@ -375,10 +465,14 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
     <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', fontFamily: theme.font }}>
       <SlideFrame theme={theme} layout={lay} />
       <SlideDecor theme={theme} layout={lay} />
+      <DecorLayer decor={s.decor} />
       <div className="absolute left-[2%] top-0 flex h-[15.3%] items-center" style={{ width: '96%' }}>
         <span className="truncate text-2xl font-bold" style={{ color: c(theme.onPrimary) }}>{s.title}</span>
       </div>
-      {s.elements && s.elements.length ? (
+      {/* 内容与模板分离：结构化版式优先按骨架渲染（即时分发/预存 slots），自由元素只在非结构化版式回退 */}
+      {isStructuredLayout(lay) ? (
+        renderLayoutContent(s, theme)
+      ) : s.elements && s.elements.length ? (
         renderElementsStatic(s.elements)
       ) : (
         renderLayoutContent(s, theme)
@@ -407,6 +501,64 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
 
   const lay = s.layout || 'title-body'
 
+  // ── 内容与模板分离：按骨架几何渲染（全局唯一契约）──
+  // 优先用预存 slots；无 slots 但 layout 命中骨架时，即时按骨架分发 bullets（兼容存量数据）。
+  const effSlots: SlideSlots | undefined = s.slots ?? (isStructuredLayout(lay) ? distributeToSlots(lay as SlideLayout, lines) : undefined)
+  if (effSlots) {
+    const sk = getSkeleton(lay as SlideLayout)
+    if (sk) {
+      return (
+        <>
+          {sk.placeholders.map((ph) => {
+            if (ph.key === 'title' && lay !== 'cover') return null
+            const content = effSlots[ph.key] ?? []
+            const r = ph.rect!
+            const isBullet = ph.kind === 'bullet'
+            const display = content.length ? content : (ph.placeholder ? [ph.placeholder] : [])
+            const style: React.CSSProperties = {
+              left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%`,
+            }
+            if (isBullet && ph.columns && ph.columns > 1) {
+              return (
+                <div key={ph.key} className={`absolute grid gap-2`} style={{ ...style, gridTemplateColumns: `repeat(${ph.columns}, minmax(0,1fr))` }}>
+                  {display.map((txt, i) => (
+                    <div key={i} className="rounded-md border p-2" style={{ borderColor: `${p}55`, background: 'rgba(255,255,255,0.7)' }}>
+                      <Line text={txt} className="items-start" />
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+            return (
+              <div
+                key={ph.key}
+                className="absolute overflow-hidden px-4 py-3"
+                style={{
+                  ...style,
+                  borderLeft: `6px solid ${p}`,
+                  background: ph.kind === 'title' ? 'transparent' : `${p}0F`,
+                  display: 'flex', alignItems: ph.kind === 'title' ? 'center' : 'flex-start',
+                  fontWeight: ph.bold ? 700 : 400,
+                  fontSize: ph.fontSize ? `${ph.fontSize / 18 * 3}mm` : undefined,
+                  color: body,
+                  textAlign: ph.align || 'left',
+                }}
+              >
+                {display.map((txt, i) => (
+                  <div key={i} className="mb-1 leading-snug" style={{ color: body }}>{txt}</div>
+                ))}
+              </div>
+            )
+          })}
+          {effSlots['__overflow']?.map((txt, k) => (
+            <div key={`of-${k}`} className="absolute left-[6.3%] text-[3mm] leading-snug" style={{ top: `${90 + k * 6}%`, width: '87.4%', color: body }}>{txt}</div>
+          ))}
+        </>
+      )
+    }
+  }
+
+  // 旧数据兼容（无 slots）：沿用原有的行号分配逻辑
   // 教学目标：3 个纵向卡片
   if (lay === 'edu-goal') {
     const chunks = [lines[0] || '', lines[1] || '', lines[2] || '']
@@ -573,6 +725,18 @@ function ShapeRender({ shape, fill }: { shape?: CwElement['shape']; fill?: strin
   return <div className="h-full w-full" style={style} />
 }
 
+/** 右键上下文菜单项 */
+function MenuItem({ children, onClick, danger, accent }: { children: React.ReactNode; onClick: () => void; danger?: boolean; accent?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`block w-full text-left px-3 py-1.5 hover:bg-[#F5F5F5] ${danger ? 'text-[#F5222D]' : accent ? 'text-[#02A7F0] font-medium' : 'text-[#353535]'}`}
+    >
+      {children}
+    </button>
+  )
+}
+
 /* ───────────────────────── 可编辑画布 ───────────────────────── */
 
 interface EditableCanvasProps {
@@ -592,6 +756,10 @@ interface EditableCanvasProps {
   embedFullscreen?: boolean
   /** 选中元素变化回调（向上冒泡，供外层自动唤起属性面板） */
   onSelect?: (id: string | null) => void
+  /** 选中装饰元件变化回调（向上冒泡，供外层唤起「替换/删除装饰」操作） */
+  onSelectDecor?: (sel: DecorSelection | null) => void
+  /** 请求替换当前选中装饰元件（外层打开素材库装饰元件面板） */
+  onReplaceDecor?: (sel: DecorSelection) => void
 }
 
 /** 画布快照（撤销/重做用） */
@@ -600,10 +768,11 @@ interface Snap { elements: CwElement[]; title: string; layout: string }
 const SNAP = 1.5 // 吸附阈值（%）
 const FONT_OPTS = ['Microsoft YaHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 'Arial', 'Times New Roman']
 
-function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange, embedFullscreen, onSelect }: EditableCanvasProps) {
+function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange, embedFullscreen, onSelect, onSelectDecor, onReplaceDecor }: EditableCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [selIds, setSelIds] = useState<string[]>([])
+  const [selDecor, setSelDecor] = useState<DecorSelection | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [elements, setElements] = useState<CwElement[]>(slide.elements || [])
@@ -624,7 +793,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   const selIdsRef = useRef(selIds)
   const hIndexRef = useRef(hIndex)
   const historyRef = useRef(history)
-  const drag = useRef<{ mode: 'move' | 'resize' | 'marquee'; sx: number; sy: number; base: CwElement[]; mx: number; my: number } | null>(null)
+  const drag = useRef<{ mode: 'move' | 'resize' | 'rotate' | 'marquee'; dir?: string; cx?: number; cy?: number; sx: number; sy: number; base: CwElement[]; mx: number; my: number } | null>(null)
   const clipboardRef = useRef<CwElement[]>([])
 
   // 仅切页（slideKey 变化）时重置画布；同页编辑 slide 引用变化不重置（避免覆盖画布内编辑态）
@@ -635,6 +804,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     setTitle(slide.title)
     setLayout(lay)
     setSelIds([])
+    setSelDecor(null)
     setEditingId(null)
     setGuide({})
     setHistory([{ elements: els, title: slide.title, layout: lay }])
@@ -692,6 +862,26 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     setHIndex(idx + 1)
     apply(s.elements, s.title, s.layout)
     setSelIds([])
+  }
+
+  // 删除指定装饰元件（操作 slide.decor，经 onChange 回传外层）。
+  // sel 由调用方显式传入（避免 state 异步导致的 selDecor 闭包旧值）。
+  const removeDecor = (sel?: DecorSelection | null) => {
+    const target = sel ?? selDecor
+    if (!target) return
+    const cur: DecorSlots = slide.decor || {}
+    if (target.slot === 'background') {
+      const next: DecorSlots = { ...cur, background: undefined }
+      onChange({ ...slide, decor: next })
+    } else {
+      const key = target.slot === 'corner' ? 'corners' : target.slot
+      const list = (cur as any)[key] || []
+      const nextList = list.filter((_: unknown, j: number) => j !== target.index)
+      const next: DecorSlots = { ...cur, [key]: nextList }
+      onChange({ ...slide, decor: next })
+    }
+    setSelDecor(null)
+    onSelectDecor?.(null)
   }
 
   const selId = selIds.length === 1 ? selIds[0] : null
@@ -775,6 +965,20 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     next.splice(to, 0, moved)
     commit(next)
   }
+  const moveLayerToEdge = (edge: 'front' | 'back') => {
+    if (!selId) return
+    const next = [...elements]
+    const idx = next.findIndex(e => e.id === selId)
+    if (idx < 0) return
+    const [moved] = next.splice(idx, 1)
+    if (edge === 'front') next.push(moved)
+    else next.unshift(moved)
+    commit(next)
+  }
+  const toggleLock = () => {
+    if (!selId) return
+    commit(elements.map(e => e.id === selId ? { ...e, locked: !e.locked } : e))
+  }
 
   // ── 对齐分布（多选） ──
   const alignSelected = (mode: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdistribute' | 'vdistribute') => {
@@ -809,6 +1013,56 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
       if (mode === 'bottom') return { ...e, y: target - e.h }
       return { ...e, y: target - e.h / 2 }
     }))
+  }
+
+  // ── AI 一键排版（AI 辅助平台差异化）：智能对齐 + 均匀分布 + 适配版式安全区 ──
+  // 规则（本地启发式，无需后端）：
+  //  1. 多选：按主轴（水平/垂直占比大的方向）均匀分布 + 居中对齐
+  //  2. 单选：元素居中到版式安全区（避开标题区 15.3% 顶部）
+  //  3. 所有元素：吸附到安全区内（不超出画布、不压标题）
+  const aiAutoLayout = () => {
+    const selEls = elementsRef.current.filter(e => selIdsRef.current.includes(e.id))
+    if (!selEls.length) return
+    // 版式安全区：顶部标题带约 15.3%，内容区在 [15.3%, 100%]
+    const SAFE_TOP = 16, SAFE_BOTTOM = 97, SAFE_LEFT = 2, SAFE_RIGHT = 98
+    const clampSafe = (el: CwElement) => ({
+      ...el,
+      x: clamp(el.x, SAFE_LEFT, Math.max(SAFE_LEFT, SAFE_RIGHT - el.w)),
+      y: clamp(el.y, SAFE_TOP, Math.max(SAFE_TOP, SAFE_BOTTOM - el.h)),
+    })
+    if (selEls.length === 1) {
+      // 单选：水平居中 + 垂直居中到安全区
+      const el = selEls[0]
+      const cx = (SAFE_LEFT + SAFE_RIGHT) / 2 - el.w / 2
+      const cy = (SAFE_TOP + SAFE_BOTTOM) / 2 - el.h / 2
+      commit(elementsRef.current.map(e => e.id === el.id ? { ...e, x: clamp(cx, SAFE_LEFT, SAFE_RIGHT - el.w), y: clamp(cy, SAFE_TOP, SAFE_BOTTOM - el.h) } : e))
+      return
+    }
+    // 多选：按主轴均匀分布
+    const bounds = { minX: Math.min(...selEls.map(e => e.x)), maxX: Math.max(...selEls.map(e => e.x + e.w)), minY: Math.min(...selEls.map(e => e.y)), maxY: Math.max(...selEls.map(e => e.y + e.h)) }
+    const spanW = bounds.maxX - bounds.minX, spanH = bounds.maxY - bounds.minY
+    const horiz = spanW >= spanH
+    const sorted = [...selEls].sort((a, b) => (horiz ? a.x - b.x : a.y - b.y))
+    if (horiz) {
+      // 水平均分：等间距分布，保持各自 y 不变但统一垂直居中
+      const firstX = sorted[0].x, lastX = sorted[sorted.length - 1].x + sorted[sorted.length - 1].w
+      const totalW = sorted.reduce((s, e) => s + e.w, 0)
+      const gap = (lastX - firstX - totalW) / (sorted.length - 1)
+      let cur = firstX
+      const posMap = new Map<string, { x: number; y: number }>()
+      const midY = (bounds.minY + bounds.maxY) / 2
+      sorted.forEach((e) => { posMap.set(e.id, { x: cur, y: midY - e.h / 2 }); cur += e.w + gap })
+      commit(elementsRef.current.map(e => posMap.has(e.id) ? clampSafe({ ...e, x: posMap.get(e.id)!.x, y: posMap.get(e.id)!.y }) : e))
+    } else {
+      const firstY = sorted[0].y, lastY = sorted[sorted.length - 1].y + sorted[sorted.length - 1].h
+      const totalH = sorted.reduce((s, e) => s + e.h, 0)
+      const gap = (lastY - firstY - totalH) / (sorted.length - 1)
+      let cur = firstY
+      const posMap = new Map<string, { x: number; y: number }>()
+      const midX = (bounds.minX + bounds.maxX) / 2
+      sorted.forEach((e) => { posMap.set(e.id, { x: midX - e.w / 2, y: cur }); cur += e.h + gap })
+      commit(elementsRef.current.map(e => posMap.has(e.id) ? clampSafe({ ...e, x: posMap.get(e.id)!.x, y: posMap.get(e.id)!.y }) : e))
+    }
   }
 
   const onUpload = (f: File) => {
@@ -857,21 +1111,28 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     }
   }
 
-  const onPointerDown = (e: ReactPointerEvent, el: CwElement, mode: 'move' | 'resize') => {
+  const onPointerDown = (e: ReactPointerEvent, el: CwElement, mode: 'move' | 'resize' | 'rotate', dir?: string) => {
     e.stopPropagation()
     if (editingId === el.id) return
+    // 点元素：取消装饰选中
+    setSelDecor(null)
     // 多选：Shift 增减；否则若点中已选集合则整组拖动，否则单选
     let nextSel: string[]
     if (e.shiftKey) {
       nextSel = selIdsRef.current.includes(el.id) ? selIdsRef.current.filter(s => s !== el.id) : [...selIdsRef.current, el.id]
       setSelIds(nextSel)
-      if (mode === 'resize') nextSel = [el.id]
+      if (mode !== 'move') nextSel = [el.id]
     } else {
       nextSel = selIdsRef.current.includes(el.id) ? selIdsRef.current : [el.id]
       setSelIds(nextSel)
     }
+    // 锁定元素：可选中，但不可拖动/缩放/旋转（不启动拖拽）
+    if (el.locked) return
     const base = elementsRef.current.map(x => ({ ...x }))
-    drag.current = { mode, sx: e.clientX, sy: e.clientY, base, mx: 0, my: 0 }
+    // 旋转：记录元素中心（画布 %），拖动时按中心旋转
+    const cx = el.x + el.w / 2
+    const cy = el.y + el.h / 2
+    drag.current = { mode, dir, cx, cy, sx: e.clientX, sy: e.clientY, base, mx: 0, my: 0 }
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
   }
 
@@ -901,11 +1162,52 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
       apply(d.base.map(el => selIdsRef.current.includes(el.id)
         ? { ...el, x: clamp(el.x + snapped.dx, 0, 100 - el.w), y: clamp(el.y + snapped.dy, 0, 100 - el.h) }
         : el))
-    } else {
-      // 缩放仅作用于单选元素
+    } else if (d.mode === 'rotate') {
+      // 旋转：以元素中心为圆心，计算起始/当前指针角度差
+      const rect = canvasRef.current!.getBoundingClientRect()
+      const centerX = rect.left + ((d.cx || 0) / 100) * rect.width
+      const centerY = rect.top + ((d.cy || 0) / 100) * rect.height
+      const startAngle = Math.atan2(d.sy - centerY, d.sx - centerX)
+      const curAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX)
+      let delta = ((curAngle - startAngle) * 180) / Math.PI
+      // 吸附到 15° 整数倍
+      const snapped = Math.round(delta / 15) * 15
+      const baseRot = d.base.find(el => el.id === selId)?.rotation || 0
       apply(d.base.map(el => el.id === selId
-        ? { ...el, w: clamp(el.w + dxPct, 4, 100 - el.x), h: clamp(el.h + dyPct, 3, 100 - el.y) }
+        ? { ...el, rotation: Math.round(baseRot + snapped) % 360 }
         : el))
+    } else {
+      // 8 方向缩放：边中点单向拉伸；角点等比缩放（保持宽高比，以对角点为锚）
+      const dir = d.dir || 'se'
+      apply(d.base.map(el => {
+        if (el.id !== selId) return el
+        let { x, y, w, h } = el
+        const minW = 4, minH = 3
+        const isCorner = dir.length === 2
+        if (isCorner) {
+          // 等比缩放：以拖动方向决定新尺寸，对角点固定
+          const ratio = el.h / el.w // h = w * ratio
+          if (dir === 'se') {
+            w = clamp(el.w + dxPct, minW, 100 - el.x); h = w * ratio
+          } else if (dir === 'sw') {
+            const nw = clamp(el.w - dxPct, minW, el.x + el.w)
+            x = el.x + el.w - nw; w = nw; h = w * ratio; y = el.y + el.h - h
+          } else if (dir === 'ne') {
+            w = clamp(el.w + dxPct, minW, 100 - el.x); h = w * ratio
+            y = el.y + el.h - h
+          } else { // nw
+            const nw = clamp(el.w - dxPct, minW, el.x + el.w)
+            x = el.x + el.w - nw; w = nw; h = w * ratio; y = el.y + el.h - h
+          }
+        } else {
+          // 边中点：单向拉伸
+          if (dir === 'e') w = clamp(el.w + dxPct, minW, 100 - el.x)
+          if (dir === 's') h = clamp(el.h + dyPct, minH, 100 - el.y)
+          if (dir === 'w') { const nw = clamp(el.w - dxPct, minW, el.x + el.w); x = el.x + el.w - nw; w = nw }
+          if (dir === 'n') { const nh = clamp(el.h - dyPct, minH, el.y + el.h); y = el.y + el.h - nh; h = nh }
+        }
+        return { ...el, x, y, w, h }
+      }))
     }
   }
 
@@ -933,10 +1235,37 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   const onCanvasPointerDown = (e: ReactPointerEvent) => {
     if (e.target !== canvasRef.current) return
     setEditingId(null); setEditingTitle(false)
+    // 点空白：取消装饰选中 + 关闭右键菜单
+    setSelDecor(null)
+    setCtxMenu(null)
     // 空白框选
     drag.current = { mode: 'marquee', sx: e.clientX, sy: e.clientY, base: elementsRef.current.map(x => ({ ...x })), mx: 0, my: 0 }
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
   }
+
+  // 右键菜单：元素右键弹出上下文操作
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'element' | 'decor'; id?: string; decor?: DecorSelection } | null>(null)
+  const onElementContextMenu = (e: React.MouseEvent, el: CwElement) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!selIds.includes(el.id)) setSelIds([el.id])
+    setCtxMenu({ x: e.clientX, y: e.clientY, type: 'element', id: el.id })
+  }
+  // 装饰右键：选中装饰 + 弹出替换/删除菜单
+  const onDecorContextMenu = (e: React.MouseEvent, sel: DecorSelection) => {
+    setSelDecor(sel)
+    setSelIds([])
+    onSelectDecor?.(sel)
+    setCtxMenu({ x: e.clientX, y: e.clientY, type: 'decor', decor: sel })
+  }
+  // 点击任意处关闭右键菜单
+  useEffect(() => {
+    if (!ctxMenu) return
+    const close = () => setCtxMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') setCtxMenu(null) })
+    return () => { window.removeEventListener('click', close) }
+  }, [ctxMenu])
 
   // ── 键盘操作 ──
   useEffect(() => {
@@ -1119,9 +1448,18 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
             <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
           </label>
           <button onClick={() => addElement('shape')} className={`px-1.5 py-0.5 rounded ${B}`}>+ 形状</button>
+          {selDecor && (
+            <>
+              <span className="mx-0.5 text-[#E7E7EB]">|</span>
+              <span className="text-[#7B61FF]">装饰{selDecor.slot === 'background' ? '·背景' : ''}</span>
+              <button onClick={() => onReplaceDecor?.(selDecor)} className="px-1.5 py-0.5 rounded text-[#7B61FF] border border-[#7B61FF] hover:bg-[#F3F0FF]">替换</button>
+              <button onClick={() => removeDecor()} className="px-1.5 py-0.5 rounded border border-[#F5222D] text-[#F5222D] hover:bg-[#FFF1F0]">删除</button>
+            </>
+          )}
           {selIds.length > 0 && (
             <>
               <span className="mx-0.5 text-[#E7E7EB]">|</span>
+              <button title="AI 排版（单选居中/多选均匀分布，适配版式安全区）" onClick={aiAutoLayout} className="px-1.5 py-0.5 rounded text-[#02A7F0] font-medium border border-[#02A7F0] hover:bg-[#E8F7FF]">✨ AI 排版</button>
               <button title="复制 (Ctrl+C)" onClick={copySelected} className={`px-1.5 py-0.5 rounded ${B}`}>复制</button>
               <button title="粘贴 (Ctrl+V)" onClick={pasteClipboard} className={`px-1.5 py-0.5 rounded ${B}`}>粘贴</button>
               <button title="创建副本 (Ctrl+D)" onClick={duplicateSelected} className={`px-1.5 py-0.5 rounded ${B}`}>副本</button>
@@ -1130,6 +1468,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                 <>
                   <button title="上移一层" onClick={() => moveLayer(1)} className={`px-1.5 py-0.5 rounded ${B}`}>上移</button>
                   <button title="下移一层" onClick={() => moveLayer(-1)} className={`px-1.5 py-0.5 rounded ${B}`}>下移</button>
+                  <button title="置于顶层" onClick={() => moveLayerToEdge('front')} className={`px-1.5 py-0.5 rounded ${B}`}>置顶</button>
+                  <button title="置于底层" onClick={() => moveLayerToEdge('back')} className={`px-1.5 py-0.5 rounded ${B}`}>置底</button>
                 </>
               )}
             </>
@@ -1218,13 +1558,14 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                     className="absolute"
                     style={{
                       left: `${el.x}%`, top: `${el.y}%`, width: `${el.w}%`, height: `${el.h}%`,
-                      outline: selected ? `2px solid ${SEL}` : '1px dashed transparent',
+                      outline: selected ? `2px solid ${el.locked ? '#9A9A9A' : SEL}` : '1px dashed transparent',
                       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-                      cursor: editing ? 'text' : 'move',
+                      cursor: editing ? 'text' : el.locked ? 'default' : 'move',
                       zIndex: selected ? 10 : 1,
                     }}
                     onPointerDown={(e) => onPointerDown(e, el, 'move')}
-                    onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text') setEditingId(el.id) }}
+                    onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text' && !el.locked) setEditingId(el.id) }}
+                    onContextMenu={(e) => onElementContextMenu(e, el)}
                   >
                     {el.type === 'text' && (
                       editing ? (
@@ -1257,12 +1598,40 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                     )}
                     {el.type === 'image' && el.src && <img src={el.src} alt="" draggable={false} className="h-full w-full object-contain pointer-events-none" />}
                     {el.type === 'shape' && <ShapeRender shape={el.shape} fill={el.fill} />}
-                    {selected && selIds.length === 1 && (
-                      <div
-                        className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-full bg-white ring-2"
-                        style={{ cursor: 'nwse-resize', ['--tw-ring-color' as string]: SEL }}
-                        onPointerDown={(e) => onPointerDown(e, el, 'resize')}
-                      />
+                    {/* 锁定标识：锁定元素显示🔒角标，且不渲染缩放/旋转把手 */}
+                    {el.locked && selected && (
+                      <div className="absolute -top-2 -left-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#9A9A9A] text-white text-[9px] leading-none" title="已锁定（右键解锁）">🔒</div>
+                    )}
+                    {selected && selIds.length === 1 && !el.locked && (
+                      <>
+                        {/* 8 点缩放把手：四角等比 + 四边中点单向 */}
+                        {([
+                          { dir: 'nw', x: '-1.5', y: '-1.5', cur: 'nwse-resize' },
+                          { dir: 'n', x: '50%', y: '-1.5', cur: 'ns-resize' },
+                          { dir: 'ne', x: 'calc(100% - 4.5px)', y: '-1.5', cur: 'nesw-resize' },
+                          { dir: 'e', x: 'calc(100% - 4.5px)', y: '50%', cur: 'ew-resize' },
+                          { dir: 'se', x: 'calc(100% - 4.5px)', y: 'calc(100% - 4.5px)', cur: 'nwse-resize' },
+                          { dir: 's', x: '50%', y: 'calc(100% - 4.5px)', cur: 'ns-resize' },
+                          { dir: 'sw', x: '-1.5', y: 'calc(100% - 4.5px)', cur: 'nesw-resize' },
+                          { dir: 'w', x: '-1.5', y: '50%', cur: 'ew-resize' },
+                        ] as const).map(h => (
+                          <div
+                            key={h.dir}
+                            className="absolute h-3 w-3 rounded-full bg-white ring-2"
+                            style={{ left: h.x, top: h.y, cursor: h.cur, ['--tw-ring-color' as string]: SEL }}
+                            onPointerDown={(e) => onPointerDown(e, el, 'resize', h.dir)}
+                          />
+                        ))}
+                        {/* 旋转把手：元素上方圆点，拖拽绕中心旋转 */}
+                        <div
+                          className="absolute left-1/2 -top-5 h-3 w-3 rounded-full bg-white ring-2 cursor-grab"
+                          style={{ transform: 'translateX(-50%)', ['--tw-ring-color' as string]: SEL }}
+                          title="拖拽旋转（吸附 15°）"
+                          onPointerDown={(e) => onPointerDown(e, el, 'rotate')}
+                        />
+                        {/* 旋转把手与元素顶部的连接线 */}
+                        <div className="absolute left-1/2 -top-4 h-3 w-px" style={{ transform: 'translateX(-50%)', background: SEL }} />
+                      </>
                     )}
                   </div>
                 )
@@ -1270,6 +1639,14 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
 
               {/* 装饰层（按 theme.decor 渲染风格化角标，视觉最前但不挡交互） */}
               <SlideDecor theme={theme} layout={layout} />
+              {/* 装饰元件层（模板内置装饰 / 用户替换装饰的真实图片资产；编辑态可点选 + 右键替换/删除） */}
+              <DecorLayer decor={slide.decor} selectable selected={selDecor}
+                onSelect={(sel) => {
+                  setSelDecor(sel)
+                  if (sel) setSelIds([]) // 选中装饰时取消元素选中
+                  onSelectDecor?.(sel)
+                }}
+                onContextMenu={onDecorContextMenu} />
 
               {/* 对齐参考线 */}
               {guide.v != null && (
@@ -1294,6 +1671,39 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
 
       {/* 属性面板展开内容（Portal 到 body，fixed 跟随选中元件）；面板只在命中元件时才出现，无独立唤醒按钮 */}
       {propPanelContent && createPortal(propPanelContent, document.body)}
+
+      {/* 右键上下文菜单（Portal 到 body） */}
+      {ctxMenu && createPortal(
+        <div className="fixed z-[100] min-w-[150px] rounded-md bg-white shadow-xl border border-[#E7E7EB] py-1 text-[12px]" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={(e) => e.stopPropagation()}>
+          {ctxMenu.type === 'decor' ? (
+            <>
+              <MenuItem onClick={() => { if (ctxMenu.decor) onReplaceDecor?.(ctxMenu.decor); setCtxMenu(null) }} accent>替换装饰</MenuItem>
+              <MenuItem onClick={() => { removeDecor(ctxMenu.decor); setCtxMenu(null) }} danger>删除装饰</MenuItem>
+            </>
+          ) : (
+            <>
+              <MenuItem onClick={() => { copySelected(); setCtxMenu(null) }}>复制</MenuItem>
+              <MenuItem onClick={() => { pasteClipboard(); setCtxMenu(null) }}>粘贴</MenuItem>
+              <MenuItem onClick={() => { duplicateSelected(); setCtxMenu(null) }}>创建副本</MenuItem>
+              <div className="my-1 h-px bg-[#F0F0F0]" />
+              <MenuItem onClick={() => { moveLayer(1); setCtxMenu(null) }}>上移一层</MenuItem>
+              <MenuItem onClick={() => { moveLayer(-1); setCtxMenu(null) }}>下移一层</MenuItem>
+              <MenuItem onClick={() => { moveLayerToEdge('front'); setCtxMenu(null) }}>置于顶层</MenuItem>
+              <MenuItem onClick={() => { moveLayerToEdge('back'); setCtxMenu(null) }}>置于底层</MenuItem>
+              <div className="my-1 h-px bg-[#F0F0F0]" />
+              <MenuItem onClick={() => { toggleLock(); setCtxMenu(null) }}>
+                {elements.find(e => e.id === ctxMenu.id)?.locked ? '解锁' : '锁定'}
+              </MenuItem>
+              <div className="my-1 h-px bg-[#F0F0F0]" />
+              <MenuItem onClick={() => { aiAutoLayout(); setCtxMenu(null) }} accent>
+                ✨ AI 排版
+              </MenuItem>
+              <MenuItem onClick={() => { removeSelected(); setCtxMenu(null) }} danger>删除</MenuItem>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   )
 

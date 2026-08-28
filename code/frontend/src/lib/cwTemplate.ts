@@ -11,6 +11,8 @@
  * 老师套用后填空式编辑。这与 ciniaoppt 等主流 AI 模板"先生成、后换肤"一致。
  */
 
+import type { DecorSlots, DecorItem } from './api'
+
 // ── 媒介维度：仅负责素材池分流，不决定风格 ──
 export type TemplateKind = 'ppt' | 'h5'
 
@@ -75,6 +77,21 @@ export type SlideLayout =
   | 'edu-example'  // 例题演练（题干+解答步骤）
   | 'edu-summary'  // 课堂小结（要点归纳+导图占位）
   | 'edu-homework' // 作业布置（分层：基础/提高/拓展）
+  // ── 通用版式（本期新增，PPT/H5 共用）──
+  | 'cover'        // 封面
+  | 'toc'          // 目录
+  | 'section'      // 分隔页
+  | 'content-1col' // 单栏内容
+  | 'content-2col' // 双栏内容
+  | 'content-3col' // 三栏内容
+  | 'content-4col' // 四栏内容
+  | 'content-grid' // 网格内容（2-6项自适应）
+  | 'summary'      // 总结页
+  | 'comparison'   // 对比页
+  | 'timeline'     // 时间线页
+  | 'chart'        // 图表页
+  | 'image-text'   // 图文混排
+  | 'image-full'   // 全屏图片
 
 export const LAYOUT_LABELS: Record<SlideLayout, string> = {
   'title-body': '标题+正文',
@@ -87,21 +104,76 @@ export const LAYOUT_LABELS: Record<SlideLayout, string> = {
   'edu-example': '例题演练',
   'edu-summary': '课堂小结',
   'edu-homework': '作业布置',
+  'cover': '封面',
+  'toc': '目录',
+  'section': '分隔页',
+  'content-1col': '单栏内容',
+  'content-2col': '双栏内容',
+  'content-3col': '三栏内容',
+  'content-4col': '四栏内容',
+  'content-grid': '网格内容',
+  'summary': '总结页',
+  'comparison': '对比页',
+  'timeline': '时间线页',
+  'chart': '图表页',
+  'image-text': '图文混排',
+  'image-full': '全屏图片',
 }
+
+// 自适应：content-* 系列按内容条目数选最优版式（1+2→1+3 等自动扩展/降级）。
+// 仅在 content-* 系列内联动，不跨教学骨架；与现有 distributeToSlots 溢出逻辑复用。
+export function pickContentLayout(itemCount: number): SlideLayout {
+  if (itemCount <= 1) return 'content-1col'
+  if (itemCount === 2) return 'content-2col'
+  if (itemCount === 3) return 'content-3col'
+  if (itemCount === 4) return 'content-4col'
+  return 'content-grid' // 5-6 项网格
+}
+
+// 通用版式 key 集合（非 edu-* 前缀即通用版式，PPT/H5 共用）
+export const GENERIC_LAYOUTS: SlideLayout[] = [
+  'cover', 'toc', 'section', 'content-1col', 'content-2col', 'content-3col',
+  'content-4col', 'content-grid', 'summary', 'comparison', 'timeline', 'chart',
+  'image-text', 'image-full',
+]
 
 // 占位区块的类型
 export type PlaceholderKind = 'title' | 'body' | 'bullet' | 'info-block'
+
+// 占位区块几何（画布百分比坐标，x/y/w/h 均为 0~100）
+// 这是「内容与模板分离」的物理契约：相同 key 在不同版式下位置不同，
+// 渲染/导出/编辑三端共用同一份 rect，换模板即换这套 rect。
+export interface PlaceholderRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
 
 export interface Placeholder {
   key: string
   label: string
   kind: PlaceholderKind
+  // 几何坐标（画布百分比）。默认骨架 EDU_LAYOUT_SKELETONS 必填；
+  // 学段/学科骨架可省略，由 skeletonFor 从默认骨架 merge 补入。
+  rect?: PlaceholderRect
+  // bullets 类多列布局（如三维目标、分层作业三列）；其余忽略
+  columns?: number
+  // 可选文本样式默认值（仅结构建议，导出/渲染可覆盖）
+  fontSize?: number
+  bold?: boolean
+  align?: 'left' | 'center' | 'right'
+  // 占位提示文案（无内容时显示，如「题干（填写）」）
+  placeholder?: string
 }
 
 // 单版式的骨架定义（结构占位，无业务内容）
 export interface LayoutSkeleton {
   hint?: string
   placeholders: Placeholder[]
+  // ★ 该版式专属装饰（模板内置装饰：随模板加载进画布，可在编辑器个性替换）。
+  // 引用素材库装饰元件（assetId+version 引用 + snapshot 快照兜底），非独立资产。
+  decor?: DecorSlot[]
 }
 
 // ── 学段映射（内置，从 teaching.grade 数字无感解析，教师无需操作） ──
@@ -118,6 +190,25 @@ const STAGE_OF_GRADE: Record<number, StageKey> = {
 
 export function gradeToStage(grade: number): StageKey {
   return STAGE_OF_GRADE[grade] ?? 'upper'
+}
+
+// 年级数字 → 模板 facet 用 StageTag（primary/junior/senior/college 对老师更直观）
+export function gradeToStageTag(grade: number): StageTag {
+  if (grade <= 0) return 'kindergarten'
+  if (grade <= 6) return 'primary'
+  if (grade <= 9) return 'junior'
+  if (grade <= 12) return 'senior'
+  return 'college'
+}
+
+// 中文科目名 → 模板 facet 用 SubjectTag（AI 推荐接入时把 teaching.subject 映射到模板库标签）
+const SUBJECT_TO_TAG: Record<string, SubjectTag> = {
+  语文: 'chinese', 数学: 'math', 英语: 'english', 物理: 'physics', 化学: 'chemistry',
+  生物: 'biology', 历史: 'history', 地理: 'geography', 政治: 'politics', 科学: 'science',
+  美术: 'art', 体育: 'pe', 信息: 'it', 信息技术: 'it',
+}
+export function subjectToTag(subject: string): SubjectTag | undefined {
+  return SUBJECT_TO_TAG[subject]
 }
 
 // 学科归一化 key：对齐 code/shared/subjects.ts 的唯一学科事实源（9 个边界学科）。
@@ -138,49 +229,159 @@ function subjectFamily(subject: string): string {
 
 // ── 教学版式骨架（6 类基础结构占位，老师填空） ──
 // 作为所有学段/学科的兜底默认骨架。
+// 几何坐标约定（画布百分比，与现有 renderLayoutContent / layoutElements 保持一致）：
+// 顶部标题窄条 y≈4~14，正文区 y≈20~88，三列卡片宽≈28~29、起步 x≈5.3 等距。
 export const EDU_LAYOUT_SKELETONS: Record<Exclude<SlideLayout, 'title-body' | 'title-only' | 'two-col' | 'blank'>, LayoutSkeleton> = {
   'edu-cover': {
     hint: '封面：填写课题、年级学科与授课教师',
     placeholders: [
-      { key: 'title', label: '课题名称', kind: 'title' },
-      { key: 'info', label: '年级 / 学科 / 教师', kind: 'info-block' },
+      { key: 'title', label: '课题名称', kind: 'title', rect: { x: 6, y: 30, w: 88, h: 14 }, fontSize: 36, bold: true, align: 'center', placeholder: '课题名称（填写）' },
+      { key: 'info', label: '年级 / 学科 / 教师', kind: 'info-block', rect: { x: 6, y: 48, w: 88, h: 12 }, fontSize: 18, align: 'center', placeholder: '年级 / 学科 / 授课教师' },
     ],
   },
   'edu-goal': {
     hint: '教学目标：按三维目标分栏填写',
     placeholders: [
-      { key: 'knowledge', label: '知识与技能', kind: 'bullet' },
-      { key: 'process', label: '过程与方法', kind: 'bullet' },
-      { key: 'emotion', label: '情感态度价值观', kind: 'bullet' },
+      { key: 'knowledge', label: '知识与技能', kind: 'bullet', rect: { x: 5.3, y: 22, w: 29, h: 60 }, columns: 1, placeholder: '知识与技能' },
+      { key: 'process', label: '过程与方法', kind: 'bullet', rect: { x: 35.3, y: 22, w: 29, h: 60 }, columns: 1, placeholder: '过程与方法' },
+      { key: 'emotion', label: '情感态度价值观', kind: 'bullet', rect: { x: 65.3, y: 22, w: 29, h: 60 }, columns: 1, placeholder: '情感态度价值观' },
     ],
   },
   'edu-explain': {
     hint: '知识讲解：上方概念定义，下方要点展开',
     placeholders: [
-      { key: 'definition', label: '概念定义', kind: 'body' },
-      { key: 'points', label: '要点展开', kind: 'bullet' },
+      { key: 'definition', label: '概念定义', kind: 'body', rect: { x: 6, y: 20, w: 88, h: 18 }, fontSize: 18, placeholder: '概念定义（填写）' },
+      { key: 'points', label: '要点展开', kind: 'bullet', rect: { x: 6, y: 42, w: 88, h: 48 }, placeholder: '要点展开' },
     ],
   },
   'edu-example': {
     hint: '例题演练：上方题干，下方解答步骤',
     placeholders: [
-      { key: 'question', label: '题干', kind: 'body' },
-      { key: 'solution', label: '解答步骤', kind: 'bullet' },
+      { key: 'question', label: '题干', kind: 'body', rect: { x: 6.3, y: 20, w: 87.4, h: 18 }, fontSize: 18, bold: true, placeholder: '题干（填写）' },
+      { key: 'solution', label: '解答步骤', kind: 'bullet', rect: { x: 5.3, y: 44, w: 89.4, h: 40 }, columns: 3, placeholder: '解答步骤' },
     ],
   },
   'edu-summary': {
     hint: '课堂小结：要点归纳 + 思维导图占位',
     placeholders: [
-      { key: 'points', label: '要点归纳', kind: 'bullet' },
-      { key: 'mindmap', label: '思维导图占位', kind: 'info-block' },
+      { key: 'points', label: '要点归纳', kind: 'bullet', rect: { x: 6, y: 20, w: 88, h: 44 }, placeholder: '要点归纳' },
+      { key: 'mindmap', label: '思维导图占位', kind: 'info-block', rect: { x: 6, y: 68, w: 88, h: 22 }, placeholder: '思维导图占位' },
     ],
   },
   'edu-homework': {
     hint: '作业布置：分层作业（基础 / 提高 / 拓展）',
     placeholders: [
-      { key: 'basic', label: '基础', kind: 'bullet' },
-      { key: 'improve', label: '提高', kind: 'bullet' },
-      { key: 'expand', label: '拓展', kind: 'bullet' },
+      { key: 'basic', label: '基础', kind: 'bullet', rect: { x: 5.3, y: 22, w: 29, h: 60 }, columns: 1, placeholder: '基础' },
+      { key: 'improve', label: '提高', kind: 'bullet', rect: { x: 35.3, y: 22, w: 29, h: 60 }, columns: 1, placeholder: '提高' },
+      { key: 'expand', label: '拓展', kind: 'bullet', rect: { x: 65.3, y: 22, w: 29, h: 60 }, columns: 1, placeholder: '拓展' },
+    ],
+  },
+
+  // ── 通用版式（本期新增，PPT/H5 共用；几何为内容/布局分离的物理契约）──
+  'cover': {
+    hint: '封面：标题 + 副标题 + 信息',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 8, y: 32, w: 84, h: 16 }, fontSize: 36, bold: true, align: 'center', placeholder: '标题（填写）' },
+      { key: 'subtitle', label: '副标题', kind: 'body', rect: { x: 8, y: 50, w: 84, h: 10 }, fontSize: 18, align: 'center', placeholder: '副标题' },
+      { key: 'info', label: '信息', kind: 'info-block', rect: { x: 8, y: 62, w: 84, h: 8 }, fontSize: 14, align: 'center', placeholder: '学科 / 年级 / 作者' },
+    ],
+  },
+  'toc': {
+    hint: '目录：标题 + 目录项（≤6）',
+    placeholders: [
+      { key: 'title', label: '目录标题', kind: 'title', rect: { x: 8, y: 12, w: 84, h: 10 }, fontSize: 24, bold: true, placeholder: '目录' },
+      { key: 'items', label: '目录项', kind: 'bullet', rect: { x: 14, y: 30, w: 72, h: 56 }, columns: 1, placeholder: '目录项' },
+    ],
+  },
+  'section': {
+    hint: '分隔页：章节标题',
+    placeholders: [
+      { key: 'title', label: '章节标题', kind: 'title', rect: { x: 10, y: 42, w: 80, h: 16 }, fontSize: 32, bold: true, align: 'center', placeholder: '章节标题' },
+    ],
+  },
+  'content-1col': {
+    hint: '单栏内容页',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'body', label: '内容', kind: 'bullet', rect: { x: 6.3, y: 28, w: 87.4, h: 60 }, columns: 1, placeholder: '内容要点' },
+    ],
+  },
+  'content-2col': {
+    hint: '双栏内容页',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'left', label: '左栏', kind: 'bullet', rect: { x: 6.3, y: 28, w: 43, h: 60 }, columns: 1, placeholder: '左栏内容' },
+      { key: 'right', label: '右栏', kind: 'bullet', rect: { x: 50.7, y: 28, w: 43, h: 60 }, columns: 1, placeholder: '右栏内容' },
+    ],
+  },
+  'content-3col': {
+    hint: '三栏内容页',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'col1', label: '栏1', kind: 'bullet', rect: { x: 6.3, y: 28, w: 28, h: 60 }, columns: 1, placeholder: '栏1' },
+      { key: 'col2', label: '栏2', kind: 'bullet', rect: { x: 36.2, y: 28, w: 28, h: 60 }, columns: 1, placeholder: '栏2' },
+      { key: 'col3', label: '栏3', kind: 'bullet', rect: { x: 66.1, y: 28, w: 28, h: 60 }, columns: 1, placeholder: '栏3' },
+    ],
+  },
+  'content-4col': {
+    hint: '四栏内容页',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'col1', label: '栏1', kind: 'bullet', rect: { x: 6.3, y: 28, w: 20.5, h: 60 }, columns: 1, placeholder: '栏1' },
+      { key: 'col2', label: '栏2', kind: 'bullet', rect: { x: 29.2, y: 28, w: 20.5, h: 60 }, columns: 1, placeholder: '栏2' },
+      { key: 'col3', label: '栏3', kind: 'bullet', rect: { x: 52.1, y: 28, w: 20.5, h: 60 }, columns: 1, placeholder: '栏3' },
+      { key: 'col4', label: '栏4', kind: 'bullet', rect: { x: 75, y: 28, w: 20.5, h: 60 }, columns: 1, placeholder: '栏4' },
+    ],
+  },
+  'content-grid': {
+    hint: '网格内容页（2-6项自适应列数）',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'items', label: '网格项', kind: 'bullet', rect: { x: 6.3, y: 28, w: 87.4, h: 60 }, columns: 3, placeholder: '网格项' },
+    ],
+  },
+  'summary': {
+    hint: '总结页：标题 + 要点（≤6）',
+    placeholders: [
+      { key: 'title', label: '总结标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '课堂小结' },
+      { key: 'items', label: '要点', kind: 'bullet', rect: { x: 6.3, y: 28, w: 87.4, h: 60 }, columns: 2, placeholder: '要点' },
+    ],
+  },
+  'comparison': {
+    hint: '对比页：左右两栏',
+    placeholders: [
+      { key: 'title', label: '对比标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '对比' },
+      { key: 'left', label: '左侧', kind: 'bullet', rect: { x: 6.3, y: 28, w: 43, h: 60 }, columns: 1, placeholder: '左侧' },
+      { key: 'right', label: '右侧', kind: 'bullet', rect: { x: 50.7, y: 28, w: 43, h: 60 }, columns: 1, placeholder: '右侧' },
+    ],
+  },
+  'timeline': {
+    hint: '时间线页：事件序列（≤6）',
+    placeholders: [
+      { key: 'title', label: '时间线标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '时间线' },
+      { key: 'events', label: '事件', kind: 'bullet', rect: { x: 6.3, y: 30, w: 87.4, h: 56 }, columns: 1, placeholder: '事件节点' },
+    ],
+  },
+  'chart': {
+    hint: '图表页：标题 + 数据/说明占位',
+    placeholders: [
+      { key: 'title', label: '图表标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '图表标题' },
+      { key: 'data', label: '图表数据/说明', kind: 'body', rect: { x: 6.3, y: 28, w: 87.4, h: 60 }, fontSize: 16, placeholder: '图表数据或说明' },
+    ],
+  },
+  'image-text': {
+    hint: '图文混排：图片 + 文字',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'image', label: '图片', kind: 'info-block', rect: { x: 6.3, y: 28, w: 43, h: 58 }, placeholder: '图片占位' },
+      { key: 'body', label: '文字', kind: 'bullet', rect: { x: 50.7, y: 28, w: 43, h: 58 }, columns: 1, placeholder: '文字说明' },
+    ],
+  },
+  'image-full': {
+    hint: '全屏图片：图片 + 图注',
+    placeholders: [
+      { key: 'image', label: '全屏图片', kind: 'info-block', rect: { x: 6.3, y: 16, w: 87.4, h: 68 }, placeholder: '全屏图片' },
+      { key: 'caption', label: '图注', kind: 'body', rect: { x: 6.3, y: 86, w: 87.4, h: 8 }, fontSize: 14, align: 'center', placeholder: '图注' },
     ],
   },
 }
@@ -259,23 +460,225 @@ export const STAGE_SKELETONS: Record<StageKey, Record<string, EduSkeletons>> = {
 }
 
 // 取某学段+学科的真实骨架（内置索引，逐级回落：学科专属 → 学段默认 → 全局基础骨架）
+// 返回前把「几何真相源」EDU_LAYOUT_SKELETONS 的 rect/columns/样式 merge 进学段骨架的 placeholder，
+// 保证任何版式都有完整几何，渲染/导出/编辑三端共用同一份 rect。
 export function skeletonFor(stage: StageKey, subject: string): EduSkeletons {
   const stageMap = STAGE_SKELETONS[stage]
-  return stageMap[subjectKey(subject)] ?? stageMap._default ?? (EDU_LAYOUT_SKELETONS as EduSkeletons)
+  const base = stageMap[subjectKey(subject)] ?? stageMap._default ?? (EDU_LAYOUT_SKELETONS as EduSkeletons)
+  const merged: EduSkeletons = {}
+  for (const layout of Object.keys(base) as SlideLayout[]) {
+    const sk = base[layout]
+    const geo = EDU_LAYOUT_SKELETONS[layout as keyof typeof EDU_LAYOUT_SKELETONS]
+    merged[layout] = {
+      hint: sk?.hint ?? geo?.hint,
+      placeholders: (sk?.placeholders ?? geo?.placeholders ?? []).map((p) => {
+        const g = geo?.placeholders.find((x) => x.key === p.key)
+        return g ? { ...g, ...p, rect: g.rect } : p
+      }),
+    }
+  }
+  return merged
 }
 
-// ── 模板对象：配色 + 版式骨架 打包成一套可套用对象 ──
+// ── 内容与模板分离：全局唯一契约层 ──
+// 取某 layout 的最终骨架（优先模板自带 layouts，回落到学段+学科索引骨架）。
+// 任意一处渲染/导出/编辑都通过本函数拿到带几何的骨架，保证三端一致。
+export function getSkeleton(
+  layout: SlideLayout,
+  opts?: { tplLayouts?: Partial<Record<SlideLayout, LayoutSkeleton>>; stage?: StageKey; subject?: string },
+): LayoutSkeleton | undefined {
+  if (opts?.tplLayouts && opts.tplLayouts[layout]) return opts.tplLayouts[layout]
+  const sk = (skeletonFor(opts?.stage ?? 'upper', opts?.subject ?? '_default') as EduSkeletons)[layout]
+  if (sk) return sk
+  // 通用版式（cover/toc/content-* 等）回落到 EDU_LAYOUT_SKELETONS 全局几何真相源
+  return (EDU_LAYOUT_SKELETONS as EduSkeletons)[layout]
+}
+
+// 判断某 layout 是否为「结构化版式」（有骨架占位、走内容与模板分离渲染）。
+// 纯排版版式（title-body/title-only/two-col/blank）走扁平 bullets 默认渲染，不在此列。
+const PLAIN_LAYOUTS: SlideLayout[] = ['title-body', 'title-only', 'two-col', 'blank']
+export function isStructuredLayout(layout?: string): layout is SlideLayout {
+  if (!layout) return false
+  if (PLAIN_LAYOUTS.includes(layout as SlideLayout)) return false
+  return !!getSkeleton(layout as SlideLayout)
+}
+
+// 将一页的扁平 bullets 按骨架的 placeholder 顺序分发进 slots。
+// 规则：title 占位接首条；bullet 占位按列数等分剩余；其它占位各接一条；溢出内容进 __overflow。
+export type SlideSlots = Record<string, string[]>
+
+export function distributeToSlots(layout: SlideLayout, bullets: string[], opts?: { stage?: StageKey; subject?: string }): SlideSlots {
+  const sk = getSkeleton(layout, opts)
+  if (!sk) return {}
+  const slots: SlideSlots = {}
+  let idx = 0
+  for (const p of sk.placeholders) {
+    // 通用版式的 title 占位由 slide.title 渲染，不消费 bullets；cover 例外（大标题通常写在正文中）。
+    if (p.key === 'title' && layout !== 'cover') {
+      slots[p.key] = []
+      continue
+    }
+    if (p.kind === 'bullet') {
+      const n = Math.max(1, Math.ceil((bullets.length - idx) / remainingBulletCount(sk.placeholders, p)))
+      let chunk = bullets.slice(idx, idx + n)
+      // 子条目展开：若某条是用换行分隔的 bullet（•/- 开头多行），展开成多条，使多列卡片能均分填满
+      if (p.columns && p.columns > 1) {
+        const expanded = chunk.flatMap((line) => {
+          const sub = line.split(/\n+/).map((x) => x.replace(/^[\s•\-*]+/, '').trim()).filter(Boolean)
+          return sub.length > 1 ? sub : [line]
+        })
+        if (expanded.length >= p.columns) chunk = expanded
+      }
+      slots[p.key] = chunk.length ? chunk : []
+      idx += n
+    } else {
+      slots[p.key] = bullets[idx] !== undefined ? [bullets[idx]] : []
+      idx += 1
+    }
+  }
+  if (idx < bullets.length) slots['__overflow'] = bullets.slice(idx)
+  return slots
+}
+
+// 计算从当前 bullet 占位起，剩余还需要分配的 bullet 占位数量（用于等分）
+function remainingBulletCount(phs: Placeholder[], current: Placeholder): number {
+  let c = 0
+  let seen = false
+  for (const p of phs) {
+    if (p === current) { seen = true; continue }
+    if (seen && p.kind === 'bullet') c++
+  }
+  return c + 1 // 含自身
+}
+
+// 模板替换时按 placeholder key 重映射（内容随新骨架的 key 自动对应）。
+// 同名 key 直接迁移；新骨架独有 key 留空；旧骨架独有 key 进 __overflow（不丢）。
+export function remapSlots(oldLayout: SlideLayout, newLayout: SlideLayout, slots: SlideSlots, opts?: { stage?: StageKey; subject?: string }): SlideSlots {
+  const oldSk = getSkeleton(oldLayout, opts)
+  const newSk = getSkeleton(newLayout, opts)
+  if (!oldSk || !newSk) return slots
+  const oldKeys = new Set(oldSk.placeholders.map((p) => p.key))
+  const next: SlideSlots = {}
+  for (const p of newSk.placeholders) {
+    next[p.key] = slots[p.key] ?? (oldKeys.size === newSk.placeholders.length && oldSk.placeholders.every((o, i) => o.key === newSk.placeholders[i].key) ? [] : [])
+  }
+  // 旧骨架多余的 key 进溢出，避免内容丢失
+  const overflow: string[] = []
+  for (const k of Object.keys(slots)) {
+    if (k === '__overflow') { overflow.push(...slots[k]); continue }
+    if (!newSk.placeholders.some((p) => p.key === k)) overflow.push(...slots[k])
+  }
+  if (overflow.length) next['__overflow'] = overflow
+  return next
+}
+
+// ── 模板内置装饰元件引用（引用 + 快照，复用素材库图片）──
+// 装饰元件 = 素材库里的图片（category=decor_element），非独立资产。
+// 模板引用其 assetId + version（版本概念），snapshot 兜底防元件被删。
+export interface DecorSlot {
+  /** 引用：素材库装饰元件 id（素材库图片） */
+  assetId: string
+  /** 引用：该元件的版本（素材库已有 version 概念） */
+  version?: string
+  /** 元件名称（对齐素材库 materials.name，供 AI 推荐去重、装饰面板展示） */
+  name?: string
+  /** 快照：关键渲染信息兜底（元件被删/版本缺失时仍可渲染） */
+  snapshot: { url: string; w?: number; h?: number }
+  /** 装饰槽位类型：页眉/页脚/角标/浮动/背景 */
+  slot: 'header' | 'footer' | 'corner' | 'floating' | 'background'
+  /** 位置快照（画布百分比） */
+  position?: { x: number; y: number; w: number; h: number }
+}
+
+// ── 多维聚类标签（借鉴 51miz 课件频道：风格自由标签 + 场景/学段/学科 作为检索 facet）──
+// 设计原则（用户对齐）：
+//   * 风格(style) 是模板的"先天属性"，驱动装饰匹配（STYLE_DECOR_MAP）；
+//   * 学段/学科/场景 是"后天描述"，从模板实际用途反推，作为辅助筛选 facet，非导航主导；
+//   * 色系(colorFamily) 是"后生成的描述属性"——先有模板、再由其主色聚类到色系，
+//     而非先定色系再生模板。故 colorFamily 仅作可选筛选，不进分类导航。
+export type StageTag = 'kindergarten' | 'primary' | 'junior' | 'senior' | 'college'
+export type SubjectTag =
+  | 'chinese' | 'math' | 'english' | 'physics' | 'chemistry' | 'biology'
+  | 'history' | 'geography' | 'politics' | 'science' | 'art' | 'pe' | 'it'
+export type ScenarioTag =
+  | 'lecture'        // 说课
+  | 'parents'        // 家长会
+  | 'class-meeting'  // 主题班会
+  | 'first-class'    // 开学第一课
+  | 'open-class'     // 公开课/示范课
+  | 'review'         // 复习/备考
+  | 'training'       // 教师培训
+  | 'general'        // 常规授课（通用）
+export type PageTypeTag = 'cover' | 'toc' | 'content' | 'summary' | 'homework' | 'section'
+export type TplTagKind = 'style' | 'stage' | 'subject' | 'scenario' | 'pageType'
+export interface TplTag { kind: TplTagKind; value: string }
+
+export const STAGE_LABELS: Record<StageTag, string> = {
+  kindergarten: '幼儿园',
+  primary: '小学',
+  junior: '初中',
+  senior: '高中',
+  college: '大学',
+}
+export const SUBJECT_LABELS: Record<SubjectTag, string> = {
+  chinese: '语文', math: '数学', english: '英语', physics: '物理', chemistry: '化学',
+  biology: '生物', history: '历史', geography: '地理', politics: '政治', science: '科学',
+  art: '美术', pe: '体育', it: '信息',
+}
+export const SCENARIO_LABELS: Record<ScenarioTag, string> = {
+  lecture: '说课', parents: '家长会', 'class-meeting': '主题班会', 'first-class': '开学第一课',
+  'open-class': '公开课', review: '复习备考', training: '教师培训', general: '常规授课',
+}
+export const PAGETYPE_LABELS: Record<PageTypeTag, string> = {
+  cover: '封面', toc: '目录', content: '内容', summary: '小结', homework: '作业', section: '分隔',
+}
+
+// ── 模板对象：配色 + 版式骨架 + 内置装饰 打包成一套可套用对象 ──
 export interface CwTemplate {
   id: string
   kind: TemplateKind
   name: string
-  style: StyleTag
+  style: StyleTag                                     // 主风格（驱动装饰匹配；同时作为风格 facet）
+  /** ★ 多维聚类标签：风格/学段/学科/场景/页型混合，供面板多选筛选（OR 语义） */
+  tags?: TplTag[]
+  /** ★ 色系：后生成的描述属性（由模板主色聚类而来），仅作可选筛选 */
+  colorFamily?: string
   themeId: string                                   // 复用现有 CwTheme 配色
   layouts: Partial<Record<SlideLayout, LayoutSkeleton>> // 该模板提供的版式骨架（默认用 edu-* 教学版式）
-  subjects?: string[]                               // 适配学科（空=通用）
-  grades?: ('小学' | '初中' | '高中')[]             // 适配学段
+  /** ★ 模板全局装饰（每页都挂的装饰，如页眉/页脚） */
+  globalDecor?: DecorSlot[]
+  /** ★ 按版式的专属装饰（覆盖/叠加 globalDecor） */
+  decorByLayout?: Partial<Record<SlideLayout, DecorSlot[]>>
+  subjects?: string[]                               // 适配学科（空=通用，向后兼容）
+  grades?: ('小学' | '初中' | '高中')[]             // 适配学段（空=通用，向后兼容）
   cover?: string                                    // 封面缩微图（dataURL/SVG）；留空则由 renderTemplateThumb 自动生成
   demoOutline?: OutlineSlide[]                      // 示例提纲：空课件套用时注入，立即可见版式预览（教师填空式替换）
+}
+
+// 派生模板的风格标签（style 即主风格，兼容旧语义）
+export function templateStyleTags(tpl: CwTemplate): StyleTag[] {
+  const fromTags = (tpl.tags ?? []).filter((t) => t.kind === 'style').map((t) => t.value as StyleTag)
+  return fromTags.length ? Array.from(new Set([tpl.style, ...fromTags])) : [tpl.style]
+}
+
+// 派生模板的色系（后生成描述属性，直接读 colorFamily）
+export function templateColorTags(tpl: CwTemplate): string[] {
+  return tpl.colorFamily ? [tpl.colorFamily] : []
+}
+
+// 派生模板的各 facet 分组（学段/学科/场景/页型），供面板多选筛选
+export function templateFacets(tpl: CwTemplate): {
+  stage: StageTag[]; subject: SubjectTag[]; scenario: ScenarioTag[]; pageType: PageTypeTag[]
+} {
+  const tags = tpl.tags ?? []
+  const pick = <T extends string>(kind: TplTagKind) =>
+    tags.filter((t) => t.kind === kind).map((t) => t.value as T)
+  return {
+    stage: pick<StageTag>('stage'),
+    subject: pick<SubjectTag>('subject'),
+    scenario: pick<ScenarioTag>('scenario'),
+    pageType: pick<PageTypeTag>('pageType'),
+  }
 }
 
 // ── PPT 模板池：基于现有 56 套 CwTheme 配色铺满 8 类风格（各标签下素材积累多少算多少） ──
@@ -297,98 +700,267 @@ function eduDemoOutline(): OutlineSlide[] {
   ]
 }
 
+// 模板定义输入：在「风格 + 多维标签 + 色系描述」上声明，配色 themeId 复用 pptThemes.ts 真实 CwTheme。
+// 设计原则（用户对齐）：风格/学段/学科/场景是模板"先天自带"的语义标签，色系(colorFamily)是
+// 由主题主色聚类而来的"后生成描述属性"，不反向驱动模板生成。
+interface TplDef {
+  style: StyleTag
+  themeId: string
+  colorFamily: string                              // 后生成：与该主题主色最贴近的色系 id
+  name?: string
+  tags?: TplTag[]
+  subjects?: string[]
+  grades?: ('小学' | '初中' | '高中')[]
+}
+
 function pptTemplate(
   id: string,
-  name: string,
-  style: StyleTag,
-  themeId: string,
-  subjects?: string[],
-  grades?: ('小学' | '初中' | '高中')[],
+  def: TplDef,
   kind: TemplateKind = 'ppt',
 ): CwTemplate {
+  const th = getTheme(def.themeId)
   return {
     id,
     kind,
-    name,
-    style,
-    themeId,
+    name: def.name ?? `${th?.name ?? def.themeId}·${STYLE_LABELS[def.style]}课件`,
+    style: def.style,
+    tags: def.tags,
+    colorFamily: def.colorFamily,
+    themeId: def.themeId,
     // 每套模板都自带同一套教学版式骨架（结构占位通用，配色由 themeId 决定）
     layouts: { ...EDU_LAYOUT_SKELETONS },
-    subjects,
-    grades,
+    subjects: def.subjects,
+    grades: def.grades,
+    globalDecor: decorForStyle(def.style),
     demoOutline: eduDemoOutline(),
   }
 }
 
-// 风格标签 → 该风格下选用的 themeId 列表（均来自 pptThemes.ts 真实配色）
-const PPT_STYLE_THEMES: Record<StyleTag, string[]> = {
-  basic: ['min-classic-blue', 'min-pure-white', 'aca-edu-blue'],
-  china: ['zgf-ink-wash', 'zgf-guochao', 'zgf-shanshui', 'zgf-song-qing'],
-  minimal: ['min-classic-blue', 'min-geo', 'min-gray-premium', 'min-pure-white', 'min-modern-line', 'min-navy-intellectual'],
-  tech: ['te-quantum-blue', 'te-tech-navy', 'te-cyber-purple', 'te-aurora-green', 'te-digital-cyan'],
-  fresh: ['fr-mint', 'fr-sky-blue', 'fr-warm-orange', 'fr-macaron-pink', 'fr-sakura'],
-  academic: ['aca-edu-blue', 'aca-rational', 'aca-deep-green', 'aca-cream'],
-  cartoon: ['sp-cartoon', 'sp-doodle'],
-  flat: ['mo-haze-blue', 'mo-gray-purple', 'mo-bean-green'],
-  business: ['min-navy-intellectual', 'gr-blue-purple', 'wa-elegant-purple'],
-}
+// 多维标签构造助手（保持声明紧凑）
+const t = (kind: TplTagKind, value: string): TplTag => ({ kind, value })
+const styles = (...v: StyleTag[]) => v.map((x) => t('style', x))
+const stages = (...v: StageTag[]) => v.map((x) => t('stage', x))
+const subjects = (...v: SubjectTag[]) => v.map((x) => t('subject', x))
+const scenarios = (...v: ScenarioTag[]) => v.map((x) => t('scenario', x))
+const pageTypes = (...v: PageTypeTag[]) => v.map((x) => t('pageType', x))
 
-// H5 互动课件风格分布：偏向亮色/跳色（投屏平板更出彩），卡通/清新权重更高，沉稳/严谨权重更低。
-// 与 PPT 共用同一套风格标签与配色，仅素材比例倾斜；规则体系完全一致。
-const H5_STYLE_THEMES: Record<StyleTag, string[]> = {
-  basic: ['min-classic-blue', 'min-pure-white', 'aca-edu-blue'],
-  china: ['zgf-guochao', 'zgf-shanshui', 'zgf-song-qing'],
-  minimal: ['min-pure-white', 'min-modern-line', 'min-navy-intellectual'],
-  tech: ['te-quantum-blue', 'te-aurora-green', 'te-digital-cyan'],
-  fresh: ['fr-mint', 'fr-sky-blue', 'fr-warm-orange', 'fr-macaron-pink', 'fr-sakura', 'fr-lemon'],
-  academic: ['aca-edu-blue', 'aca-deep-green'],
-  cartoon: ['sp-cartoon', 'sp-doodle', 'sp-party-red', 'sp-festive'],
-  flat: ['mo-haze-blue', 'mo-gray-purple', 'mo-bean-green', 'mo-rose-gray'],
-  business: ['gr-blue-purple', 'wa-elegant-purple'],
-}
+// ── PPT 模板池（借鉴 51miz：场景/用途 + 风格自由标签 + 色系从外观聚类）──
+// 每个定义显式声明：风格、主色聚类色系、学段/学科/场景 facet；素材随积累扩充。
+const PPT_TEMPLATE_DEFS: TplDef[] = [
+  // 国风
+  { style: 'china', themeId: 'zgf-ink-wash', colorFamily: 'mono', tags: [...styles('china'), ...scenarios('general'), ...stages('primary', 'junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-guochao', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('class-meeting', 'first-class'), ...stages('primary', 'junior')] },
+  { style: 'china', themeId: 'zgf-shanshui', colorFamily: 'cyan-green', tags: [...styles('china'), ...scenarios('general'), ...stages('junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-song-qing', colorFamily: 'cyan-green', tags: [...styles('china'), ...subjects('chinese', 'history'), ...stages('junior', 'senior')] },
+  // 素净/简约
+  { style: 'minimal', themeId: 'min-classic-blue', colorFamily: 'blue', tags: [...styles('minimal'), ...scenarios('lecture', 'open-class'), ...stages('junior', 'senior')] },
+  { style: 'minimal', themeId: 'min-geo', colorFamily: 'gray', tags: [...styles('minimal'), ...scenarios('general'), ...stages('senior', 'college')] },
+  { style: 'minimal', themeId: 'min-gray-premium', colorFamily: 'gray', tags: [...styles('minimal', 'business'), ...scenarios('training'), ...stages('college')] },
+  { style: 'minimal', themeId: 'min-pure-white', colorFamily: 'gray', tags: [...styles('minimal'), ...scenarios('general'), ...stages('primary', 'junior', 'senior')] },
+  { style: 'minimal', themeId: 'min-modern-line', colorFamily: 'blue', tags: [...styles('minimal'), ...scenarios('lecture'), ...stages('junior', 'senior')] },
+  { style: 'minimal', themeId: 'min-navy-intellectual', colorFamily: 'blue', tags: [...styles('minimal', 'academic'), ...subjects('math', 'physics'), ...stages('senior', 'college')] },
+  // 科技
+  { style: 'tech', themeId: 'te-quantum-blue', colorFamily: 'blue', tags: [...styles('tech'), ...subjects('it', 'physics'), ...stages('junior', 'senior', 'college')] },
+  { style: 'tech', themeId: 'te-tech-navy', colorFamily: 'blue', tags: [...styles('tech'), ...scenarios('open-class'), ...stages('senior', 'college')] },
+  { style: 'tech', themeId: 'te-cyber-purple', colorFamily: 'purple', tags: [...styles('tech'), ...subjects('it'), ...stages('junior', 'senior')] },
+  { style: 'tech', themeId: 'te-aurora-green', colorFamily: 'cyan-green', tags: [...styles('tech'), ...subjects('science', 'biology'), ...stages('junior', 'senior')] },
+  { style: 'tech', themeId: 'te-digital-cyan', colorFamily: 'cyan-green', tags: [...styles('tech'), ...scenarios('first-class'), ...stages('primary', 'junior')] },
+  // 清新
+  { style: 'fresh', themeId: 'fr-mint', colorFamily: 'cyan-green', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-sky-blue', colorFamily: 'blue', tags: [...styles('fresh'), ...scenarios('parents'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-warm-orange', colorFamily: 'warm', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-macaron-pink', colorFamily: 'purple', tags: [...styles('fresh'), ...subjects('art'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-sakura', colorFamily: 'warm', tags: [...styles('fresh'), ...stages('primary', 'junior')] },
+  // 严谨/学术
+  { style: 'academic', themeId: 'aca-edu-blue', colorFamily: 'blue', tags: [...styles('academic'), ...scenarios('lecture', 'review'), ...stages('junior', 'senior', 'college')] },
+  { style: 'academic', themeId: 'aca-rational', colorFamily: 'gray', tags: [...styles('academic'), ...subjects('math', 'physics', 'chemistry'), ...stages('senior', 'college')] },
+  { style: 'academic', themeId: 'aca-deep-green', colorFamily: 'cyan-green', tags: [...styles('academic'), ...subjects('biology', 'science'), ...stages('junior', 'senior')] },
+  { style: 'academic', themeId: 'aca-cream', colorFamily: 'warm', tags: [...styles('academic'), ...stages('primary', 'junior')] },
+  // 卡通（绘本/插画风，借鉴 GordenPPTSkill 卡通模板风格）
+  { style: 'cartoon', themeId: 'sp-cartoon', colorFamily: 'gradient', tags: [...styles('cartoon'), ...pageTypes('cover', 'content'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'sp-doodle', colorFamily: 'gradient', tags: [...styles('cartoon'), ...scenarios('class-meeting'), ...pageTypes('content', 'summary'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'gr-orange-pink', colorFamily: 'gradient', tags: [...styles('cartoon'), ...subjects('art', 'english'), ...pageTypes('cover', 'content', 'homework'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'fr-macaron-pink', colorFamily: 'purple', tags: [...styles('cartoon'), ...subjects('art'), ...pageTypes('cover', 'content'), ...stages('kindergarten', 'primary', 'junior')] },
+  { style: 'cartoon', themeId: 'fr-warm-orange', colorFamily: 'warm', tags: [...styles('cartoon'), ...scenarios('first-class'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'gr-gold-orange', colorFamily: 'warm', tags: [...styles('cartoon'), ...subjects('pe', 'art'), ...stages('kindergarten', 'primary', 'junior')] },
+  // 红色教育（主题教育/党政红/节日红金，借鉴 GordenPPTSkill 红色教育模板风格）
+  { style: 'cartoon', themeId: 'sp-party-red', colorFamily: 'red-gold', tags: [...styles('cartoon'), ...scenarios('class-meeting', 'first-class'), ...subjects('politics'), ...stages('primary', 'junior', 'senior')] },
+  { style: 'cartoon', themeId: 'sp-festive', colorFamily: 'red-gold', tags: [...styles('cartoon'), ...scenarios('class-meeting', 'first-class'), ...subjects('chinese', 'politics', 'english'), ...stages('primary', 'junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-classic-red', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('class-meeting', 'first-class'), ...subjects('chinese', 'history', 'politics'), ...stages('junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-guochao', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('class-meeting'), ...stages('primary', 'junior')] },
+  // 扁平
+  { style: 'flat', themeId: 'mo-haze-blue', colorFamily: 'blue', tags: [...styles('flat'), ...stages('primary', 'junior')] },
+  { style: 'flat', themeId: 'mo-gray-purple', colorFamily: 'purple', tags: [...styles('flat'), ...subjects('art'), ...stages('primary', 'junior')] },
+  { style: 'flat', themeId: 'mo-bean-green', colorFamily: 'cyan-green', tags: [...styles('flat'), ...subjects('science'), ...stages('primary', 'junior')] },
+  // 沉稳/商务
+  { style: 'business', themeId: 'gr-blue-purple', colorFamily: 'purple', tags: [...styles('business'), ...scenarios('training', 'parents'), ...stages('college')] },
+  { style: 'business', themeId: 'wa-elegant-purple', colorFamily: 'purple', tags: [...styles('business'), ...scenarios('open-class'), ...stages('senior', 'college')] },
+  // 通用结构（骨架 × 色系，不绑定具体场景）
+  { style: 'basic', themeId: 'min-classic-blue', colorFamily: 'blue', tags: [...styles('basic'), ...scenarios('general')] },
+  { style: 'basic', themeId: 'min-pure-white', colorFamily: 'gray', tags: [...styles('basic'), ...scenarios('general')] },
+  { style: 'basic', themeId: 'aca-edu-blue', colorFamily: 'blue', tags: [...styles('basic'), ...scenarios('general')] },
+]
 
-// 风格 → 默认落地配色（AI 生成风格时用于自动套用；取该风格下首个 themeId）
+// H5 互动课件模板池：偏向亮色/跳色（投屏平板更出彩），卡通/清新权重更高，沉稳/严谨权重更低。
+// 与 PPT 共用同一套风格标签与配色，仅标签倾斜；规则体系完全一致（借鉴 51miz 互动场景）。
+const H5_TEMPLATE_DEFS: TplDef[] = [
+  { style: 'china', themeId: 'zgf-guochao', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('first-class', 'class-meeting'), ...stages('primary', 'junior')] },
+  { style: 'china', themeId: 'zgf-shanshui', colorFamily: 'cyan-green', tags: [...styles('china'), ...scenarios('general'), ...stages('junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-song-qing', colorFamily: 'cyan-green', tags: [...styles('china'), ...subjects('chinese', 'history'), ...stages('junior', 'senior')] },
+  { style: 'minimal', themeId: 'min-pure-white', colorFamily: 'gray', tags: [...styles('minimal'), ...scenarios('general'), ...stages('primary', 'junior', 'senior')] },
+  { style: 'minimal', themeId: 'min-modern-line', colorFamily: 'blue', tags: [...styles('minimal'), ...scenarios('lecture'), ...stages('junior', 'senior')] },
+  { style: 'minimal', themeId: 'min-navy-intellectual', colorFamily: 'blue', tags: [...styles('minimal', 'academic'), ...subjects('math'), ...stages('senior', 'college')] },
+  { style: 'tech', themeId: 'te-quantum-blue', colorFamily: 'blue', tags: [...styles('tech'), ...subjects('it', 'physics'), ...stages('junior', 'senior', 'college')] },
+  { style: 'tech', themeId: 'te-aurora-green', colorFamily: 'cyan-green', tags: [...styles('tech'), ...subjects('science'), ...stages('junior', 'senior')] },
+  { style: 'tech', themeId: 'te-digital-cyan', colorFamily: 'cyan-green', tags: [...styles('tech'), ...scenarios('first-class'), ...stages('primary', 'junior')] },
+  { style: 'fresh', themeId: 'fr-mint', colorFamily: 'cyan-green', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-sky-blue', colorFamily: 'blue', tags: [...styles('fresh'), ...scenarios('parents'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-warm-orange', colorFamily: 'warm', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-macaron-pink', colorFamily: 'purple', tags: [...styles('fresh'), ...subjects('art'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-sakura', colorFamily: 'warm', tags: [...styles('fresh'), ...stages('primary', 'junior')] },
+  { style: 'fresh', themeId: 'fr-lemon', colorFamily: 'gradient', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
+  { style: 'academic', themeId: 'aca-edu-blue', colorFamily: 'blue', tags: [...styles('academic'), ...scenarios('review'), ...stages('junior', 'senior', 'college')] },
+  { style: 'academic', themeId: 'aca-deep-green', colorFamily: 'cyan-green', tags: [...styles('academic'), ...subjects('biology'), ...stages('junior', 'senior')] },
+  { style: 'cartoon', themeId: 'sp-cartoon', colorFamily: 'gradient', tags: [...styles('cartoon'), ...pageTypes('cover', 'content'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'sp-doodle', colorFamily: 'gradient', tags: [...styles('cartoon'), ...scenarios('class-meeting'), ...pageTypes('content', 'summary'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'gr-orange-pink', colorFamily: 'gradient', tags: [...styles('cartoon'), ...subjects('art', 'english'), ...pageTypes('cover', 'content', 'homework'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'fr-macaron-pink', colorFamily: 'purple', tags: [...styles('cartoon'), ...subjects('art'), ...pageTypes('cover', 'content'), ...stages('kindergarten', 'primary', 'junior')] },
+  { style: 'cartoon', themeId: 'fr-warm-orange', colorFamily: 'warm', tags: [...styles('cartoon'), ...scenarios('first-class'), ...stages('kindergarten', 'primary')] },
+  { style: 'cartoon', themeId: 'gr-gold-orange', colorFamily: 'warm', tags: [...styles('cartoon'), ...subjects('pe', 'art'), ...stages('kindergarten', 'primary', 'junior')] },
+  { style: 'cartoon', themeId: 'sp-party-red', colorFamily: 'red-gold', tags: [...styles('cartoon'), ...scenarios('first-class', 'class-meeting'), ...subjects('politics'), ...stages('kindergarten', 'primary', 'junior', 'senior')] },
+  { style: 'cartoon', themeId: 'sp-festive', colorFamily: 'red-gold', tags: [...styles('cartoon'), ...scenarios('class-meeting', 'first-class'), ...subjects('chinese', 'politics', 'english'), ...stages('primary', 'junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-classic-red', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('class-meeting', 'first-class'), ...subjects('chinese', 'history', 'politics'), ...stages('junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-guochao', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('class-meeting'), ...stages('primary', 'junior')] },
+  { style: 'flat', themeId: 'mo-haze-blue', colorFamily: 'blue', tags: [...styles('flat'), ...stages('primary', 'junior')] },
+  { style: 'flat', themeId: 'mo-gray-purple', colorFamily: 'purple', tags: [...styles('flat'), ...subjects('art'), ...stages('primary', 'junior')] },
+  { style: 'flat', themeId: 'mo-bean-green', colorFamily: 'cyan-green', tags: [...styles('flat'), ...subjects('science'), ...stages('primary', 'junior')] },
+  { style: 'flat', themeId: 'mo-rose-gray', colorFamily: 'purple', tags: [...styles('flat'), ...stages('primary', 'junior')] },
+  { style: 'business', themeId: 'gr-blue-purple', colorFamily: 'purple', tags: [...styles('business'), ...scenarios('training'), ...stages('college')] },
+  { style: 'business', themeId: 'wa-elegant-purple', colorFamily: 'purple', tags: [...styles('business'), ...scenarios('open-class'), ...stages('senior', 'college')] },
+  { style: 'basic', themeId: 'min-pure-white', colorFamily: 'gray', tags: [...styles('basic'), ...scenarios('general')] },
+  { style: 'basic', themeId: 'aca-edu-blue', colorFamily: 'blue', tags: [...styles('basic'), ...scenarios('general')] },
+]
+
+// 风格 → 默认落地配色（AI 生成风格时用于自动套用；取该风格下首个模板定义的 themeId）
 export function defaultThemeForStyle(style: StyleTag): string {
-  return PPT_STYLE_THEMES[style]?.[0] || 'min-classic-blue'
+  return PPT_TEMPLATE_DEFS.find((d) => d.style === style)?.themeId || 'min-classic-blue'
 }
 
-function buildTemplates(kind: TemplateKind, styleThemes: Record<StyleTag, string[]>): CwTemplate[] {
-  const out: CwTemplate[] = []
-  let n = 0
-  ;(Object.keys(styleThemes) as StyleTag[]).forEach((style) => {
-    styleThemes[style].forEach((themeId) => {
-      const th = getTheme(themeId)
-      n += 1
-      out.push(
-        pptTemplate(
-          `${kind}-${style}-${n}`,
-          `${th.name}·${STYLE_LABELS[style]}课件`,
-          style,
-          themeId,
-          th.subjects && th.subjects.length ? th.subjects : undefined,
-          th.grades && th.grades.length
-            ? (th.grades.map((g) => (g === 'low' ? '小学' : g === 'mid' ? '初中' : '高中')) as ('小学' | '初中' | '高中')[])
-            : undefined,
-          kind,
-        ),
-      )
-    })
-  })
-  return out
+// ── 模板内置装饰：按风格（style）匹配语义化装饰，而非所有模板同套一个 ──
+// 装饰元件 = 素材库图片（category=decor_element）。当前素材图片资源尚未就绪，
+// 这里用内联 SVG（dataURL）保证编辑器内真实可见、可选中替换；待平台上传真实装饰元件后，
+// 将 snapshot.url 替换为素材库 URL，assetId 对齐素材库元件 id 即可。
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
-export const PPT_TEMPLATES: CwTemplate[] = buildTemplates('ppt', PPT_STYLE_THEMES)
-export const H5_TEMPLATES: CwTemplate[] = buildTemplates('h5', H5_STYLE_THEMES)
+// 每个风格配：1 个角标（corner，右下角）+ 1 个浮动点缀（floating，右上角）
+// 颜色与风格语义呼应（后续可按 COLOR_FAMILIES 的 swatch 进一步精确匹配）
+const STYLE_DECOR_MAP: Record<StyleTag, DecorSlot[]> = {
+  china: [
+    { assetId: 'decor-china-seal', name: '国风印章', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="6" y="6" width="52" height="52" rx="8" fill="none" stroke="#B5121B" stroke-width="3"/><text x="32" y="42" font-size="28" text-anchor="middle" fill="#B5121B" font-family="serif">印</text></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-china-bamboo', name: '国风竹枝', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><g stroke="#1E5631" stroke-width="2" fill="none"><path d="M12 40 Q14 20 10 4"/><path d="M12 14 Q22 16 20 6"/><path d="M12 24 Q20 22 22 30"/><path d="M28 40 Q30 22 26 8"/><path d="M28 18 Q36 20 34 10"/><path d="M28 26 Q36 24 38 32"/></g></svg>`) }, slot: 'floating' },
+  ],
+  minimal: [
+    { assetId: 'decor-minimal-line', name: '素净同心圆', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#9AA0A6" stroke-width="2"/><circle cx="32" cy="32" r="18" fill="none" stroke="#9AA0A6" stroke-width="1"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-minimal-dot', name: '素净圆点', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="5" fill="#C0C4C8"/></svg>`) }, slot: 'floating' },
+  ],
+  tech: [
+    { assetId: 'decor-tech-hex', name: '科技六边形', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><polygon points="32,6 56,20 56,44 32,58 8,44 8,20" fill="none" stroke="#02A7F0" stroke-width="2.5"/><circle cx="32" cy="32" r="6" fill="#02A7F0"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-tech-grid', name: '科技网格', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><g stroke="#7FB8E6" stroke-width="1" fill="none"><path d="M0 20 H60 M0 40 H60 M20 0 V60 M40 0 V60"/></g></svg>`) }, slot: 'floating' },
+  ],
+  fresh: [
+    { assetId: 'decor-fresh-leaf', name: '清新叶子', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 56 C10 44 8 16 28 8 C52 2 58 30 32 56 Z" fill="#8FD3B6"/><path d="M28 12 C40 18 40 34 28 48" stroke="#1E5631" stroke-width="2" fill="none"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-fresh-leaf-sm', name: '清新小叶', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 36 C8 28 6 12 18 6 C32 2 36 22 20 36 Z" fill="#A8D8C0"/></svg>`) }, slot: 'floating' },
+  ],
+  academic: [
+    { assetId: 'decor-aca-rule', name: '严谨斜线', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><line x1="8" y1="56" x2="56" y2="8" stroke="#1F4E79" stroke-width="3"/><line x1="16" y1="56" x2="56" y2="16" stroke="#1F4E79" stroke-width="1.5"/><line x1="8" y1="48" x2="48" y2="8" stroke="#1F4E79" stroke-width="1.5"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-aca-line', name: '严谨横线', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="10" viewBox="0 0 60 10"><rect x="0" y="3" width="60" height="4" fill="#1F4E79"/></svg>`) }, slot: 'floating' },
+  ],
+  cartoon: [
+    { assetId: 'decor-cartoon-sun', name: '卡通太阳', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="16" fill="#FFB020"/><g stroke="#FFB020" stroke-width="3" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="14"/><line x1="32" y1="50" x2="32" y2="58"/><line x1="6" y1="32" x2="14" y2="32"/><line x1="50" y1="32" x2="58" y2="32"/><line x1="13" y1="13" x2="19" y2="19"/><line x1="45" y1="45" x2="51" y2="51"/><line x1="13" y1="51" x2="19" y2="45"/><line x1="45" y1="19" x2="51" y2="13"/></g></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-cartoon-star', name: '卡通星星', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><polygon points="20,4 24,15 36,15 26,22 30,34 20,27 10,34 14,22 4,15 16,15" fill="#FFC53D"/></svg>`) }, slot: 'floating' },
+  ],
+  flat: [
+    { assetId: 'decor-flat-circle', name: '扁平双圆', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="20" cy="44" r="14" fill="#E8EAF0"/><circle cx="44" cy="20" r="10" fill="#D0D5DD"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-flat-dot', name: '扁平圆点组', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="12" cy="28" r="7" fill="#E8EAF0"/><circle cx="28" cy="12" r="5" fill="#C8CDD6"/></svg>`) }, slot: 'floating' },
+  ],
+  business: [
+    { assetId: 'decor-biz-line', name: '沉稳边框', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="10" y="18" width="44" height="34" fill="none" stroke="#4A4A4A" stroke-width="2.5"/><line x1="10" y1="28" x2="54" y2="28" stroke="#4A4A4A" stroke-width="1.5"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-biz-bar', name: '沉稳色块条', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="8" viewBox="0 0 60 8"><rect x="0" y="0" width="60" height="8" fill="#4A4A4A"/></svg>`) }, slot: 'floating' },
+  ],
+  basic: [
+    { assetId: 'decor-basic-corner', name: '通用角标', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M4 60 L60 60 L60 4" fill="none" stroke="#B0B6BD" stroke-width="3"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-basic-dot', name: '通用圆点', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="4" fill="#B0B6BD"/></svg>`) }, slot: 'floating' },
+  ],
+}
+
+// 取某风格的模板内置装饰（缺省回退到 basic 的通用装饰）
+function decorForStyle(style: StyleTag): DecorSlot[] {
+  return STYLE_DECOR_MAP[style] || STYLE_DECOR_MAP.basic
+}
+
+// 由显式模板定义池生成模板数组（多维标签 + colorFamily 已内置于 def）
+function buildTemplates(kind: TemplateKind, defs: TplDef[]): CwTemplate[] {
+  return defs.map((def, i) =>
+    pptTemplate(`${kind}-${def.style}-${i + 1}`, def, kind),
+  )
+}
+
+export const PPT_TEMPLATES: CwTemplate[] = buildTemplates('ppt', PPT_TEMPLATE_DEFS)
+export const H5_TEMPLATES: CwTemplate[] = buildTemplates('h5', H5_TEMPLATE_DEFS)
 
 // 按媒介取模板池
 export function getTemplatesByKind(kind: TemplateKind): CwTemplate[] {
   return kind === 'ppt' ? PPT_TEMPLATES : H5_TEMPLATES
 }
 
-// 按媒介 + 风格筛选（风格标签跨媒介统一，素材池各自分流）
-export function getTemplates(kind: TemplateKind, style?: StyleTag): CwTemplate[] {
-  const pool = getTemplatesByKind(kind)
-  return style ? pool.filter((t) => t.style === style) : pool
+// 多维筛选条件（均为可选；任一维度传入即以 OR 语义命中该维度）
+export interface TplFilter {
+  styles?: StyleTag[]          // 风格（OR）
+  stages?: StageTag[]          // 学段（OR）
+  subjects?: SubjectTag[]      // 学科（OR）
+  scenarios?: ScenarioTag[]    // 场景（OR）
+  colorFamilies?: string[]     // 色系（OR，后生成描述属性）
+}
+
+// 按媒介 + 多维 facet 筛选（借鉴 51miz：风格为主、其余标签辅助检索）
+export function getTemplates(kind: TemplateKind, filter?: TplFilter): CwTemplate[] {
+  let pool = getTemplatesByKind(kind)
+  if (!filter) return pool
+  const { styles, stages, subjects, scenarios, colorFamilies } = filter
+
+  if (styles && styles.length) {
+    const set = new Set(styles)
+    pool = pool.filter((t) => templateStyleTags(t).some((s) => set.has(s)))
+  }
+  // 某 facet 维度：模板该维度无标签 → 视为通配（适用于所有筛选值）；否则需 OR 命中
+  if (stages && stages.length) {
+    const set = new Set(stages)
+    pool = pool.filter((t) => {
+      const f = templateFacets(t).stage
+      return f.length === 0 || f.some((s) => set.has(s))
+    })
+  }
+  if (subjects && subjects.length) {
+    const set = new Set(subjects)
+    pool = pool.filter((t) => {
+      const f = templateFacets(t).subject
+      return f.length === 0 || f.some((s) => set.has(s))
+    })
+  }
+  if (scenarios && scenarios.length) {
+    const set = new Set(scenarios)
+    pool = pool.filter((t) => {
+      const f = templateFacets(t).scenario
+      return f.length === 0 || f.some((s) => set.has(s))
+    })
+  }
+  if (colorFamilies && colorFamilies.length) {
+    const set = new Set(colorFamilies)
+    pool = pool.filter((t) => (t.colorFamily ? set.has(t.colorFamily) : false))
+  }
+  return pool
 }
 
 // 取某模板在某版式下的骨架（无则返回 undefined，调用方回退默认版式）
@@ -443,11 +1015,19 @@ export function applyTemplate(
     ? skeletonFor(ctx.stage, ctx.subject ?? '')
     : (tpl.layouts as EduSkeletons)
   const prevLayouts = outline.map((s) => s.layout)
-  const next = outline.map((s) => {
+  const stageKey = ctx?.stage ?? 'upper'
+  const subj = ctx?.subject ?? ''
+  const next = outline.map((s, i) => {
     const inferred = inferEduLayout(s, layouts)
     // 仅当骨架提供该版式时才套用，否则保留原 layout
     const layout = inferred ? inferred : s.layout
-    return { ...s, layout }
+    // 模板替换：内容按 placeholder key 重映射（同名 key 自动对应，多余内容进溢出区，不丢）
+    const slots = s.slots && s.layout && s.layout !== layout
+      ? remapSlots(s.layout as SlideLayout, layout as SlideLayout, s.slots, { stage: stageKey, subject: subj })
+      : s.slots
+    // 模板内置装饰：全局装饰 + 该版式专属装饰，合并挂到 slide.decor（可被编辑器个性替换）
+    const decor = decorSlotsFor(tpl, layout as SlideLayout)
+    return { ...s, layout, slots, ...(decor ? { decor } : {}) }
   })
   return {
     outline: next,
@@ -455,6 +1035,23 @@ export function applyTemplate(
     prevThemeId: curThemeId,
     prevLayouts,
   }
+}
+
+// 把模板的 DecorSlot[]（引用+快照）转为 OutlineSlide.decor 用的 DecorSlots（插槽式），
+// 供渲染/导出复用现有装饰渲染链路。全局装饰 + 版式专属装饰合并。
+function decorSlotsFor(tpl: CwTemplate, layout: SlideLayout): DecorSlots | null {
+  const merged: DecorSlot[] = [...(tpl.globalDecor || [])]
+  const byLayout = tpl.decorByLayout?.[layout]
+  if (byLayout) merged.push(...byLayout)
+  if (!merged.length) return null
+  const slots: DecorSlots = {}
+  for (const d of merged) {
+    const item: DecorItem = { id: d.assetId, url: d.snapshot?.url || '', name: d.name || '' }
+    if (d.slot === 'background') { slots.background = d.snapshot?.url || ''; continue }
+    const key = d.slot === 'header' ? 'header' : d.slot === 'footer' ? 'footer' : d.slot === 'corner' ? 'corners' : 'floating'
+    ;(slots as any)[key] = [...((slots as any)[key] || []), item]
+  }
+  return slots
 }
 
 // 撤销套用（恢复 themeId + 各页 layout；内容未变，直接还原）

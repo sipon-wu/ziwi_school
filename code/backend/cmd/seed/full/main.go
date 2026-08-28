@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"time"
 
@@ -495,59 +496,154 @@ func main() {
 
 	// ── 11b. 装饰元件公共库（P1）：平台公共装饰元件，user_id 留空表示平台所有。
 	// facet 受控词表（平台运营维护），教师上传只能选受控标签，避免标签污染。
-	// 媒介适用性 applicable: ppt|h5|common；母题一级 motif_root 冗余索引。
-	decorElements := []model.Material{
-		{
-			SchoolID: school.ID, UserID: "", Name: "卡通太阳图标", Type: "image",
-			Format: "h5", Tag: "装饰元件", Size: "12KB",
-			URL:    "https://cdn.ziwi.cn/decor/cartoon-sun.svg",
-			Category: "decor_element", Applicable: "common", MotifRoot: "自然", Interaction: "静态",
-			DecorFacets: model.DecorFacets{
-				"motif.自然.天体.太阳", "visual.风格.卡通", "applicable.common", "interaction.静态",
-			},
-		},
-		{
-			SchoolID: school.ID, UserID: "", Name: "卡通树叶（绿）", Type: "image",
-			Format: "h5", Tag: "装饰元件", Size: "10KB",
-			URL:    "https://cdn.ziwi.cn/decor/cartoon-leaf-green.svg",
-			Category: "decor_element", Applicable: "common", MotifRoot: "自然", Interaction: "静态",
-			DecorFacets: model.DecorFacets{
-				"motif.自然.植物.树叶", "visual.风格.卡通", "applicable.common", "interaction.静态",
-			},
-		},
-		{
-			SchoolID: school.ID, UserID: "", Name: "点线五角星边框", Type: "image",
-			Format: "h5", Tag: "装饰元件", Size: "8KB",
-			URL:    "https://cdn.ziwi.cn/decor/dotted-star-border.svg",
-			Category: "decor_element", Applicable: "common", MotifRoot: "几何", Interaction: "静态",
-			DecorFacets: model.DecorFacets{
-				"motif.几何.点线.五角星", "visual.风格.手绘感", "applicable.common", "interaction.静态",
-			},
-		},
-		{
-			SchoolID: school.ID, UserID: "", Name: "手绘插画·读书小孩", Type: "image",
-			Format: "h5", Tag: "装饰元件", Size: "24KB",
-			URL:    "https://cdn.ziwi.cn/decor/illu-reading-kid.svg",
-			Category: "decor_element", Applicable: "h5", MotifRoot: "人文", Interaction: "动效.浮动",
-			DecorFacets: model.DecorFacets{
-				"motif.人文.活动.阅读", "visual.风格.手绘感", "applicable.h5", "interaction.动效.浮动",
-			},
-		},
+	// facet 4 维与前端 STYLE_LABELS / COLOR_FAMILIES 同源：applicable/motif/color/page_type。
+	// 覆盖 8 风格（国风/素净/科技/清新/严谨/卡通/扁平/沉稳），每风格 2 个元件（角标+浮动点缀）。
+	// 图片资源尚未上传，URL 用内联 SVG dataURL，保证前端 AI 推荐/装饰面板可直接渲染；
+	// 待平台上传真实素材后，将 URL 替换为素材库地址即可。
+	svgDecor := func(svg string) string {
+		return "data:image/svg+xml;utf8," + url.QueryEscape(svg)
 	}
+	decorElements := []model.Material{
+		// 国风：印章角标 + 竹枝
+		{SchoolID: school.ID, UserID: "", Name: "国风印章", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="6" y="6" width="52" height="52" rx="8" fill="none" stroke="#B5121B" stroke-width="3"/><text x="32" y="42" font-size="28" text-anchor="middle" fill="#B5121B" font-family="serif">印</text></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "国风", ColorRoot: "红金系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.国风", "color.红金系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "国风竹枝", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><g stroke="#1E5631" stroke-width="2" fill="none"><path d="M12 40 Q14 20 10 4"/><path d="M12 14 Q22 16 20 6"/><path d="M12 24 Q20 22 22 30"/><path d="M28 40 Q30 22 26 8"/><path d="M28 18 Q36 20 34 10"/><path d="M28 26 Q36 24 38 32"/></g></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "国风", ColorRoot: "青绿系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.国风", "color.青绿系", "page_type.content", "applicable.common"}},
+		// 素净：同心圆 + 圆点
+		{SchoolID: school.ID, UserID: "", Name: "素净同心圆", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#9AA0A6" stroke-width="2"/><circle cx="32" cy="32" r="18" fill="none" stroke="#9AA0A6" stroke-width="1"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "素净", ColorRoot: "灰系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.素净", "color.灰系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "素净圆点", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="5" fill="#C0C4C8"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "素净", ColorRoot: "灰系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.素净", "color.灰系", "page_type.content", "applicable.common"}},
+		// 科技：六边形 + 网格
+		{SchoolID: school.ID, UserID: "", Name: "科技六边形", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><polygon points="32,6 56,20 56,44 32,58 8,44 8,20" fill="none" stroke="#02A7F0" stroke-width="2.5"/><circle cx="32" cy="32" r="6" fill="#02A7F0"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "科技", ColorRoot: "蓝系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.科技", "color.蓝系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "科技网格", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><g stroke="#7FB8E6" stroke-width="1" fill="none"><path d="M0 20 H60 M0 40 H60 M20 0 V60 M40 0 V60"/></g></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "科技", ColorRoot: "蓝系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.科技", "color.蓝系", "page_type.content", "applicable.common"}},
+		// 清新：叶子 + 小叶
+		{SchoolID: school.ID, UserID: "", Name: "清新叶子", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 56 C10 44 8 16 28 8 C52 2 58 30 32 56 Z" fill="#8FD3B6"/><path d="M28 12 C40 18 40 34 28 48" stroke="#1E5631" stroke-width="2" fill="none"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "清新", ColorRoot: "青绿系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.清新", "color.青绿系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "清新小叶", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 36 C8 28 6 12 18 6 C32 2 36 22 20 36 Z" fill="#A8D8C0"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "清新", ColorRoot: "青绿系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.清新", "color.青绿系", "page_type.content", "applicable.common"}},
+		// 严谨：斜线 + 横线
+		{SchoolID: school.ID, UserID: "", Name: "严谨斜线", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><line x1="8" y1="56" x2="56" y2="8" stroke="#1F4E79" stroke-width="3"/><line x1="16" y1="56" x2="56" y2="16" stroke="#1F4E79" stroke-width="1.5"/><line x1="8" y1="48" x2="48" y2="8" stroke="#1F4E79" stroke-width="1.5"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "严谨", ColorRoot: "蓝系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.严谨", "color.蓝系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "严谨横线", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="10" viewBox="0 0 60 10"><rect x="0" y="3" width="60" height="4" fill="#1F4E79"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "严谨", ColorRoot: "蓝系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.严谨", "color.蓝系", "page_type.content", "applicable.common"}},
+		// 卡通：太阳 + 星星
+		{SchoolID: school.ID, UserID: "", Name: "卡通太阳", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="16" fill="#FFB020"/><g stroke="#FFB020" stroke-width="3" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="14"/><line x1="32" y1="50" x2="32" y2="58"/><line x1="6" y1="32" x2="14" y2="32"/><line x1="50" y1="32" x2="58" y2="32"/><line x1="13" y1="13" x2="19" y2="19"/><line x1="45" y1="45" x2="51" y2="51"/><line x1="13" y1="51" x2="19" y2="45"/><line x1="45" y1="19" x2="51" y2="13"/></g></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "卡通星星", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><polygon points="20,4 24,15 36,15 26,22 30,34 20,27 10,34 14,22 4,15 16,15" fill="#FFC53D"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
+		// 卡通额外装饰（AI 推荐素材，让"一键应用"有可追加内容）
+		{SchoolID: school.ID, UserID: "", Name: "卡通云朵", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><g fill="#E8F4F8"><circle cx="20" cy="22" r="14"/><circle cx="36" cy="16" r="14"/><circle cx="54" cy="22" r="14"/><circle cx="42" cy="26" r="14"/><rect x="20" y="22" width="48" height="14"/></g></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "卡通彩虹", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><path d="M10 38 A30 30 0 0 1 70 38" fill="none" stroke="#F5222D" stroke-width="4"/><path d="M16 38 A24 24 0 0 1 64 38" fill="none" stroke="#FAAD14" stroke-width="4"/><path d="M22 38 A18 18 0 0 1 58 38" fill="none" stroke="#52C41A" stroke-width="4"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "多彩渐变", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.多彩渐变", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "卡通爱心", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 34 C4 22 4 8 12 6 C16 4 19 7 20 10 C21 7 24 4 28 6 C36 8 36 22 20 34 Z" fill="#F5222D"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
+		// 科技额外装饰（让科技模板也能有 AI 推荐内容）
+		{SchoolID: school.ID, UserID: "", Name: "科技电路", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><g stroke="#02A7F0" stroke-width="2" fill="none"><path d="M0 20 H25"/><path d="M55 20 H80"/><path d="M40 4 V36"/><circle cx="40" cy="20" r="6"/><circle cx="40" cy="20" r="2" fill="#02A7F0"/></g></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "科技", ColorRoot: "蓝系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.科技", "color.蓝系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "科技芯片", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="14" y="14" width="36" height="36" fill="none" stroke="#02A7F0" stroke-width="2.5"/><rect x="22" y="22" width="20" height="20" fill="#7FB8E6"/><g fill="#02A7F0"><rect x="10" y="20" width="4" height="4"/><rect x="10" y="30" width="4" height="4"/><rect x="10" y="40" width="4" height="4"/><rect x="50" y="20" width="4" height="4"/><rect x="50" y="30" width="4" height="4"/><rect x="50" y="40" width="4" height="4"/><rect x="20" y="10" width="4" height="4"/><rect x="30" y="10" width="4" height="4"/><rect x="40" y="10" width="4" height="4"/><rect x="20" y="50" width="4" height="4"/><rect x="30" y="50" width="4" height="4"/><rect x="40" y="50" width="4" height="4"/></g></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "科技", ColorRoot: "蓝系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.科技", "color.蓝系", "page_type.content", "applicable.common"}},
+		// 扁平：双圆 + 圆点组
+		{SchoolID: school.ID, UserID: "", Name: "扁平双圆", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="20" cy="44" r="14" fill="#E8EAF0"/><circle cx="44" cy="20" r="10" fill="#D0D5DD"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "扁平", ColorRoot: "灰系", PageType: "cover",
+			DecorFacets: model.DecorFacets{"motif.扁平", "color.灰系", "page_type.cover", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "扁平圆点组", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="12" cy="28" r="7" fill="#E8EAF0"/><circle cx="28" cy="12" r="5" fill="#C8CDD6"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "扁平", ColorRoot: "灰系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.扁平", "color.灰系", "page_type.content", "applicable.common"}},
+		// 沉稳：边框 + 色块条
+		{SchoolID: school.ID, UserID: "", Name: "沉稳边框", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="10" y="18" width="44" height="34" fill="none" stroke="#4A4A4A" stroke-width="2.5"/><line x1="10" y1="28" x2="54" y2="28" stroke="#4A4A4A" stroke-width="1.5"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "沉稳", ColorRoot: "黑白系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.沉稳", "color.黑白系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", Name: "沉稳色块条", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="8" viewBox="0 0 60 8"><rect x="0" y="0" width="60" height="8" fill="#4A4A4A"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "沉稳", ColorRoot: "黑白系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.沉稳", "color.黑白系", "page_type.content", "applicable.common"}},
+	}
+	// 幂等：按 (name + category) 去重，避免重复跑 seed 产生重复装饰元件
 	for i := range decorElements {
+		var existing model.Material
+		err := db.Where("name = ? AND category = ?", decorElements[i].Name, decorElements[i].Category).First(&existing).Error
+		if err == nil {
+			// 已存在：更新 facet 与 URL（保证与代码最新一致）
+			must(db.Model(&existing).Updates(map[string]interface{}{
+				"url": decorElements[i].URL, "motif_root": decorElements[i].MotifRoot,
+				"color_root": decorElements[i].ColorRoot, "page_type": decorElements[i].PageType,
+				"applicable": decorElements[i].Applicable, "decor_facets": decorElements[i].DecorFacets,
+			}).Error, "update decor element")
+			continue
+		}
 		must(db.Create(&decorElements[i]).Error, "create decor element")
 	}
-	fmt.Println("装饰元件公共库种子: 已插入", len(decorElements), "个")
+	fmt.Println("装饰元件公共库种子: 已同步", len(decorElements), "个")
 
 	// ── 11c. facet 受控词表（平台运营维护母题/媒介等词库）。
 	// 教师上传装饰元件 / 筛选只能选受控标签，避免标签污染。
+	// facet 4 维与前端 cwTemplate.ts 的 STYLE_LABELS / COLOR_FAMILIES 同源：
+	// motif(母题=风格) / color(色系) / medium(媒介) / page_type(页型)。
 	facetSeed := []model.FacetVocab{
-		{Type: "motif", Value: "自然", Label: "自然", Sort: 1},
-		{Type: "motif", Value: "几何", Label: "几何", Sort: 2},
-		{Type: "motif", Value: "人文", Label: "人文", Sort: 3},
+		{Type: "motif", Value: "国风", Label: "国风", Sort: 1},
+		{Type: "motif", Value: "素净", Label: "素净", Sort: 2},
+		{Type: "motif", Value: "科技", Label: "科技", Sort: 3},
+		{Type: "motif", Value: "清新", Label: "清新", Sort: 4},
+		{Type: "motif", Value: "严谨", Label: "严谨", Sort: 5},
+		{Type: "motif", Value: "卡通", Label: "卡通", Sort: 6},
+		{Type: "motif", Value: "扁平", Label: "扁平", Sort: 7},
+		{Type: "motif", Value: "沉稳", Label: "沉稳", Sort: 8},
 		{Type: "medium", Value: "ppt", Label: "PPT", Sort: 1},
 		{Type: "medium", Value: "h5", Label: "H5", Sort: 2},
 		{Type: "medium", Value: "common", Label: "通用", Sort: 3},
+		{Type: "color", Value: "蓝系", Label: "蓝系", Sort: 1},
+		{Type: "color", Value: "青绿系", Label: "青绿系", Sort: 2},
+		{Type: "color", Value: "红金系", Label: "红金系", Sort: 3},
+		{Type: "color", Value: "暖棕系", Label: "暖棕系", Sort: 4},
+		{Type: "color", Value: "紫粉系", Label: "紫粉系", Sort: 5},
+		{Type: "color", Value: "灰系", Label: "灰系", Sort: 6},
+		{Type: "color", Value: "黑白系", Label: "黑白系", Sort: 7},
+		{Type: "color", Value: "多彩渐变", Label: "多彩渐变", Sort: 8},
+		{Type: "page_type", Value: "cover", Label: "封面", Sort: 1},
+		{Type: "page_type", Value: "content", Label: "内容页", Sort: 2},
+		{Type: "page_type", Value: "summary", Label: "小结页", Sort: 3},
+		{Type: "page_type", Value: "homework", Label: "作业页", Sort: 4},
 	}
 	for i := range facetSeed {
 		// 幂等: 以 type+value 为主键语义（UpsertFacet 用 id=type-value）

@@ -414,19 +414,22 @@ export default function Materials() {
   )
 }
 
-/** 装饰元件库弹层：调用 /decor 接口，按 facet 过滤；scope=public 平台公共库 / scope=mine 个人库 */
+/** 装饰元件库弹层：调用 /decor 接口，按 4 维 facet（媒介/母题/色系/页型）过滤；scope=public 平台公共库 / scope=mine 个人库 */
 function DecorPanel({ onClose }: { onClose: () => void }) {
   const [scope, setScope] = useState<'public' | 'mine'>('public')
   const [medium, setMedium] = useState('')
   const [motif, setMotif] = useState('')
+  const [color, setColor] = useState('')
+  const [pageType, setPageType] = useState('')
   const [items, setItems] = useState<MaterialItem[]>([])
   const [loading, setLoading] = useState(false)
   const [motifs, setMotifs] = useState<{ k: string; l: string }[]>([{ k: '', l: '全部母题' }])
-  const { toast } = useToast()
+  const [colors, setColors] = useState<{ k: string; l: string }[]>([{ k: '', l: '全部色系' }])
+  const [pageTypes, setPageTypes] = useState<{ k: string; l: string }[]>([{ k: '', l: '全部页型' }])
 
   const load = () => {
     setLoading(true)
-    decorAPI.list({ scope, medium: medium || undefined, motif: motif || undefined })
+    decorAPI.list({ scope, medium: medium || undefined, motif: motif || undefined, color: color || undefined, pageType: pageType || undefined })
       .then(res => setItems(res.items || []))
       .catch(e => notifyError('装饰元件加载失败', e))
       .finally(() => setLoading(false))
@@ -435,6 +438,12 @@ function DecorPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     facetAPI.list('motif')
       .then(res => setMotifs([{ k: '', l: '全部母题' }, ...(res.items || []).map(f => ({ k: f.value, l: f.label }))]))
+      .catch(() => {})
+    facetAPI.list('color')
+      .then(res => setColors([{ k: '', l: '全部色系' }, ...(res.items || []).map(f => ({ k: f.value, l: f.label }))]))
+      .catch(() => {})
+    facetAPI.list('page_type')
+      .then(res => setPageTypes([{ k: '', l: '全部页型' }, ...(res.items || []).map(f => ({ k: f.value, l: f.label }))]))
       .catch(() => {})
   }, []) // eslint-disable-line
 
@@ -462,6 +471,12 @@ function DecorPanel({ onClose }: { onClose: () => void }) {
           <select value={motif} onChange={e => setMotif(e.target.value)} className="px-2 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px]">
             {motifs.map(m => <option key={m.k} value={m.k}>{m.l}</option>)}
           </select>
+          <select value={color} onChange={e => setColor(e.target.value)} className="px-2 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px]">
+            {colors.map(m => <option key={m.k} value={m.k}>{m.l}</option>)}
+          </select>
+          <select value={pageType} onChange={e => setPageType(e.target.value)} className="px-2 py-1.5 text-[12px] border border-[#E7E7EB] rounded-[4px]">
+            {pageTypes.map(m => <option key={m.k} value={m.k}>{m.l}</option>)}
+          </select>
           <button onClick={load} className="px-3 py-1.5 text-[12px] text-white bg-[#7B61FF] rounded-[4px] hover:bg-[#6a4fe0]">筛选</button>
           {loading && <span className="text-[11px] text-[#9A9A9A]">加载中…</span>}
         </div>
@@ -479,7 +494,7 @@ function DecorPanel({ onClose }: { onClose: () => void }) {
                 )}
                 <div className="min-w-0">
                   <div className="text-[12px] font-medium text-[#353535] truncate" title={it.name}>{it.name}</div>
-                  <div className="text-[10px] text-[#9A9A9A]">{it.applicable || '—'} · {it.motif_root || '—'}</div>
+                  <div className="text-[10px] text-[#9A9A9A]">{it.applicable || '—'} · {it.motif_root || '—'}{it.color_root ? ` · ${it.color_root}` : ''}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -491,7 +506,7 @@ function DecorPanel({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <div className="px-5 py-3 border-t border-[#F0F0F0] flex justify-between items-center">
-          <span className="text-[11px] text-[#9A9A9A]">共 {items.length} 个装饰元件 · facet 受控词表由平台运营维护</span>
+          <span className="text-[11px] text-[#9A9A9A]">共 {items.length} 个装饰元件 · facet 受控词表由平台运营维护（媒介/母题/色系/页型）</span>
           <button onClick={onClose} className="px-4 py-1.5 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0288D1]">关闭</button>
         </div>
       </div>
