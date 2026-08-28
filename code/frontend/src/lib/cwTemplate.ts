@@ -774,7 +774,7 @@ function pptTemplate(
     layouts: { ...EDU_LAYOUT_SKELETONS },
     subjects: def.subjects,
     grades: def.grades,
-    globalDecor: decorForStyle(def.style),
+    globalDecor: decorForScenario(def),
     // 内容充分度：优先用模板自带提纲 → 场景匹配提纲 → 回落通用提纲
     demoOutline: def.demoOutline ?? lookupScenarioOutline(def) ?? eduDemoOutline(),
   }
@@ -942,6 +942,30 @@ const STYLE_DECOR_MAP: Record<StyleTag, DecorSlot[]> = {
 // 取某风格的模板内置装饰（缺省回退到 basic 的通用装饰）
 function decorForStyle(style: StyleTag): DecorSlot[] {
   return STYLE_DECOR_MAP[style] || STYLE_DECOR_MAP.basic
+}
+
+// ── 装饰按"套路"差异化：同一风格下，不同学科/学段用各自匹配的点缀 ──
+// key 与 SCENARIO_OUTLINES 对齐（style + 主学科/学段）。缺省回落风格级通用装饰。
+const SCENARIO_DECOR_MAP: Record<string, DecorSlot[]> = {
+  'china-chinese': [
+    { assetId: 'decor-china-brush', name: '国风毛笔', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="10" y="6" width="44" height="9" rx="3" fill="#7A1F1F"/><path d="M28 15 L36 15 L33 50 Z" fill="#3A2A1A"/><path d="M31 50 Q33 60 35 50 Q33 55 31 50 Z" fill="#1C1C1C"/><circle cx="14" cy="54" r="3" fill="#1E5631"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-china-cloud', name: '国风卷云', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><path d="M8 28 Q8 16 20 16 Q24 8 34 12 Q44 8 46 18 Q58 16 58 26 Q58 32 48 32 L16 32 Q8 32 8 28 Z" fill="none" stroke="#B5121B" stroke-width="2"/></svg>`) }, slot: 'floating' },
+  ],
+  'cartoon-kindergarten': [
+    { assetId: 'decor-kinder-bear', name: '卡通小熊', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="34" r="20" fill="#F4A261"/><circle cx="22" cy="18" r="6" fill="#F4A261"/><circle cx="42" cy="18" r="6" fill="#F4A261"/><circle cx="25" cy="32" r="3" fill="#3A2A1A"/><circle cx="39" cy="32" r="3" fill="#3A2A1A"/><ellipse cx="32" cy="40" rx="5" ry="4" fill="#3A2A1A"/></svg>`) }, slot: 'corner' },
+    { assetId: 'decor-kinder-balloon', name: '卡通气球', snapshot: { url: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48"><ellipse cx="20" cy="16" rx="13" ry="15" fill="#FF6B9D"/><path d="M20 31 L20 40" stroke="#FF6B9D" stroke-width="1.5"/><path d="M16 40 L24 40 L20 45 Z" fill="#FF6B9D"/></svg>`) }, slot: 'floating' },
+  ],
+}
+
+// 套路装饰匹配：style × 学科/学段 → 专属点缀；无匹配则回落风格级通用装饰
+function decorForScenario(def: TplDef): DecorSlot[] {
+  const subj = def.subjects?.[0]
+  let key: string | undefined
+  if (def.style === 'china' && (subj === 'chinese' || subj === 'history')) key = 'china-chinese'
+  else if ((def.style === 'cartoon' || def.style === 'fresh') &&
+    def.tags?.some((t) => t.kind === 'stage' && t.value === 'kindergarten')) key = 'cartoon-kindergarten'
+  if (key && SCENARIO_DECOR_MAP[key]) return SCENARIO_DECOR_MAP[key]
+  return decorForStyle(def.style)
 }
 
 // 由显式模板定义池生成模板数组（多维标签 + colorFamily 已内置于 def）
