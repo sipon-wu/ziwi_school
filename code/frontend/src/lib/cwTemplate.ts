@@ -700,6 +700,47 @@ function eduDemoOutline(): OutlineSlide[] {
   ]
 }
 
+// ── 场景化示范提纲库：让模板"内容充分"（贴合风格/学科/学段，而非通用填空） ──
+// 工厂按 def.demoOutline → lookupScenarioOutline → eduDemoOutline 优先级回落。
+const DEMO_CHINA_CHINESE: OutlineSlide[] = [
+  { title: '封面', bullets: ['《课题名称》', '年级 · 学科', '授课教师：XXX'], layout: 'edu-cover', notes: '可配水墨/山水背景' },
+  { title: '学习目标', bullets: ['语言建构：诵读积累，理解文意', '审美鉴赏：品味语言，赏析手法', '文化传承：体悟情感与文化自信'], layout: 'edu-goal', notes: '' },
+  { title: '作者与背景', bullets: ['作者简介（时代 / 生平 / 代表作）', '创作背景与社会语境'], layout: 'edu-explain', notes: '结合史料或题解' },
+  { title: '初读感知', bullets: ['朗读正音，读准字词', '整体感知，概括内容大意'], layout: 'title-body', notes: '' },
+  { title: '精读赏析', bullets: ['抓意象 / 关键词，品味语言', '名句赏析与手法探微', '情感脉络梳理'], layout: 'edu-explain', notes: '可分组讨论重点句' },
+  { title: '合作探究', bullets: ['探究问题：主题与现实意义', '小组分享，互评补充'], layout: 'edu-example', notes: '' },
+  { title: '拓展延伸', bullets: ['关联阅读 / 同题材作品', '文化链接与现实关照'], layout: 'content-2col', notes: '' },
+  { title: '课堂小结', bullets: ['核心收获梳理', '知识结构导图'], layout: 'edu-summary', notes: '' },
+  { title: '课后作业', bullets: ['基础：背诵 / 默写', '提升：练笔或短文评析'], layout: 'edu-homework', notes: '' },
+]
+
+const DEMO_CARTOON_KINDER: OutlineSlide[] = [
+  { title: '封面', bullets: ['课程《XXX》', 'XX 班的小朋友们', '老师：XXX'], layout: 'edu-cover', notes: '大图大字，童趣可爱' },
+  { title: '今天的目标', bullets: ['认知：认识……', '能力：学会……', '情感：喜欢……'], layout: 'edu-goal', notes: '' },
+  { title: '情境导入', bullets: ['小动物（或绘本）故事引出', '激发兴趣，明确今天任务'], layout: 'title-body', notes: '' },
+  { title: '趣味认知', bullets: ['看一看：图片 / 实物认一认', '听一听：儿歌 / 故事'], layout: 'edu-explain', notes: '' },
+  { title: '游戏互动', bullets: ['一起来做游戏', '动手试一试'], layout: 'edu-example', notes: '分组或集体游戏' },
+  { title: '动动手', bullets: ['手工 / 绘画', '展示与分享'], layout: 'content-2col', notes: '' },
+  { title: '快乐小结', bullets: ['今天学会了什么', '给自己鼓鼓掌'], layout: 'edu-summary', notes: '' },
+  { title: '亲子小任务', bullets: ['和爸爸妈妈一起……', '拍照片分享'], layout: 'edu-homework', notes: '' },
+]
+
+const SCENARIO_OUTLINES: Record<string, OutlineSlide[]> = {
+  'china-chinese': DEMO_CHINA_CHINESE,
+  'cartoon-kindergarten': DEMO_CARTOON_KINDER,
+}
+
+// 按风格 + 学科/学段自动匹配示范提纲（后续批量填充时复用，无需逐套手写）
+function lookupScenarioOutline(def: TplDef): OutlineSlide[] | undefined {
+  const subj = def.subjects?.[0]
+  if (def.style === 'china' && (subj === 'chinese' || subj === 'history'))
+    return SCENARIO_OUTLINES['china-chinese']
+  const isKinder = def.tags?.some((t) => t.kind === 'stage' && t.value === 'kindergarten')
+  if ((def.style === 'cartoon' || def.style === 'fresh') && isKinder)
+    return SCENARIO_OUTLINES['cartoon-kindergarten']
+  return undefined
+}
+
 // 模板定义输入：在「风格 + 多维标签 + 色系描述」上声明，配色 themeId 复用 pptThemes.ts 真实 CwTheme。
 // 设计原则（用户对齐）：风格/学段/学科/场景是模板"先天自带"的语义标签，色系(colorFamily)是
 // 由主题主色聚类而来的"后生成描述属性"，不反向驱动模板生成。
@@ -711,6 +752,8 @@ interface TplDef {
   tags?: TplTag[]
   subjects?: string[]
   grades?: ('小学' | '初中' | '高中')[]
+  /** 内容充分度：差异化示范提纲。缺省回落 eduDemoOutline() 通用提纲。 */
+  demoOutline?: OutlineSlide[]
 }
 
 function pptTemplate(
@@ -732,7 +775,8 @@ function pptTemplate(
     subjects: def.subjects,
     grades: def.grades,
     globalDecor: decorForStyle(def.style),
-    demoOutline: eduDemoOutline(),
+    // 内容充分度：优先用模板自带提纲 → 场景匹配提纲 → 回落通用提纲
+    demoOutline: def.demoOutline ?? lookupScenarioOutline(def) ?? eduDemoOutline(),
   }
 }
 
@@ -751,7 +795,7 @@ const PPT_TEMPLATE_DEFS: TplDef[] = [
   { style: 'china', themeId: 'zgf-ink-wash', colorFamily: 'mono', tags: [...styles('china'), ...scenarios('general'), ...stages('primary', 'junior', 'senior')] },
   { style: 'china', themeId: 'zgf-guochao', colorFamily: 'red-gold', tags: [...styles('china'), ...scenarios('class-meeting', 'first-class'), ...stages('primary', 'junior')] },
   { style: 'china', themeId: 'zgf-shanshui', colorFamily: 'cyan-green', tags: [...styles('china'), ...scenarios('general'), ...stages('junior', 'senior')] },
-  { style: 'china', themeId: 'zgf-song-qing', colorFamily: 'cyan-green', tags: [...styles('china'), ...subjects('chinese', 'history'), ...stages('junior', 'senior')] },
+  { style: 'china', themeId: 'zgf-song-qing', colorFamily: 'cyan-green', tags: [...styles('china'), ...subjects('chinese', 'history'), ...stages('junior', 'senior')], demoOutline: DEMO_CHINA_CHINESE },
   // 素净/简约
   { style: 'minimal', themeId: 'min-classic-blue', colorFamily: 'blue', tags: [...styles('minimal'), ...scenarios('lecture', 'open-class'), ...stages('junior', 'senior')] },
   { style: 'minimal', themeId: 'min-geo', colorFamily: 'gray', tags: [...styles('minimal'), ...scenarios('general'), ...stages('senior', 'college')] },
@@ -766,7 +810,7 @@ const PPT_TEMPLATE_DEFS: TplDef[] = [
   { style: 'tech', themeId: 'te-aurora-green', colorFamily: 'cyan-green', tags: [...styles('tech'), ...subjects('science', 'biology'), ...stages('junior', 'senior')] },
   { style: 'tech', themeId: 'te-digital-cyan', colorFamily: 'cyan-green', tags: [...styles('tech'), ...scenarios('first-class'), ...stages('primary', 'junior')] },
   // 清新
-  { style: 'fresh', themeId: 'fr-mint', colorFamily: 'cyan-green', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
+  { style: 'fresh', themeId: 'fr-mint', colorFamily: 'cyan-green', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')], demoOutline: DEMO_CARTOON_KINDER },
   { style: 'fresh', themeId: 'fr-sky-blue', colorFamily: 'blue', tags: [...styles('fresh'), ...scenarios('parents'), ...stages('kindergarten', 'primary')] },
   { style: 'fresh', themeId: 'fr-warm-orange', colorFamily: 'warm', tags: [...styles('fresh'), ...stages('kindergarten', 'primary')] },
   { style: 'fresh', themeId: 'fr-macaron-pink', colorFamily: 'purple', tags: [...styles('fresh'), ...subjects('art'), ...stages('kindergarten', 'primary')] },
