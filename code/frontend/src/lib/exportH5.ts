@@ -4,7 +4,7 @@
  * 互动组件数据由 H5Slide[].interactive 结构化描述（H5Component），渲染进自包含 HTML，无需后端。
  */
 
-import { isValidComponent, normalizeInteractive, extractBullets, type H5Component, type OutlineSlide } from './exportPptx'
+import { normalizeInteractive, extractBullets, type H5Component, type OutlineSlide } from './exportPptx'
 import type { DecorSlots } from './api'
 
 export interface H5Slide {
