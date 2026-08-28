@@ -425,6 +425,33 @@ export interface FacetVocab {
   sort?: number
 }
 
+/** 课件模板（PPT/H5 共用，后端 courseware_templates 表，对齐后端 model） */
+export interface CoursewareTemplate {
+  id: string
+  kind: 'ppt' | 'h5'
+  name: string
+  style: string
+  color_family?: string
+  theme_id: string
+  tags: { kind: string; value: string }[]
+  subjects: string[]
+  grades: string[]
+  demo_outline?: unknown
+  is_builtin?: boolean
+}
+
+/** 课件模板接口（后端管理，替代前端硬编码 PPT_TEMPLATES/H5_TEMPLATES） */
+export const templateAPI = {
+  list: (params: { kind?: 'ppt' | 'h5'; style?: string[]; subject?: string[]; grade?: string[] } = {}) => {
+    const qs = new URLSearchParams()
+    if (params.kind) qs.set('kind', params.kind)
+    ;(params.style || []).forEach(s => qs.append('style', s))
+    ;(params.subject || []).forEach(s => qs.append('subject', s))
+    ;(params.grade || []).forEach(g => qs.append('grade', g))
+    return request<{ items: CoursewareTemplate[]; total: number }>(`/courseware-templates?${qs.toString()}`)
+  },
+}
+
 // ── 学生端接口 ──
 
 export const studentAPI = {

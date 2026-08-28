@@ -107,6 +107,7 @@ func main() {
 	opsRepo := repository.NewOpsRepository(db)
 	researchRepo := repository.NewResearchRepository(db)
 	materialRepo := repository.NewMaterialRepository(db)
+	tplRepo := repository.NewCoursewareTemplateRepository(db)
 	examRepo := repository.NewExamRepository(db)
 	exerciseSheetRepo := repository.NewExerciseSheetRepository(db)
 	sheetRepo := repository.NewSheetRepo(db)
@@ -176,6 +177,7 @@ func main() {
 	exerciseHandler := handler.NewExerciseHandler(exerciseRepo)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo, sheetRepo, exerciseSheetRepo)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
+	coursewareTemplateHandler := handler.NewCoursewareTemplateHandler(tplRepo)
 	examHandler := handler.NewExamHandler(examRepo)
 	annotationHandler := handler.NewAnnotationHandler(db)
 	exerciseSheetHandler := handler.NewExerciseSheetHandler(exerciseSheetRepo)
@@ -339,6 +341,8 @@ func main() {
 		teacher.GET("/facets", materialHandler.ListFacets)
 		teacher.POST("/facets", materialHandler.UpsertFacet)
 		teacher.DELETE("/facets/:id", materialHandler.DeleteFacet)
+		// 课件模板（PPT/H5 共用，供前端套模板/智能选模板拉取）
+		teacher.GET("/courseware-templates", coursewareTemplateHandler.List)
 		// 通用批注 + 版本快照（挂任意作品；版本仅草稿期可存/回退，发布后只读）
 		teacher.GET("/annotations", annotationHandler.ListAnnotations)
 		teacher.POST("/annotations", annotationHandler.CreateAnnotation)
@@ -467,6 +471,10 @@ func main() {
 	platformDevOps.Use(middleware.RequireRole("platform_devops"))
 	{
 		platformDevOps.GET("/devops/monitor", devopsHandler.GetMonitor)
+		// 课件模板运营 CRUD（平台内置/学校自定义模板管理）
+		platformDevOps.POST("/devops/courseware-templates", coursewareTemplateHandler.Create)
+		platformDevOps.PUT("/devops/courseware-templates/:id", coursewareTemplateHandler.Update)
+		platformDevOps.DELETE("/devops/courseware-templates/:id", coursewareTemplateHandler.Delete)
 		// 手动触发 AI 标签巡增（便于验证打标效果，无需等每月定时器）
 		platformDevOps.POST("/devops/ai-tag/run-once", func(c *gin.Context) {
 			n, err := aiTagScheduler.RunOnce(c.Request.Context())
