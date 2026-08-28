@@ -288,7 +288,7 @@ export default function AssignmentBuilder() {
         <p className="text-center text-[#9A9A9A] text-[13px] mb-6">{gradeName}{selectedClassName ? ' · ' + selectedClassName : ''}</p>
         {assignmentDesc && <p className="mb-4 whitespace-pre-wrap text-[14px] leading-7">{assignmentDesc}</p>}
         <ol className="list-decimal pl-6 space-y-3">
-          {selectedQuestions.map((q, i) => (
+          {selectedQuestions.map((q) => (
             <li key={q.id} className="text-[13px] leading-6">
               <span dangerouslySetInnerHTML={{ __html: q.content }} />
             </li>

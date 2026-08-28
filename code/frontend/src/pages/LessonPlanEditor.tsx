@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type JSX, type ReactNode } from 'react'
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
 import { aiAPI, lessonPlanAPI, materialAPI, classAPI, reviewAPI } from '../lib/api'

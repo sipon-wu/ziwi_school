@@ -1,3 +1,4 @@
+/* eslint-disable react/only-export-components */
 import type { ReactNode } from 'react'
 import { Minimize2 } from 'lucide-react'
 import TipTapEditor from './TipTapEditor'
@@ -76,7 +77,7 @@ interface DocEditorPanelProps {
  */
 export default function DocEditorPanel({ hint, value, onChange, docTitle, readOnly, placeholder, toolbarExtra, onFullscreen, resourceType, resourceId, locked }: DocEditorPanelProps) {
   const openPreview = useOpenPreview()
-  const fullscreenBtn = onFullscreen || openPreview.openPreview !== (() => {}) ? (
+  const fullscreenBtn = onFullscreen || openPreview.openPreview ? (
     <button onClick={onFullscreen || openPreview.openPreview}
       className="flex items-center gap-1 px-2 h-7 text-[11px] rounded text-[#02A7F0] border border-[#02A7F0] hover:bg-[#E8F7FF] transition-colors"
       title="全屏预览">

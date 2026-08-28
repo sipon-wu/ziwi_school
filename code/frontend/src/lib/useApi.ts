@@ -37,6 +37,8 @@ export function useApi<T>(apiFn: () => Promise<any>, mockData: T, deps: any[] = 
       setError(errMsg)
     }
     if (mountedRef.current) setLoading(false)
+  // deps 由调用方动态传入，无法在编译期静态断言依赖，跳过 exhaustive-deps 校验
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
 
   useEffect(() => {

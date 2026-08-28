@@ -1,0 +1,2 @@
+# 第三方 vendored 库（webpack 打包产物），非源码，跳过 lint
+public/
