@@ -8,6 +8,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -92,7 +93,7 @@ func main() {
 	count := 0
 	for _, grp := range defs {
 		for i, d := range grp.defs {
-			id := grp.kind + "-" + d.style + "-" + itoa(i+1)
+			id := grp.kind + "-" + d.style + "-" + strconv.Itoa(i+1)
 			name := d.style + "·" + d.themeID // 简化名；前端 getTheme 会解析真实主题名
 			tmpl := &model.CoursewareTemplate{
 				ID:          id,
@@ -115,10 +116,6 @@ func main() {
 		}
 	}
 	log.Printf("模板 seed 完成，共写入 %d 套（PPT+H5）", count)
-}
-
-func itoa(n int) string {
-	return string(rune('0' + n))
 }
 
 // ── PPT 模板定义（对齐前端 PPT_TEMPLATE_DEFS，749-842 行）──
