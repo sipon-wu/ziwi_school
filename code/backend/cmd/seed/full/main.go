@@ -598,6 +598,23 @@ func main() {
 			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="8" viewBox="0 0 60 8"><rect x="0" y="0" width="60" height="8" fill="#4A4A4A"/></svg>`),
 			Category: "decor_element", Applicable: "common", MotifRoot: "沉稳", ColorRoot: "黑白系", PageType: "content",
 			DecorFacets: model.DecorFacets{"motif.沉稳", "color.黑白系", "page_type.content", "applicable.common"}},
+		// ── 套路级差异化装饰（内容充实新增成果，assetId 对齐前端 cwTemplate.ts SCENARIO_DECOR_MAP）──
+		{SchoolID: school.ID, UserID: "", ID: "decor-china-brush", Name: "国风毛笔", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect x="10" y="6" width="44" height="9" rx="3" fill="#7A1F1F"/><path d="M28 15 L36 15 L33 50 Z" fill="#3A2A1A"/><path d="M31 50 Q33 60 35 50 Q33 55 31 50 Z" fill="#1C1C1C"/><circle cx="14" cy="54" r="3" fill="#1E5631"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "国风", ColorRoot: "红金系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.国风", "color.红金系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", ID: "decor-china-cloud", Name: "国风卷云", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 80 40"><path d="M8 28 Q8 16 20 16 Q24 8 34 12 Q44 8 46 18 Q58 16 58 26 Q58 32 48 32 L16 32 Q8 32 8 28 Z" fill="none" stroke="#B5121B" stroke-width="2"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "国风", ColorRoot: "红金系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.国风", "color.红金系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", ID: "decor-kinder-bear", Name: "卡通小熊", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="34" r="20" fill="#F4A261"/><circle cx="22" cy="18" r="6" fill="#F4A261"/><circle cx="42" cy="18" r="6" fill="#F4A261"/><circle cx="25" cy="32" r="3" fill="#3A2A1A"/><circle cx="39" cy="32" r="3" fill="#3A2A1A"/><ellipse cx="32" cy="40" rx="5" ry="4" fill="#3A2A1A"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
+		{SchoolID: school.ID, UserID: "", ID: "decor-kinder-balloon", Name: "卡通气球", Type: "image", Format: "common", Tag: "装饰元件", Size: "1KB",
+			URL: svgDecor(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48"><ellipse cx="20" cy="16" rx="13" ry="15" fill="#FF6B9D"/><path d="M20 31 L20 40" stroke="#FF6B9D" stroke-width="1.5"/><path d="M16 40 L24 40 L20 45 Z" fill="#FF6B9D"/></svg>`),
+			Category: "decor_element", Applicable: "common", MotifRoot: "卡通", ColorRoot: "暖棕系", PageType: "content",
+			DecorFacets: model.DecorFacets{"motif.卡通", "color.暖棕系", "page_type.content", "applicable.common"}},
 	}
 	// 幂等：按 (name + category) 去重，避免重复跑 seed 产生重复装饰元件
 	for i := range decorElements {
