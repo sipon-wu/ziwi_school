@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -62,5 +64,26 @@ func TestDecorFacetsValue(t *testing.T) {
 	f := model.DecorFacets{"motif.国风"}
 	if v, err := f.Value(); err != nil || v == "" {
 		t.Errorf("DecorFacets.Value 失败: %v", err)
+	}
+}
+
+// TestRunOnceConcurrencyGuard 验证巡增进行中重复触发会被拒绝（防重入）。
+func TestRunOnceConcurrencyGuard(t *testing.T) {
+	s := &AITagScheduler{
+		enabled:   false,
+		aiBaseURL: "", // 空 URL，runOnce 会直接跳过，保证瞬间返回
+		knownVocab: map[string]map[string]bool{},
+	}
+	// 第一次正常完成
+	if _, err := s.RunOnce(context.Background()); err != nil {
+		t.Fatalf("首次 RunOnce 不应报错: %v", err)
+	}
+	// 模拟正在运行：手动置 running=true，应返回 ErrAlreadyRunning
+	s.mu.Lock()
+	s.running = true
+	s.mu.Unlock()
+	_, err := s.RunOnce(context.Background())
+	if !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("重复触发应返回 ErrAlreadyRunning，got %v", err)
 	}
 }

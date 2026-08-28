@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -466,6 +467,19 @@ func main() {
 	platformDevOps.Use(middleware.RequireRole("platform_devops"))
 	{
 		platformDevOps.GET("/devops/monitor", devopsHandler.GetMonitor)
+		// 手动触发 AI 标签巡增（便于验证打标效果，无需等每月定时器）
+		platformDevOps.POST("/devops/ai-tag/run-once", func(c *gin.Context) {
+			n, err := aiTagScheduler.RunOnce(c.Request.Context())
+			if err != nil {
+				if errors.Is(err, scheduler.ErrAlreadyRunning) {
+					c.JSON(409, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{"tagged": n, "message": "AI 标签巡增完成"})
+		})
 	}
 
 	// 没有学生端，由家长端代理。

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zhiwei/backend/internal/model"
@@ -30,7 +32,13 @@ type AITagScheduler struct {
 	batchSize   int
 	httpClient  *http.Client
 	knownVocab  map[string]map[string]bool // dim -> set(value)，避免每次循环重复查库
+	mu          sync.Mutex
+	running     bool
+	runTimeout  time.Duration
 }
+
+// ErrAlreadyRunning 表示巡增任务正在执行，拒绝重复触发（并发保护）。
+var ErrAlreadyRunning = errors.New("ai-tag-scheduler: 巡增任务正在进行中，请稍后再试")
 
 // New 创建调度器。interval 传 0 时用默认 30 天。enabled=false 时不启动定时器。
 func New(db *repository.MaterialRepository, aiBaseURL string, enabled bool, interval time.Duration) *AITagScheduler {
@@ -45,6 +53,7 @@ func New(db *repository.MaterialRepository, aiBaseURL string, enabled bool, inte
 		batchSize:  50,
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 		knownVocab: map[string]map[string]bool{},
+		runTimeout: 30 * time.Minute, // 单次巡增硬超时，防止 AI 慢响应卡死
 	}
 }
 
@@ -56,19 +65,34 @@ func (s *AITagScheduler) Start() {
 	}
 	// 启动即跑一次（首扫），随后按 interval 周期运行
 	go func() {
-		s.runOnce(context.Background())
+		s.RunOnce(context.Background()) // 复用 RunOnce 的并发保护
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
 		for range ticker.C {
-			s.runOnce(context.Background())
+			s.RunOnce(context.Background())
 		}
 	}()
 	log.Printf("[ai-tag-scheduler] started, interval=%s", s.interval)
 }
 
-// RunOnce 手动触发一次全量巡增（供运维接口 / 测试调用）。
+// RunOnce 手动/定时触发一次全量巡增（带并发保护：已在跑则拒绝重复触发）。
 func (s *AITagScheduler) RunOnce(ctx context.Context) (int, error) {
-	return s.runOnce(ctx)
+	s.mu.Lock()
+	if s.running {
+		s.mu.Unlock()
+		return 0, ErrAlreadyRunning
+	}
+	s.running = true
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.running = false
+		s.mu.Unlock()
+	}()
+	// 套一层超时，避免单次巡增因 AI 慢响应无限挂起
+	runCtx, cancel := context.WithTimeout(ctx, s.runTimeout)
+	defer cancel()
+	return s.runOnce(runCtx)
 }
 
 func (s *AITagScheduler) runOnce(ctx context.Context) (int, error) {
