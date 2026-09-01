@@ -3,7 +3,6 @@ package model
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"errors"
 	"strings"
 )
 
@@ -50,9 +49,19 @@ func (f *DecorFacets) Scan(src interface{}) error {
 	case string:
 		data = []byte(v)
 	default:
-		return errors.New("DecorFacets.Scan: unsupported type")
+		*f = DecorFacets{}
+		return nil
 	}
-	return json.Unmarshal(data, f)
+	if len(data) == 0 || string(data) == "null" {
+		*f = DecorFacets{}
+		return nil
+	}
+	// 主路径:字符串路径数组(设计形态)。解析失败(如历史上被误写入对象数组)时
+	// 退化为空 facet,而非返回 error——单条异常数据不应拖垮整个素材库 List。
+	if err := json.Unmarshal(data, f); err != nil {
+		*f = DecorFacets{}
+	}
+	return nil
 }
 
 // StringSlice 通用字符串切片类型，以 JSON 读写 jsonb 列（避免 text[] 在 gorm+pgx 下 nil 切片扫描报错）。
@@ -83,9 +92,17 @@ func (s *StringSlice) Scan(src interface{}) error {
 	case string:
 		data = []byte(v)
 	default:
-		return errors.New("StringSlice.Scan: unsupported type")
+		*s = StringSlice{}
+		return nil
 	}
-	return json.Unmarshal(data, s)
+	if len(data) == 0 || string(data) == "null" {
+		*s = StringSlice{}
+		return nil
+	}
+	if err := json.Unmarshal(data, s); err != nil {
+		*s = StringSlice{}
+	}
+	return nil
 }
 
 // MaterialDecor 装饰相关字段（嵌入 Material 或作为子结构由 handler 组装）。
