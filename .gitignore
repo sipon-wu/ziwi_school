@@ -91,7 +91,18 @@ code/staging-home.yaml
 # 演示/打包产物（二进制或重复，不入版本库）
 《观潮》PPT课件-优化版.pptx
 《观潮》PPT课件-真课件版.pptx
-产品规划/微媒工作台_移植包.zip
+
+# 微媒工作台移交包：Axure 原型参考导出（02_原型参考 含 583 张 PNG + html/css/js 共 800 文件）
+# 属设计参考资料、非平台代码亦非平台消费的公共资源；保留在本地供查阅，zip 为同一份的冗余打包。
+产品规划/微媒工作台_移交包/
+产品规划/微媒工作台_移交包.zip
+
+# 装饰元件 SVG 图源（第三方 Tabler + RemixIcon 派生，13M/3182 文件）
+# 不入库以保持仓库精简；由 deploy.sh 随 ai-service/ 一并 rsync 到服务器，
+# 生产灌库（seed/decor ingest）读的是服务器上的这份。
+# 若 fresh clone 后需重建：从 Tabler / RemixIcon 上游重新拉取到该目录。
+# 注意：assets/index.json 与 assets/tags.json 是自有的分类标注，必须入库。
+code/ai-service/assets/svg/
 
 # 本地安全归档（删除操作的可逆备份，不入库）
 .archive/

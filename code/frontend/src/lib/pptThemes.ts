@@ -269,3 +269,124 @@ export const THEME_BY_STYLE: Partial<Record<string, string>> = {
   flat: 'min-geo',               // 扁平 → 几何极简（近似）
   business: 'min-navy-intellectual', // 商务 → 知性藏青（近似）
 }
+
+/* ───────────────────────────────────────────────────────────
+ * 模板由提示词定义：styleDNA 优先，theme_id 仅兜底
+ *
+ * 历史问题：渲染只认 theme_id（来自 THEME_BY_STYLE / recommendTheme 的固定目录），
+ * 同科目同风格的课件必然撞同一套视觉模板（即「两个完全一样模板」的来由）。
+ * 正确姿态：Skill 当次生成时把配色快照进 styleDNA（存于 materials.color_root），
+ * 渲染应优先用 styleDNA 还原该课件专属配色；theme_id 目录仅在无 styleDNA 时兜底。
+ * ─────────────────────────────────────────────────────────── */
+
+/** 把任意色值规整为 #RRGGBB；无法识别返回 undefined（静默降级） */
+function normHex(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined
+  let s = v.trim()
+  const m = s.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i)
+  if (m) {
+    const h = (n: string) => parseInt(n, 10).toString(16).padStart(2, '0')
+    return '#' + h(m[1]) + h(m[2]) + h(m[3])
+  }
+  if (s[0] === '#') s = s.slice(1)
+  if (/^[0-9a-fA-F]{3}$/.test(s)) return '#' + s.split('').map((c) => c + c).join('')
+  if (/^[0-9a-fA-F]{6}$/.test(s)) return '#' + s
+  return undefined
+}
+
+/** 依底色亮度返回可读的前景色（白 / 近黑） */
+function readableOn(hex: string): string {
+  const h = hex.replace('#', '')
+  if (h.length < 6) return '#FFFFFF'
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return 0.299 * r + 0.587 * g + 0.114 * b < 140 ? '#FFFFFF' : '#1A1A1A'
+}
+
+interface ResolvedColors {
+  primary: string
+  accent?: string
+  body?: string
+  subtle?: string
+  onPrimary?: string
+  coverBg?: string
+  lightText?: string
+  footer?: string
+  bullet?: string
+  fontBody?: string
+  fontTitle?: string
+}
+
+/**
+ * 宽容解析 styleDNA（materials.color_root 的原始值）。
+ * 兼容：JSON 字符串 / 对象；嵌套于 colors / styleDNA / style_dna。
+ * 若仅是中文标签（如"蓝系"）或非法 JSON → 返回 null（交回退逻辑）。
+ */
+export function parseStyleDNA(raw: unknown): ResolvedColors | null {
+  let obj: any = raw
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+    if (!s || (s[0] !== '{' && s[0] !== '[')) return null
+    try { obj = JSON.parse(s) } catch { return null }
+  }
+  if (!obj || typeof obj !== 'object') return null
+  const colors = obj.colors ?? obj.styleDNA?.colors ?? obj.style_dna?.colors ?? null
+  if (!colors || typeof colors !== 'object') return null
+  const primary = normHex(colors.primary)
+  if (!primary) return null
+  const font = obj.font ?? obj.styleDNA?.font ?? obj.style_dna?.font
+  return {
+    primary,
+    accent: normHex(colors.accent),
+    body: normHex(colors.body),
+    subtle: normHex(colors.subtle),
+    onPrimary: normHex(obj.onPrimary ?? colors.onPrimary),
+    coverBg: normHex(obj.coverBg ?? colors.coverBg),
+    lightText: normHex(obj.lightText ?? colors.lightText),
+    footer: normHex(obj.footer ?? colors.footer),
+    bullet: normHex(obj.bullet ?? colors.bullet),
+    fontBody: typeof font === 'object' && typeof font.body === 'string' ? font.body : undefined,
+    fontTitle: typeof font === 'object' && typeof font.title === 'string' ? font.title : undefined,
+  }
+}
+
+/**
+ * 解析渲染所用主题：**styleDNA 优先，theme_id 仅兜底**。
+ * - 有合法 styleDNA → 用其配色重建 CwTheme（decor / 结构身份沿用 theme_id 基底，保证风格家族一致）
+ * - 无 styleDNA → 原样回退 getTheme(themeId)（旧行为不变，向后兼容）
+ */
+export function resolveTheme(themeId: string | undefined, styleDNARaw: unknown): CwTheme {
+  const sd = parseStyleDNA(styleDNARaw)
+  const base = getTheme(themeId)
+  if (!sd) return base
+  const primary = sd.primary
+  const onPrimary = sd.onPrimary || readableOn(primary)
+  const accent = sd.accent || primary
+  const body = sd.body || '#333333'
+  const subtle = sd.subtle || '#777777'
+  const coverBg = sd.coverBg || primary
+  const lightText = sd.lightText || (onPrimary === '#FFFFFF' ? '#EAF1F8' : '#4A4A4A')
+  const footer = sd.footer || primary
+  const bullet = sd.bullet || accent
+  const font = sd.fontBody || sd.fontTitle || base.font
+  return {
+    id: base.id,
+    name: base.name,
+    group: base.group,
+    groupId: base.groupId,
+    primary,
+    onPrimary,
+    coverBg,
+    coverGradient: `linear-gradient(135deg, ${primary}, ${accent})`,
+    lightText,
+    footer,
+    body,
+    subtle,
+    bullet,
+    font,
+    decor: base.decor,
+    subjects: base.subjects,
+    grades: base.grades,
+  }
+}

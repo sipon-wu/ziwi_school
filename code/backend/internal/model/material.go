@@ -20,6 +20,13 @@ type Material struct {
 	Subject   string    `json:"subject"`
 	ThemeID   string    `json:"theme_id,omitempty"` // 课件主题（配色方案），对应前端 pptThemes.ts 的 CwTheme.id
 
+	// ── AI 生成标识（《生成式人工智能服务管理暂行办法》第四条：对生成内容应依法标识）──
+	// 注意：教师修改后 AIGenerated 仍为 true（底稿由 AI 生成），同时 HumanEdited=true，
+	// 以此如实反映"AI 参与程度"，不因人工碰过就摘掉 AI 标识。
+	AIGenerated    bool   `json:"ai_generated" gorm:"column:ai_generated;not null;default:false"`
+	AIModelVersion string `json:"ai_model_version,omitempty" gorm:"column:ai_model_version;type:varchar(50)"`
+	HumanEdited    bool   `json:"human_edited" gorm:"column:human_edited;not null;default:false"`
+
 	// ── 装饰元件架构扩展（P0）──
 	// 仅新增字段，不动既有字段语义。存量数据 category 默认 'courseware'。
 	// facet 维度收敛为 4 维：applicable(媒介) / motif(母题) / color(色系) / page_type(页型)，

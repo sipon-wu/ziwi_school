@@ -58,6 +58,11 @@ if not DATABASE_URL:
 # 种子课件归属学校.前端素材列表按 school_id 精确过滤,写 NULL 会不可见.
 SCHOOL_ID = os.getenv("CW_SEED_SCHOOL_ID", "sch-0001")
 
+# 课件归属教师账号(user_id).与教案归属对齐:
+# 这批教案全部挂在 u-teacher 名下,课件也挂同一账号,
+# 便于"教案 -> 课件"链路在同一账号下对照验证.留空则仍写 NULL(学校公共素材).
+OWNER_ID = os.getenv("CW_SEED_OWNER_ID", "")
+
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILLS_DIR = os.path.join(BASE, "skills")
 
@@ -132,7 +137,9 @@ def skill_rules(fmt: str, style: str) -> str:
     chunks = [load_skill_doc(r) for r in refs]
     chunks.append(page_structure(fmt))
 
-    style_doc = load_skill_doc(f"shared/styles/{style}.md")
+    # 不指定风格时(style 为空)故意**不加载**风格卡 -- 把风格决策权完整交给 Skill,
+    # 由它依据课题内容自行确定气质/母题/禁忌(用于验证 Skill 自主定风格的能力).
+    style_doc = load_skill_doc(f"shared/styles/{style}.md") if style else ""
     if style_doc:
         chunks.append("## 风格卡\n\n"
                       "下面只描述**语义倾向**(气质 / 形态 / 母题 / 禁忌),**不给色值**--\n"
@@ -207,7 +214,9 @@ def decor_prompt_block(cw: dict) -> str:
     """平台按 学科x学段x风格 算出候选素材清单,交给 Skill 选(禁止自造)."""
     try:
         need = {"decor": 4, "icon": 3, "subject": 3}
-        cands = asset_build(need, cw.get("style", "minimal"), "新授课",
+        # 即使不指定风格,候选素材仍按中性风格计算:风格卡可以缺,但候选清单不能缺,
+        # 否则模型会自造不存在的 asset_id(decor_refs 幻觉).
+        cands = asset_build(need, cw.get("style") or "minimal", "新授课",
                             cw["grade"], cw["subject"])
         block = to_prompt_block(cands, need)
         return block
@@ -219,7 +228,8 @@ def decor_prompt_block(cw: dict) -> str:
 
 def build_prompt(cw: dict, palette_hint: str = "") -> str:
     fmt = cw["format"]
-    rules = skill_rules(fmt, cw.get("style", "minimal"))
+    style = cw.get("style", "")
+    rules = skill_rules(fmt, style)
     decor_block = decor_prompt_block(cw)
 
     kind = "H5 互动课件" if fmt == "h5" else "PPT 课件"
@@ -230,6 +240,11 @@ def build_prompt(cw: dict, palette_hint: str = "") -> str:
     )
     if cw.get("lesson"):
         head += f"对应课时:{cw['lesson']}\n"
+    if not style:
+        # 不指定风格时**显式**告知模型"风格由你定",而不是默默不给风格卡 --
+        # 否则模型可能误以为遗漏而退化成默认风格,测不出真实自主能力.
+        head += ("\n[风格] 本次**不指定**风格卡,请你依据课题内容(体裁 / 题材 / 学段)\n"
+                 "自行确定风格气质、形态母题与禁忌,并把配色写入 styleDNA。\n")
     if palette_hint:
         # 同风格多套课件要各自不同配色,把"主色相锚点 + 已用色相"作为硬约束注入,
         # 引导 LLM 往空闲色相走(落库前仍有 distinct_style_dna 兜底,双保险).
@@ -338,7 +353,10 @@ def strip_unknown_comments(md: str) -> tuple:
         dropped.append(name)
         return ""
 
-    out = re.sub(r"<!--\s*([A-Za-z_][\w-]*)[:\s]", repl, md)
+    # ⚠️ 必须整段删除(含结尾 -->):旧版正则只匹配了 "<!-- NAME:" 这个开头,
+    # 于是不认识的注释会留下 "[...] -->" 残骸,被前端当正文显示给学生
+    # (与 2026-09-01 STYLEDNA 事故同类,实测 DECOR_REFS 即中招).
+    out = re.sub(r"<!--\s*([A-Za-z_][\w-]*)[:\s](?:(?!-->).)*-->", repl, md)
     out = re.sub(r"\n{3,}", "\n\n", out)   # 删除后可能留下的连续空行
     return out, dropped
 
@@ -463,6 +481,26 @@ def distinct_style_dna(style_dna, style: str, used: set) -> dict:
 
     used.add(h)
     return sd
+
+
+def preload_used_hues(out_dir: str, used: dict) -> None:
+    """跨批次续跑时预载入已产出课件的主色相.
+
+    used_hues 是**进程内**状态,分批跑(每批新起进程)时会归零,后批课件可能
+    撞上已用色相 -- 即历史上"两个模板看起来完全一样"的成因。这里从 out_dir
+    既有的 *.meta.json 还原,保证多批次之间"同风格互异"仍然成立。
+    """
+    import glob as _glob
+    for fp in _glob.glob(os.path.join(out_dir, "*.meta.json")):
+        try:
+            with open(fp, encoding="utf-8") as fh:
+                m = json.load(fh)
+            colors = (m.get("style_dna") or {}).get("colors") or {}
+            hsl = _hex_to_hsl(str(colors.get("primary") or ""))
+            if hsl:
+                used.setdefault(m.get("style", ""), set()).add(round(hsl[0]))
+        except Exception:
+            continue
 
 
 def _derive_facets(cw: dict) -> list:
@@ -597,7 +635,7 @@ def upsert_material(conn, cw, content, force, color_root="", decor_facets=None,
     cur = conn.cursor()
     cur.execute("SELECT id FROM materials WHERE name=%s AND type='courseware'", (cw["name"],))
     row = cur.fetchone()
-    theme = THEME_BY_STYLE.get(cw["style"], "min-classic-blue")
+    theme = THEME_BY_STYLE.get(cw.get("style", ""), "min-classic-blue")
     now = datetime.now(timezone.utc)
     if row:
         if not force:
@@ -611,12 +649,12 @@ def upsert_material(conn, cw, content, force, color_root="", decor_facets=None,
          h5_html, interactive_slots, status, grade, subject, theme_id, category,
          decor_facets, applicable, motif_root, color_root, page_type, parent_ids,
          ai_generated, ai_model_version, human_edited, created_at, updated_at)
-        VALUES (gen_random_uuid(), %s, NULL, %s, 'courseware', %s, '', %s, '', %s,
+        VALUES (gen_random_uuid(), %s, %s, %s, 'courseware', %s, '', %s, '', %s,
                 '', '', %s, %s, %s, %s, 'courseware',
                 %s, '', '', %s, '', '[]',
                 TRUE, %s, FALSE, %s, %s)
         """,
-        (SCHOOL_ID, cw["name"], cw["format"], cw["subject"] + cw["grade"], content,
+        (SCHOOL_ID, cw.get("teacher_id") or OWNER_ID, cw["name"], cw["format"], cw["subject"] + cw["grade"], content,
          status, cw["grade"], cw["subject"], theme,
          json.dumps(decor_facets, ensure_ascii=False),
          color_root, MODEL, now, now),
@@ -627,7 +665,7 @@ def upsert_material(conn, cw, content, force, color_root="", decor_facets=None,
 
 
 def main():
-    global MODEL
+    global MODEL, OWNER_ID
     ap = argparse.ArgumentParser(description="AI 批量生成种子课件(走 skills/ 的 Skill)")
     ap.add_argument("--limit", type=int, default=0, help="只处理前 N 套")
     ap.add_argument("--name", default="", help="只处理指定课件名(子串匹配)")
@@ -641,8 +679,16 @@ def main():
     ap.add_argument("--force", action="store_true", help="覆盖已存在的同名课件")
     ap.add_argument("--status", default="active", help="落库状态(active / draft)")
     ap.add_argument("--model", default=MODEL, help="LLM 模型")
+    ap.add_argument("--owner", default="",
+                    help="课件归属教师 user_id(与教案归属对齐;留空则 user_id 为 NULL)")
+    ap.add_argument("--sleep", type=int, default=0,
+                    help="两套课件之间的间隔秒数(百炼限流时调大,配合分批慢慢生成)")
+    ap.add_argument("--max-retry", type=int, default=2,
+                    help="关卡1 校验未过时的重试次数(默认 2)."
+                         "不指定风格的样本建议调高,把风格自主决策一次做到位.")
     args = ap.parse_args()
     MODEL = args.model
+    OWNER_ID = args.owner
 
     if not dashscope.api_key:
         print("错误:缺少 DASHSCOPE_API_KEY 环境变量", file=sys.stderr)
@@ -661,6 +707,7 @@ def main():
         conn = psycopg2.connect(DATABASE_URL)
         stats = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
         used_f_hues = {}  # style -> 已落库主色相集合(保证重载也互异)
+        plan_by_name = {c["name"]: c for c in plan}  # 按课件名回查清单,取归属教师
         for meta_fp in sorted(glob.glob(os.path.join(args.from_dir, "*.meta.json"))):
             with open(meta_fp, encoding="utf-8") as fh:
                 m = json.load(fh)
@@ -675,6 +722,10 @@ def main():
                 stats["failed"] += 1
                 continue
             cw = {k: m.get(k, "") for k in ("name", "subject", "grade", "format", "style")}
+            # 归属跟随教案:课件挂在**它所匹配的那篇教案**的 teacher_id 名下。
+            # 必须逐篇取,不能全局刷一个值 -- 教案分散在多个教师账号时才会各自归位。
+            cw["teacher_id"] = (m.get("teacher_id")
+                                or plan_by_name.get(name, {}).get("teacher_id", ""))
             style = cw.get("style", "")
             sd = distinct_style_dna(m.get("style_dna"), style,
                                    used_f_hues.setdefault(style, set()))
@@ -704,7 +755,18 @@ def main():
 
     stats = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
     used_hues = {}  # style -> 已落库主色相集合(跨课件累积,保证同风格互异)
+    if args.out_dir:
+        # 必须在 used_hues 初始化之后调用:还原既往批次的已用色相,避免跨批次撞色
+        preload_used_hues(args.out_dir, used_hues)
     for cw in targets:
+        # 断点续跑(--out-dir):产出文件已存在就**在调用 LLM 之前**跳过。
+        # 必须放在生成之前 -- 放在写文件前判断的话,token 已经花掉了,等于没省。
+        if args.out_dir and not args.force:
+            _safe = re.sub(r"[^\w\u4e00-\u9fff-]", "_", cw["name"])
+            if os.path.exists(os.path.join(args.out_dir, f"{_safe}.md")):
+                print(f"- 跳过 {cw['name']}(已产出,不重复消耗 token)", flush=True)
+                stats["skipped"] += 1
+                continue
         t0 = time.time()
         print(f"-> 生成 {cw['name']} ...", flush=True)
         style = cw.get("style", "")
@@ -716,7 +778,8 @@ def main():
             f"必须与已用色相 [{used_list}] 明显不同,保证本课件视觉独一份;"
             f"accent 也要与主色及已用色相区分开。")
         try:
-            md, meta, notes, report = generate_one(cw, palette_hint=palette_hint)
+            md, meta, notes, report = generate_one(
+                cw, max_retry=args.max_retry, palette_hint=palette_hint)
         except Exception as e:
             print(f"  失败:{e}", file=sys.stderr)
             stats["failed"] += 1
@@ -753,6 +816,7 @@ def main():
                       encoding="utf-8") as fh:
                 json.dump({"name": cw["name"], "subject": cw["subject"],
                            "grade": cw["grade"], "format": cw["format"],
+                           "teacher_id": cw.get("teacher_id", ""),
                            "style": cw.get("style", ""), "file": f"{safe}.md",
                            "style_dna": meta.get("style_dna") or {},
                            "decor_refs": meta.get("decor_refs") or []},
@@ -763,6 +827,10 @@ def main():
             r = upsert_material(conn, cw, md, args.force, cr, _derive_facets(cw), args.status)
             stats[r] += 1
             print(f"  {r}  ({time.time() - t0:.1f}s)")
+
+        # 主动降速:百炼可能限流,套与套之间留出间隔(配合分批,慢慢生成)
+        if args.sleep > 0:
+            time.sleep(args.sleep)
 
     if conn:
         conn.close()

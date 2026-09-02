@@ -25,7 +25,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
-import { getTheme, recommendTheme } from '../lib/pptThemes'
+import { recommendTheme, resolveTheme } from '../lib/pptThemes'
 import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
 // 触发模板资产域注册（子项目库模板经适配器并入 PPT_TEMPLATES，副作用导入即可，无需引用）
 import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
@@ -377,6 +377,8 @@ export default function CoursewareBuilder() {
   const [editingItIdx, setEditingItIdx] = useState(-1)
   // 新建课件默认套用「按学科+年级」推荐主题（仅默认，不强制；教师可随时手改，恢复草稿时以草稿为准）
   const [themeId, setThemeId] = useState<string>(() => recommendTheme(teaching.subject, teaching.grade).themeId)
+  // 课件专属配色 DNA（Skill 当次生成，存 materials.color_root）；渲染优先用它，theme_id 仅兜底
+  const [colorRoot, setColorRoot] = useState<string>('')
   // workMode 已收口到 useEditorController
 
   // ── 模板套用（PPT 课件）：从模板库选 → 一键换肤套用、内容不变、可撤销 ──
@@ -552,6 +554,7 @@ export default function CoursewareBuilder() {
           setCwH5Html(markdownToStorybookH5(m.content, {
             subject: m.subject || teaching.subject, grade: m.grade || gradeName,
             title: m.name || '', teacherName: safeGetUser().name || '教师', themeId: 'storybook',
+            colorRoot: m.color_root || '',
           }))
         }
       }
@@ -560,6 +563,7 @@ export default function CoursewareBuilder() {
       } else if (m.grade) {
         setThemeId(recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId)
       }
+      setColorRoot(m.color_root || '')
     }).catch(() => {}).finally(() => setCwLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -586,12 +590,13 @@ export default function CoursewareBuilder() {
   // 版心比例：16:9（默认，投影标准）或 4:3（传统屏），预览与导出同步
   const [cwAr, setCwAr] = useState<'16/9' | '4/3'>('16/9')
 
-  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师', theme: getTheme(themeId), aspect: cwAr })
+  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师', theme: resolveTheme(themeId, colorRoot), aspect: cwAr })
 
   // ── AI 生成课件 ──
   const handleGenCourseware = async (leftChatContext?: string) => {
     if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
     setGenLoading(true)
+    setColorRoot('') // 新生成走 theme_id 兜底，清掉旧课件的 styleDNA
     try {
       const base = genBaseId ? await materialAPI.get(genBaseId).catch(() => null) : null
       const scope = buildKnowledgeScope(picker)
@@ -621,11 +626,14 @@ export default function CoursewareBuilder() {
       })
       setCwMarkdown(res.courseware_markdown || '')
       setCwOutline(materializeOutline(markdownToOutline(res.courseware_markdown || '')))
+      // 实时生成配色快照：后端按 学科/年级/风格 派生 styleDNA，优先于 theme_id 还原专属配色
+      if ((res as any).color_palette) setColorRoot(JSON.stringify((res as any).color_palette))
       // H5 频道：同时渲染为绘本式 HTML，预览/发布均直接使用
       if (isH5 && res.courseware_markdown) {
         setCwH5Html(markdownToStorybookH5(res.courseware_markdown, {
           subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
           teacherName: safeGetUser().name || '教师', themeId: 'storybook',
+          colorRoot: colorRoot,
         }))
       } else {
         setCwH5Html('')
@@ -745,6 +753,7 @@ export default function CoursewareBuilder() {
         return { ...s, title: p.title, bullets: p.bullets, slots }
       }))
       if (r.theme_id) setThemeId(r.theme_id)
+      if (r.color_palette) setColorRoot(JSON.stringify(r.color_palette))
       if (out.length) { setCwOutline(out); setCwMarkdown(md); toast('提纲已 AI 润色（含讲稿）', 'success') }
       else toast('润色未返回内容', 'warning')
     }     catch (e: any) { toast('润色失败: ' + (e.message || '未知错误'), 'error') }
@@ -861,6 +870,7 @@ export default function CoursewareBuilder() {
       grade: gradeName,
       subject: teaching.subject,
       theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
+      color_root: colorRoot, // 课件专属配色 DNA（Skill 当次生成）；随提纲落库，渲染优先于 theme_id
     }
     try {
       // 本地兜底暂存（未发布前可恢复）
@@ -911,6 +921,7 @@ export default function CoursewareBuilder() {
         grade: gradeName,
         subject: teaching.subject,
         theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
+      color_root: colorRoot, // 课件专属配色 DNA（Skill 当次生成）；随提纲落库，渲染优先于 theme_id
         // 互动插槽摘要快照（每页 interactive 序列化，支持数组）；留空数组=真清空（指针区分）
         interactive_slots: JSON.stringify(cwOutline.map(s => normalizeInteractive(s.interactive))),
       }
@@ -922,6 +933,7 @@ export default function CoursewareBuilder() {
           payload.h5_html = markdownToStorybookH5(outlineToMarkdown(cwOutline, cwOpts()), {
             subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
             teacherName: safeGetUser().name || '教师', themeId: 'storybook',
+            colorRoot: colorRoot,
           })
         }
       }
@@ -1280,7 +1292,7 @@ export default function CoursewareBuilder() {
               <div key={idx} onClick={() => setDocSlide(idx)}
                 className={`group cursor-pointer rounded-[4px] border overflow-hidden ${idx === docSlide ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
                 <div className="relative">
-                  <img src={renderSlideThumb(s, getTheme(themeId), idx)} alt={s.title || `P${idx + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
+                  <img src={renderSlideThumb(s, resolveTheme(themeId, colorRoot), idx)} alt={s.title || `P${idx + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
                   <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↑</button>
                     <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↓</button>
@@ -1329,7 +1341,7 @@ export default function CoursewareBuilder() {
         {cwOutline.length > 0 ? (
           <PptxPreview
             slides={outlineToSlides(cwOutline, cwOpts())}
-            theme={getTheme(themeId)}
+            theme={resolveTheme(themeId, colorRoot)}
             editable
             index={docSlide + 1}
             onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))}
@@ -1536,7 +1548,7 @@ export default function CoursewareBuilder() {
     }
     if (previewSlides && previewSlides.length > 0) {
       // outlineToSlides 在 cwOutline 前自动插入了封面页，所以放映索引需要 +1
-      return <PptxPreview slides={previewSlides} theme={getTheme(themeId)} showPager={false} index={docSlide + 1} viewMode="single" autoPlay />
+      return <PptxPreview slides={previewSlides} theme={resolveTheme(themeId, colorRoot)} showPager={false} index={docSlide + 1} viewMode="single" autoPlay />
     }
     return <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   })()
@@ -1847,7 +1859,7 @@ export default function CoursewareBuilder() {
               {cwOutline.map((s, i) => (
                 <button key={i} onClick={() => setDocSlide(i)}
                   className={`w-full text-left rounded-[4px] border overflow-hidden transition-colors ${i === docSlide ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                  <img src={renderSlideThumb(s, getTheme(themeId), i)} alt={s.title || `P${i + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
+                  <img src={renderSlideThumb(s, resolveTheme(themeId, colorRoot), i)} alt={s.title || `P${i + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
                   <div className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{(s.title || '未命名').slice(0, 16)}</div>
                 </button>
               ))}
@@ -1857,7 +1869,7 @@ export default function CoursewareBuilder() {
             <div className="w-full max-w-[960px]">
               {cwOutline.length > 0 && slides.length > 0 ? (
                 // outlineToSlides 在 cwOutline 前自动插入了封面页，编辑画布索引需 +1
-                <PptxPreview slides={slides} theme={getTheme(themeId)} aspectRatio={cwAr} index={docSlide + 1} onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))} onSlideChange={handleDocSlideChange} viewMode="scroll" editable embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
+                <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} aspectRatio={cwAr} index={docSlide + 1} onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))} onSlideChange={handleDocSlideChange} viewMode="scroll" editable embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
               ) : (
                 <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
               )}

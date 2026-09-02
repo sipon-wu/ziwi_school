@@ -740,7 +740,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       {/* 浮动按钮（仅桌面端右下角） */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed z-50 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 overflow-hidden xw-chat-btn bottom-6 right-6 w-14 h-14"
+        className="fixed z-50 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 overflow-hidden xw-chat-btn bottom-20 right-6 w-14 h-14"
         style={{ background: open ? 'linear-gradient(135deg, #1A3A6B, #2B5DA8)' : '#1A3A6B' }}
         title="小微AI助教"
       >

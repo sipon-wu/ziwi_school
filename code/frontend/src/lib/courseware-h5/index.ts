@@ -21,9 +21,10 @@ import type { Story } from './types'
 /** 一站式：markdown → 绘本式 H5 字符串 */
 export function markdownToStorybookH5(
   md: string,
-  opts?: { title?: string; subject?: string; grade?: string; teacherName?: string; themeId?: string }
+  opts?: { title?: string; subject?: string; grade?: string; teacherName?: string; themeId?: string; colorRoot?: string }
 ): string {
   const story: Story = mdToStory(md, opts)
   if (opts?.themeId) story.themeId = opts.themeId
+  if (opts?.colorRoot) story.colorRoot = opts.colorRoot
   return buildStoryH5(story)
 }

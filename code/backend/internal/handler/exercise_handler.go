@@ -1,22 +1,34 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
 
+	"github.com/zhiwei/backend/internal/policy"
 	"github.com/zhiwei/backend/internal/repository"
 )
 
 type ExerciseHandler struct {
-	repo *repository.ExerciseRepository
+	repo   *repository.ExerciseRepository
+	policy *policy.Client // 内容安全审核（nil 表示未启用，此时创建即 approved 的旧行为不再允许）
 }
 
-func NewExerciseHandler(repo *repository.ExerciseRepository) *ExerciseHandler {
-	return &ExerciseHandler{repo: repo}
+func NewExerciseHandler(repo *repository.ExerciseRepository, pol *policy.Client) *ExerciseHandler {
+	return &ExerciseHandler{repo: repo, policy: pol}
+}
+
+// createQuestionResponse 创建题目响应。
+// 内联 Question 保持与前端既有字段兼容，warnings / audit_notice 为审核附加信息。
+type createQuestionResponse struct {
+	*repository.Question
+	Warnings    []policy.Issue `json:"warnings,omitempty"`
+	AuditNotice string         `json:"audit_notice,omitempty"`
 }
 
 // CreateQuestionRequest 创建题目请求
@@ -101,6 +113,39 @@ func (h *ExerciseHandler) CreateQuestion(c *gin.Context) {
 		req.Source = "original"
 	}
 
+	// ── 内容安全审核（红线锁）──
+	// 习题是学生动手做的内容，风险常藏在题干情境里（刻板印象等），必须过审才可用。
+	// 关键：默认取 pending（最严格），只有审核**明确通过**才给 approved。
+	// 审核服务不可用 ≠ 内容没问题，此时降级为 pending 交人工兜底，严禁放行。
+	auditStatus := "pending"
+	var warnings []policy.Issue
+	if h.policy != nil && h.policy.Enabled() {
+		auditText := strings.TrimSpace(strings.Join([]string{req.Stem, req.Answer, req.Analysis}, "\n"))
+		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
+			Text:    auditText,
+			Subject: req.Subject,
+			Grade:   req.Grade,
+		})
+		switch {
+		case err != nil:
+			log.Printf("[policy] 习题审核服务不可用，题目转待人工: %v", err)
+			auditStatus = "pending"
+		case len(res.Blocking()) > 0:
+			// 命中红线：拒绝入库，返回具体问题供教师修改后重新提交
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"code":    "CONTENT_BLOCKED",
+				"message": "内容未通过安全审核，请修改后再提交",
+				"issues":  res.Blocking(),
+			})
+			return
+		default:
+			auditStatus = "approved"
+			warnings = res.Warnings()
+		}
+	} else {
+		log.Printf("[policy] 审核服务未配置，习题转待人工（严禁默认通过）")
+	}
+
 	q := &repository.Question{
 		TeacherID:    teacherIDStr,
 		SchoolID:     schoolIDStr,
@@ -112,7 +157,7 @@ func (h *ExerciseHandler) CreateQuestion(c *gin.Context) {
 		Grade:        req.Grade,
 		Difficulty:   req.Difficulty,
 		Source:       req.Source,
-		AuditStatus:  "approved",
+		AuditStatus:  auditStatus,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -133,7 +178,11 @@ func (h *ExerciseHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, q)
+	resp := createQuestionResponse{Question: q, Warnings: warnings}
+	if auditStatus == "pending" {
+		resp.AuditNotice = "内容审核服务暂时不可用，该题目已标记为「待人工审核」，审核通过前不可使用"
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 // UpdateQuestion 更新题目

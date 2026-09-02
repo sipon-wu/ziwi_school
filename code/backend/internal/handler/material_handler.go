@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,16 +12,39 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
 	"github.com/zhiwei/backend/internal/model"
+	"github.com/zhiwei/backend/internal/policy"
 	"github.com/zhiwei/backend/internal/repository"
 )
 
 type MaterialHandler struct {
-	repo *repository.MaterialRepository
+	repo   *repository.MaterialRepository
+	policy *policy.Client
+	db     *gorm.DB // 写版本记录（审核留痕）
 }
 
-func NewMaterialHandler(repo *repository.MaterialRepository) *MaterialHandler {
-	return &MaterialHandler{repo}
+func NewMaterialHandler(repo *repository.MaterialRepository, pol *policy.Client, db *gorm.DB) *MaterialHandler {
+	return &MaterialHandler{repo: repo, policy: pol, db: db}
+}
+
+// recordReleaseVersion 发布留痕：写入 versions（kind=release）。
+//
+// 设计原则：**版本即证据** —— 记录「内容 + 审核结论 + AI 归属 + 发布人」，只追加不修改。
+// 写失败只记日志，不阻断发布：留痕是增强，不能因留痕失败而卡死业务。
+//
+// 参数 res 为 nil 表示审核没跑成（服务不可用），此时 review_status=pending，交人工兜底。
+func (h *MaterialHandler) recordReleaseVersion(c *gin.Context, m *model.Material, res *policy.Result) {
+	recordRelease(h.db, c, ReleaseMeta{
+		ResourceType:   "courseware",
+		ResourceID:     m.ID,
+		Label:          m.Name,
+		Payload:        m.Content,
+		AIGenerated:    m.AIGenerated,
+		AIModelVersion: m.AIModelVersion,
+		HumanEdited:    m.HumanEdited,
+	}, res, "")
 }
 
 func (h *MaterialHandler) ListMaterials(c *gin.Context) {
@@ -199,9 +223,38 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 	if m.Status == "" {
 		m.Status = "active"
 	}
+
+	// 内容安全审核（红线锁）：草稿永远可编辑、不审查；
+	// 只有「发布进素材库」（status=active）这一动作才过闸。
+	var auditRes *policy.Result
+	if m.Status == "active" && h.policy != nil && h.policy.Enabled() {
+		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
+			Text:    strings.TrimSpace(m.Name + "\n" + m.Content),
+			Subject: m.Subject,
+			Grade:   m.Grade,
+		})
+		if err != nil {
+			// 审核没能跑成 ≠ 内容没问题：降级为草稿，避免内容"裸奔"到可用状态
+			log.Printf("[policy] 课件审核服务不可用，课件降级为草稿: %v", err)
+			m.Status = "draft"
+		} else if blocking := res.Blocking(); len(blocking) > 0 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"code":    "CONTENT_BLOCKED",
+				"message": "内容未通过安全审核，请修改后再发布",
+				"issues":  blocking,
+			})
+			return
+		} else {
+			auditRes = res
+		}
+	}
+
 	if err := h.repo.Create(m); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if m.Status == "active" {
+		h.recordReleaseVersion(c, m, auditRes)
 	}
 	c.JSON(http.StatusCreated, m)
 }
@@ -215,6 +268,8 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "素材不存在"})
 		return
 	}
+	originalContent := existing.Content // 用于判断是否真发生内容变更（决定是否记新版本）
+
 	var body struct {
 		Name    string  `json:"name"`
 		Type    string  `json:"type"`
@@ -242,6 +297,7 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	existing.URL = body.URL
 	existing.Content = body.Content
 	existing.H5HTML = body.H5HTML
+	wasActive := existing.Status == "active"
 	if body.Status != "" {
 		existing.Status = body.Status
 	}
@@ -252,9 +308,42 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	if body.InteractiveSlots != nil {
 		existing.InteractiveSlots = *body.InteractiveSlots
 	}
+
+	// 内容安全审核（红线锁）：草稿永远可编辑、不审查；
+	// 只要最终状态为 active（含已发布内容的再次编辑），内容就必须过闸。
+	var auditRes *policy.Result
+	if existing.Status == "active" && h.policy != nil && h.policy.Enabled() {
+		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
+			Text:    strings.TrimSpace(existing.Name + "\n" + existing.Content),
+			Subject: existing.Subject,
+			Grade:   existing.Grade,
+		})
+		if err != nil {
+			log.Printf("[policy] 课件审核服务不可用: %v", err)
+			if !wasActive {
+				// 尚未发布：不给可用状态，降级为草稿
+				existing.Status = "draft"
+			}
+			// 已发布内容的再次编辑：审核不可用时保持放行，避免锁定正在使用的内容
+		} else if blocking := res.Blocking(); len(blocking) > 0 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"code":    "CONTENT_BLOCKED",
+				"message": "内容未通过安全审核，请修改后再发布",
+				"issues":  blocking,
+			})
+			return
+		} else {
+			auditRes = res
+		}
+	}
+
 	if err := h.repo.Update(existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	// 发布留痕：仅当内容真发生变化且最终为已发布状态才记新版本（避免改个标签也产生版本）
+	if existing.Status == "active" && existing.Content != originalContent {
+		h.recordReleaseVersion(c, existing, auditRes)
 	}
 	c.JSON(http.StatusOK, existing)
 }

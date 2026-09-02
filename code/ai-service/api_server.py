@@ -2,6 +2,8 @@ import os
 import time
 import json
 import re
+import colorsys
+import zlib
 import dashscope
 from dashscope import Generation
 from fastapi import FastAPI, Request
@@ -473,6 +475,37 @@ async def gen_lesson_plan(req: Request):
     }
 
 
+_SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
+
+# PPT 与 H5 各用专用 Skill 的领域知识（约定 0：课件只能由 Skill 生成，两条链路共用一套）
+_SKILL_REFS = {
+    "ppt": ("shared/质量宪法.md", "courseware-ppt/references/版式与组件选型.md"),
+    "h5": ("shared/质量宪法.md", "courseware-h5/references/场景与互动规范.md"),
+}
+
+
+def _skill_rules(fmt: str) -> str:
+    """加载对应 Skill 的领域知识。
+
+    服务器为用户提供生成服务，必须与本地预生成脚本走**同一套 Skill**，
+    不得各写一套 prompt——历史上正是因此出现两套相互矛盾的规则。
+    规则只在 skills/ 维护（单一事实源），此处不内置副本。
+    """
+    refs = _SKILL_REFS.get(fmt) or _SKILL_REFS["ppt"]
+    chunks = []
+    for rel in refs:
+        path = os.path.join(_SKILLS_DIR, rel)
+        if not os.path.exists(path):
+            logging.warning("Skill 领域知识缺失：%s", path)
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                chunks.append(fh.read().strip())
+        except Exception as e:
+            logging.warning("Skill 领域知识读取失败 %s：%s", path, e)
+    return "\n\n---\n\n".join(chunks)
+
+
 @app.post("/api/ai/courseware/generate")
 async def gen_courseware(req: Request):
     """课件生成（锚点—轨道—边缘 三层模型，允许受控发散）。
@@ -642,16 +675,26 @@ async def gen_courseware(req: Request):
         structure_hint = (
             "输出要求：\n"
             "1. 用 Markdown 输出，以 `##` 分节，每节 = 一页幻灯片；建议 12~15 页，不要超过 16 页，能覆盖完整一节课（约 40~45 分钟），每页内容精简。\n"
-            "2. 章节顺序（按真实课堂节奏组织）：\n"
-            "   - 学习目标（3~4 条可观测、可检测的目标）\n"
-            "   - 教学重难点\n"
+            "\n"
+            "【内容原则·必须遵守】（课件服务学生，不是复述教案）\n"
+            "- 学生视角：每条要点写“学生将看到/学会什么”，禁止写成“教师引导学生…”“教师点拨…”这类教师备课提示。\n"
+            "- 目标具体化：禁止只写抽象目标（如“会认会写 N 个生字词”“掌握重点词语”），必须落出具体内容"
+            "（是哪 N 个字、哪些词语、哪句原文、哪道例题）。\n"
+            "- 引用真实内容：文科须出现课文/原文金句、生字表、词句赏析；理科须出现具体公式、例题数据与解答步骤。\n"
+            "- 趣味性按学段设计：小学低段用游戏/竞赛/角色扮演，小学中高段用情境/探究任务，初高中用问题链/辩论/实验。\n"
+            "  每节课至少含 2 处互动或趣味环节，用【互动】【游戏】【挑战】【角色扮演】等标记显式标注。\n"
+            "- 时长匹配：按课时总时长反推页数与密度，每页都要有足以支撑 2~4 分钟讲解/活动的具体内容，避免整页空泛。\n"
+            "- 零占位符：禁止输出“思维导图占位”“图片占位”“待补充”“XXX”等未填充占位内容。\n"
+            "\n"
+            "2. 章节顺序（按真实课堂节奏组织；其中“教学重难点”“板书设计”不单独成页，"
+            "须融入对应内容页或用一两句话带过，因为它们属于教师备课信息、不是投屏给学生看的内容）：\n"
+            "   - 学习目标（3~4 条，用学生能懂的语言写“这节课我要学会…”）\n"
             "   - 情境导入（用生活现象 / 实验 / 问题情境引出本课，1~2 段，标注【导入】）\n"
             "   - 新知探究（2~3 节，每节聚焦一个核心概念：讲清定义、原理、关键特征，并给出“易错提醒”）\n"
             "   - 典例精讲（1~2 道典型例题，含“读题→思路→解答”的完整过程）\n"
             "   - 活动探究（标注【互动】，设计一个可当堂操作的探究 / 讨论 / 小实验；若启用边缘知识，可在此融入价值观/行为情境）\n"
             "   - 课堂练习（2~3 道，附答案要点）\n"
             "   - 课堂小结（知识框架 + 方法提炼）\n"
-            "   - 板书设计\n"
             "   - 分层作业（基础题 + 提升题）\n"
             "3. “合适”原则：每页都要有足以支撑讲解的具体知识点、例题或活动，能真正撑满这节课；"
             "但不要堆砌冗余大段文字——投屏以要点、关键词、必要例题为主，便于学生速记。\n"
@@ -659,26 +702,41 @@ async def gen_courseware(req: Request):
             "5. 发散内容（跨界/超纲/边缘）须自然融入，不喧宾夺主；严禁出现商业或外来亚文化符号、"
             "严禁对国内各民族做差异化对比呈现。\n"
             "6. 版式标注（重要）：每一页 `## 标题` 的下一行必须紧跟一行版式注释，格式为 "
-            "`<!-- layout: 版式名 -->`，版式名从以下取值：\n"
+            "`<!-- layout: 版式名 -->`。按内容形态选版式，不要全部用 edu-*：\n"
             "   - `edu-cover`：封面（仅课件总标题那一页用，标题即课件名）\n"
-            "   - `edu-goal`：学习目标 / 教学目标页\n"
-            "   - `edu-explain`：新知探究 / 概念讲解 / 教学重难点页\n"
-            "   - `edu-example`：典例精讲 / 课堂练习页\n"
-            "   - `edu-summary`：课堂小结 / 板书设计页\n"
+            "   - `edu-goal`：学习目标页\n"
+            "   - `edu-summary`：课堂小结页\n"
             "   - `edu-homework`：分层作业页\n"
-            "   - `title-body`：上述之外的普通内容页（如情境导入、活动探究）\n"
+            "   - `edu-explain`：仅用于“1 段定义/概念 + 1 组要点”两段式讲解页（槽位只有 2 个，"
+            "要点多于 3 条时不要用，否则会挤在一起）\n"
+            "   - `edu-example`：典例精讲 / 课堂练习页\n"
+            "   - `content-2col`：2~4 条并列要点（每条 ≤30 字）/ 对比类内容（如步骤、异同对比）\n"
+            "   - `content-grid`：5~6 条并列短要点，且**每条必须 ≤12 字**（如生字表、词语积累、知识点清单）\n"
+            "   - `image-text`：需要配图/配示意图的重点段落（如精读原文 + 赏析）\n"
+            "   - `title-body`：上述之外的普通内容页\n"
             "   示例：\n"
             "   ## 一、学习目标\n"
             "   <!-- layout: edu-goal -->\n"
-            "   - 知识与技能：……\n"
+            "   - 会认会写：盐、屹、昂、鼎（具体列出，不写“N 个生字”）\n"
             "   必须每页都标注，且注释独占一行、紧接标题行之后。\n"
+            "7. **版式与要点字数必须匹配（硬约束）**：content-grid / content-2col / edu-goal / edu-summary "
+            "等版式会把每条要点渲染成并列卡片，卡片横向列宽有限，单条越长、列数越多，字被压得越小。\n"
+            "   - 单条 ≤12 字 → 才可用 content-grid\n"
+            "   - 单条 13~30 字 → **严禁 content-grid**，只能 content-2col（≤3 条）或 title-body\n"
+            "   - 单条 >30 字 → **严禁任何多列版式**，走 title-body 竖排，或先拆成多条短句\n"
+            "   写完一页要点后逐条数字数，任一条超标就换版式或拆句——"
+            "切勿先定版式再把长句硬塞进卡片。\n"
         )
+
+    # Skill 领域知识：PPT / H5 各自加载专用 Skill 的规则（约定 0：唯一生成路径）
+    skill_rules = _skill_rules(fmt)
 
     prompt = (
         f"你是资深中小学课件设计专家，善于把一节课设计得“充实但不冗长、恰到好处”，"
         f"并能在守住院点的前提下适度发散以启发学生思维。"
         f"请为{grade}{subject}《{title}》设计一份可直接用于课堂投屏的课件。"
-        f"{similar_hint}{content_block}{scope_hint}\n"
+        f"{similar_hint}{content_block}{scope_hint}\n\n"
+        f"【课件生成 Skill · 领域知识（必须遵守）】\n{skill_rules}\n\n"
         f"{structure_hint}"
     )
     start = time.time()
@@ -697,6 +755,7 @@ async def gen_courseware(req: Request):
         "recommended_refs": recommended_refs,
         "style_tag": style_tag,
         "style_profile": style_profile,
+        "color_palette": _courseware_palette(subject, grade, style_tag),
         "model": "qwen-turbo",
         "generation_time_ms": int((time.time() - start) * 1000),
     }
@@ -746,6 +805,59 @@ def _fallback_ppt(markdown: str, title: str) -> list:
                        "bullets": [b.strip("-* ").strip() for b in buf if b.strip()],
                        "notes": ""})
     return slides
+
+
+# ── 实时生成配色快照（styleDNA）──
+# 历史问题：gen_courseware / render-ppt 从不产出配色，导致新生成课件 color_root 为空，
+# 前端 resolveTheme 退化为固定 DEFAULT_THEME（经典深蓝），所有新 PPT 色彩单一。
+# 这里依据 学科/年级/风格 确定性派生一套配色，由前端存为 color_root（styleDNA 优先于 theme_id）。
+# 纯本地计算、零额外 AI 开销；同科目多课件按 (学科+年级+风格) 做微抖动避免雷同。
+_SUBJECT_HUE = {
+    "语文": 350, "数学": 215, "英语": 165, "物理": 230, "化学": 25,
+    "生物": 120, "历史": 32, "地理": 190, "政治": 0, "美术": 290,
+    "音乐": 275, "体育": 12, "信息技术": 205, "科学": 140,
+}
+_STYLE_TONE = {
+    "china": (0, 0.10, -0.05), "tech": (0, 0.15, 0.02), "fresh": (0, -0.05, 0.10),
+    "minimal": (0, -0.20, -0.02), "academic": (0, -0.15, -0.03), "cartoon": (0, 0.20, 0.05),
+    "flat": (0, -0.05, 0.0), "business": (0, -0.18, -0.04),
+}
+
+
+def _hsv_to_hex(h: float, s: float, v: float) -> str:
+    h = h % 360
+    r, g, b = colorsys.hsv_to_rgb(h / 360.0, max(0.0, min(1.0, s)), max(0.0, min(1.0, v)))
+    return "#%02X%02X%02X" % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def _courseware_palette(subject: str, grade: str, style_tag: str) -> dict:
+    """依据学科/年级/风格确定性派生 styleDNA 配色（前端存 materials.color_root）。"""
+    base_hue = _SUBJECT_HUE.get((subject or "").strip(), 210)
+    dh, ds, dv = _STYLE_TONE.get((style_tag or "").strip(), (0, 0, 0))
+    hue = base_hue + dh
+    sat = 0.62 + ds
+    val = 0.86 + dv
+    # 确定性微抖动（zlib.crc32 跨进程稳定，避免 PYTHONHASHSEED 导致每次重启色相漂移）
+    jitter = (zlib.crc32(f"{subject}|{grade}|{style_tag}".encode()) % 31) - 15  # -15..+15
+    hue = hue + jitter
+    primary = _hsv_to_hex(hue, sat, val)
+    accent = _hsv_to_hex(hue + 28, min(0.85, sat + 0.08), min(0.92, val + 0.02))
+    cover = _hsv_to_hex(hue, min(0.8, sat + 0.05), val)
+    light = _hsv_to_hex(hue + 10, max(0.15, sat - 0.35), 0.95)
+    footer = _hsv_to_hex(hue, sat, min(0.8, val - 0.04))
+    bullet = _hsv_to_hex(hue + 28, min(0.85, sat + 0.08), min(0.9, val))
+    return {
+        "colors": {
+            "primary": primary,
+            "accent": accent,
+            "body": "#333333",
+            "subtle": "#777777",
+            "coverBg": cover,
+            "lightText": light,
+            "footer": footer,
+            "bullet": bullet,
+        }
+    }
 
 
 @app.post("/api/ai/courseware/consult")
@@ -838,7 +950,8 @@ async def courseware_render_ppt(req: Request):
     if not markdown:
         return {"ppt_slides": [{"kind": "cover", "title": title,
                                  "bullets": [], "notes": ""}],
-                "style_tag": style_tag, "theme_id": theme_id}
+                "style_tag": style_tag, "theme_id": theme_id,
+                "color_palette": _courseware_palette(subject, grade, style_tag)}
     prompt = (
         "你是一名资深教研员兼课件设计师。下面是一份已定稿的中小学课件（Markdown），"
         "请将其「渲染」为适合课堂投屏的 PPT 幻灯片结构，做到：每页要点精炼、不堆砌原文、逻辑清晰、便于讲解。\n"
@@ -862,7 +975,8 @@ async def courseware_render_ppt(req: Request):
     except Exception:
         pass
     # 兜底：直接按章节拆分（保证至少有可用 PPT）
-    return {"ppt_slides": _fallback_ppt(markdown, title), "style_tag": style_tag, "theme_id": theme_id}
+    return {"ppt_slides": _fallback_ppt(markdown, title), "style_tag": style_tag, "theme_id": theme_id,
+            "color_palette": _courseware_palette(subject, grade, style_tag)}
 
 
 def _parse_duration(val):

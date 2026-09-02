@@ -1,3 +1,5 @@
+import type { AssetRef } from '../visualAsset/types'
+
 /**
  * courseware-h5 绘本式互动课件 —— 数据模型
  *
@@ -105,9 +107,16 @@ export interface Story {
   scenes: StoryScene[]
   /** 皮肤 */
   themeId?: string
+  /** 课件专属配色 DNA（Skill 生成，存 materials.color_root）；渲染优先于 themeId */
+  colorRoot?: string
   /** 自动播放 */
   autoPlay?: boolean
   autoPlayInterval?: number
+  /**
+   * 装饰资产引用，覆盖皮肤默认值。
+   * 由 AI 生成或用户修改指令（如"云朵太多了"）产生，是命中率校准的作用点。
+   */
+  decor?: AssetRef[]
 }
 
 /** 绘本皮肤（配色，不含布局） */

@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://xiaowei.edu/schemas/visual-asset.json",
+  "title": "课件视觉资产 - AI 输出契约",
+  "description": "约束 ai-service 生成课件时对装饰外观与装饰资产的引用格式。Python 侧用 jsonschema 校验，非法值降级而非拒绝。与 frontend/src/lib/visualAsset/types.ts 保持同构。",
+  "definitions": {
+    "CapabilityTier": {
+      "type": "integer",
+      "enum": [0, 1, 2],
+      "description": "0=基础形状(PPT/H5 均可) 1=CSS 效果(仅 H5，PPT 降级) 2=动画交互(仅 H5)"
+    },
+    "DecoSpec": {
+      "type": "object",
+      "description": "结构性组件的装饰外观。内容结构由 visualType 承担，这里只管长什么样。",
+      "additionalProperties": false,
+      "properties": {
+        "container": {
+          "type": "string",
+          "enum": ["none", "underline", "leftbar", "blob", "ribbon", "frame", "dotgrid", "torn"],
+          "description": "none=无框(短词首选) underline=下划线 leftbar=左竖条 blob=不规则色块 ribbon=飘带 frame=细边框 dotgrid=点阵 torn=手撕边"
+        },
+        "accent": {
+          "type": "string",
+          "enum": ["none", "circle-num", "badge", "underline-mark", "corner"]
+        },
+        "connector": {
+          "type": "string",
+          "enum": ["none", "arrow", "dashed", "brace", "converge"]
+        },
+        "motif": {
+          "type": "string",
+          "enum": ["none", "balance", "ladder", "target", "funnel", "puzzle", "axis", "mapping", "cycle"],
+          "description": "balance=权衡 ladder=递进 target=聚焦 axis=数轴区间 mapping=映射 cycle=循环"
+        },
+        "tier": { "$ref": "#/definitions/CapabilityTier" }
+      }
+    },
+    "AssetRef": {
+      "type": "object",
+      "description": "对装饰性资产（树叶/云朵/点线画等）的引用。只给 assetId 与可调参数，具体绘制由渲染器完成。",
+      "required": ["assetId"],
+      "additionalProperties": false,
+      "properties": {
+        "assetId": { "type": "string", "minLength": 1 },
+        "params": {
+          "type": "object",
+          "description": "覆盖该风格下的默认值；键必须是资产 params 中声明过的参数名，值须落在 range 或 enum 内",
+          "additionalProperties": true
+        }
+      }
+    },
+    "StructureSpec": {
+      "type": "object",
+      "description": "结构决策。derivedFrom 记录推导依据，用于后续『纲要特征→结构』命中率归因。",
+      "additionalProperties": false,
+      "properties": {
+        "layout": { "type": "string", "minLength": 1 },
+        "visualType": { "type": "string" },
+        "derivedFrom": {
+          "type": "string",
+          "description": "如 '纲要含阶段/先后' '纲要含区别/辨析'，用于进化归因"
+        },
+        "locked": {
+          "type": "boolean",
+          "description": "true=教师手动调整过，禁止 AI 重算"
+        },
+        "deco": { "$ref": "#/definitions/DecoSpec" }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "structure": { "$ref": "#/definitions/StructureSpec" },
+    "deco": { "$ref": "#/definitions/DecoSpec" },
+    "assets": {
+      "type": "array",
+      "description": "本页引用的装饰性资产",
+      "items": { "$ref": "#/definitions/AssetRef" },
+      "maxItems": 8
+    }
+  }
+}

@@ -2,12 +2,14 @@ import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Undo2, Redo2 } from 'lucide-react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import type { CwElement, CwSlide } from '../lib/exportPptx'
-import { layoutElements, extractBullets } from '../lib/exportPptx'
+import type { CwElement, CwSlide, H5Component } from '../lib/exportPptx'
+import { layoutElements, extractBullets, normalizeInteractive } from '../lib/exportPptx'
 import type { CwTheme } from '../lib/pptThemes'
 import { DEFAULT_THEME } from '../lib/pptThemes'
 import { getSkeleton, distributeToSlots, isStructuredLayout } from '../lib/cwTemplate'
 import type { SlideLayout, SlideSlots } from '../lib/cwTemplate'
+import { normalizeVisuals } from '../lib/exportPptx'
+import { VisualBlockView } from './VisualBlocks'
 import type { DecorSlots, DecorItem } from '../lib/api'
 
 const FONT = 'Microsoft YaHei'
@@ -35,13 +37,16 @@ function c(v?: string): string {
  * 垫在元素层之下，使「选模板→自动按语义分配版式」真正在画布上呈现布局差异，
  * 而不只是换色系。所有造型均绝对定位 + pointer-events-none，不干扰编辑。
  */
-function SlideFrame({ theme, layout }: { theme: CwTheme; layout: string }) {
+function SlideFrame({ theme, layout, visCount = 0 }: { theme: CwTheme; layout: string; visCount?: number }) {
   const p = c(theme.primary)
   const f = c(theme.footer || theme.primary)
   const sub = c(theme.subtle)
   const band = (top: string, h: string) => (
     <div className="absolute left-0 w-full" style={{ top, height: h, background: p, opacity: 0.92 }} />
   )
+  // 该页挂了可视化组件时，容器造型由内容层（renderLayoutContent 的 visual + bullets）完整渲染；
+  // 空壳骨架会把视觉元素压住（如 edu-goal 的 3 个空卡片压住金句/对比表），此处直接不画。
+  if (visCount > 0) return null
   switch (layout) {
     case 'edu-cover':
       return (
@@ -136,16 +141,32 @@ function SlideDecor({ theme, layout }: { theme: CwTheme; layout: string }) {
 
   if (decor === 'china') {
     return (
-      <div className="pointer-events-none absolute inset-0">
+      <div className="pointer-events-none absolute inset-0" style={{ fontFamily: '"KaiTi","STKaiti",serif' }}>
         {isCover ? (
-          <div className="absolute right-[7%] top-[9%] flex h-14 w-14 items-center justify-center rounded-md text-center text-[11px] font-bold leading-tight"
-               style={{ background: p, color: onP, fontFamily: '"KaiTi","STKaiti",serif', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-            知<br />微
-          </div>
+          <>
+            {/* 封面：右上古朴印章 */}
+            <div className="absolute right-[7%] top-[9%] flex h-16 w-16 flex-col items-center justify-center rounded-md text-center text-[12px] font-bold leading-tight"
+                 style={{ background: p, color: onP, boxShadow: '0 2px 8px rgba(0,0,0,0.25)', transform: 'rotate(-3deg)', border: `2px solid ${onP}33` }}>
+              知<br />微
+            </div>
+            {/* 左下：淡墨山影 */}
+            <svg className="absolute bottom-0 left-0" width="40%" height="45%" viewBox="0 0 200 120" style={{ opacity: 0.14 }} aria-hidden>
+              <path d="M0 120 Q 40 60 80 95 Q 110 40 150 75 Q 175 55 200 70 L 200 120 Z" fill={p} />
+            </svg>
+          </>
         ) : (
           <>
-            <div className="absolute left-0 top-[15.3%] h-[84.7%] w-[3px]" style={{ background: p }} />
-            <div className="absolute right-[5%] bottom-[6%] h-12 w-12 rounded-sm" style={{ background: p, opacity: 0.9 }} />
+            {/* 左上角小印章（缩小并上移，避开正文 definition 区 y=20%~38%） */}
+            <div className="absolute left-[2%] top-[3%] flex h-8 w-8 flex-col items-center justify-center rounded-sm border text-[8px] leading-tight"
+                 style={{ borderColor: `${p}88`, color: p, background: `${p}0D`, transform: 'rotate(-2deg)' }}>
+              知微<br />教学
+            </div>
+            {/* 右下：淡墨远山 */}
+            <svg className="absolute right-[2%] bottom-[2%]" width="30%" height="28%" viewBox="0 0 200 120" style={{ opacity: 0.10 }} aria-hidden>
+              <path d="M40 120 Q 70 60 110 90 Q 145 40 200 70 L 200 120 Z" fill={p} />
+            </svg>
+            {/* 顶部：细墨线（版眉） */}
+            <div className="absolute left-[4%] right-[4%] top-[13.5%] h-[1.5px]" style={{ background: `${p}55` }} />
           </>
         )}
       </div>
@@ -443,6 +464,92 @@ export default function PptxPreview({
 
 /* ───────────────────────── 静态（放映/预览）渲染 ───────────────────────── */
 
+/** PPT 互动组件面板：把 quiz/reveal/readalong/drawing 以可交互控件呈现（点击左下角按钮弹出） */
+function InteractiveItem({ it, theme }: { it: H5Component; theme: CwTheme }) {
+  const p = c(theme.primary)
+  if (it.type === 'quiz') {
+    const [sel, setSel] = useState<number | null>(null)
+    return (
+      <div>
+        <div className="mb-2 text-sm font-semibold">✏️ {it.question}</div>
+        <div className="space-y-2">
+          {it.options.map((o, i) => {
+            const right = sel === null ? null : i === it.correct
+            return (
+              <button key={i} onClick={() => setSel(i)}
+                className="block w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors"
+                style={{ borderColor: sel === null ? '#ddd' : right ? '#3FA34D' : '#FF6B6B', background: sel === i ? (right ? '#3FA34D22' : '#FF6B6B22') : '#fff' }}>
+                {o}
+              </button>
+            )
+          })}
+        </div>
+        {sel !== null && <div className="mt-2 text-xs font-bold" style={{ color: sel === it.correct ? '#3FA34D' : '#FF6B6B' }}>{sel === it.correct ? '✅ 正确！' : '❌ 再想想~'}</div>}
+      </div>
+    )
+  }
+  if (it.type === 'reveal') {
+    const [show, setShow] = useState(false)
+    return (
+      <div>
+        <button onClick={() => setShow(true)} className="rounded-full px-4 py-2 text-sm font-bold text-white" style={{ background: p }}>{it.prompt || '点我揭晓'}</button>
+        {show && <div className="mt-2 rounded-lg bg-gray-50 p-3 text-sm">{it.answer}</div>}
+      </div>
+    )
+  }
+  if (it.type === 'readalong') {
+    const tts = (t: string) => { try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u) } } catch { /* noop */ } }
+    return (
+      <div>
+        <div className="mb-2 text-xs font-bold text-gray-500">🎤 跟读</div>
+        {it.sentences.map((s, i) => (
+          <div key={i} className="mb-1 flex items-center gap-2">
+            <span className="text-sm">{s.text}</span>
+            <button onClick={() => tts(s.text)} className="rounded bg-blue-500 px-2 py-1 text-xs text-white">▶ 示范</button>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (it.type === 'drawing') {
+    const ref = useRef<HTMLCanvasElement>(null)
+    return (
+      <div>
+        <div className="mb-1 text-xs font-bold text-gray-500">🎨 {it.title}</div>
+        <canvas ref={ref} width={400} height={160} className="w-full rounded-lg border-2 border-dashed" style={{ borderColor: p }} />
+        <button onClick={() => { const cv = ref.current; if (cv) cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height) }} className="mt-1 rounded bg-red-500 px-2 py-1 text-xs text-white">清除</button>
+      </div>
+    )
+  }
+  return null
+}
+
+function InteractivePanel({ components, theme }: { components: H5Component[]; theme: CwTheme }) {
+  const [open, setOpen] = useState(false)
+  if (!components.length) return null
+  const p = c(theme.primary)
+  return (
+    <>
+      <button onClick={() => setOpen(o => !o)} className="absolute bottom-[3%] left-[3%] z-20 rounded-full px-3 py-1 text-[11px] font-bold text-white shadow" style={{ background: p }}>
+        🎯 互动 ({components.length})
+      </button>
+      {open && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-[6%]" onClick={() => setOpen(false)}>
+          <div className="max-h-full w-full overflow-auto rounded-xl bg-white p-5 shadow-2xl" style={{ color: c(theme.body) }} onClick={e => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-bold" style={{ color: p }}>课堂互动</span>
+              <button onClick={() => setOpen(false)} className="text-xs text-gray-400">关闭</button>
+            </div>
+            <div className="space-y-4">
+              {components.map((it, i) => <InteractiveItem key={i} it={it} theme={theme} />)}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio: '16/9' | '4/3') {
   const lay = s.layout || (s.kind === 'cover' ? 'edu-cover' : 'title-body')
   if (s.kind === 'cover') {
@@ -463,11 +570,14 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
   }
   return (
     <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', fontFamily: theme.font }}>
-      <SlideFrame theme={theme} layout={lay} />
+      <SlideFrame theme={theme} layout={lay} visCount={normalizeVisuals((s as any).visuals).length} />
       <SlideDecor theme={theme} layout={lay} />
       <DecorLayer decor={s.decor} />
       <div className="absolute left-[2%] top-0 flex h-[15.3%] items-center" style={{ width: '96%' }}>
-        <span className="truncate text-2xl font-bold" style={{ color: c(theme.onPrimary) }}>{s.title}</span>
+        <span className="truncate font-bold"
+          style={{ color: c(theme.onPrimary), fontSize: '2.6rem', fontFamily: '"KaiTi","STKaiti",serif' }}>
+          {s.title}
+        </span>
       </div>
       {/* 内容与模板分离：结构化版式优先按骨架渲染（即时分发/预存 slots），自由元素只在非结构化版式回退 */}
       {isStructuredLayout(lay) ? (
@@ -480,6 +590,9 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
       {s.footer && (
         <div className="absolute bottom-[2%] right-[3%] text-[10px]" style={{ color: c(theme.footer), fontFamily: theme.font }}>{s.footer}</div>
       )}
+      {normalizeInteractive((s as any).interactive).length > 0 && (
+        <InteractivePanel components={normalizeInteractive((s as any).interactive)} theme={theme} />
+      )}
     </div>
   )
 }
@@ -490,16 +603,80 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
   const p = c(theme.primary)
   const body = c(theme.body)
 
-  // 通用单行文本块：自动缩放到容器内
-  const Line = ({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) => (
-    <div className={`flex h-full w-full items-center overflow-hidden ${className || ''}`} style={style}>
-      <div className="w-full text-[3mm] leading-snug" style={{ color: body }}>
-        {text}
+  // 通用单行文本块：自动缩放到容器内，字号随文字长度自适应（短文大字号、长文小字号）
+  const Line = ({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) => {
+    const len = text?.length || 0
+    // 参考字号：≤12字 3.6mm，13-20字 3.2mm，21-30字 2.8mm，>30字 2.4mm
+    const fs = len <= 12 ? 3.6 : len <= 20 ? 3.2 : len <= 30 ? 2.8 : 2.4
+    return (
+      <div className={`flex h-full w-full items-center overflow-hidden ${className || ''}`} style={style}>
+        <div className="w-full leading-snug" style={{ color: body, fontSize: `${fs}mm` }}>
+          {text}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const lay = s.layout || 'title-body'
+
+  // ── 可视化组件优先：该页挂了递进图/对比表/时间轴/生字卡等组件时，
+  // 用结构表达知识关系（真课件），而不是把 bullets 平铺成文字列表。
+  const vis = normalizeVisuals((s as any).visuals)
+  if (vis.length) {
+    const vt = { primary: p, body: c(theme.body), subtle: c(theme.subtle || '777777'), font: theme.font || FONT }
+    // 一主一辅：visual 为主体（金句/对比表/时间轴等），bullets 为下方要点条。
+    // 此前该分支直接 return，bullets 被整体丢弃——是"页面内容缺失"的根因。
+    const hasBullets = lines.length > 0
+    const visTop = '16%'
+    const visH = hasBullets ? '50%' : '78%'
+    return (
+      <>
+        {vis.map((b, i) => (
+          <div key={i} className="absolute overflow-hidden"
+            style={{
+              left: '5%', right: '5%',
+              top: vis.length === 1 ? visTop : `calc(${visTop} + (${i} * (${visH} / ${vis.length})))`,
+              height: vis.length === 1 ? visH : `calc(${visH} / ${vis.length})`,
+              // 多组件时靠内边距留间距（box-sizing:border-box，不撑破分配高度）
+              paddingBottom: vis.length > 1 ? '0.8%' : undefined,
+            }}>
+            <VisualBlockView block={b} theme={vt} />
+          </div>
+        ))}
+        {hasBullets && (
+          <div className="absolute grid gap-2 px-1"
+            style={{
+              left: '5%', right: '5%', top: '70%', height: '26%',
+              gridTemplateColumns: lines.length <= 3 ? `repeat(${lines.length}, minmax(0,1fr))` : 'repeat(2, minmax(0,1fr))',
+            }}>
+            {lines.map((txt, i) => (
+              <div key={i} className="flex items-center overflow-hidden rounded-md border px-3"
+                style={{ borderColor: `${p}44`, background: `${p}06` }}>
+                <div className="w-full leading-snug" style={{ color: body, fontSize: '2.7mm' }}>
+                  <span className="mr-1 font-bold" style={{ color: p }}>{i + 1}.</span>
+                  {txt}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── 教学目标 / 课堂小结 / 课后作业 ──
+  // 这三个版式原本被分发进「三维目标三栏」「分层三栏」占位骨架，导致 AI 生成的目标
+  // 被切碎塞进三个窄栏、字号被压到 2.4mm 不可读。有真实 bullets 时改为单列铺开：
+  // 宽度从 29% 提到 88%，字号可放大约一倍；无 bullets 时才回退到占位骨架。
+  if (lines.length && (lay === 'edu-goal' || lay === 'edu-summary' || lay === 'edu-homework')) {
+    return (
+      <div className="absolute left-[6%] top-[21%] flex w-[88%] flex-col justify-center gap-[3.5%]" style={{ height: '66%' }}>
+        {lines.map((txt, i) => (
+          <div key={i} className="leading-snug" style={{ color: body, fontSize: '4.4mm' }}>{txt}</div>
+        ))}
+      </div>
+    )
+  }
 
   // ── 内容与模板分离：按骨架几何渲染（全局唯一契约）──
   // 优先用预存 slots；无 slots 但 layout 命中骨架时，即时按骨架分发 bullets（兼容存量数据）。
@@ -522,8 +699,8 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
               return (
                 <div key={ph.key} className={`absolute grid gap-2`} style={{ ...style, gridTemplateColumns: `repeat(${ph.columns}, minmax(0,1fr))` }}>
                   {display.map((txt, i) => (
-                    <div key={i} className="rounded-md border p-2" style={{ borderColor: `${p}55`, background: 'rgba(255,255,255,0.7)' }}>
-                      <Line text={txt} className="items-start" />
+                    <div key={i} className="flex rounded-md border p-2" style={{ borderColor: `${p}55`, background: `${p}08` }}>
+                      <Line text={txt} className="items-center" />
                     </div>
                   ))}
                 </div>

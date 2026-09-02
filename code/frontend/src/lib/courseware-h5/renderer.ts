@@ -7,6 +7,45 @@
 
 import type { Story, StoryScene, StoryRole } from './types'
 import { STORY_THEMES, ROLE_COLORS } from './types'
+import { resolveAssetParams } from '../visualAsset/types'
+import { getAssetsByStyle } from '../visualAsset/presets'
+import { parseStyleDNA } from '../pptThemes'
+
+/** 把色值按 ratio 混入白色，得到浅色调（保持绘本式浅底可读） */
+function mixWhite(hex: string, ratio: number): string {
+  const h = (hex || '').replace('#', '')
+  if (h.length < 6) return '#FFFDF8'
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  const m = (c: number) => Math.round(c + (255 - c) * ratio)
+  const to2 = (n: number) => n.toString(16).padStart(2, '0')
+  return `#${to2(m(r))}${to2(m(g))}${to2(m(b))}`
+}
+
+/**
+ * H5 绘本主题解析：styleDNA 优先，themeId 仅兜底（与 PPT 的 resolveTheme 同策略）。
+ * 把 styleDNA 的 colors 映射成 STORY_THEMES 配色形状，并保持浅底
+ * （card 固定浅色、背景用主色/强调色的浅色调），避免深底压垮童趣版式。
+ * 无合法 styleDNA → 回退 STORY_THEMES[themeId]。
+ */
+function resolveStoryTheme(colorRoot: unknown, themeId?: string): typeof STORY_THEMES[string] {
+  const base = STORY_THEMES[themeId || 'storybook'] || STORY_THEMES.storybook
+  const sd = parseStyleDNA(colorRoot)
+  if (!sd) return base
+  const primary = sd.primary
+  const accent = sd.accent || primary
+  return {
+    bg1: mixWhite(primary, 0.80),
+    bg2: mixWhite(accent, 0.84),
+    card: '#FFFDF8',
+    accent: primary,
+    accent2: accent,
+    text: sd.body || '#3A2E2E',
+    ink: sd.subtle || '#5A4A4A',
+    deco: base.deco,
+  }
+}
 
 function esc(s: string): string {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -20,29 +59,57 @@ function roleColor(roles: StoryRole[] | undefined, name: string | undefined, idx
   return ROLE_COLORS[idx % ROLE_COLORS.length]
 }
 
-/** 装饰层：按主题取一组 emoji，散布到页面四角/边缘（绝对定位 + CSS 动画，纯文本零依赖） */
+/** 装饰槽位：预设位置 + 基准字号 + 动画延迟（确定性，保证同一课件每次渲染一致） */
+const DECOR_SLOTS = [
+  { pos: 'top:14px;left:18px',     base: 46, d: 0 },
+  { pos: 'top:54px;right:24px',    base: 38, d: 1.4 },
+  { pos: 'top:16px;right:30px',    base: 60, d: 0.6 },
+  { pos: 'top:120px;left:30px',    base: 26, d: 2.2 },
+  { pos: 'top:200px;right:42px',   base: 24, d: 1.1 },
+  { pos: 'bottom:18px;left:22px',  base: 40, d: 3.0 },
+  { pos: 'bottom:60px;right:26px', base: 34, d: 1.8 },
+  { pos: 'top:160px;left:48px',    base: 22, d: 2.6 },
+  { pos: 'bottom:14px;right:18px', base: 30, d: 0.9 },
+  { pos: 'bottom:90px;left:36px',  base: 28, d: 2.0 },
+  { pos: 'top:90px;right:16px',    base: 32, d: 1.6 },
+  { pos: 'top:250px;left:20px',    base: 20, d: 2.8 },
+]
+
+/**
+ * 装饰层：从资产库取该风格的装饰资产，按 count / scale / opacity 渲染。
+ *
+ * 参数优先级：用户覆盖（story.decor）> 风格默认（defaultsByStyle）> 全局默认。
+ * story.decor 即用户修改指令（如"云朵太多了"）结构化后的结果——
+ * 因此改装饰密度只需改 decor，无需动渲染代码，这正是命中率校准的落点。
+ */
 function renderDeco(story: Story): string {
-  const theme = STORY_THEMES[story.themeId || 'storybook'] || STORY_THEMES.storybook
-  const deco = theme.deco || STORY_THEMES.storybook.deco
-  // 8 个预设占位点（top/left/right/bottom + 字号 + 动画延迟），循环取 deco
-  const slots = [
-    { pos: 'top:14px;left:18px',  fs: 46, d: 0 },
-    { pos: 'top:54px;right:24px', fs: 38, d: 1.4 },
-    { pos: 'top:16px;right:30px', fs: 60, d: 0.6 },
-    { pos: 'top:120px;left:30px', fs: 26, d: 2.2 },
-    { pos: 'top:200px;right:42px',fs: 24, d: 1.1 },
-    { pos: 'bottom:18px;left:22px',fs: 40, d: 3.0 },
-    { pos: 'bottom:60px;right:26px',fs: 34, d: 1.8 },
-    { pos: 'top:160px;left:48px', fs: 22, d: 2.6 },
-  ]
-  return slots.map((sl, i) =>
-    `<span class="deco" style="font-size:${sl.fs}px;${sl.pos};animation-delay:${sl.d}s">${deco[i % deco.length]}</span>`
-  ).join('')
+  const styleId = story.themeId || 'storybook'
+  const refs = new Map((story.decor || []).map((r) => [r.assetId, r]))
+
+  // 逐资产展开实例：count 决定数量，scale / opacity 决定观感
+  const items: { glyph: string; scale: number; opacity: number }[] = []
+  for (const asset of getAssetsByStyle(styleId)) {
+    const p = resolveAssetParams(asset, styleId, refs.get(asset.id))
+    const count = Math.round(Number(p.count ?? 0))
+    if (count <= 0) continue
+    const scale = Number(p.scale ?? 1)
+    const opacity = Number(p.opacity ?? 0.4)
+    for (let i = 0; i < count; i++) items.push({ glyph: asset.glyph, scale, opacity })
+  }
+  if (!items.length) return ''
+
+  return items.map((it, i) => {
+    const sl = DECOR_SLOTS[i % DECOR_SLOTS.length]
+    // 实例数超出槽位时做确定性偏移，避免完全重叠
+    const off = Math.floor(i / DECOR_SLOTS.length) * 12
+    const shift = off ? `margin:${off}px 0 0 ${off}px;` : ''
+    return `<span class="deco" style="font-size:${Math.round(sl.base * it.scale)}px;opacity:${it.opacity};${sl.pos};${shift}animation-delay:${sl.d}s">${it.glyph}</span>`
+  }).join('')
 }
 
 /** 单场景 → HTML 片段 */
 function renderScene(s: StoryScene, index: number, story: Story): string {
-  const theme = STORY_THEMES[story.themeId || 'storybook'] || STORY_THEMES.storybook
+  const theme = resolveStoryTheme(story.colorRoot, story.themeId)
   const decoHtml = renderDeco(story)
   const moodBg: Record<string, string> = {
     warm: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.5), transparent 40%)',
@@ -315,7 +382,7 @@ const RUNTIME_CSS = `
 `
 
 export function buildStoryH5(story: Story): string {
-  const theme = STORY_THEMES[story.themeId || 'storybook'] || STORY_THEMES.storybook
+  const theme = resolveStoryTheme(story.colorRoot, story.themeId)
   const scenesHtml = story.scenes.map((s, i) => renderScene(s, i, story)).join('')
   const meta = [story.subject, story.grade].filter(Boolean).join(' · ')
   const themeId = story.themeId || 'storybook'

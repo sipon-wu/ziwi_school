@@ -5,6 +5,10 @@ import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import PresentationMode from '../components/PresentationMode'
 import PreviewOverlay from '../components/PreviewOverlay'
+import PptxPreview from '../components/PptxPreview'
+import { markdownToOutline, outlineToSlides } from '../lib/exportPptx'
+import { markdownToStorybookH5 } from '../lib/courseware-h5'
+import { resolveTheme } from '../lib/pptThemes'
 import { api, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem } from '../lib/api'
 
 const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
@@ -18,6 +22,7 @@ interface Material {
   id: string
   name: string
   type: MaterialType
+  format?: string
   group: string
   tags: string[]
   stars: number  // 1-5 热度
@@ -27,6 +32,8 @@ interface Material {
   updatedAt: string
   thumbnail?: string
   shared: boolean
+  theme_id?: string
+  color_root?: string
 }
 
 /* ── 模拟数据 ── */
@@ -73,7 +80,7 @@ export default function Materials() {
   const refreshMaterials = () => {
     api<{ items: MaterialItem[] }>('/materials').then(res => {
       setMaterials(res.items.map((m: MaterialItem) => ({
-        id: m.id, name: m.name, type: m.type as MaterialType,
+        id: m.id, name: m.name, type: m.type as MaterialType, format: m.format,
         group: m.tag || '未分组', tags: m.tag ? [m.tag] : [],
         stars: 3, usage: 0, version: 'v1.0', size: m.size != null ? String(m.size) : '',
         updatedAt: m.created_at?.slice(0, 10) || '', shared: false,
@@ -84,14 +91,14 @@ export default function Materials() {
   // ── AI 生成课件已迁移至独立编辑器页 /courseware/new（P4 统一框架） ──
 
   // 预览/播放（素材库已有课件 → 幻灯片放映）
-  const [player, setPlayer] = useState<{ content: string; title: string } | null>(null)
+  const [player, setPlayer] = useState<{ content: string; title: string; format?: string; theme_id?: string; color_root?: string } | null>(null)
   const openPlay = async (m: Material) => {
     let content = (m as any).content || ''
     if (!content) {
       try { const r: any = await materialAPI.get(m.id); content = r.content || '' } catch { content = '' }
     }
     if (!content) { toast('该课件暂无正文内容，无法播放', 'warning'); return }
-    setPlayer({ content, title: m.name })
+    setPlayer({ content, title: m.name, format: m.format, theme_id: m.theme_id, color_root: m.color_root })
   }
 
   useEffect(() => { refreshMaterials() }, [])
@@ -396,21 +403,54 @@ export default function Materials() {
           title={`${player.title} · 课件播放`}
           onClose={() => setPlayer(null)}
         >
-          <PresentationMode
-            content={player.content}
-            title={player.title}
-            subject="课件"
-            grade=""
-            teacherName={safeGetUser().name || '教师'}
-            onClose={() => setPlayer(null)}
-            embedded
-          />
+          <CoursewarePreview content={player.content} title={player.title} format={player.format} themeId={player.theme_id} colorRoot={player.color_root} onClose={() => setPlayer(null)} />
         </PreviewOverlay>
       )}
 
       {/* 装饰元件库（P2）：facet 筛选 + 公共库/个人库切换 */}
       {showDecor && <DecorPanel onClose={() => setShowDecor(false)} />}
     </AppLayout>
+  )
+}
+
+/**
+ * 课件库预览分流：按 format 调用与编辑器一致的富渲染器，
+ * 避免一律走 PresentationMode（纯文本 dump，会把技能注释原样显示）。
+ * - h5 → 绘本式自包含 H5（markdownToStorybookH5 → iframe）
+ * - ppt → markdownToOutline → outlineToSlides → PptxPreview（解析 layout/VISUAL_JSON/互动）
+ * - 其他/解析失败 → 回退文本放映模式
+ */
+function CoursewarePreview({ content, title, format, themeId, colorRoot, onClose }: { content: string; title: string; format?: string; themeId?: string; colorRoot?: string; onClose: () => void }) {
+  if (format === 'h5') {
+    return (
+      <div className="w-full h-full bg-[#F5F5F5] overflow-hidden">
+        <iframe
+          title="H5 课件预览"
+          srcDoc={markdownToStorybookH5(content, { title, colorRoot })}
+          className="w-full h-full border-0"
+          sandbox="allow-scripts allow-same-origin"
+        />
+      </div>
+    )
+  }
+  if (format === 'ppt') {
+    try {
+      const slides = outlineToSlides(markdownToOutline(content), { subject: '', grade: '', title })
+      if (slides.length) return <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} viewMode="single" />
+    } catch {
+      /* 解析失败回退文本预览 */
+    }
+  }
+  return (
+    <PresentationMode
+      content={content}
+      title={title}
+      subject="课件"
+      grade=""
+      teacherName={safeGetUser().name || '教师'}
+      onClose={onClose}
+      embedded
+    />
   )
 }
 

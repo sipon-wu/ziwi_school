@@ -18,6 +18,7 @@ import (
 	"github.com/zhiwei/backend/internal/handler"
 	"github.com/zhiwei/backend/internal/middleware"
 	"github.com/zhiwei/backend/internal/model"
+	"github.com/zhiwei/backend/internal/policy"
 	"github.com/zhiwei/backend/internal/repository"
 
 	"github.com/zhiwei/backend/internal/cloud"
@@ -170,13 +171,20 @@ func main() {
 		observed_at TIMESTAMPTZ DEFAULT NOW()
 	)`)
 
+	// 内容安全审核客户端（红线锁）。未配置 AI_BASE_URL 时 Enabled()=false，
+	// 此时新建内容一律转 pending（待人工），绝不默认放行。
+	policyClient := policy.New(cfg.AIBaseURL)
+	if !policyClient.Enabled() {
+		log.Printf("[policy] 警告：AI_BASE_URL 未配置，内容安全审核不可用，新建内容将全部转为待人工审核")
+	}
+
 	// 初始化 handler
 	authHandler := handler.NewAuthHandler(userRepo, cfg.JWTSecret)
 	analyticsHandler := handler.NewAnalyticsHandler(dashboardRepo)
-	lessonHandler := handler.NewLessonHandler(lessonRepo, db)
-	exerciseHandler := handler.NewExerciseHandler(exerciseRepo)
+	lessonHandler := handler.NewLessonHandler(lessonRepo, db, policyClient)
+	exerciseHandler := handler.NewExerciseHandler(exerciseRepo, policyClient)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentRepo, sheetRepo, exerciseSheetRepo)
-	materialHandler := handler.NewMaterialHandler(materialRepo)
+	materialHandler := handler.NewMaterialHandler(materialRepo, policyClient, db)
 	coursewareTemplateHandler := handler.NewCoursewareTemplateHandler(tplRepo)
 	examHandler := handler.NewExamHandler(examRepo)
 	annotationHandler := handler.NewAnnotationHandler(db)

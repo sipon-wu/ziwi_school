@@ -10,6 +10,7 @@ import pptxgen from 'pptxgenjs'
 import { parseSections } from './parseSections'
 import type { CwTheme } from './pptThemes'
 import { DEFAULT_THEME } from './pptThemes'
+import type { DecoSpec } from './visualAsset/types'
 import type { DecorSlots, DecorItem } from './api'
 import type { SlideLayout, SlideSlots } from './cwTemplate'
 import { distributeToSlots, getSkeleton, isStructuredLayout, pickContentLayout } from './cwTemplate'
@@ -98,8 +99,12 @@ export interface CwSlide {
   slots?: SlideSlots
   /** 自由编辑态存在的绝对定位元素；非空时预览/导出优先按此渲染 */
   elements?: CwElement[]
+  /** 可视化组件（递进图/对比表/时间轴/生字卡等）；非空时按组件渲染知识结构，而非平铺要点 */
+  visuals?: SlideVisuals
   /** 装饰插槽（插槽式，非自由画布）：各槽位挂装饰元件引用或背景图 URL */
   decor?: DecorSlots | null
+  /** 互动组件（quiz/reveal/readalong/drawing 等）；由明文互动注释或 CW-IT 解析而来，PPT 预览渲染为互动面板 */
+  interactive?: SlideInteractive
 }
 
 /** AI 渲染返回的 PPT 幻灯片（render-ppt 端点输出） */
@@ -242,6 +247,71 @@ export type H5Component =
   | { type: 'readalong'; sentences: { text: string; src: string }[] }
   | { type: 'drawing'; title?: string; prompt?: string }
 
+// ── 可视化组件（真课件核心：呈现知识结构，而非罗列文字要点）──
+// 通过 <!-- VISUAL:base64 --> 内嵌于页面（与 CW-EL / CW-IT 同款机制），
+// 一页可挂多个组件（如"样子递进"+"声音递进"并列）。
+type VisualBlockCore =
+  /** 递进图：层层推进（白线 → 水墙 → 战马） */
+  | { type: 'sequence'; title?: string; items: { label: string; hint?: string }[] }
+  /** 对比表：行=维度、列=阶段的三段式知识结构 */
+  | { type: 'compare-table'; title?: string; cols: string[]; rows: { label: string; cells: string[] }[] }
+  /** 时间轴：按时间/顺序排列的节点 */
+  | { type: 'timeline'; title?: string; nodes: { label: string; desc?: string }[] }
+  /** 生字卡：田字格大字 + 拼音 + 组词，支持点读 */
+  | { type: 'char-card'; title?: string; chars: { char: string; pinyin?: string; word?: string }[] }
+  /** 对比卡：左右两栏辨析（多音字、易混概念） */
+  | { type: 'compare-card'; title?: string; pairs: { label?: string; left: string; right: string }[] }
+  /** 金句大字：原文重点句强调 */
+  | { type: 'quote'; text: string; from?: string }
+  /** 示意图：中心主题 + 若干分支（概念辐射） */
+  | { type: 'diagram'; title?: string; center: string; branches: { label: string; desc?: string }[] }
+  /** 图标卡：图标 + 标题 + 说明的并列要点网格 */
+  | { type: 'icon-card'; title?: string; items: { icon?: string; label: string; desc?: string }[] }
+  /** 结构图：层级知识体系（每层 = 类目 + 若干子项） */
+  | { type: 'structure'; title?: string; levels: { label: string; children: string[] }[] }
+  /** 流程图：带箭头的步骤链（>4 步自动换行两行） */
+  | { type: 'flow'; title?: string; steps: { label: string; desc?: string }[] }
+  /** 标注文本：正文段落 + 需高亮的关键词（适合文本分析/古诗文赏析） */
+  | { type: 'annotate'; title?: string; text: string; marks?: string[] }
+
+/**
+ * 装饰外观：所有组件共有，与内容结构解耦。
+ *
+ * 内容结构（type/items/cols…）管"装什么"，deco 管"长什么样"。
+ * **缺省时渲染层回退为传统「圆角方框 + 浅色底」，保证已生成的课件视觉不变。**
+ */
+export type VisualBlock = VisualBlockCore & { deco?: DecoSpec }
+
+const VISUAL_TYPES = ['sequence', 'compare-table', 'timeline', 'char-card', 'compare-card', 'quote',
+  'diagram', 'icon-card', 'structure', 'flow', 'annotate'] as const
+
+/** 可视化组件白名单校验（与 isValidComponent 同构，防止非法对象静默丢失） */
+export function isValidVisual(v: any): v is VisualBlock {
+  if (!v || typeof v !== 'object' || typeof v.type !== 'string') return false
+  if (!VISUAL_TYPES.includes(v.type as any)) return false
+  switch (v.type) {
+    case 'sequence': return Array.isArray(v.items) && v.items.length > 0
+    case 'compare-table': return Array.isArray(v.cols) && Array.isArray(v.rows) && v.rows.length > 0
+    case 'timeline': return Array.isArray(v.nodes) && v.nodes.length > 0
+    case 'char-card': return Array.isArray(v.chars) && v.chars.length > 0
+    case 'compare-card': return Array.isArray(v.pairs) && v.pairs.length > 0
+    case 'quote': return typeof v.text === 'string' && v.text.length > 0
+    case 'diagram': return typeof v.center === 'string' && Array.isArray(v.branches) && v.branches.length > 0
+    case 'icon-card': return Array.isArray(v.items) && v.items.length > 0
+    case 'structure': return Array.isArray(v.levels) && v.levels.length > 0
+    case 'flow': return Array.isArray(v.steps) && v.steps.length > 0
+    case 'annotate': return typeof v.text === 'string' && v.text.length > 0
+    default: return false
+  }
+}
+
+/** 单值或数组统一归一化为 VisualBlock[] */
+export type SlideVisuals = VisualBlock | VisualBlock[] | null
+export function normalizeVisuals(v: SlideVisuals | undefined): VisualBlock[] {
+  if (!v) return []
+  return Array.isArray(v) ? v.filter(isValidVisual) : (isValidVisual(v) ? [v] : [])
+}
+
 /** 可编辑提纲（PPT 课件编辑态：提纲修改 + 页面排序调整） */
 export interface OutlineSlide {
   title: string
@@ -256,6 +326,9 @@ export interface OutlineSlide {
   elements?: CwElement[]
   /** H5 互动组件（手动插槽）；可为单个或数组（可视化拖拽编辑器支持每页多组件）；null/缺省=无互动；PPT 等导出忽略 */
   interactive?: SlideInteractive
+  /** 可视化组件（递进图/对比表/时间轴/生字卡等，真课件的知识结构载体）；
+   *  可为单个或数组；null/缺省=无（回退为纯文字要点渲染） */
+  visuals?: SlideVisuals
   /** 装饰插槽（插槽式，非自由画布）：各槽位挂装饰元件引用或背景图 URL */
   decor?: DecorSlots | null
 }
@@ -284,6 +357,14 @@ export function normalizeInteractive(it: SlideInteractive | undefined): H5Compon
   return Array.isArray(it) ? it.filter(isValidComponent) : (isValidComponent(it) ? [it] : [])
 }
 
+/** 将互动组件累积进提纲页（兼容已有数组/单值/空），供 markdownToOutline 解析明文互动注释使用 */
+function pushInteractive(cur: OutlineSlide | null, comp: H5Component) {
+  if (!cur) return
+  cur.interactive = Array.isArray(cur.interactive)
+    ? [...cur.interactive, comp]
+    : (cur.interactive ? [cur.interactive as H5Component, comp] : comp)
+}
+
 /** 从课件 Markdown 解析为可编辑提纲（按 ## 分节，每段作为一条要点） */
 export function markdownToOutline(md: string): OutlineSlide[] {
   const slides: OutlineSlide[] = []
@@ -309,13 +390,49 @@ export function markdownToOutline(md: string): OutlineSlide[] {
       }
       continue
     }
+    // 可视化组件内嵌注释：<!-- VISUAL:base64 --> 还原到当前页 visuals（可多个，累积为数组）
+    const visMatch = line.match(/^<!--\s*VISUAL:([A-Za-z0-9+/=]+)\s*-->$/)
+    if (visMatch && cur) {
+      const v = b64dec<VisualBlock>(visMatch[1])
+      if (v && isValidVisual(v)) {
+        cur.visuals = Array.isArray(cur.visuals)
+          ? [...cur.visuals, v]
+          : (cur.visuals ? [cur.visuals as VisualBlock, v] : v)
+      }
+      continue
+    }
     // 文档级总标题（# 课件名）不属于任何一页，仅作为元数据跳过
     if (line.match(/^#\s+/) && !cur) continue
+    // 文档级元信息行（如 "> 学科 · 年级"，由 outlineToMarkdown 写出）不属于任何一页，
+    // 在 cur 为 null 时跳过，避免被误当成一页"课件"幽灵页
+    if (!cur && line.startsWith('>')) continue
     // 版式标注注释：<!-- layout: edu-xxx --> 写入当前页 layout（AI 生成时自动带上教学版式）
-    const layoutMatch = line.match(/^<!--\s*layout:\s*([\w-]+)\s*-->$/)
-    if (layoutMatch && cur) {
-      cur.layout = layoutMatch[1]
-      continue
+    // 明文注释：layout / quiz / readalong / reveal / draw（技能直接输出，非 base64 编码）
+    // 解析进结构化字段，避免被当 bullet 文本原样显示；quiz/readalong 用转义 \| 分隔多选项。
+    const cm = line.match(/^<!--\s*(\w+)\s*:\s*(.*?)\s*-->\s*$/i)
+    if (cm && cur) {
+      const kw = cm[1].toLowerCase()
+      const val = cm[2]
+      if (kw === 'layout') { cur.layout = val.trim(); continue }
+      if (kw === 'quiz') {
+        const parts = val.split(/(?<!\\)\|/).map(s => s.replace(/\\\|/g, '|').trim()).filter(Boolean)
+        if (parts.length >= 3) {
+          const correct = parseInt(parts[parts.length - 1], 10)
+          if (!isNaN(correct)) pushInteractive(cur, { type: 'quiz', question: parts[0], options: parts.slice(1, parts.length - 1), correct })
+        }
+        continue
+      }
+      if (kw === 'readalong') {
+        const parts = val.split(/(?<!\\)\|/).map(s => s.replace(/\\\|/g, '|').trim()).filter(Boolean)
+        if (parts.length) pushInteractive(cur, { type: 'readalong', sentences: parts.map(t => ({ text: t, src: '' })) })
+        continue
+      }
+      if (kw === 'reveal') {
+        const seg = val.split('=>')
+        pushInteractive(cur, { type: 'reveal', prompt: (seg[0] || '').trim(), answer: (seg[1] || '').trim() })
+        continue
+      }
+      if (kw === 'draw') { pushInteractive(cur, { type: 'drawing', title: val.trim(), prompt: '' }); continue }
     }
     if (line.startsWith('## ')) {
       if (cur) { flushSlide(cur); slides.push(cur) }
@@ -370,7 +487,9 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
         text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),
       elements: s.elements,
+      visuals: s.visuals,
       decor: s.decor || null,
+      interactive: s.interactive,
       pageNo: i + 1, total, footer: `${opts.title}  ·  ${i + 1}`,
     })
   })
@@ -389,6 +508,8 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
     if (s.elements && s.elements.length) lines.push(`<!-- CW-EL:${b64enc(s.elements)} -->`)
     // 内嵌 H5 互动组件（base64，避免 -->/换行/引号截断注释）
     if (s.interactive && isValidComponent(s.interactive)) lines.push(`<!-- CW-IT:${b64enc(s.interactive)} -->`)
+    // 内嵌可视化组件（递进图/对比表/时间轴/生字卡等，可多个各占一行）
+    for (const v of normalizeVisuals(s.visuals)) lines.push(`<!-- VISUAL:${b64enc(v)} -->`)
     lines.push('')
   })
   return lines.join('\n')
@@ -422,6 +543,11 @@ function uid(prefix = 'el'): string {
 /** 按版式生成默认自由元素（标题色带由主题固定渲染，不在此层） */
 export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[] {
   const parts = slide.bullets.length ? slide.bullets : []
+  // 教学目标 / 课堂小结 / 课后作业：有真实 bullets 时不走"三维目标三栏/分层三栏"占位骨架，
+  // 直接列 bullets；只有在编辑态无内容时才回退到占位骨架。
+  if (parts.length && (layout === 'edu-goal' || layout === 'edu-summary' || layout === 'edu-homework')) {
+    return [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }]
+  }
   // 内容与模板分离：有 slots 时按骨架几何生成元素（与预览/导出一致）；无 slots 但 layout 命中骨架时即时分发（兼容存量）
   const effSlots = slide.slots ?? (layout && isStructuredLayout(layout) ? distributeToSlots(layout as SlideLayout, slide.bullets) : undefined)
   if (effSlots && layout && isStructuredLayout(layout)) {
@@ -429,8 +555,12 @@ export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[
     if (sk) {
       const els: CwElement[] = []
       for (const ph of sk.placeholders) {
+        // 页标题由顶部标题色带统一渲染，骨架里的 title 占位不再生成元素（否则导出成品会出现“标题”二字）
+        if (ph.key === 'title' && layout !== 'cover') continue
         const content = effSlots[ph.key] ?? []
-        const display = content.length ? content.join('\n') : (ph.placeholder || '')
+        // 无内容的占位不生成元素：避免“思维导图占位”等未填充提示进入导出成品
+        if (!content.length) continue
+        const display = content.join('\n')
         const r = ph.rect!
         if (ph.kind === 'bullet' && ph.columns && ph.columns > 1) {
           const colW = r.w / ph.columns
@@ -470,6 +600,10 @@ export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[
         { id: uid(), type: 'text', x: 10, y: 56, w: 80, h: 10, text: '年级 / 学科 / 教师', fontSize: 16, align: 'center', color: '666666' },
       ]
     case 'edu-goal':
+      // 有 AI 生成的 bullets 时展示真实内容，不再硬编码"知识与技能"占位
+      if (parts.length) {
+        return [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }]
+      }
       return [
         { id: uid(), type: 'text', x: 6, y: 23, w: 28, h: 60, text: '知识与技能\n（填写）', fontSize: 16, bullet: true },
         { id: uid(), type: 'text', x: 36, y: 23, w: 28, h: 60, text: '过程与方法\n（填写）', fontSize: 16, bullet: true },
@@ -486,11 +620,17 @@ export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[
         { id: uid(), type: 'text', x: 6, y: 54, w: 88, h: 34, text: (slide.bullets.slice(1).join('\n') || '解答步骤（填写）'), fontSize: 16, bullet: true },
       ]
     case 'edu-summary':
+      if (parts.length) {
+        return [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }]
+      }
       return [
-        { id: uid(), type: 'text', x: 6, y: 23, w: 60, h: 60, text: parts.join('\n') || '要点归纳（填写）', fontSize: 16, bullet: true },
+        { id: uid(), type: 'text', x: 6, y: 23, w: 60, h: 60, text: '要点归纳（填写）', fontSize: 16, bullet: true },
         { id: uid(), type: 'shape', x: 70, y: 28, w: 24, h: 50, shape: 'ellipse', fill: 'E8F7FF' },
       ]
     case 'edu-homework':
+      if (parts.length) {
+        return [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }]
+      }
       return [
         { id: uid(), type: 'text', x: 6, y: 23, w: 28, h: 60, text: '基础\n（填写）', fontSize: 16, bullet: true },
         { id: uid(), type: 'text', x: 36, y: 23, w: 28, h: 60, text: '提高\n（填写）', fontSize: 16, bullet: true },
@@ -524,6 +664,176 @@ export function extractBullets(elements?: CwElement[]): string[] {
     }
   })
   return out
+}
+
+/**
+ * 把可视化组件绘制到 PPTX（形状 + 原生表格），与预览端 VisualBlocks 视觉一致。
+ * 用 pptxgenjs 的 shape/table，保证导出的是可编辑的原生对象而非图片。
+ */
+function renderVisualToPptx(
+  pres: any, slide: any, v: VisualBlock,
+  box: { x: number; y: number; w: number; h: number },
+  theme: CwTheme, font: string,
+) {
+  const p = theme.primary || '1A3A6B'
+  const body = theme.body || '333333'
+  const subtle = theme.subtle || '777777'
+  const vTitle = (v as any).title as string | undefined
+  const titleH = vTitle ? 0.38 : 0
+  const areaY = box.y + titleH
+  const areaH = Math.max(0.4, box.h - titleH)
+
+  if (vTitle) {
+    slide.addText(vTitle, { x: box.x, y: box.y, w: box.w, h: titleH, fontFace: '"KaiTi","STKaiti",serif', fontSize: 20, bold: true, color: p })
+  }
+
+  if (v.type === 'sequence') {
+    const n = v.items.length || 1
+    const arrowW = 0.32
+    const cellW = (box.w - arrowW * (n - 1)) / n
+    v.items.forEach((it, i) => {
+      const x = box.x + i * (cellW + arrowW)
+      slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+        x, y: areaY, w: cellW, h: areaH,
+        fill: { color: i === n - 1 ? p : 'FFFFFF' },
+        line: { color: p, width: 1 },
+        rectRadius: 0.06,
+      })
+      slide.addText(it.label + (it.hint ? `\n${it.hint}` : ''), {
+        x, y: areaY, w: cellW, h: areaH,
+        fontFace: '"KaiTi","STKaiti",serif', fontSize: 16, bold: true,
+        color: i === n - 1 ? 'FFFFFF' : body, align: 'center', valign: 'middle',
+      })
+      if (i < n - 1) {
+        slide.addText('→', {
+          x: x + cellW, y: areaY, w: arrowW, h: areaH,
+          fontFace: font, fontSize: 14, bold: true, color: p, align: 'center', valign: 'middle',
+        })
+      }
+    })
+    return
+  }
+
+  if (v.type === 'compare-table') {
+    // 表头 / 行首 / 单元格三级样式，形成清晰层级
+    const header = [
+      { text: '', options: { fill: { color: p + '26' } } },
+      ...v.cols.map(c => ({ text: c, options: { bold: true, fontSize: 15, color: p, fontFace: '"KaiTi","STKaiti",serif', fill: { color: p + '26' } } })),
+    ]
+    const rows = v.rows.map(r => [
+      { text: r.label, options: { bold: true, fontSize: 13, color: p, fontFace: '"KaiTi","STKaiti",serif', fill: { color: p + '14' } } },
+      ...v.cols.map((_, j) => ({ text: r.cells?.[j] || '', options: { fontSize: 12, color: body } })),
+    ])
+    slide.addTable([header, ...rows], {
+      x: box.x, y: areaY, w: box.w, h: areaH,
+      border: { type: 'solid', color: p + '44', pt: 0.5 },
+      fontFace: font, valign: 'middle', align: 'center',
+      rowH: areaH / (rows.length + 1),
+    })
+    return
+  }
+
+  if (v.type === 'timeline') {
+    // 纵向时间轴：与预览端 VisualBlocks 一致（节点竖向均分，卡片横向占满）
+    const n = v.nodes.length || 1
+    const nodeH = areaH / n
+    const badgeD = Math.min(0.75, nodeH * 0.7)
+    const badgeX = box.x
+    const lineX = box.x + badgeD / 2 - 0.03
+    const cardX = box.x + badgeD + 0.25
+    const cardW = Math.max(0.5, box.w - badgeD - 0.25)
+    // 竖向主墨线
+    slide.addShape(pres.shapes.RECTANGLE, {
+      x: lineX, y: areaY + badgeD / 2, w: 0.06, h: Math.max(0.1, areaH - badgeD),
+      fill: { color: p }, line: { color: p, width: 0.5 },
+    })
+    const highlightIdx = n === 3 ? 1 : n - 1
+    v.nodes.forEach((nd, i) => {
+      const isHi = i === highlightIdx
+      const y = areaY + i * nodeH
+      const badgeY = y + (nodeH - badgeD) / 2
+      slide.addShape(pres.shapes.OVAL, {
+        x: badgeX, y: badgeY, w: badgeD, h: badgeD,
+        fill: { color: isHi ? p : 'FFFFFF' }, line: { color: p, width: 2 },
+      })
+      slide.addText(['一', '二', '三', '四', '五'][i] || String(i + 1), {
+        x: badgeX, y: badgeY, w: badgeD, h: badgeD,
+        fontFace: '"KaiTi","STKaiti",serif', fontSize: isHi ? 24 : 21, bold: true,
+        color: isHi ? 'FFFFFF' : p, align: 'center', valign: 'middle',
+      })
+      const cardH = Math.max(0.4, nodeH * 0.78)
+      const cardY = y + (nodeH - cardH) / 2
+      slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+        x: cardX, y: cardY, w: cardW, h: cardH,
+        fill: { color: isHi ? p : 'FFFFFF' },
+        line: { color: p, width: isHi ? 2 : 1 }, rectRadius: 0.08,
+      })
+      slide.addText([
+        { text: nd.label, options: { fontSize: 23, bold: true, fontFace: '"KaiTi","STKaiti",serif', color: isHi ? 'FFFFFF' : p, breakLine: true } },
+        ...(nd.desc ? [{ text: nd.desc, options: { fontSize: 17, color: isHi ? 'F0F0F0' : body } }] : []),
+      ], {
+        x: cardX + 0.12, y: cardY, w: cardW - 0.24, h: cardH,
+        align: 'left', valign: 'middle',
+      })
+    })
+    return
+  }
+
+  if (v.type === 'char-card') {
+    const n = v.chars.length
+    const cols = n > 8 ? 6 : n > 4 ? 4 : Math.max(1, n)
+    const rowsN = Math.ceil(n / cols)
+    const cw = box.w / cols
+    const ch = areaH / rowsN
+    v.chars.forEach((c, i) => {
+      const x = box.x + (i % cols) * cw
+      const y = areaY + Math.floor(i / cols) * ch
+      slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+        x: x + 0.05, y: y + 0.05, w: cw - 0.1, h: ch - 0.1,
+        fill: { color: 'FFFFFF' }, line: { color: p, width: 0.75, dashType: 'dash' }, rectRadius: 0.05,
+      })
+      // 生字 / 拼音 / 组词 三级字号（田字格感：生字足够大）
+      const rich: any[] = [{ text: c.char, options: { fontSize: 40, bold: true, fontFace: '"KaiTi","STKaiti",serif', color: body, breakLine: true } }]
+      if (c.pinyin) rich.push({ text: c.pinyin, options: { fontSize: 14, bold: true, color: p, breakLine: true } })
+      if (c.word) rich.push({ text: c.word, options: { fontSize: 12, color: subtle } })
+      slide.addText(rich, {
+        x: x + 0.05, y: y + 0.05, w: cw - 0.1, h: ch - 0.1,
+        align: 'center', valign: 'middle',
+      })
+    })
+    return
+  }
+
+  if (v.type === 'compare-card') {
+    const n = v.pairs.length || 1
+    const rowH = areaH / n
+    v.pairs.forEach((pr, i) => {
+      const y = areaY + i * rowH
+      const labelW = pr.label ? box.w * 0.18 : 0
+      if (pr.label) {
+        slide.addText(pr.label, { x: box.x, y, w: labelW, h: rowH, fontFace: '"KaiTi","STKaiti",serif', fontSize: 15, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
+      }
+      const sideW = (box.w - labelW - 0.5) / 2
+      slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: box.x + labelW, y: y + 0.05, w: sideW, h: rowH - 0.1, fill: { color: 'FFFFFF' }, line: { color: p, width: 0.75 }, rectRadius: 0.05 })
+      slide.addText(pr.left, { x: box.x + labelW, y: y + 0.05, w: sideW, h: rowH - 0.1, fontFace: '"KaiTi","STKaiti",serif', fontSize: 15, bold: true, color: body, align: 'center', valign: 'middle' })
+      slide.addText('VS', { x: box.x + labelW + sideW, y: y + 0.05, w: 0.5, h: rowH - 0.1, fontFace: font, fontSize: 10, bold: true, color: p, align: 'center', valign: 'middle' })
+      slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: box.x + labelW + sideW + 0.5, y: y + 0.05, w: sideW, h: rowH - 0.1, fill: { color: 'FFFFFF' }, line: { color: p, width: 0.75 }, rectRadius: 0.05 })
+      slide.addText(pr.right, { x: box.x + labelW + sideW + 0.5, y: y + 0.05, w: sideW, h: rowH - 0.1, fontFace: '"KaiTi","STKaiti",serif', fontSize: 15, bold: true, color: body, align: 'center', valign: 'middle' })
+    })
+    return
+  }
+
+  if (v.type === 'quote') {
+    const fs = v.text.length <= 20 ? 26 : v.text.length <= 40 ? 22 : v.text.length <= 70 ? 19 : 16
+    slide.addText(v.text, {
+      x: box.x, y: areaY, w: box.w, h: areaH,
+      fontFace: '"KaiTi","STKaiti",serif', fontSize: fs, bold: true, color: body,
+      align: 'center', valign: 'middle',
+    })
+    if (v.from) {
+      slide.addText(`—— ${v.from}`, { x: box.x, y: areaY + areaH - 0.32, w: box.w, h: 0.3, fontFace: font, fontSize: 12, color: subtle, align: 'right' })
+    }
+  }
 }
 
 function renderElement(slide: any, e: CwElement, CW_W: number, CW_H: number) {
@@ -587,8 +897,22 @@ export async function exportCoursewareToPptx(
     // 顶部标题色带
     slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: CW_W, h: bandH, fill: { color: theme.primary } })
     slide.addText(s.title, {
-      x: 0.7, y: 0, w: titleW, h: bandH, fontFace: font, fontSize: 24, bold: true, color: theme.onPrimary, valign: 'middle',
+      x: 0.7, y: 0, w: titleW, h: bandH, fontFace: '"KaiTi","STKaiti",serif', fontSize: 30, bold: true, color: theme.onPrimary, valign: 'middle',
     })
+
+    // 可视化组件优先：用 PPTX 原生形状/表格绘制知识结构（递进图/对比表/时间轴/生字卡/金句）
+    const visList = normalizeVisuals(s.visuals)
+    if (visList.length) {
+      const top = bandH + 0.3
+      const areaH = CW_H - top - 0.4
+      const eachH = areaH / visList.length
+      visList.forEach((v, vi) => {
+        const y = top + vi * eachH
+        renderVisualToPptx(pres, slide, v, { x: 0.55, y, w: CW_W - 1.1, h: eachH - 0.15 }, theme, font)
+      })
+      if (s.notes) slide.addNotes(s.notes)
+      return
+    }
 
     if (s.elements && s.elements.length) {
       s.elements.forEach((e) => renderElement(slide, e, CW_W, CW_H))
@@ -600,8 +924,10 @@ export async function exportCoursewareToPptx(
         for (const ph of sk.placeholders) {
           if (ph.key === 'title' && (s.layout as SlideLayout) !== 'cover') continue
           const content = effSlots[ph.key] ?? []
-          const display = content.length ? content : (ph.placeholder ? [ph.placeholder] : [])
-          if (!display.length) continue
+          // 导出成品不渲染占位提示文字（编辑态可显示以提示教师填写，但导出/投屏不得出现
+          // “思维导图占位”“内容要点”等未填充占位符）
+          if (!content.length) continue
+          const display = content
           const r = ph.rect!
           const x = (r.x / 100) * CW_W
           const y = (r.y / 100) * CW_H

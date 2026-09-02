@@ -47,8 +47,17 @@ func (r *MaterialRepository) ListDecorByFacets(ctx context.Context, userID strin
 }
 
 // ListPublicDecor 列出平台公共装饰库，按 medium / motif / color / pageType 过滤。
+//
+// 硬约束（用户拍板 2026-09-02）：**私有元件不得进入公共库** —— 因此强制 user_id = ''。
+// 教师上传 / 组合生成的装饰元件（user_id 非空）走 ListDecorByFacets(scope=mine) 访问，
+// 即使 category 命中 decor_element / decor_component，也绝不会出现在公共列表里。
+//
+// 另：本函数只按 facet **描述**做过滤，"某个元件是否万能可匹配（如 svg-mono 可着色）"
+// 由上层 Skill 依据 format/color 等描述自行判断，不在此处做特例放行。
 func (r *MaterialRepository) ListPublicDecor(ctx context.Context, medium, motif, color, pageType string) ([]model.Material, error) {
-	q := r.db.WithContext(ctx).Where("category = ? OR category = ?", "decor_element", "decor_component")
+	q := r.db.WithContext(ctx).
+		Where("category = ? OR category = ?", "decor_element", "decor_component").
+		Where("user_id = ''")
 	if medium != "" {
 		q = q.Where("(applicable = ? OR applicable = 'common')", medium)
 	}

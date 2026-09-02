@@ -2,23 +2,27 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"github.com/zhiwei/backend/internal/model"
+	"github.com/zhiwei/backend/internal/policy"
 	"github.com/zhiwei/backend/internal/repository"
 )
 
 type LessonHandler struct {
-	repo *repository.LessonRepository
-	db   *gorm.DB
+	repo   *repository.LessonRepository
+	db     *gorm.DB
+	policy *policy.Client
 }
 
-func NewLessonHandler(repo *repository.LessonRepository, db *gorm.DB) *LessonHandler {
-	return &LessonHandler{repo: repo, db: db}
+func NewLessonHandler(repo *repository.LessonRepository, db *gorm.DB, pol *policy.Client) *LessonHandler {
+	return &LessonHandler{repo: repo, db: db, policy: pol}
 }
 
 // CreateLessonRequest 创建教案请求
@@ -213,18 +217,62 @@ func (h *LessonHandler) FinalizeLessonPlan(c *gin.Context) {
 		}
 	}
 
-	plan.Status = "active"
-	if reviewEnabled {
-		plan.ReviewStatus = "pending"
+	// 内容安全审核（红线锁）：发布即过闸。
+	// 教案的风险在"怎么教"（活动设计、举例、引导语），机检+AI评审覆盖表述类问题；
+	// 命中红线一律拒绝发布；审核没跑成则转人工，绝不当作通过。
+	var auditRes *policy.Result
+	auditPassed := false
+	if h.policy != nil && h.policy.Enabled() {
+		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
+			Text:    strings.TrimSpace(plan.Title + "\n" + plan.Content),
+			Subject: plan.Subject,
+			Grade:   plan.Grade,
+		})
+		if err != nil {
+			log.Printf("[policy] 教案审核服务不可用，转待人工: %v", err)
+		} else if blocking := res.Blocking(); len(blocking) > 0 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"code":    "CONTENT_BLOCKED",
+				"message": "内容未通过安全审核，请修改后再发布",
+				"issues":  blocking,
+			})
+			return
+		} else {
+			auditRes = res
+			auditPassed = true
+		}
 	} else {
-		plan.ReviewStatus = "none"
+		log.Printf("[policy] 审核服务未配置，教案发布转待人工")
 	}
-	plan.UpdatedAt = time.Now()
+
+	plan.Status = "active"
+	switch {
+	case reviewEnabled:
+		plan.ReviewStatus = "pending" // 学校开启互审：待人工评审
+	case auditPassed:
+		plan.ReviewStatus = "approved" // 机检 + AI 评审通过，自动放行
+	default:
+		plan.ReviewStatus = "pending" // 审核没跑成：交人工兜底
+	}
+	now := time.Now()
+	plan.PublishedAt = &now // 补齐从不写入的发布时间（留痕必需）
+	plan.UpdatedAt = now
 
 	if err := h.repo.Update(plan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "FINALIZE_FAILED", "message": "发布失败"})
 		return
 	}
+
+	// 发布留痕：记录内容 + 审核结论 + AI 归属
+	recordRelease(h.db, c, ReleaseMeta{
+		ResourceType:   "lesson_plan",
+		ResourceID:     plan.ID,
+		Label:          plan.Title,
+		Payload:        plan.Content,
+		AIGenerated:    plan.AIGenerated,
+		AIModelVersion: plan.AIModelVersion,
+		HumanEdited:    plan.EditCount > 0,
+	}, auditRes, plan.ReviewStatus)
 
 	c.JSON(http.StatusOK, plan)
 }

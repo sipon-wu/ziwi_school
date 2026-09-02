@@ -1,9 +1,9 @@
 {
-  "base": "http://school1.ziwi.cn",
-  "generated": "2026-07-30T07:11:34.286Z",
+  "base": "https://school1.ziwi.cn",
+  "generated": "2026-08-08T19:22:04.844Z",
   "total": 66,
-  "pass": 66,
-  "fail": 0,
+  "pass": 64,
+  "fail": 2,
   "cases": [
     {
       "id": "LOGIN-T",
@@ -436,9 +436,9 @@
         200,
         403
       ],
-      "actual": 403,
-      "pass": true,
-      "note": "路由存在，RBAC 正确拒 teacher"
+      "actual": 404,
+      "pass": false,
+      "note": "前端调用(studentAPI.listAssignments)但后端无路由→真实缺口"
     },
     {
       "id": "E-SEB",
@@ -449,9 +449,9 @@
         200,
         403
       ],
-      "actual": 403,
-      "pass": true,
-      "note": "路由存在，RBAC 正确拒 teacher"
+      "actual": 404,
+      "pass": false,
+      "note": "前端调用(studentAPI.getErrorBook)但后端无路由→真实缺口"
     },
     {
       "id": "W-EX",
@@ -470,13 +470,13 @@
       "id": "W-EX-D",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/exercises/308b5fb2-7103-4f06-b879-195ea991b664",
+      "path": "/api/exercises/e1ab7551-bfbe-4fed-9c59-e1d26d6d12e0",
       "expected": [
-        404
+        200
       ],
-      "actual": 404,
+      "actual": 200,
       "pass": true,
-      "note": "后端无DELETE /exercises/:id，测试题残留staging需人工清理"
+      "note": "软删除测试题(2026-07-30 端点已实现，测试题自动清理不再残留)"
     },
     {
       "id": "S1",
@@ -505,7 +505,7 @@
       "id": "S3",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/lesson-plans/lp_9b06cb49d6a3",
+      "path": "/api/lesson-plans/lp_92ad11cac83f",
       "expected": [
         200,
         204
