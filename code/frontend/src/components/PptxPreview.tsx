@@ -464,64 +464,89 @@ export default function PptxPreview({
 
 /* ───────────────────────── 静态（放映/预览）渲染 ───────────────────────── */
 
-/** PPT 互动组件面板：把 quiz/reveal/readalong/drawing 以可交互控件呈现（点击左下角按钮弹出） */
-function InteractiveItem({ it, theme }: { it: H5Component; theme: CwTheme }) {
+/**
+ * PPT 互动组件面板：把 quiz/reveal/readalong/drawing 以可交互控件呈现（点击左下角按钮弹出）。
+ *
+ * 为什么按类型拆成独立子组件：Hook 必须在组件顶层无条件调用。
+ * 旧写法在单个 InteractiveItem 内用 `if (it.type === '...')` 分支包裹 useState/useRef，
+ * 违反 react-hooks/rules-of-hooks——同一组件实例的 it.type 若在两次渲染间发生变化
+ * （如编辑器里切换互动类型），Hook 调用顺序错位会直接导致渲染崩溃。
+ */
+
+function QuizItem({ it }: { it: Extract<H5Component, { type: 'quiz' }> }) {
+  const [sel, setSel] = useState<number | null>(null)
+  return (
+    <div>
+      <div className="mb-2 text-sm font-semibold">✏️ {it.question}</div>
+      <div className="space-y-2">
+        {it.options.map((o, i) => {
+          const right = sel === null ? null : i === it.correct
+          return (
+            <button key={i} onClick={() => setSel(i)}
+              className="block w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors"
+              style={{ borderColor: sel === null ? '#ddd' : right ? '#3FA34D' : '#FF6B6B', background: sel === i ? (right ? '#3FA34D22' : '#FF6B6B22') : '#fff' }}>
+              {o}
+            </button>
+          )
+        })}
+      </div>
+      {sel !== null && <div className="mt-2 text-xs font-bold" style={{ color: sel === it.correct ? '#3FA34D' : '#FF6B6B' }}>{sel === it.correct ? '✅ 正确！' : '❌ 再想想~'}</div>}
+    </div>
+  )
+}
+
+function RevealItem({ it, theme }: { it: Extract<H5Component, { type: 'reveal' }>; theme: CwTheme }) {
+  const [show, setShow] = useState(false)
   const p = c(theme.primary)
-  if (it.type === 'quiz') {
-    const [sel, setSel] = useState<number | null>(null)
-    return (
-      <div>
-        <div className="mb-2 text-sm font-semibold">✏️ {it.question}</div>
-        <div className="space-y-2">
-          {it.options.map((o, i) => {
-            const right = sel === null ? null : i === it.correct
-            return (
-              <button key={i} onClick={() => setSel(i)}
-                className="block w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors"
-                style={{ borderColor: sel === null ? '#ddd' : right ? '#3FA34D' : '#FF6B6B', background: sel === i ? (right ? '#3FA34D22' : '#FF6B6B22') : '#fff' }}>
-                {o}
-              </button>
-            )
-          })}
+  return (
+    <div>
+      <button onClick={() => setShow(true)} className="rounded-full px-4 py-2 text-sm font-bold text-white" style={{ background: p }}>{it.prompt || '点我揭晓'}</button>
+      {show && <div className="mt-2 rounded-lg bg-gray-50 p-3 text-sm">{it.answer}</div>}
+    </div>
+  )
+}
+
+function ReadalongItem({ it }: { it: Extract<H5Component, { type: 'readalong' }> }) {
+  const tts = (t: string) => { try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u) } } catch { /* noop */ } }
+  return (
+    <div>
+      <div className="mb-2 text-xs font-bold text-gray-500">🎤 跟读</div>
+      {it.sentences.map((s, i) => (
+        <div key={i} className="mb-1 flex items-center gap-2">
+          <span className="text-sm">{s.text}</span>
+          <button onClick={() => tts(s.text)} className="rounded bg-blue-500 px-2 py-1 text-xs text-white">▶ 示范</button>
         </div>
-        {sel !== null && <div className="mt-2 text-xs font-bold" style={{ color: sel === it.correct ? '#3FA34D' : '#FF6B6B' }}>{sel === it.correct ? '✅ 正确！' : '❌ 再想想~'}</div>}
-      </div>
-    )
+      ))}
+    </div>
+  )
+}
+
+function DrawingItem({ it, theme }: { it: Extract<H5Component, { type: 'drawing' }>; theme: CwTheme }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const p = c(theme.primary)
+  return (
+    <div>
+      <div className="mb-1 text-xs font-bold text-gray-500">🎨 {it.title}</div>
+      <canvas ref={ref} width={400} height={160} className="w-full rounded-lg border-2 border-dashed" style={{ borderColor: p }} />
+      <button onClick={() => { const cv = ref.current; if (cv) cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height) }} className="mt-1 rounded bg-red-500 px-2 py-1 text-xs text-white">清除</button>
+    </div>
+  )
+}
+
+/** 纯分发，不调用任何 Hook */
+function InteractiveItem({ it, theme }: { it: H5Component; theme: CwTheme }) {
+  switch (it.type) {
+    case 'quiz':
+      return <QuizItem it={it} />
+    case 'reveal':
+      return <RevealItem it={it} theme={theme} />
+    case 'readalong':
+      return <ReadalongItem it={it} />
+    case 'drawing':
+      return <DrawingItem it={it} theme={theme} />
+    default:
+      return null
   }
-  if (it.type === 'reveal') {
-    const [show, setShow] = useState(false)
-    return (
-      <div>
-        <button onClick={() => setShow(true)} className="rounded-full px-4 py-2 text-sm font-bold text-white" style={{ background: p }}>{it.prompt || '点我揭晓'}</button>
-        {show && <div className="mt-2 rounded-lg bg-gray-50 p-3 text-sm">{it.answer}</div>}
-      </div>
-    )
-  }
-  if (it.type === 'readalong') {
-    const tts = (t: string) => { try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u) } } catch { /* noop */ } }
-    return (
-      <div>
-        <div className="mb-2 text-xs font-bold text-gray-500">🎤 跟读</div>
-        {it.sentences.map((s, i) => (
-          <div key={i} className="mb-1 flex items-center gap-2">
-            <span className="text-sm">{s.text}</span>
-            <button onClick={() => tts(s.text)} className="rounded bg-blue-500 px-2 py-1 text-xs text-white">▶ 示范</button>
-          </div>
-        ))}
-      </div>
-    )
-  }
-  if (it.type === 'drawing') {
-    const ref = useRef<HTMLCanvasElement>(null)
-    return (
-      <div>
-        <div className="mb-1 text-xs font-bold text-gray-500">🎨 {it.title}</div>
-        <canvas ref={ref} width={400} height={160} className="w-full rounded-lg border-2 border-dashed" style={{ borderColor: p }} />
-        <button onClick={() => { const cv = ref.current; if (cv) cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height) }} className="mt-1 rounded bg-red-500 px-2 py-1 text-xs text-white">清除</button>
-      </div>
-    )
-  }
-  return null
 }
 
 function InteractivePanel({ components, theme }: { components: H5Component[]; theme: CwTheme }) {
