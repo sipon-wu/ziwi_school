@@ -109,6 +109,8 @@ code/ai-service/assets/svg/
 .archive/
 
 # 课件风格改造相关产物（脚本入库，产物不入库）
+# 注意：git 的 .gitignore 不支持行尾注释，# 只有位于行首才是注释。
 qa/shots_style_diversity/
 qa/diversify_report_*.json
-qa/courseware_backup_*.sql   # 课件改造前的数据备份，保留在本地即可
+# 课件改造前的数据备份，保留在本地即可（历史上曾因行尾注释写法被误提交一次）
+qa/courseware_backup_*.sql
