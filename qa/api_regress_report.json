@@ -1,6 +1,6 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generated": "2026-08-04T09:38:51.239Z",
+  "generated": "2026-08-14T04:17:21.261Z",
   "total": 66,
   "pass": 64,
   "fail": 2,
@@ -470,7 +470,7 @@
       "id": "W-EX-D",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/exercises/83a0383c-c805-4bc1-80e6-5d8055e39793",
+      "path": "/api/exercises/5c90fa09-b5be-44cb-a40a-507158b53c39",
       "expected": [
         200
       ],
@@ -505,7 +505,7 @@
       "id": "S3",
       "group": "flow",
       "method": "DELETE",
-      "path": "/api/lesson-plans/lp_2ec37e072af3",
+      "path": "/api/lesson-plans/lp_8426a4a1d710",
       "expected": [
         200,
         204

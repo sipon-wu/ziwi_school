@@ -1,6 +1,6 @@
 {
   "base": "http://school1.ziwi.cn",
-  "generatedAt": "2026-08-05T02:52:52.679Z",
+  "generatedAt": "2026-08-07T04:09:18.378Z",
   "summary": {
     "total": 43,
     "PASS": 37,
@@ -30,21 +30,21 @@
       "role": "教师(语文)",
       "journey": "渲染·首页",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=380",
+      "detail": "visible=true appErr=false redirect=false len=386",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题列表",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=876",
+      "detail": "visible=true appErr=false redirect=false len=414",
       "shot": ""
     },
     {
       "role": "教师(语文)",
       "journey": "渲染·出题新建",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=595",
+      "detail": "visible=true appErr=false redirect=false len=565",
       "shot": ""
     },
     {
@@ -58,7 +58,7 @@
       "role": "教师(语文)",
       "journey": "渲染·素材库",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=2867",
+      "detail": "visible=true appErr=false redirect=false len=296",
       "shot": ""
     },
     {
@@ -72,7 +72,7 @@
       "role": "教师(语文)",
       "journey": "渲染·作业",
       "status": "PASS",
-      "detail": "visible=true appErr=false redirect=false len=576",
+      "detail": "visible=true appErr=false redirect=false len=327",
       "shot": ""
     },
     {

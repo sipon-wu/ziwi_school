@@ -54,3 +54,44 @@ logs/
 # Local backups (large tarballs, never commit)
 code_backup_*.tar
 *.tar.gz.bak
+
+# ── 2026-09-03 分拣 ──────────────────────────────
+# Go 编译产物（体积大，非源码）
+code/backend/full
+code/backend/decor
+code/backend/courseware
+
+# 敏感凭据（含明文口令，禁止入库）
+qa/dazhou_credentials.json
+
+# 运行/构建产物
+code/ai-service/output/
+out_h5_dazhou/
+qa/dist-h5/
+qa/downloads/
+
+# 测试/回归报告（每次运行都会变）
+api_regress_report.json
+qa/api_regress_report.json
+qa/e2e_full_report.json
+smoke_report.json
+
+# 仿真数据产物
+qa/dazhou_lessons.json
+qa/dazhou_courseware_plan.json
+qa/seed_dazhou_staging.sql
+code/ai-service/scripts/plan_science_5.json
+code/ai-service/scripts/plan_staging_35.json
+code/ai-service/scripts/plan_staging_h5_30.json
+
+# Playwright DOM 调试快照
+code/login.yaml
+code/staging-home.yaml
+
+# 演示/打包产物（二进制或重复，不入版本库）
+《观潮》PPT课件-优化版.pptx
+《观潮》PPT课件-真课件版.pptx
+产品规划/微媒工作台_移植包.zip
+
+# 本地安全归档（删除操作的可逆备份，不入库）
+.archive/
