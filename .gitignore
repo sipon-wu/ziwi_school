@@ -70,11 +70,12 @@ out_h5_dazhou/
 qa/dist-h5/
 qa/downloads/
 
-# 测试/回归报告（每次运行都会变）
+# 测试/回归报告（每次运行都会变，产物不入版本库）
 api_regress_report.json
 qa/api_regress_report.json
 qa/e2e_full_report.json
 smoke_report.json
+qa/API回归过程_20260710.md
 
 # 仿真数据产物
 qa/dazhou_lessons.json

@@ -97,8 +97,8 @@ function rec(id, group, method, path, expected, actual, note) {
     ['E-PSA', '/api/parent/assignments', 'parentAPI.listAssignments (前端零调用)', true],
     ['E-SS', '/api/school/settings', 'schoolConfigAPI.fetch (前端零调用)', true],
     ['E-TQ', '/api/token/my-quota', 'tokenQuotaAPI.myQuota (前端零调用)', true],
-    ['E-SA', '/api/student/assignments', 'studentAPI.listAssignments', false],
-    ['E-SEB', '/api/student/error-book', 'studentAPI.getErrorBook', false],
+    // E-SA / E-SEB（/api/student/*）已于 2026-09-03 移除：学生端按铁律不存在，
+    // 前端 studentAPI 从未被任何页面调用，属死代码，已连同 api.ts 定义一并删除。
   ];
   for (const [id, path, src, dead] of realEp) {
     const s = (await req('GET', path, { token: T })).status;

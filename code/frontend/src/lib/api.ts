@@ -453,15 +453,10 @@ export const templateAPI = {
   },
 }
 
-// ── 学生端接口 ──
-
-export const studentAPI = {
-  listAssignments: () => request<any>('/student/assignments'),
-  getGradingDetail: (id: string) => request<any>(`/student/grading/${id}`),
-  getErrorBook: () => request<any>('/student/error-book'),
-}
-
 // ── 家长端接口 ──
+// 注：此处原有 studentAPI（/student/assignments、/student/error-book、/student/grading/:id）。
+// 按「没有学生端，由家长端代理」铁律，后端路由与 student_handler 已于 2026-07-30(ba590a0) 删除，
+// 且前端从未有任何页面调用过它，故一并移除。请勿重新添加。
 
 export const parentAPI = {
   getSignature: (id: string) => request<any>(`/parent/signatures/${id}`),
@@ -813,4 +808,4 @@ export const careAPI = {
 
 // 注意：default 导出必须放在所有具名 const（含 careAPI/coverageAPI/coordinateAPI）之后，
 // 否则对象字面量立即访问这些 const 会触发 TDZ（Cannot access 'careAPI' before initialization）。
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, studentAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI, schoolReviewConfigAPI, reviewAPI }
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI, schoolReviewConfigAPI, reviewAPI }
