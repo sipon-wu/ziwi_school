@@ -39,6 +39,10 @@ type Material struct {
 	PageType    string    `json:"page_type" gorm:"type:varchar(30)"` // 适用页型（cover|content|summary|homework...，冗余自 facet）
 	ParentIDs   StringSlice `json:"parent_ids" gorm:"type:jsonb"` // 组件指向其元件的 asset_id 数组
 
+	// OwnerName 归属教师显示名（列表页展示"谁的课件"用）。
+	// 不入库（gorm:"-"），由 ListMaterials 动态填充：按 school 内 user_id 一次查询映射，避免 N+1。
+	OwnerName string `json:"owner_name" gorm:"-"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

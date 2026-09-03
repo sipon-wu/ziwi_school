@@ -12,6 +12,10 @@ type CoursewareItem = {
   type: string
   format?: string
   category?: string
+  /** 归属教师 id（作者标记，列表按 school 共享、user_id 用于"我的"过滤） */
+  user_id?: string
+  /** 归属教师显示名（后端 ListMaterials 动态附加，展示"谁的课件"） */
+  owner_name?: string
   tag?: string
   subject?: string
   grade?: string
@@ -86,9 +90,15 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
   const [items, setItems] = useState<CoursewareItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
+  const [scopeMine, setScopeMine] = useState(false) // 「我的」过滤：只看 user_id === 当前登录账号 的课件
   const [uploading, setUploading] = useState(false)
   const [playing, setPlaying] = useState<CoursewareItem | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 当前登录账号（localStorage user 对象；与后端 /api/materials 返回的 user_id 对齐）
+  const me = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} }
+  }, [])
+  const myId: string | undefined = me?.id
 
   useEffect(() => {
     materialAPI.list().then((res) => {
@@ -120,10 +130,11 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
   const draftCount = useMemo(() => items.filter((i) => i.status === 'draft').length, [items])
 
   const filtered = useMemo(() => items.filter((i) => {
+    if (scopeMine && myId && i.user_id !== myId) return false
     if (searchTerm && !(i.name || '').includes(searchTerm)) return false
     if (filterSubject && (i.subject || i.tag) !== filterSubject) return false
     return true
-  }), [items, searchTerm, filterSubject])
+  }), [items, searchTerm, filterSubject, scopeMine, myId])
 
   const { page, totalPages, paginated, goTo } = usePagination(filtered, 8)
 
@@ -212,6 +223,16 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
             <option value="">全部学科</option>
             {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          {/* 归属范围：全校共享库 vs 只看我的（user_id === 当前账号） */}
+          <div className="flex items-center rounded-[4px] border border-[#E7E7EB] overflow-hidden">
+            {[{ k: false, l: '全部' }, { k: true, l: '我的' }].map(o => (
+              <button key={o.l}
+                onClick={() => { setScopeMine(o.k); goTo(1) }}
+                className={`px-3 py-2 text-[12px] transition-colors ${scopeMine === o.k ? 'bg-[#02A7F0] text-white' : 'bg-white text-[#353535] hover:bg-[#F6F7F8]'}`}>
+                {o.l}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 统计条 */}
@@ -249,6 +270,10 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
                           {ch.icon}
                           <span className="text-[13px] font-medium text-[#353535]">{i.name}</span>
                         </div>
+                        {/* 归属展示：他人作品显示作者名；自己的不显示（减少噪音） */}
+                        {i.owner_name && i.user_id !== myId && (
+                          <div className="mt-0.5 text-[11px] text-[#9A9A9A]">作者：{i.owner_name}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-[3px] text-[11px] font-medium ${subjectColors[i.subject || i.tag || ''] || 'bg-gray-50 text-gray-500'}`}>

@@ -54,7 +54,43 @@ func (h *MaterialHandler) ListMaterials(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	// 附加归属教师显示名（owner_name）：让列表页能回答"这批课件是谁的"
+	attachOwnerNames(h.db, items)
 	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
+}
+
+// attachOwnerNames 为素材列表补充归属教师显示名（owner_name），不入库。
+// 按 school 内出现的 user_id 一次性查询映射，避免 N+1；失败静默（owner_name 为空不影响列表可用）。
+func attachOwnerNames(db *gorm.DB, items []model.Material) {
+	ids := make(map[string]struct{}, len(items))
+	for i := range items {
+		if items[i].UserID != "" {
+			ids[items[i].UserID] = struct{}{}
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	uidList := make([]string, 0, len(ids))
+	for id := range ids {
+		uidList = append(uidList, id)
+	}
+	var users []struct {
+		ID   string
+		Name string
+	}
+	if err := db.Table("users").Select("id, name").Where("id IN ?", uidList).Find(&users).Error; err != nil {
+		return
+	}
+	nameOf := make(map[string]string, len(users))
+	for _, u := range users {
+		nameOf[u.ID] = u.Name
+	}
+	for i := range items {
+		if items[i].UserID != "" {
+			items[i].OwnerName = nameOf[items[i].UserID]
+		}
+	}
 }
 
 // GetMaterial 按 ID 获取单个素材（含 content，供 AI 课件生成读取参照课件正文）
