@@ -220,6 +220,9 @@ export const aiAPI = {
     style_tag?: string
     style_profile?: string
     style_mode?: 'auto' | 'preset' | 'free'
+    /** 教师个人风格倾向（调节层）：与小微对话同源 user.ai_style。
+     *  未指定 style_tag/style_profile 时充默认倾向；已指定时仅作不冲突前提下的微调，不覆盖。 */
+    teacher_style?: string
     format?: 'ppt' | 'h5'
   }) =>
     request<any>('/ai/courseware/generate', {

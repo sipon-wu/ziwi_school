@@ -538,6 +538,11 @@ async def gen_courseware(req: Request):
     style_tag = (body.get("style_tag") or "").strip()
     style_profile = (body.get("style_profile") or "").strip()
     style_mode = (body.get("style_mode") or "auto").strip()  # auto | preset | free
+    # 个人风格倾向（调节层，2026-09-03 接入）
+    # 产品原则：UI 风格服务于「内容 + 风格提示词 + 个人风格倾向」。
+    # 优先级：内容（版式/组件的硬约束） > 风格提示词（视觉语言） > 个人风格倾向（默认偏好）。
+    # 故 teacher_style 只作倾向提示：未指定风格时充默认，已指定风格时不覆盖。
+    teacher_style = (body.get("teacher_style") or "").strip()
 
     kp_names, prereq_names = _resolve_scope(body)
     budget = divergence_budget(divergence_level)
@@ -649,6 +654,22 @@ async def gen_courseware(req: Request):
             f"请在受控风格词表（{STYLE_TAGS}）内自行匹配最贴切的风格大类，"
             f"并在课件结构与版式节奏上体现该风格。版式标注仍须从现有版式集合中取。"
         )
+
+    # ── 个人风格倾向（调节层）──
+    # 定位：不覆盖上面已确定的风格，只在空白处补默认、或在已定风格内做措辞/节奏微调。
+    # 若教师一贯偏好与内容学段冲突（如偏好"卡通"而内容是高中议论文），以内容学段为准。
+    if teacher_style:
+        if style_tag or style_profile:
+            scope_hint += (
+                f"\n【个人风格倾向】该教师的一贯偏好：{teacher_style}。"
+                f"在不与上述指定风格冲突的前提下自然体现（如措辞习惯、节奏疏密）；"
+                f"若与内容学段或指定风格冲突，以学段与指定风格为准，不要生搬。"
+            )
+        else:
+            scope_hint += (
+                f"\n【风格·个人倾向】用户本次未指定风格，请参照该教师的一贯偏好：{teacher_style}。"
+                f"据此选择最贴切的呈现气质；如该偏好与本科目学段明显不符，以学段为准。"
+            )
 
     # 按输出格式决定内容结构：PPT 用教案式章节；H5 用绘本情景场景
     if fmt == "h5":
@@ -822,6 +843,29 @@ _STYLE_TONE = {
     "minimal": (0, -0.20, -0.02), "academic": (0, -0.15, -0.03), "cartoon": (0, 0.20, 0.05),
     "flat": (0, -0.05, 0.0), "business": (0, -0.18, -0.04),
 }
+# ── 风格色相表（2026-09-03 修复）────────────────────────────────────────
+# 历史缺陷：上表每个风格的色相增量 dh 全为 0，导致「风格对色相零影响」——
+# 色相只由学科决定，同一篇课件用 tech/cartoon/china 生成会落在同一个色系，
+# 实测 primary 分别为 #E03467 / #E82A69 / #CF3A78，全是粉紫。
+# 这与产品原则「UI 风格服务于内容 + 风格提示词 + 个人风格倾向」直接冲突：
+# 用户选了风格，视觉却毫无变化。
+#
+# 取值依据：对齐 skills/shared/styles/*.md 风格卡描述的色彩倾向与禁忌，
+# 并刻意拉开彼此角距离，保证 8 种风格肉眼可分：
+#   cartoon 活泼→品红 / china 国风→朱红赭石 / fresh 清新→青绿 / flat 扁平→青
+#   tech 科技→青蓝 / minimal 极简→灰蓝(低饱和) / academic 严谨→深蓝 / business 商务→蓝紫
+_STYLE_HUE = {
+    "china": 10, "fresh": 140, "flat": 170, "tech": 195,
+    "minimal": 220, "academic": 245, "business": 270, "cartoon": 330,
+}
+# 说明：色相由「风格」独占决定，学科不再拉扯色相。
+# 依据产品原则（2026-09-03）：UI 风格服务于「内容 + 风格提示词 + 个人风格倾向」
+# ——内容决定用哪种版式/组件（结构层），风格决定长什么样（视觉层）。
+# 若让学科色相也参与色相计算，会把 tech/minimal/academic/business 这些
+# 本就邻近的「专业向」风格全部拉向学科色相而挤成一团（实测 academic 与 business
+# 仅差 1°，肉眼完全无法区分）。故学科只在「未指定风格」时决定色相，
+# 指定风格时学科仅参与饱和/明度的确定性抖动，保证同风格视觉一致、不同风格可分辨。
+# 8 种风格角距均 ≥25°：330/10/140/170/195/220/245/270。
 
 
 def _hsv_to_hex(h: float, s: float, v: float) -> str:
@@ -831,15 +875,31 @@ def _hsv_to_hex(h: float, s: float, v: float) -> str:
 
 
 def _courseware_palette(subject: str, grade: str, style_tag: str) -> dict:
-    """依据学科/年级/风格确定性派生 styleDNA 配色（前端存 materials.color_root）。"""
-    base_hue = _SUBJECT_HUE.get((subject or "").strip(), 210)
-    dh, ds, dv = _STYLE_TONE.get((style_tag or "").strip(), (0, 0, 0))
-    hue = base_hue + dh
-    sat = 0.62 + ds
-    val = 0.86 + dv
-    # 确定性微抖动（zlib.crc32 跨进程稳定，避免 PYTHONHASHSEED 导致每次重启色相漂移）
-    jitter = (zlib.crc32(f"{subject}|{grade}|{style_tag}".encode()) % 31) - 15  # -15..+15
-    hue = hue + jitter
+    """依据学科/年级/风格确定性派生 styleDNA 配色（前端存 materials.color_root）。
+
+    色相规则（2026-09-03 修复，对应产品原则「UI 风格服务于内容+风格提示词+个人倾向」）：
+      - 指定了风格 → 以该风格色相为主导，向学科色相方向让渡 (1 - WEIGHT) 的角差
+      - 未指定风格 → 直接用学科色相（保持原有行为）
+    """
+    subj = (subject or "").strip()
+    style = (style_tag or "").strip()
+    base_hue = _SUBJECT_HUE.get(subj, 210)
+    dh, ds, dv = _STYLE_TONE.get(style, (0, 0, 0))
+    # 确定性微抖动（zlib.crc32 跨进程稳定，避免 PYTHONHASHSEED 导致每次重启漂移）
+    jitter = (zlib.crc32(f"{subj}|{grade}|{style}".encode()) % 31) - 15  # -15..+15
+    style_hue = _STYLE_HUE.get(style)
+    if style_hue is None:
+        # 未指定风格：沿用学科色相 + 抖动（保持历史行为不变）
+        hue = base_hue + dh + jitter
+        sat = 0.62 + ds
+        val = 0.86 + dv
+    else:
+        # 指定风格：色相由风格独占决定，不再受学科拉扯、也不受抖动扰动——
+        # 这样同风格课件视觉一致，不同风格角距稳定 ≥25°，肉眼可分。
+        # 学科差异改由饱和/明度的确定性抖动承载，兼顾"同学科同风格"的细微区分。
+        hue = style_hue
+        sat = max(0.15, min(0.95, 0.62 + ds + jitter / 200.0))
+        val = max(0.50, min(0.98, 0.86 + dv + jitter / 300.0))
     primary = _hsv_to_hex(hue, sat, val)
     accent = _hsv_to_hex(hue + 28, min(0.85, sat + 0.08), min(0.92, val + 0.02))
     cover = _hsv_to_hex(hue, min(0.8, sat + 0.05), val)

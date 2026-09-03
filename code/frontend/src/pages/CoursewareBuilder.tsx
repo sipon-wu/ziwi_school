@@ -622,6 +622,9 @@ export default function CoursewareBuilder() {
         style_tag: genStyleTag || undefined,
         style_profile: genStyleProfile.trim() || undefined,
         style_mode: genStyleTag ? 'preset' : (genStyleProfile.trim() ? 'free' : 'auto'),
+        // 个人风格倾向（调节层）：教师一贯偏好，与小微对话同源（user.ai_style）。
+        // 未显式选风格时作为默认倾向；已选风格时仅在不冲突前提下自然体现，不覆盖所选风格。
+        teacher_style: (safeGetUser() as any)?.ai_style || undefined,
         format: isH5 ? 'h5' : 'ppt',
       })
       setCwMarkdown(res.courseware_markdown || '')

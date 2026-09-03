@@ -11,6 +11,7 @@ type CoursewareItem = {
   name: string
   type: string
   format?: string
+  category?: string
   tag?: string
   subject?: string
   grade?: string
@@ -94,11 +95,17 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
       const all = (res?.items || []) as CoursewareItem[]
       // 按 type + format 双维度过滤，区分 ppt/h5（同为 courseware）与 video
       // 视频频道同时接受：旧上传视频(type=video) 与 新建分镜课件(type=courseware, format=video)
+      // type 缺失兜底（2026-09-03 事故）：批量导入/种子脚本写入的课件可能漏掉 type 字段，
+      // 曾导致 sch-0001 的 35 份 PPT 因 type 为空而被下方过滤静默排除，
+      // 表现为「PPT 频道永远 0 个课件」且无任何报错。
+      // 故 type 为空时回退用 category 判定，避免字段缺失即不可见。
+      const isCourseware = (m: CoursewareItem) =>
+        m.type === 'courseware' || (!m.type && m.category === 'courseware')
       const filtered = all.filter((m) => {
         if (ch.isVideo) {
-          return m.type === 'video' || (m.type === 'courseware' && m.format === 'video')
+          return m.type === 'video' || (isCourseware(m) && m.format === 'video')
         }
-        return m.type === 'courseware' && (m.format || 'ppt') === (ch.format || 'ppt')
+        return isCourseware(m) && (m.format || 'ppt') === (ch.format || 'ppt')
       })
       setItems(filtered)
     }).catch(() => setItems([]))
