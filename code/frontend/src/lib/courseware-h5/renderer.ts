@@ -176,8 +176,10 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
     }
   }
 
+  // 场景版式类型（v1）：缺省 dialog；渲染端据此加 scene-<type> 类做差异化 CSS
+  const stype = s.sceneType || 'dialog'
   return `
-  <section class="scene" data-index="${index}" style="background:${bg}">
+  <section class="scene scene-${stype}" data-index="${index}" data-type="${stype}" style="background:${bg}">
     ${decoHtml}
     ${s.title ? `<div class="scene-title">${esc(s.title)}</div>` : ''}
     ${s.narration ? `<div class="narration">${esc(s.narration)}</div>` : ''}
@@ -329,6 +331,35 @@ const RUNTIME_CSS = `
 @keyframes decoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 .scene-title{position:relative;z-index:2;font-size:26px;font-weight:900;color:var(--accent);margin-bottom:14px;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
 .scene-title::before{content:"🌟";font-size:22px;}
+/* ── 场景版式类型视觉区分（2026-09-03 v1，受控集合 7 类）── */
+.scene-dialog .scene-title::before{content:"💬";}
+.scene-read .scene-title::before{content:"🔤";}
+.scene-quiz .scene-title::before{content:"✅";}
+.scene-reveal .scene-title::before{content:"🔍";}
+.scene-draw .scene-title::before{content:"🎨";}
+.scene-focus .scene-title::before{content:"⭐";}
+.scene-transition .scene-title::before{content:"✨";}
+/* read：点读词块放大居中（窄屏自动换行） */
+.scene-read .interact{margin-top:22px;padding:20px 22px;}
+.scene-read .read-list{gap:18px;justify-content:center;}
+.scene-read .read-word{font-size:24px;padding:14px 30px;border-radius:32px;}
+.scene-read .read-word .hint{font-size:13px;}
+/* quiz：选项卡大按钮（适合点选） */
+.scene-quiz .quiz-opts{gap:14px;}
+.scene-quiz .quiz-opt{font-size:18px;padding:16px 20px;}
+/* reveal：揭晓大按钮居中 */
+.scene-reveal .interact{display:flex;flex-direction:column;align-items:center;text-align:center;}
+.scene-reveal .reveal-btn{font-size:18px;padding:14px 32px;border-radius:28px;}
+.scene-reveal .reveal-answer{font-size:17px;}
+/* draw：绘图画布加高，现场边讲边画更宽敞 */
+.scene-draw .interact{padding:14px;}
+.scene-draw .draw-canvas{height:270px;}
+/* focus：重点大字条强化（关键字收束页） */
+.scene-focus .focus-bar{font-size:19px;padding:16px 22px;margin-top:26px;}
+/* transition：转场/封面/收束——低信息密度，旁白居中，隐藏对话与互动 */
+.scene-transition{padding:56px 34px 92px;}
+.scene-transition .narration{font-size:21px;line-height:2;text-align:center;background:rgba(255,255,255,.55);}
+.scene-transition .stage,.scene-transition .interact{display:none;}
 .narration{position:relative;z-index:2;font-size:16px;line-height:1.75;background:rgba(255,255,255,.66);padding:14px 18px;border-radius:16px;margin-bottom:18px;color:var(--ink);border:2px dashed rgba(0,0,0,.06);}
 .stage{position:relative;z-index:2;display:flex;flex-direction:column;gap:14px;}
 .bubble-row{display:flex;gap:12px;align-items:flex-start;}

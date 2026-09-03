@@ -29,8 +29,27 @@
  * `---` 与 `## ` 都切分场景。即使 AI 不遵循 A 套标记，也能产出可读绘本。
  */
 
-import type { Story, StoryScene, StoryRole, StoryInteraction, ReadUnit, ReadAlongUnit, QuizUnit } from './types'
+import type { Story, StoryScene, StoryRole, StoryInteraction, ReadUnit, ReadAlongUnit, QuizUnit, SceneType } from './types'
 import { ROLE_COLORS } from './types'
+
+// 受控场景版式集合（v1，与 types.ts SceneType 同源；AI 只能在此范围内显式标注）
+const SCENE_TYPES: SceneType[] = ['dialog', 'read', 'quiz', 'reveal', 'draw', 'focus', 'transition']
+
+/**
+ * 场景版式推断（无显式标注时用）：按"该页的主要教学动作"判定。
+ * 优先级：quiz > reveal > draw > read(点读/跟读) > focus(纯重点无对话) > dialog(有对话) > transition(纯旁白)。
+ * 旧内容只写 `scene`（dialog 语义），有对话即回落到 dialog，保证向后兼容。
+ */
+function inferSceneType(sc: StoryScene): SceneType {
+  const it = sc.interaction?.type
+  if (it === 'quiz') return 'quiz'
+  if (it === 'reveal') return 'reveal'
+  if (it === 'draw') return 'draw'
+  if (it === 'read' || it === 'readalong') return 'read'
+  if (sc.focus && !(sc.bubbles && sc.bubbles.length)) return 'focus'
+  if (sc.bubbles && sc.bubbles.length) return 'dialog'
+  return 'transition'
+}
 
 function escAttr(s: string): string {
   return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -73,22 +92,33 @@ function parseDialogLine(line: string): { role?: string; text: string } | null {
 function parseRoleDecl(line: string, ctx: ParseCtx) {
   const m = line.match(/\*\*角色\*\*[：:]\s*(.*)/)
   if (!m) return false
-  // 形如 A（顾客），B（水果摊主） 或 A(顾客) B(摊主)
+  const raw = m[1].trim()
+  let matched = false
+  // 形态 1：A（顾客），B（水果摊主） / A(顾客) B(摊主)
   const segRe = /([A-Za-z一-龥]{1,4})\s*[（(]\s*([^）)]+)\s*[）)]/g
   let mm: RegExpMatchArray | null
-  while ((mm = segRe.exec(m[1]))) {
+  while ((mm = segRe.exec(raw))) {
     const key = mm[1].trim()
     const name = mm[2].trim()
     ctx.roleAlias.set(key, name)
     inferRole(name, ctx, ctx.roles.size)
+    matched = true
   }
-  // 退化：无括号的 "A 顾客 B 摊主"
-  if (![...ctx.roleAlias.keys()].length) {
-    m[1].split(/[，,]/).forEach(p => {
-      const parts = p.trim().split(/\s+/)
-      if (parts.length >= 2) {
-        ctx.roleAlias.set(parts[0], parts.slice(1).join(''))
-        inferRole(parts.slice(1).join(''), ctx, ctx.roles.size)
+  // 形态 2（真实生成内容，2026-09-03 修复的关键）：
+  //   `**角色**:老师、小满、阿哲` —— 顿号/逗号分隔的裸角色名，无括号。
+  // 历史缺陷：解析器只认形态 1，导致真实内容的角色从未注册，
+  // 后续 `老师: 对话` 行因角色不在别名表而被判为非对话 → 全部落成旁白段落，
+  // 场景气泡恒为空 → 每个 H5 场景视觉同构（"一个模子"的真正根因之一）。
+  if (!matched) {
+    raw.split(/[、，,；;]+/).map(p => p.trim()).filter(Boolean).forEach(chunk => {
+      // 兼容 "A 顾客"（字母/短名 + 空格 + 称呼）与裸名 "老师"
+      const sp = chunk.split(/\s+/)
+      if (sp.length >= 2 && /^[A-Za-z一-龥]{1,2}$/.test(sp[0])) {
+        ctx.roleAlias.set(sp[0], sp.slice(1).join(''))
+        inferRole(sp.slice(1).join(''), ctx, ctx.roles.size)
+      } else {
+        ctx.roleAlias.set(chunk, chunk)
+        inferRole(chunk, ctx, ctx.roles.size)
       }
     })
   }
@@ -231,8 +261,21 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     }
     if (line.startsWith('# ') && !ctx.title) { ctx.title = line.slice(2).trim(); continue }
     if (line.startsWith('> ')) { parseMeta(line.slice(2), ctx); continue }
-    // layout 注释仅为语义提示，不单独建场景；互动注释也仅在已有场景上附加
     if (line.startsWith('<!--')) {
+      // 受控场景版式标注（v1）：`<!-- layout: scene-read -->` 显式指定场景类型；
+      // 裸 `<!-- layout: scene -->` 是旧格式，视为"不锁定、交推断"，保证历史内容向后兼容。
+      const lay = line.match(/<!--\s*layout:\s*(scene(?:-[a-z]+)?|[a-z]+)\s*-->/i)
+      if (lay) {
+        const raw = lay[1].toLowerCase()
+        const type = raw.startsWith('scene-') ? raw.slice('scene-'.length) : raw
+        if (type !== 'scene' && (SCENE_TYPES as string[]).includes(type)) {
+          const sc = state.cur || scenes[scenes.length - 1]
+          if (sc) sc.sceneType = type as SceneType
+        }
+        // 其它（误带的 PPT 版式名如 edu-goal 等）一律忽略：不建场景、不报错
+        continue
+      }
+      // 互动注释仅在已有场景上附加；首个场景前出现的注释先缓存，场景建立时补挂
       if (!state.cur) { pendingComments.push(line) }
       else { applyInteraction(line, state.cur, ctx) }
       continue
@@ -302,6 +345,10 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
   }
 
   const roles = Array.from(ctx.roles.values())
+  // 场景版式定稿（v1）：显式标注优先；缺失时按"该页主要教学动作"推断（兼容历史 scene 内容）
+  for (const sc of scenes) {
+    if (!sc.sceneType) sc.sceneType = inferSceneType(sc)
+  }
   return {
     title: ctx.title || opts?.title || '互动课件',
     subject: ctx.subject,

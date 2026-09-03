@@ -80,6 +80,23 @@ export interface StoryInteraction {
   title?: string
 }
 
+/**
+ * 场景版式类型（2026-09-03 引入，H5「受控版式集合」v1）
+ *
+ * 背景：H5 曾是"每页都是 scene 一个版式"，互动类型区分了内容却未区分长相。
+ * 本次按"该页的主要教学动作"把场景分成 7 类，每类一套视觉骨架（CSS 差异化）：
+ *   dialog     角色对话推进情节（默认：无互动/有对话）
+ *   read       词汇点读 / 跟读（点读词块放大居中）
+ *   quiz       随堂选择（选项卡大按钮）
+ *   reveal     悬念揭晓（点击翻牌，居中大按钮）
+ *   draw       现场绘图 / 涂鸦（画布全宽）
+ *   focus      关键词收束（大字卡 + 重点条强化）
+ *   transition 情节转场 / 封面 / 收束（低信息密度，纯旁白居中）
+ * 解析优先级：正文 `<!-- layout: scene-xxx -->` 显式标注 > 按互动/气泡推断。
+ * 向后兼容：旧内容只写 `<!-- layout: scene -->`，推断后等价于 dialog。
+ */
+export type SceneType = 'dialog' | 'read' | 'quiz' | 'reveal' | 'draw' | 'focus' | 'transition'
+
 /** 一个绘本场景（=一页） */
 export interface StoryScene {
   /** 场景标题（分镜标题，如"热身：去超市购物"） */
@@ -94,6 +111,8 @@ export interface StoryScene {
   interaction?: StoryInteraction
   /** 背景风格（影响配色/装饰，可空） */
   mood?: 'warm' | 'playful' | 'calm' | 'energetic'
+  /** 场景版式类型（缺省由渲染端按 dialog 处理；解析时优先取显式标注，否则推断） */
+  sceneType?: SceneType
 }
 
 /** 整个绘本课件 */

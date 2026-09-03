@@ -76,9 +76,26 @@ markdown 形态（每页一个场景）：
 | `<!-- reveal: 提示 => 答案 -->` | `type=reveal`，`prompt` / `answer` |
 | `<!-- draw: 说明 -->` | `type=draw`，`drawTitle` |
 
-> **每页 layout 必须是 `scene`**——不得用 `edu-goal` / `edu-summary` 等 PPT 版式。
-> 反之，PPT 也不得用 `scene`。**两者不可混用**（历史教训：H5 规则曾残留在共用文件里，
-> 导致 PPT 生成时模型误用 `scene`，整套课件被判非法）。
+> **版式受控集合（v1，2026-09-03）**：H5 每页必须是 `scene` 或 `scene-<类型>`；
+> 不得用 `edu-goal` / `edu-summary` 等 PPT 版式，反之 PPT 也不得用 `scene`。
+> 两者不可混用（历史教训：混用整套课件会被判非法）。
+>
+> 场景版式 7 类——按**该页的主要教学动作**选择（值只能取自下表，禁止自创）：
+>
+> | layout 标注 | 场景类型 | 用途（选型依据） |
+> |---|---|---|
+> | `<!-- layout: scene-dialog -->` | dialog 对话 | 角色对话推进情节（默认；凡有 ≥2 条对话气泡即属此类） |
+> | `<!-- layout: scene-read -->` | read 点读 | 词汇/句子点读·跟读（须带 read/readalong 标记） |
+> | `<!-- layout: scene-quiz -->` | quiz 选择 | 随堂选择题（须带 quiz 标记） |
+> | `<!-- layout: scene-reveal -->` | reveal 揭晓 | 悬念/答案揭晓（须带 reveal 标记） |
+> | `<!-- layout: scene-draw -->` | draw 绘图 | 现场绘图/涂鸦（须带 draw 标记） |
+> | `<!-- layout: scene-focus -->` | focus 收束 | 关键词/要点收束（只强调 1 条重点，勿堆叠要点） |
+> | `<!-- layout: scene-transition -->` | transition 转场 | 封面/转场/结尾：纯旁白、低信息密度、无对话无互动 |
+>
+> 选型规则：带 read/readalong/quiz/reveal/draw 标记的页，layout 用对应 `scene-<类型>`；
+> 纯对话推进用 `scene-dialog`；纯旁白（封面/转场/收束）用 `scene-transition`；
+> 渲染端对每类有独立视觉骨架（点读词放大、选择题大按钮、绘图全宽画布…），
+> 不要因为"上页用了什么"而跟风，要按本页动作选。
 
 Story 目标结构（转换后的形态）：
 
