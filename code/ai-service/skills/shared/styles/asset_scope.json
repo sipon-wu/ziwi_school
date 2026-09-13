@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "updated": "2026-09-11",
+  "note": "风格卡的机器可读片段（单一事实源）。人写说明仍在各 <tag>.md；本文件是 asset_scope 与母题禁忌的结构化版本，供服务端(api_server)与前端(visualAsset)双方消费。",
+  "vocabulary": {
+    "motif": ["nature", "playful", "classroom", "urban", "starlit"]
+  },
+  "styles": {
+    "china": {
+      "name": "中国风",
+      "assetScope": {
+        "常用": ["mountain", "cloud", "sun", "feather"],
+        "可用": ["book", "quote", "target", "circle", "square"],
+        "禁用": ["cat", "dog", "paw", "butterfly", "balloon", "rainbow", "mushroom", "ladybug"],
+        "学科收敛": {}
+      },
+      "motif": {
+        "prefer": ["classroom"],
+        "vetoGlyphs": ["📊", "📈", "🔢", "⚙️", "🧪", "🔬", "🌈", "🎈", "🦋", "🍌", "🍄", "🐞"],
+        "reasons": "国风忌霓虹/科技感/卡通形象与高饱和撞色"
+      }
+    },
+    "tech": {
+      "name": "科技",
+      "assetScope": {
+        "常用": ["grid-dots", "chart-grid-dots", "circle", "square", "triangle"],
+        "可用": ["cpu", "network", "function", "square-root", "math-pi", "atom", "target", "ruler", "compass"],
+        "禁用": ["flower", "leaf", "seedling", "acorn", "butterfly", "cat", "dog", "paw", "mushroom", "ladybug", "rainbow", "balloon", "christmas-tree"],
+        "学科收敛": {
+          "数学": ["function", "square-root", "math-pi", "grid-dots", "circle", "triangle"],
+          "物理": ["atom", "network", "ruler", "target"],
+          "化学": ["atom", "flask", "circle"],
+          "生物": ["atom", "dna", "circle"],
+          "信息技术": ["cpu", "network", "server", "code"]
+        }
+      },
+      "motif": {
+        "prefer": ["urban"],
+        "vetoGlyphs": ["🌿", "🍃", "🌳", "🌸", "🍂", "🌻", "🦋", "🐞", "🍄", "🌈", "🎈", "🍎", "🍌"],
+        "reasons": "科技风禁用花草动物与童趣元素（风格卡明令禁用 flower/leaf/ladybug 等）"
+      }
+    },
+    "academic": {
+      "name": "严谨学术",
+      "assetScope": {
+        "常用": ["circle", "square", "triangle", "grid-dots", "chart-grid-dots"],
+        "可用": ["ruler", "compass", "calculator", "target", "function", "square-root", "math-pi"],
+        "禁用": ["flower", "leaf", "seedling", "acorn", "butterfly", "cat", "dog", "paw", "mushroom", "ladybug", "rainbow", "balloon"],
+        "学科收敛": {
+          "数学": ["function", "square-root", "math-pi", "grid-dots", "circle", "triangle"],
+          "科学": ["atom", "flask", "microscope", "ruler"],
+          "语文": ["book", "file", "quote"]
+        }
+      },
+      "motif": {
+        "prefer": ["classroom"],
+        "vetoGlyphs": ["🌿", "🍃", "🌳", "🌸", "🍂", "🌻", "🦋", "🐞", "🍄", "🌈", "🎈", "🍎", "🍌"],
+        "reasons": "理性学术风格禁用花草动物与童趣元素"
+      }
+    },
+    "fresh": {
+      "name": "清新",
+      "assetScope": {
+        "常用": ["droplets", "sun", "cloud", "leaf"],
+        "可用": ["rainbow", "snowflake", "circle", "seedling", "flower"],
+        "禁用": ["cpu", "network", "server", "code", "atom"],
+        "学科收敛": {}
+      },
+      "motif": {
+        "prefer": ["nature"],
+        "vetoGlyphs": ["📊", "📈", "🔢", "⚙️", "🧪", "🔬"],
+        "reasons": "清新风禁用机械/科技符号"
+      }
+    },
+    "minimal": {
+      "name": "极简",
+      "assetScope": {
+        "常用": ["circle", "square", "triangle", "grid-dots"],
+        "可用": ["minus", "slash", "target", "book", "file"],
+        "禁用": ["flower", "leaf", "cat", "dog", "paw", "rainbow", "balloon", "mushroom", "ladybug"],
+        "学科收敛": {}
+      },
+      "motif": {
+        "prefer": ["classroom"],
+        "vetoGlyphs": ["🌿", "🍃", "🌳", "🌸", "🍂", "🌻", "🍄", "🐞", "🌈", "🎈", "🦋", "🎒", "🖍️", "🎨"],
+        "reasons": "极简风格装饰强度最低，不挂具象装饰"
+      }
+    },
+    "cartoon": {
+      "name": "卡通",
+      "assetScope": {
+        "常用": ["smile", "star", "balloon", "rainbow", "heart"],
+        "可用": ["cat", "dog", "fish", "paw", "gift", "candy"],
+        "禁用": ["cpu", "network", "atom", "ruler", "calculator", "function"],
+        "学科收敛": {}
+      },
+      "motif": {
+        "prefer": ["playful"],
+        "vetoGlyphs": ["📊", "📈", "🔢", "⚙️", "🧪", "🔬", "📐"],
+        "reasons": "卡通风格禁用冷峻科技/学术符号"
+      }
+    },
+    "forest": {
+      "name": "森林童趣",
+      "assetScope": {
+        "常用": ["leaf-sprig", "leaf-single", "fallen-leaf"],
+        "可用": ["tree", "blossom", "sun", "mushroom", "ladybug"],
+        "禁用": [],
+        "学科收敛": {
+          "数学": { "优先": ["leaf-sprig", "leaf-single", "fallen-leaf"], "慎用": ["ladybug", "mushroom"], "理由": "拟物装饰干扰抽象思维" },
+          "语文": { "优先": ["leaf-sprig", "blossom", "fallen-leaf"] },
+          "英语": { "优先": ["sun", "tree", "leaf-single"] },
+          "科学": { "优先": ["tree", "sun", "leaf-sprig"] }
+        }
+      },
+      "motif": {
+        "prefer": ["nature"],
+        "vetoGlyphs": [],
+        "reasons": "自然系无硬禁忌"
+      }
+    }
+  }
+}

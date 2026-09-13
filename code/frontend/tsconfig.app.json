@@ -6,12 +6,14 @@
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
+    "resolveJsonModule": true,
     "ignoreDeprecations": "6.0",
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      "@styles/*": ["../ai-service/skills/shared/styles/*"]
     },
 
     /* Bundler mode */

@@ -29,15 +29,26 @@
  * `---` 与 `## ` 都切分场景。即使 AI 不遵循 A 套标记，也能产出可读绘本。
  */
 
-import type { Story, StoryScene, StoryRole, StoryInteraction, ReadUnit, ReadAlongUnit, QuizUnit, SceneType } from './types'
+import type { Story, StoryScene, StoryRole, StoryInteraction, ReadUnit, ReadAlongUnit, QuizUnit, CycleStep, SceneType } from './types'
 import { ROLE_COLORS } from './types'
 
-// 受控场景版式集合（v1，与 types.ts SceneType 同源；AI 只能在此范围内显式标注）
-const SCENE_TYPES: SceneType[] = ['dialog', 'read', 'quiz', 'reveal', 'draw', 'focus', 'transition']
+// 受控场景版式集合（v1/v2，与 types.ts SceneType 同源；AI 只能在此范围内显式标注）
+const SCENE_TYPES: SceneType[] = ['dialog', 'read', 'quiz', 'reveal', 'draw', 'focus', 'transition', 'phenomenon']
+
+/**
+ * 版式别名容错（2026-09-03）：模型偶发把「互动标记名」当版式名写（如 `<!-- layout: scene-cycle -->`、
+ * `<!-- layout: scene-popup -->`），这类名字不在受控集合内，此前会被静默忽略 → 该页退化成默认 dialog 气泡流
+ * （即"看来看去都是同一个壳"的成因之一）。此处把常见自创名映射到语义最接近的受控版式，
+ * 保证无论模型怎么标，渲染都能落到正确的差异化骨架上。
+ */
+const SCENE_ALIAS: Record<string, SceneType> = {
+  cycle: 'phenomenon',   // 现象循环 → 现象演示页
+  popup: 'reveal',       // 弹层补充 → 揭晓页
+}
 
 /**
  * 场景版式推断（无显式标注时用）：按"该页的主要教学动作"判定。
- * 优先级：quiz > reveal > draw > read(点读/跟读) > focus(纯重点无对话) > dialog(有对话) > transition(纯旁白)。
+ * 优先级：quiz > reveal > draw > phenomenon(现象互动) > read(点读/跟读) > focus(纯重点无对话) > dialog(有对话) > transition(纯旁白)。
  * 旧内容只写 `scene`（dialog 语义），有对话即回落到 dialog，保证向后兼容。
  */
 function inferSceneType(sc: StoryScene): SceneType {
@@ -45,6 +56,7 @@ function inferSceneType(sc: StoryScene): SceneType {
   if (it === 'quiz') return 'quiz'
   if (it === 'reveal') return 'reveal'
   if (it === 'draw') return 'draw'
+  if (it === 'weather' || it === 'storm' || it === 'cycle') return 'phenomenon'
   if (it === 'read' || it === 'readalong') return 'read'
   if (sc.focus && !(sc.bubbles && sc.bubbles.length)) return 'focus'
   if (sc.bubbles && sc.bubbles.length) return 'dialog'
@@ -180,6 +192,46 @@ function parseQuiz(raw: string): QuizUnit | null {
   return { question, options, correct }
 }
 
+/** weather：状态列表（按逗号/顿号分隔） */
+function parseWeatherStates(raw: string): string[] {
+  return raw.split(/[,，、]/).map(s => s.trim()).filter(Boolean)
+}
+
+/** 拆出一个循环步骤：支持 "蒸发（水受热变成水蒸气）" 带一句说明 */
+function parseCycleStep(s: string): CycleStep {
+  const pm = s.match(/^(.+?)\s*[（(]([^）)]*)[）)]\s*$/)
+  if (pm && pm[2] && pm[1].trim()) return { name: pm[1].trim(), note: pm[2].trim() }
+  return { name: s }
+}
+
+/**
+ * cycle 解析：`标题：步骤1 => 步骤2 => 步骤3`（箭头亦兼容 → 与 ->，步骤也可用顿号/逗号续列）。
+ * 兼容写法：
+ *   "水的循环：蒸发 => 凝结 => 降水 => 流回大海"
+ *   "蒸发 => 凝结 => 降水"（无标题）
+ *   "水的循环：蒸发、凝结、降水"（无箭头，顿号分隔）
+ */
+function parseCycle(raw: string): { cycleTitle?: string; steps: CycleStep[] } | null {
+  const segs = raw.split(/\s*(?:=>|→|->)\s*/).map(s => s.trim()).filter(Boolean)
+  if (!segs.length) return null
+  const first = segs[0]
+  // 首段 "标题：xxx" → 拆出标题与首步
+  const colon = first.match(/^(.+?)\s*[:：]\s*(.+)$/)
+  let title = ''
+  let head = first
+  if (colon) { title = colon[1].trim(); head = colon[2].trim() }
+  let names: string[]
+  if (segs.length > 1) {
+    // 箭头分隔：首段（可能含标题）+ 后续每段即一步
+    names = [head, ...segs.slice(1)]
+  } else {
+    // 单段无箭头：冒号后或整段按顿号/逗号拆多步
+    names = head.split(/[,，、]/).map(s => s.trim()).filter(Boolean)
+  }
+  if (!names.length) return null
+  return { cycleTitle: title || undefined, steps: names.map(parseCycleStep) }
+}
+
 function applyInteraction(line: string, scene: StoryScene, ctx: ParseCtx) {
   let m: RegExpMatchArray | null
   if ((m = line.match(/<!--\s*read\s*:(.*?)-->/i))) {
@@ -207,6 +259,14 @@ function applyInteraction(line: string, scene: StoryScene, ctx: ParseCtx) {
   } else if ((m = line.match(/<!--\s*popup\s*:(.*?)-->/i))) {
     const seg = m[1].split('=>')
     scene.interaction = { type: 'popup', triggerText: (seg[0] || '').trim(), popupContent: (seg[1] || '').trim() }
+  } else if ((m = line.match(/<!--\s*weather\s*:(.*?)-->/i))) {
+    const states = parseWeatherStates(m[1])
+    if (states.length) scene.interaction = { type: 'weather', states }
+  } else if ((m = line.match(/<!--\s*storm\s*:(.*?)-->/i))) {
+    scene.interaction = { type: 'storm', caption: m[1].trim() }
+  } else if ((m = line.match(/<!--\s*cycle\s*:(.*?)-->/i))) {
+    const cyc = parseCycle(m[1])
+    if (cyc) scene.interaction = { type: 'cycle', cycleTitle: cyc.cycleTitle, steps: cyc.steps }
   }
 }
 
@@ -250,13 +310,23 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     return state.cur
   }
 
-  for (const raw of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
     const line = raw.trim()
     if (!line) continue
-    // --- 分隔符：强制切分场景（AI 讲稿式常用）
+    // --- 分隔符：仅在「旧讲稿式」下切场景（AI 用 --- 分隔场景且后面不再跟 ## 标题）。
+    //
+    // 历史缺陷（2026-09-03 根因修复）：新版 AI 会在**每一页末尾**写 `---` 作为 markdown 分隔线，
+    // 旧逻辑无条件切分 → 每页后面都被追加一个「无标题、无内容的空场景」，
+    // 渲染成一张空壳卡片：一份 11 页课件实际渲染出 ~22 个场景，其中一半是空页，
+    // 且这些空页长得完全一样 —— 这正是"翻来翻去都是同一个套路"的物理来源。
+    // 故：下一行若是 `## 标题`（## 自己会开新场景），`---` 只作视觉分隔，不再生成空场景。
     if (/^---+$/.test(line)) {
       ctx.block = 'none'
-      if (state.cur) { const m = state.cur.mood || 'warm'; newScene('', m) }
+      let j = i + 1
+      while (j < lines.length && !lines[j].trim()) j++
+      const nextIsHeading = j < lines.length && /^##\s+/.test(lines[j].trim())
+      if (state.cur && !nextIsHeading) { const m = state.cur.mood || 'warm'; newScene('', m) }
       continue
     }
     if (line.startsWith('# ') && !ctx.title) { ctx.title = line.slice(2).trim(); continue }
@@ -268,9 +338,11 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
       if (lay) {
         const raw = lay[1].toLowerCase()
         const type = raw.startsWith('scene-') ? raw.slice('scene-'.length) : raw
-        if (type !== 'scene' && (SCENE_TYPES as string[]).includes(type)) {
+        // 先做别名容错（scene-cycle→phenomenon、scene-popup→reveal…），再校验受控集合
+        const resolved: string = SCENE_ALIAS[type] || type
+        if (resolved !== 'scene' && (SCENE_TYPES as string[]).includes(resolved)) {
           const sc = state.cur || scenes[scenes.length - 1]
-          if (sc) sc.sceneType = type as SceneType
+          if (sc) sc.sceneType = resolved as SceneType
         }
         // 其它（误带的 PPT 版式名如 edu-goal 等）一律忽略：不建场景、不报错
         continue

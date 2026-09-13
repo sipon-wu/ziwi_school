@@ -5,7 +5,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(__dirname, './src'), '@shared': path.resolve(__dirname, '../shared') } },
+  resolve: { alias: { '@': path.resolve(__dirname, './src'), '@shared': path.resolve(__dirname, '../shared'), '@styles': path.resolve(__dirname, '../ai-service/skills/shared/styles') } },
   server: { port: 5173, proxy: { '/api': { target: 'https://school1.ziwi.cn', changeOrigin: true, secure: false } } },
   build: {
     // KnowledgeGraph(@antv/g6) 等重库体积大，拆独立 chunk 降低主包体积

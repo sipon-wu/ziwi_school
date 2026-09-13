@@ -176,7 +176,7 @@ export default function Materials() {
             </button>
             {/* AI 生成课件（P4：独立编辑器页，与教案/出题/组卷同框架） */}
             <button
-              onClick={() => window.open('/courseware/new', '_blank')}
+              onClick={() => window.open('/courseware/ppt/new', '_blank')}   // 修复（2026-09-12）：路由是 /courseware/:format/new，写 /courseware/new 匹配不到任何路由 → 命中 `*` → 跳登录页
               className="flex items-center gap-1.5 px-3 py-2 text-[12px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] transition-colors"
             >
               <Sparkles size={14} /> AI 生成课件

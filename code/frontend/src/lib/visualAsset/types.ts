@@ -151,6 +151,79 @@ export interface AssetParam {
  * `defaultsByStyle` 是命中率的战场：校准的键是 `assetId × styleId`，不是 assetId——
  * 同一片树叶在「森林童趣」里默认 2 朵，在「自然生机」里可能默认 8 朵。
  */
+/**
+ * 资产「适用面」（正向描述，参与打分）。
+ * 2026-09-11 新增：素材的可引用描述不再只有"能用在哪"，还要能说"**不能用在哪**"。
+ */
+export interface AssetApplicability {
+  styles?: string[]
+  subjects?: string[]
+  stages?: string[]
+  scenes?: string[]
+  /** 语义标签：自然 / 城市 / 情感 / 数据 / 文学 …（跨学科的内容维度） */
+  semantics?: string[]
+}
+
+/**
+ * 资产「不适用面」（负向描述，**硬否决 veto**，优先级高于 applicability）。
+ *
+ * 为什么必须有：正向打分在候选都弱时会选出"相对最不差"的那个——
+ * 这正是 🚦 交通灯被塞进《观潮》的机制（它没有任何"绝对不该用"的表达）。
+ *
+ * 纪律（防止否定泛滥）：
+ *   1. 只写**禁忌**（风格冲突 / 学段不适 / 合规），不写**偏好**；
+ *   2. 必须给 reasons（人话），否则无法评审与回归；
+ *   3. 维度须枚举化（可判定），不接受自由文本。
+ */
+export interface AssetExclusions extends AssetApplicability {
+  /** 一句话说明为何排除，供评审与 prompt 直接引用 */
+  reasons?: string
+}
+
+/** 匹配上下文：判定 veto 与打分所需的全部外部信息 */
+export interface AssetContext {
+  styleKey?: string
+  subject?: string
+  stage?: string
+  scene?: string
+  semantics?: string[]
+}
+
+/** 硬否决：命中任一 exclusions 维度即排除（veto 优先于一切正向打分） */
+export function isVetoed(
+  desc: { exclusions?: AssetExclusions },
+  ctx: AssetContext,
+): boolean {
+  const ex = desc.exclusions
+  if (!ex) return false
+  const hit = (list?: string[], v?: string) => !!list?.length && !!v && list.includes(v)
+  if (hit(ex.styles, ctx.styleKey)) return true
+  if (hit(ex.subjects, ctx.subject)) return true
+  if (hit(ex.stages, ctx.stage)) return true
+  if (hit(ex.scenes, ctx.scene)) return true
+  if (ex.semantics?.length && ctx.semantics?.length
+      && ex.semantics.some((s) => ctx.semantics!.includes(s))) return true
+  return false
+}
+
+/** 正向得分：命中维度越多越高；无 applicability 视为通用（基线 0） */
+export function affinityScore(
+  desc: { applicability?: AssetApplicability },
+  ctx: AssetContext,
+): number {
+  const a = desc.applicability
+  if (!a) return 0
+  let s = 0
+  if (a.styles?.includes(ctx.styleKey || '')) s += 3
+  if (a.subjects?.includes(ctx.subject || '')) s += 3
+  if (a.stages?.includes(ctx.stage || '')) s += 1
+  if (a.scenes?.includes(ctx.scene || '')) s += 1
+  if (a.semantics?.length && ctx.semantics?.length) {
+    s += a.semantics.filter((x) => ctx.semantics!.includes(x)).length
+  }
+  return s
+}
+
 export interface DecorAsset {
   id: string
   name: string
@@ -170,6 +243,10 @@ export interface DecorAsset {
   }
   /** 归属哪些风格（空 = 通用） */
   styleAffinity: string[]
+  /** 适用面（正向，参与打分；与 styleAffinity 并存，后者保留向后兼容） */
+  applicability?: AssetApplicability
+  /** 不适用面（负向，**硬否决**；命中即排除，优先于 applicability） */
+  exclusions?: AssetExclusions
   /** 可用位置 */
   placement: DecorPlacement[]
   /** 可调参数 */

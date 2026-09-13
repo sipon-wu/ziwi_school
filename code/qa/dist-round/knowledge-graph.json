@@ -1,0 +1,2906 @@
+[
+  {
+    "id": "m-1-1-1",
+    "name": "1-5的认识",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "数的认识",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-1-1-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-1-1-2"
+    ]
+  },
+  {
+    "id": "m-1-1-2",
+    "name": "0的认识",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "数的认识",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-1-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-1-1"
+    ],
+    "next": [
+      "m-1-1-3"
+    ]
+  },
+  {
+    "id": "m-1-1-3",
+    "name": "6-10的认识",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "数的认识",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-1-1-3",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-1-2"
+    ],
+    "next": [
+      "m-1-2-1"
+    ]
+  },
+  {
+    "id": "m-1-1-4",
+    "name": "1-5的加减法",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "加减法",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "M-1-1-4",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-1-1"
+    ],
+    "next": [
+      "m-1-1-5"
+    ]
+  },
+  {
+    "id": "m-1-1-5",
+    "name": "6-10的加减法",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "加减法",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "M-1-1-5",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-1-4",
+      "m-1-1-3"
+    ],
+    "next": [
+      "m-1-2-2"
+    ]
+  },
+  {
+    "id": "m-1-2-1",
+    "name": "11-20各数的认识",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "数的认识",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-1-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-1-3"
+    ],
+    "next": [
+      "m-2-1-1"
+    ]
+  },
+  {
+    "id": "m-1-2-2",
+    "name": "20以内的进位加法",
+    "subject": "数学",
+    "grade": 1,
+    "semester": "上",
+    "unit": "加减法",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "M-1-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-1-5"
+    ],
+    "next": [
+      "m-2-1-2"
+    ]
+  },
+  {
+    "id": "m-2-1-1",
+    "name": "100以内的数",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "下",
+    "unit": "数的认识",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-2-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-2-1"
+    ],
+    "next": [
+      "m-3-1-1"
+    ]
+  },
+  {
+    "id": "m-2-1-2",
+    "name": "100以内的加减法(一)",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "加减法",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "M-2-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-1-2-2"
+    ],
+    "next": [
+      "m-2-1-3"
+    ]
+  },
+  {
+    "id": "m-2-1-3",
+    "name": "100以内的加减法(二)",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "加减法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-2-1-3",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-1-2"
+    ],
+    "next": [
+      "m-3-1-2"
+    ]
+  },
+  {
+    "id": "m-2-2-1",
+    "name": "表内乘法(一)",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "乘法",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-2-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-1-2"
+    ],
+    "next": [
+      "m-2-2-2"
+    ]
+  },
+  {
+    "id": "m-2-2-2",
+    "name": "表内乘法(二)",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "乘法",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-2-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-2-1"
+    ],
+    "next": [
+      "m-3-2-1"
+    ]
+  },
+  {
+    "id": "m-2-3-1",
+    "name": "长度单位",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "测量",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-2-3-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-3-3-1"
+    ]
+  },
+  {
+    "id": "m-2-3-2",
+    "name": "认识时间",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "测量",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-2-3-2",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-3-3-2"
+    ]
+  },
+  {
+    "id": "m-2-4-1",
+    "name": "角的初步认识",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-2-4-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-4-4-1"
+    ]
+  },
+  {
+    "id": "m-2-5-1",
+    "name": "表内除法(一)",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "下",
+    "unit": "除法",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-2-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-2-2"
+    ],
+    "next": [
+      "m-2-5-2"
+    ]
+  },
+  {
+    "id": "m-2-5-2",
+    "name": "表内除法(二)",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "下",
+    "unit": "除法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-2-5-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-5-1"
+    ],
+    "next": [
+      "m-3-2-2"
+    ]
+  },
+  {
+    "id": "m-2-6-1",
+    "name": "数据收集整理",
+    "subject": "数学",
+    "grade": 2,
+    "semester": "下",
+    "unit": "统计",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-2-6-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-3-4-1"
+    ]
+  },
+  {
+    "id": "m-3-1-1",
+    "name": "万以内的数",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "数的认识",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-3-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-1-1"
+    ],
+    "next": [
+      "m-4-1-1"
+    ]
+  },
+  {
+    "id": "m-3-1-2",
+    "name": "万以内的加减法",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "加减法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-1-3"
+    ],
+    "next": [
+      "m-4-1-2"
+    ]
+  },
+  {
+    "id": "m-3-2-1",
+    "name": "多位数乘一位数",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "乘法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-2-2"
+    ],
+    "next": [
+      "m-4-2-1"
+    ]
+  },
+  {
+    "id": "m-3-2-2",
+    "name": "除数是一位数的除法",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "下",
+    "unit": "除法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-5-2"
+    ],
+    "next": [
+      "m-4-2-2"
+    ]
+  },
+  {
+    "id": "m-3-3-1",
+    "name": "测量(毫米分米千米)",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "测量",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-3-1"
+    ],
+    "next": [
+      "m-4-3-1"
+    ]
+  },
+  {
+    "id": "m-3-3-2",
+    "name": "时分秒",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "测量",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-3-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-3-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-3-3-3",
+    "name": "吨的认识",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "测量",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "M-3-3-3",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": []
+  },
+  {
+    "id": "m-3-4-1",
+    "name": "长方形和正方形",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-4-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-4-4-2"
+    ]
+  },
+  {
+    "id": "m-3-4-2",
+    "name": "周长的计算",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-4-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-4-1"
+    ],
+    "next": [
+      "m-4-4-3"
+    ]
+  },
+  {
+    "id": "m-3-5-1",
+    "name": "分数的初步认识",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "分数",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-5-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-4-5-1"
+    ]
+  },
+  {
+    "id": "m-3-6-1",
+    "name": "倍的认识",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "上",
+    "unit": "倍数",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-2-2"
+    ],
+    "next": [
+      "m-4-2-1"
+    ]
+  },
+  {
+    "id": "m-3-7-1",
+    "name": "位置与方向",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "下",
+    "unit": "位置",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-7-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-5-7-1"
+    ]
+  },
+  {
+    "id": "m-3-7-2",
+    "name": "复式统计表",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "下",
+    "unit": "统计",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-7-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-6-1"
+    ],
+    "next": [
+      "m-4-8-1"
+    ]
+  },
+  {
+    "id": "m-3-8-1",
+    "name": "年、月、日",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "下",
+    "unit": "时间",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-8-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-3-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-3-8-2",
+    "name": "两位数乘两位数",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "下",
+    "unit": "乘法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-3-8-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-2-1"
+    ],
+    "next": [
+      "m-4-2-1"
+    ]
+  },
+  {
+    "id": "m-3-9-1",
+    "name": "小数的初步认识",
+    "subject": "数学",
+    "grade": 3,
+    "semester": "下",
+    "unit": "小数",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "M-3-9-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-5-1"
+    ],
+    "next": [
+      "m-4-5-2"
+    ]
+  },
+  {
+    "id": "m-4-1-1",
+    "name": "亿以内数的认识",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "大数的认识",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "M-4-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-1-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-4-1-2",
+    "name": "亿以内数的运算",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "大数的认识",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-1-2",
+      "m-4-1-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-4-2-1",
+    "name": "三位数乘两位数",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "乘法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-8-2"
+    ],
+    "next": [
+      "m-5-2-1"
+    ]
+  },
+  {
+    "id": "m-4-2-2",
+    "name": "除数是两位数的除法",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "除法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-2-2"
+    ],
+    "next": [
+      "m-5-2-2"
+    ]
+  },
+  {
+    "id": "m-4-3-1",
+    "name": "公顷和平方千米",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "测量",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "M-4-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-3-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-4-4-1",
+    "name": "线段直线射线和角",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "M-4-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-4-1"
+    ],
+    "next": [
+      "m-4-4-2"
+    ]
+  },
+  {
+    "id": "m-4-4-2",
+    "name": "平行与垂直",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-4-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-4-1",
+      "m-3-4-1"
+    ],
+    "next": [
+      "m-5-4-1"
+    ]
+  },
+  {
+    "id": "m-4-4-3",
+    "name": "平行四边形和梯形",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-4-3",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-4-2"
+    ],
+    "next": [
+      "m-5-4-2"
+    ]
+  },
+  {
+    "id": "m-4-5-1",
+    "name": "分数的意义和性质",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "分数",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "M-4-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-5-1"
+    ],
+    "next": [
+      "m-5-5-1"
+    ]
+  },
+  {
+    "id": "m-4-5-2",
+    "name": "小数的意义和性质",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "小数",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "M-4-5-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-9-1"
+    ],
+    "next": [
+      "m-5-5-2"
+    ]
+  },
+  {
+    "id": "m-4-5-3",
+    "name": "分数加减法",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "分数",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-5-3",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-5-1"
+    ],
+    "next": [
+      "m-5-5-3"
+    ]
+  },
+  {
+    "id": "m-4-5-4",
+    "name": "小数加减法",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "小数",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-5-4",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-5-2"
+    ],
+    "next": [
+      "m-5-5-4"
+    ]
+  },
+  {
+    "id": "m-4-6-1",
+    "name": "运算定律",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "运算",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-1-2"
+    ],
+    "next": [
+      "m-5-6-1"
+    ]
+  },
+  {
+    "id": "m-4-7-1",
+    "name": "观察物体(二)",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "M-4-7-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "m-5-4-3"
+    ]
+  },
+  {
+    "id": "m-4-7-2",
+    "name": "三角形",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "几何",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-4-7-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-2-4-1"
+    ],
+    "next": [
+      "m-5-4-4"
+    ]
+  },
+  {
+    "id": "m-4-8-1",
+    "name": "平均数与条形统计图",
+    "subject": "数学",
+    "grade": 4,
+    "semester": "下",
+    "unit": "统计",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "M-4-8-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-7-2"
+    ],
+    "next": [
+      "m-5-8-1"
+    ]
+  },
+  {
+    "id": "m-5-2-1",
+    "name": "小数乘法",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "上",
+    "unit": "小数运算",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-2-1",
+      "m-4-5-2"
+    ],
+    "next": [
+      "m-5-2-2"
+    ]
+  },
+  {
+    "id": "m-5-2-2",
+    "name": "小数除法",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "上",
+    "unit": "小数运算",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-2-2",
+      "m-5-2-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-5-3-1",
+    "name": "简易方程",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "上",
+    "unit": "方程",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-5-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-1-2"
+    ],
+    "next": [
+      "m-6-3-1"
+    ]
+  },
+  {
+    "id": "m-5-4-1",
+    "name": "多边形的面积",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-4-3"
+    ],
+    "next": [
+      "m-6-4-1"
+    ]
+  },
+  {
+    "id": "m-5-4-2",
+    "name": "正方体与长方体",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "立体几何",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-5-4-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-4-3"
+    ],
+    "next": [
+      "m-6-4-2"
+    ]
+  },
+  {
+    "id": "m-5-4-3",
+    "name": "观察物体(三)",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "立体几何",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-5-4-3",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-7-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-5-4-4",
+    "name": "图形的运动(三)",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "几何",
+    "difficulty": "L3",
+    "cognitive": "评价",
+    "curriculum_code": "M-5-4-4",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-7-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-5-5-1",
+    "name": "分数的意义和性质(深入)",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "分数",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-5-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-5-1"
+    ],
+    "next": [
+      "m-5-5-3"
+    ]
+  },
+  {
+    "id": "m-5-5-2",
+    "name": "约分和通分",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "分数",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-5-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-5-1"
+    ],
+    "next": [
+      "m-5-5-3"
+    ]
+  },
+  {
+    "id": "m-5-5-3",
+    "name": "分数加减法(异分母)",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "分数",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-5-3",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-5-3",
+      "m-5-5-2"
+    ],
+    "next": [
+      "m-6-5-1"
+    ]
+  },
+  {
+    "id": "m-5-5-4",
+    "name": "分数乘法",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "分数",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-5-4",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-5-1",
+      "m-5-5-3"
+    ],
+    "next": [
+      "m-6-5-2"
+    ]
+  },
+  {
+    "id": "m-5-6-1",
+    "name": "因数和倍数",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "下",
+    "unit": "数论",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-5-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-6-1"
+    ],
+    "next": [
+      "m-6-6-1"
+    ]
+  },
+  {
+    "id": "m-5-7-1",
+    "name": "位置",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "上",
+    "unit": "位置",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "M-5-7-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-3-7-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-5-8-1",
+    "name": "可能性",
+    "subject": "数学",
+    "grade": 5,
+    "semester": "上",
+    "unit": "概率",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "M-5-8-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-4-8-1"
+    ],
+    "next": [
+      "m-6-8-1"
+    ]
+  },
+  {
+    "id": "m-6-2-1",
+    "name": "分数乘除法",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "分数运算",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-6-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-5-4"
+    ],
+    "next": [
+      "m-6-2-2"
+    ]
+  },
+  {
+    "id": "m-6-2-2",
+    "name": "分数混合运算",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "分数运算",
+    "difficulty": "L4",
+    "cognitive": "分析",
+    "curriculum_code": "M-6-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-6-2-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-3-1",
+    "name": "比和比例",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "比",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-6-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-3-1",
+      "m-5-5-3"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-3-2",
+    "name": "百分数(一)",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "百分数",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "M-6-3-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-5-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-4-1",
+    "name": "圆",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "几何",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-6-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-4-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-4-2",
+    "name": "圆柱与圆锥",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "下",
+    "unit": "立体几何",
+    "difficulty": "L4",
+    "cognitive": "分析",
+    "curriculum_code": "M-6-4-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-4-2",
+      "m-6-4-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-5-1",
+    "name": "负数",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "下",
+    "unit": "数系",
+    "difficulty": "L3",
+    "cognitive": "理解",
+    "curriculum_code": "M-6-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-5-3"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-6-1",
+    "name": "鸽巢问题",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "下",
+    "unit": "奥数",
+    "difficulty": "L4",
+    "cognitive": "创造",
+    "curriculum_code": "M-6-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-6-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-7-1",
+    "name": "数与形",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "综合",
+    "difficulty": "L4",
+    "cognitive": "评价",
+    "curriculum_code": "M-6-7-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-4-1",
+      "m-5-3-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-8-1",
+    "name": "扇形统计图",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "上",
+    "unit": "统计",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "M-6-8-1",
+    "parent_id": null,
+    "prerequisites": [
+      "m-5-8-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "m-6-8-2",
+    "name": "总复习",
+    "subject": "数学",
+    "grade": 6,
+    "semester": "下",
+    "unit": "复习",
+    "difficulty": "L3",
+    "cognitive": "评价",
+    "curriculum_code": "M-6-8-2",
+    "parent_id": null,
+    "prerequisites": [
+      "m-6-2-2",
+      "m-6-3-1",
+      "m-6-4-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-1-1-1",
+    "name": "汉语拼音认读",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "上",
+    "unit": "拼音",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "C-1-1-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "c-1-1-2"
+    ]
+  },
+  {
+    "id": "c-1-1-2",
+    "name": "声母韵母拼读",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "上",
+    "unit": "拼音",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "C-1-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-1-1"
+    ],
+    "next": [
+      "c-1-2-1"
+    ]
+  },
+  {
+    "id": "c-1-2-1",
+    "name": "常用汉字认读",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "上",
+    "unit": "识字",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "C-1-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-1-2"
+    ],
+    "next": [
+      "c-1-2-2"
+    ]
+  },
+  {
+    "id": "c-1-2-2",
+    "name": "汉字基本笔画",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "上",
+    "unit": "识字",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "C-1-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-2-1"
+    ],
+    "next": [
+      "c-1-3-1"
+    ]
+  },
+  {
+    "id": "c-1-3-1",
+    "name": "课文朗读与背诵",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "上",
+    "unit": "课文",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "C-1-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-2-1"
+    ],
+    "next": [
+      "c-1-3-2"
+    ]
+  },
+  {
+    "id": "c-1-3-2",
+    "name": "简单课文理解",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "上",
+    "unit": "课文",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "C-1-3-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-3-1"
+    ],
+    "next": [
+      "c-2-3-1"
+    ]
+  },
+  {
+    "id": "c-1-4-1",
+    "name": "形声字识字法",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "下",
+    "unit": "识字方法",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "C-1-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-2-2"
+    ],
+    "next": [
+      "c-2-1-1"
+    ]
+  },
+  {
+    "id": "c-1-4-2",
+    "name": "词语积累与运用",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "下",
+    "unit": "词语",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "C-1-4-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-2-1"
+    ],
+    "next": [
+      "c-2-1-2"
+    ]
+  },
+  {
+    "id": "c-1-5-1",
+    "name": "看图说话",
+    "subject": "语文",
+    "grade": 1,
+    "semester": "下",
+    "unit": "口语交际",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "C-1-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-3-2"
+    ],
+    "next": [
+      "c-2-4-1"
+    ]
+  },
+  {
+    "id": "c-2-1-1",
+    "name": "查字典方法",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "上",
+    "unit": "识字方法",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "C-2-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-4-1"
+    ],
+    "next": [
+      "c-3-1-1"
+    ]
+  },
+  {
+    "id": "c-2-1-2",
+    "name": "近义词反义词",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "上",
+    "unit": "词语",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "C-2-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-4-2"
+    ],
+    "next": [
+      "c-3-2-1"
+    ]
+  },
+  {
+    "id": "c-2-2-1",
+    "name": "比喻句识别",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "上",
+    "unit": "修辞手法",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "C-2-2-1",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "c-3-3-1"
+    ]
+  },
+  {
+    "id": "c-2-3-1",
+    "name": "课文内容把握",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "上",
+    "unit": "课文理解",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "C-2-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-3-2"
+    ],
+    "next": [
+      "c-3-3-2"
+    ]
+  },
+  {
+    "id": "c-2-4-1",
+    "name": "写话训练",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "上",
+    "unit": "写作",
+    "difficulty": "L1",
+    "cognitive": "应用",
+    "curriculum_code": "C-2-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-1-5-1"
+    ],
+    "next": [
+      "c-3-5-1"
+    ]
+  },
+  {
+    "id": "c-2-5-1",
+    "name": "段落划分理解",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "下",
+    "unit": "阅读",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "C-2-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-3-1"
+    ],
+    "next": [
+      "c-3-4-1"
+    ]
+  },
+  {
+    "id": "c-2-6-1",
+    "name": "寓言故事阅读",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "下",
+    "unit": "寓言",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "C-2-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-3-1"
+    ],
+    "next": [
+      "c-3-6-1"
+    ]
+  },
+  {
+    "id": "c-2-6-2",
+    "name": "寓言道理归纳",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "下",
+    "unit": "寓言",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "C-2-6-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-6-1"
+    ],
+    "next": [
+      "c-3-6-1"
+    ]
+  },
+  {
+    "id": "c-2-7-1",
+    "name": "写事记叙文入门",
+    "subject": "语文",
+    "grade": 2,
+    "semester": "下",
+    "unit": "写作",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-2-7-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-4-1"
+    ],
+    "next": [
+      "c-3-5-2"
+    ]
+  },
+  {
+    "id": "c-3-1-1",
+    "name": "多音字辨析",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "识字写字",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-3-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-1-1"
+    ],
+    "next": [
+      "c-4-1-1"
+    ]
+  },
+  {
+    "id": "c-3-2-1",
+    "name": "成语积累与运用",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "词语",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-3-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-1-2"
+    ],
+    "next": [
+      "c-4-2-1"
+    ]
+  },
+  {
+    "id": "c-3-3-1",
+    "name": "拟人句仿写",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "修辞手法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-3-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-2-1"
+    ],
+    "next": [
+      "c-4-1-2"
+    ]
+  },
+  {
+    "id": "c-3-3-2",
+    "name": "关键词句理解",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "课文理解",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "C-3-3-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-3-1"
+    ],
+    "next": [
+      "c-4-1-2"
+    ]
+  },
+  {
+    "id": "c-3-4-1",
+    "name": "概括段落大意",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "阅读",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "C-3-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-5-1"
+    ],
+    "next": [
+      "c-4-6-1"
+    ]
+  },
+  {
+    "id": "c-3-5-1",
+    "name": "观察作文",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "写作",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-3-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-4-1"
+    ],
+    "next": [
+      "c-4-3-3"
+    ]
+  },
+  {
+    "id": "c-3-5-2",
+    "name": "童话故事阅读",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "上",
+    "unit": "童话",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "C-3-5-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-6-1"
+    ],
+    "next": [
+      "c-4-4-1"
+    ]
+  },
+  {
+    "id": "c-3-6-1",
+    "name": "寓言寓意理解",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "下",
+    "unit": "寓言",
+    "difficulty": "L2",
+    "cognitive": "分析",
+    "curriculum_code": "C-3-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-2-6-2",
+      "c-3-5-2"
+    ],
+    "next": [
+      "c-4-1-2"
+    ]
+  },
+  {
+    "id": "c-3-6-2",
+    "name": "想象作文",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "下",
+    "unit": "写作",
+    "difficulty": "L3",
+    "cognitive": "创造",
+    "curriculum_code": "C-3-6-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-3-5-1"
+    ],
+    "next": [
+      "c-4-3-3"
+    ]
+  },
+  {
+    "id": "c-3-7-1",
+    "name": "说明文入门",
+    "subject": "语文",
+    "grade": 3,
+    "semester": "下",
+    "unit": "文体认知",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "C-3-7-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-3-3-2"
+    ],
+    "next": [
+      "c-5-2-1"
+    ]
+  },
+  {
+    "id": "c-4-2-1",
+    "name": "词语搭配与运用",
+    "subject": "语文",
+    "grade": 4,
+    "semester": "上",
+    "unit": "词语",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-4-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-3-2-1"
+    ],
+    "next": [
+      "c-4-2-2"
+    ]
+  },
+  {
+    "id": "c-4-2-2",
+    "name": "修饰语运用",
+    "subject": "语文",
+    "grade": 4,
+    "semester": "上",
+    "unit": "词语",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-4-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-2-1"
+    ],
+    "next": [
+      "c-4-3-2"
+    ]
+  },
+  {
+    "id": "c-4-3-2",
+    "name": "排比句仿写",
+    "subject": "语文",
+    "grade": 4,
+    "semester": "上",
+    "unit": "修辞手法",
+    "difficulty": "L2",
+    "cognitive": "应用",
+    "curriculum_code": "C-4-3-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-3-3-1",
+      "c-4-2-2"
+    ],
+    "next": [
+      "c-5-1-1"
+    ]
+  },
+  {
+    "id": "c-5-1-1",
+    "name": "借物喻人手法",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "上",
+    "unit": "写作手法",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "C-5-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-7-1"
+    ],
+    "next": [
+      "c-5-1-2"
+    ]
+  },
+  {
+    "id": "c-5-1-2",
+    "name": "场面描写方法",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "上",
+    "unit": "写作手法",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "C-5-1-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-1-1"
+    ],
+    "next": [
+      "c-6-3-1"
+    ]
+  },
+  {
+    "id": "c-5-2-1",
+    "name": "说明方法辨析",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "上",
+    "unit": "说明文",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "C-5-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-3-7-1"
+    ],
+    "next": [
+      "c-5-2-2"
+    ]
+  },
+  {
+    "id": "c-5-2-2",
+    "name": "说明文写作",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "上",
+    "unit": "说明文",
+    "difficulty": "L4",
+    "cognitive": "创造",
+    "curriculum_code": "C-5-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-2-1"
+    ],
+    "next": [
+      "c-5-6-1"
+    ]
+  },
+  {
+    "id": "c-5-3-1",
+    "name": "快速阅读策略",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "上",
+    "unit": "阅读策略",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "C-5-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-6-2"
+    ],
+    "next": [
+      "c-6-2-1"
+    ]
+  },
+  {
+    "id": "c-5-4-1",
+    "name": "读后感写作",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "上",
+    "unit": "写作",
+    "difficulty": "L3",
+    "cognitive": "评价",
+    "curriculum_code": "C-5-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-6-3"
+    ],
+    "next": [
+      "c-6-4-1"
+    ]
+  },
+  {
+    "id": "c-5-5-1",
+    "name": "人物描写方法",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "下",
+    "unit": "人物描写",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "C-5-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-7-2"
+    ],
+    "next": [
+      "c-6-1-1"
+    ]
+  },
+  {
+    "id": "c-5-5-2",
+    "name": "名著导读方法",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "下",
+    "unit": "名著阅读",
+    "difficulty": "L3",
+    "cognitive": "理解",
+    "curriculum_code": "C-5-5-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-6-3"
+    ],
+    "next": [
+      "c-6-2-2"
+    ]
+  },
+  {
+    "id": "c-5-6-1",
+    "name": "研究报告写作",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "下",
+    "unit": "综合学习",
+    "difficulty": "L4",
+    "cognitive": "创造",
+    "curriculum_code": "C-5-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-2-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-5-7-1",
+    "name": "动静结合写景",
+    "subject": "语文",
+    "grade": 5,
+    "semester": "下",
+    "unit": "写景",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "C-5-7-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-4-5-2"
+    ],
+    "next": [
+      "c-6-3-2"
+    ]
+  },
+  {
+    "id": "c-6-1-1",
+    "name": "点面结合写法",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "上",
+    "unit": "写作技法",
+    "difficulty": "L4",
+    "cognitive": "应用",
+    "curriculum_code": "C-6-1-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-5-1"
+    ],
+    "next": [
+      "c-6-3-1"
+    ]
+  },
+  {
+    "id": "c-6-2-1",
+    "name": "小说阅读方法",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "上",
+    "unit": "文学阅读",
+    "difficulty": "L3",
+    "cognitive": "分析",
+    "curriculum_code": "C-6-2-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-3-1",
+      "c-4-4-3"
+    ],
+    "next": [
+      "c-6-2-2"
+    ]
+  },
+  {
+    "id": "c-6-2-2",
+    "name": "小说三要素分析",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "上",
+    "unit": "文学阅读",
+    "difficulty": "L4",
+    "cognitive": "评价",
+    "curriculum_code": "C-6-2-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-6-2-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-6-3-1",
+    "name": "叙事技巧综合运用",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "上",
+    "unit": "写作",
+    "difficulty": "L4",
+    "cognitive": "创造",
+    "curriculum_code": "C-6-3-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-6-1-1",
+      "c-5-1-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-6-3-2",
+    "name": "情景交融写作",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "上",
+    "unit": "写作",
+    "difficulty": "L4",
+    "cognitive": "创造",
+    "curriculum_code": "C-6-3-2",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-7-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-6-4-1",
+    "name": "演讲稿写作",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "上",
+    "unit": "实用文体",
+    "difficulty": "L4",
+    "cognitive": "创造",
+    "curriculum_code": "C-6-4-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-5-4-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-6-5-1",
+    "name": "议论文阅读入门",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "下",
+    "unit": "文体阅读",
+    "difficulty": "L4",
+    "cognitive": "分析",
+    "curriculum_code": "C-6-5-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-6-2-2"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-6-6-1",
+    "name": "毕业感言写作",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "下",
+    "unit": "写作",
+    "difficulty": "L3",
+    "cognitive": "创造",
+    "curriculum_code": "C-6-6-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-6-3-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "c-6-7-1",
+    "name": "综合学习与复习",
+    "subject": "语文",
+    "grade": 6,
+    "semester": "下",
+    "unit": "复习",
+    "difficulty": "L4",
+    "cognitive": "评价",
+    "curriculum_code": "C-6-7-1",
+    "parent_id": null,
+    "prerequisites": [
+      "c-6-2-2",
+      "c-6-3-1",
+      "c-6-5-1"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-001",
+    "name": "长度和时间的测量",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "机械运动",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-01",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-002"
+    ]
+  },
+  {
+    "id": "p8-002",
+    "name": "运动的描述",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "机械运动",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-02",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-001"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-003",
+    "name": "声音的产生与传播",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "声现象",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-03",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-004"
+    ]
+  },
+  {
+    "id": "p8-004",
+    "name": "声音的特性",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "声现象",
+    "difficulty": "L1",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-04",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-003"
+    ],
+    "next": [
+      "p8-005"
+    ]
+  },
+  {
+    "id": "p8-005",
+    "name": "声的利用",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "声现象",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-05",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-004"
+    ],
+    "next": [
+      "p8-006"
+    ]
+  },
+  {
+    "id": "p8-006",
+    "name": "噪声的危害与控制",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "声现象",
+    "difficulty": "L2",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-06",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": []
+  },
+  {
+    "id": "p8-007",
+    "name": "温度",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "物态变化",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-07",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-008"
+    ]
+  },
+  {
+    "id": "p8-008",
+    "name": "熔化和凝固",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "物态变化",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-08",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-007"
+    ],
+    "next": [
+      "p8-009"
+    ]
+  },
+  {
+    "id": "p8-009",
+    "name": "汽化和液化",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "物态变化",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-09",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-008"
+    ],
+    "next": [
+      "p8-010"
+    ]
+  },
+  {
+    "id": "p8-010",
+    "name": "升华和凝华",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "物态变化",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-10",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-009"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-011",
+    "name": "光的直线传播",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "光现象",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-11",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-012"
+    ]
+  },
+  {
+    "id": "p8-012",
+    "name": "光的反射",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "光现象",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-12",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-011"
+    ],
+    "next": [
+      "p8-013"
+    ]
+  },
+  {
+    "id": "p8-013",
+    "name": "平面镜成像",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "光现象",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-13",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-012"
+    ],
+    "next": [
+      "p8-014"
+    ]
+  },
+  {
+    "id": "p8-014",
+    "name": "光的折射",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "光现象",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-14",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-013"
+    ],
+    "next": [
+      "p8-015"
+    ]
+  },
+  {
+    "id": "p8-015",
+    "name": "光的色散",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "光现象",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-15",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": []
+  },
+  {
+    "id": "p8-016",
+    "name": "透镜",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "透镜及其应用",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-16",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-014"
+    ],
+    "next": [
+      "p8-017"
+    ]
+  },
+  {
+    "id": "p8-017",
+    "name": "凸透镜成像的规律",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "透镜及其应用",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "P-8-上-17",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-016"
+    ],
+    "next": [
+      "p8-018"
+    ]
+  },
+  {
+    "id": "p8-018",
+    "name": "眼睛和眼镜",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "透镜及其应用",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-18",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-017"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-019",
+    "name": "显微镜和望远镜",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "透镜及其应用",
+    "difficulty": "L2",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-19",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": []
+  },
+  {
+    "id": "p8-020",
+    "name": "质量",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "质量与密度",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-上-20",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-021"
+    ]
+  },
+  {
+    "id": "p8-021",
+    "name": "密度",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "质量与密度",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-21",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-020"
+    ],
+    "next": [
+      "p8-022"
+    ]
+  },
+  {
+    "id": "p8-022",
+    "name": "测量物质的密度",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "质量与密度",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "P-8-上-22",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-021"
+    ],
+    "next": [
+      "p8-023"
+    ]
+  },
+  {
+    "id": "p8-023",
+    "name": "密度与社会生活",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "上",
+    "unit": "质量与密度",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-上-23",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": []
+  },
+  {
+    "id": "p8-024",
+    "name": "力",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "力",
+    "difficulty": "L1",
+    "cognitive": "记忆",
+    "curriculum_code": "P-8-下-01",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-025"
+    ]
+  },
+  {
+    "id": "p8-025",
+    "name": "弹力",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "力",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-02",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-024"
+    ],
+    "next": [
+      "p8-026"
+    ]
+  },
+  {
+    "id": "p8-026",
+    "name": "重力",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "力",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-03",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-024"
+    ],
+    "next": [
+      "p8-027"
+    ]
+  },
+  {
+    "id": "p8-027",
+    "name": "牛顿第一定律",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "运动和力",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-04",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-028"
+    ]
+  },
+  {
+    "id": "p8-028",
+    "name": "二力平衡",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "运动和力",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-05",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-027"
+    ],
+    "next": [
+      "p8-029"
+    ]
+  },
+  {
+    "id": "p8-029",
+    "name": "摩擦力",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "运动和力",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-06",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-028"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-030",
+    "name": "压强",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "压强",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-07",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-031"
+    ]
+  },
+  {
+    "id": "p8-031",
+    "name": "液体的压强",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "压强",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-08",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-030"
+    ],
+    "next": [
+      "p8-032"
+    ]
+  },
+  {
+    "id": "p8-032",
+    "name": "大气压强",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "压强",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-09",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-033"
+    ]
+  },
+  {
+    "id": "p8-033",
+    "name": "流体压强与流速的关系",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "压强",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-10",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": []
+  },
+  {
+    "id": "p8-034",
+    "name": "浮力",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "浮力",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-11",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-030"
+    ],
+    "next": [
+      "p8-035"
+    ]
+  },
+  {
+    "id": "p8-035",
+    "name": "阿基米德原理",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "浮力",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "P-8-下-12",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-034"
+    ],
+    "next": [
+      "p8-036"
+    ]
+  },
+  {
+    "id": "p8-036",
+    "name": "物体的浮沉条件及应用",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "浮力",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "P-8-下-13",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-035"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-037",
+    "name": "功",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "功和机械能",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-14",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-038"
+    ]
+  },
+  {
+    "id": "p8-038",
+    "name": "功率",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "功和机械能",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-15",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-037"
+    ],
+    "next": [
+      "p8-039"
+    ]
+  },
+  {
+    "id": "p8-039",
+    "name": "动能和势能",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "功和机械能",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-16",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-040"
+    ]
+  },
+  {
+    "id": "p8-040",
+    "name": "机械能及其转化",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "功和机械能",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-17",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-039"
+    ],
+    "next": []
+  },
+  {
+    "id": "p8-041",
+    "name": "杠杆",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "简单机械",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-18",
+    "parent_id": null,
+    "prerequisites": [],
+    "next": [
+      "p8-042"
+    ]
+  },
+  {
+    "id": "p8-042",
+    "name": "滑轮",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "简单机械",
+    "difficulty": "L2",
+    "cognitive": "理解",
+    "curriculum_code": "P-8-下-19",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-041"
+    ],
+    "next": [
+      "p8-043"
+    ]
+  },
+  {
+    "id": "p8-043",
+    "name": "机械效率",
+    "subject": "物理",
+    "grade": 8,
+    "semester": "下",
+    "unit": "简单机械",
+    "difficulty": "L3",
+    "cognitive": "应用",
+    "curriculum_code": "P-8-下-20",
+    "parent_id": null,
+    "prerequisites": [
+      "p8-042"
+    ],
+    "next": []
+  }
+]

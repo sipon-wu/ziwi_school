@@ -36,7 +36,8 @@ def resolve_knowledge_scope(node_ids):
     返回的名称去重、保序，供生成提示词约束「知识面」。
     """
     if not node_ids:
-        return {"selected": [], "prerequisites": []}
+        return {"selected": [], "selected_ids": [], "prerequisites": [],
+                "prerequisite_ids": [], "prereq_source": "none"}
     try:
         conn = get_conn()
         try:
@@ -49,12 +50,16 @@ def resolve_knowledge_scope(node_ids):
                 tuple(str(i) for i in node_ids),
             )
             selected = []
+            selected_ids = []
             prereq_names = []
+            prereq_ids = []
             parent_ids = []
             for r in rows:
                 name = (r.get("ming_cheng") or "").strip()
                 if name and name not in selected:
                     selected.append(name)
+                if r.get("id") is not None:
+                    selected_ids.append(str(r.get("id")))
                 qz = r.get("qian_zhi")
                 if isinstance(qz, str) and qz:
                     try:
@@ -66,9 +71,14 @@ def resolve_knowledge_scope(node_ids):
                         x = str(x).strip()
                         if x and x not in prereq_names and x not in selected:
                             prereq_names.append(x)
+                            # qian_zhi 现为名称数组；若某元素是纯数字则兼容视为实体 ID
+                            if x.isdigit():
+                                prereq_ids.append(x)
                 pid = r.get("parent_id")
                 if pid and pid not in parent_ids:
                     parent_ids.append(pid)
+            # 溯源：前置到底来自「前置链」还是「父节点兜底」——决定这份课件可不可复现
+            qian_zhi_count = len(prereq_names)
             # 兜底：用 parent_id 追溯父节点名称作为前置
             if parent_ids:
                 pplace = ",".join(["%s"] * len(parent_ids))
@@ -81,14 +91,135 @@ def resolve_knowledge_scope(node_ids):
                     nm = (pr.get("ming_cheng") or "").strip()
                     if nm and nm not in prereq_names and nm not in selected:
                         prereq_names.append(nm)
-            return {"selected": selected, "prerequisites": prereq_names}
+            prereq_source = ("qian_zhi" if qian_zhi_count
+                             else ("parent_id" if prereq_names else "none"))
+            return {
+                "selected": selected,
+                # ↓ 溯源新增（2026-09-13）：向后兼容，老调用方仍只读 selected/prerequisites
+                "selected_ids": selected_ids,
+                "prerequisites": prereq_names,
+                "prerequisite_ids": prereq_ids,
+                "prereq_source": prereq_source,
+                "parent_ids": [str(p) for p in parent_ids],
+            }
         finally:
             conn.close()
     except Exception as e:
         import sys
         sys.stderr.write(f"[kg_store] resolve_knowledge_scope ERROR: {e}\n")
         sys.stderr.flush()
-        return {"selected": [], "prerequisites": []}
+        return {"selected": [], "selected_ids": [], "prerequisites": [],
+                "prerequisite_ids": [], "prereq_source": "error"}
+
+
+def list_kg_nodes(version_id=None, dan_yuan=None, q=None, level=None, limit=300):
+    """按「教材版本 / 单元 / 关键词 / 层级」列出知识点节点（供前端选择器**直接读 DB**）。
+
+    为什么必须加这个接口（2026-09-13，链路验收查实）：
+      前端选择器此前读的是**前端静态 JSON**（`public/knowledge-graph.json`：168 个节点、
+      字符串 ID 形如 `m-1-1-1`、只覆盖数学/语文/物理），而后端生成时查的是**本库 tb_kg_node**
+      （5552 个节点、int64 ID、含单元层级）——**两个数据源 ID 体系完全不同**，
+      于是「前端选中的 ID」在后端**永远查不到** → 前置链/知识面约束在真实操作下**从未生效**
+      （用手工查库的 int64 ID 测试才会"看起来通"）。本接口把选择器的数据源统一到本库。
+      **ID 一致之后，前置链、课标映射、单元归属、生成配方溯源才全部成立。**
+
+    额外收获：tb_kg_node 自带 `version_id`（教材版本实体）与 `dan_yuan`（单元），
+    因此一次查询即得「教材版本 + 单元 + 知识点」三层**实体引用**，可直接作为生成配方的溯源字段。
+
+    返回每项：{id(字符串), name, unit, version_id, level, parent_id, parent_name, prerequisites[]}
+    —— prerequisites = qian_zhi ∪ {父节点名}（与 resolve_knowledge_scope 的口径一致）。
+    """
+    sql_where = []
+    params = []
+    if version_id:
+        sql_where.append("n.version_id = %s")
+        params.append(version_id)
+    if dan_yuan:
+        sql_where.append("n.dan_yuan = %s")
+        params.append(dan_yuan)
+    if q:
+        sql_where.append("n.ming_cheng ILIKE %s")
+        params.append(f"%{q}%")
+    if level is not None:
+        sql_where.append("n.level = %s")
+        params.append(level)
+    where = ("WHERE " + " AND ".join(sql_where)) if sql_where else ""
+    sql = (
+        "SELECT n.id, n.ming_cheng, n.dan_yuan, n.version_id, n.level, n.qian_zhi, n.parent_id, "
+        "       p.ming_cheng AS parent_name "
+        "FROM tb_kg_node n LEFT JOIN tb_kg_node p ON p.id = n.parent_id "
+        f"{where} ORDER BY n.dan_yuan NULLS FIRST, n.id LIMIT %s"
+    )
+    params.append(max(1, min(2000, int(limit or 300))))
+    out = []
+    try:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            for r in _fetchall(cur, sql, tuple(params)):
+                qz = r.get("qian_zhi")
+                if isinstance(qz, str) and qz:
+                    try:
+                        qz = json.loads(qz)
+                    except Exception:
+                        qz = []
+                prereq = []
+                if isinstance(qz, list):
+                    for x in qz:
+                        x = str(x).strip()
+                        if x and x not in prereq:
+                            prereq.append(x)
+                pname = (r.get("parent_name") or "").strip()
+                if pname and pname not in prereq:
+                    prereq.append(pname)
+                name = (r.get("ming_cheng") or "").strip()
+                prereq = [x for x in prereq if x != name]
+                out.append({
+                    "id": str(r.get("id")),
+                    "name": name,
+                    "unit": r.get("dan_yuan") or "",
+                    "version_id": str(r.get("version_id")) if r.get("version_id") is not None else "",
+                    "level": r.get("level"),
+                    "parent_id": str(r.get("parent_id")) if r.get("parent_id") is not None else "",
+                    "parent_name": pname,
+                    "prerequisites": prereq,
+                })
+        finally:
+            conn.close()
+    except Exception as e:
+        import sys
+        sys.stderr.write(f"[kg_store] list_kg_nodes ERROR: {e}\n")
+        sys.stderr.flush()
+    return out
+
+
+def list_kg_units(version_id=None, limit=200):
+    """列出单元（dan_yuan）及其节点数，供前端单元下拉。返回 [{unit, count}]。"""
+    params = []
+    where = ""
+    if version_id:
+        where = "WHERE version_id = %s"
+        params.append(version_id)
+    sql = (
+        "SELECT dan_yuan AS unit, count(*) AS cnt FROM tb_kg_node "
+        f"{where} GROUP BY dan_yuan HAVING dan_yuan IS NOT NULL AND dan_yuan <> '' "
+        "ORDER BY dan_yuan LIMIT %s"
+    )
+    params.append(max(1, min(500, int(limit or 200))))
+    out = []
+    try:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            for r in _fetchall(cur, sql, tuple(params)):
+                out.append({"unit": r.get("unit") or "", "count": int(r.get("cnt") or 0)})
+        finally:
+            conn.close()
+    except Exception as e:
+        import sys
+        sys.stderr.write(f"[kg_store] list_kg_units ERROR: {e}\n")
+        sys.stderr.flush()
+    return out
 
 
 def map_curriculum(codes, subject="", grade=""):

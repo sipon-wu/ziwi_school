@@ -3,7 +3,7 @@ import {
   LayoutGrid, BookOpen, FileText, PenTool, Files, Send, Image as ImgIcon,
   ListChecks, BarChart3, Footprints, MessageCircle, PenLine, Heart,
   Repeat, Settings, GitPullRequest, ChevronDown, ChevronRight, PanelLeft, Check,
-  MonitorPlay, Smartphone, Video
+  MonitorPlay, Smartphone, Video, Megaphone
 } from 'lucide-react'
 import HeaderRight from './HeaderRight'
 import XiaoWeiChat from './XiaoWeiChat'
@@ -38,6 +38,7 @@ const SIDEBAR: SidebarGroup[] = [
     { label: '成长足迹', icon: <Footprints size={14} />, to: '/growth' },
   ]},
   { id: '沟通', label: '家校沟通', icon: <MessageCircle size={16} />, children: [
+    { label: '家校宣发', icon: <Megaphone size={14} />, to: '/notices' },
     { label: '家长签字', icon: <PenLine size={14} />, to: '/parent-sign', requireSchool: true },
     { label: '成长关爱', icon: <Heart size={14} />, to: '/care', requireSchool: true },
   ]},

@@ -13,6 +13,9 @@
 
 import type { DecorSlots, DecorItem } from './api'
 import { resolveDecorUrl } from './decorCatalog'
+// 口径统一（2026-09-11）：风格 key 与"风格→几何"均由注册表侧提供，本文件不再自持映射
+import type { StyleKey } from './styleRegistry'
+import { applyStyleGeometryToLayout } from './styleSkeletons'
 
 // ── 媒介维度：仅负责素材池分流，不决定风格 ──
 export type TemplateKind = 'ppt' | 'h5'
@@ -68,7 +71,8 @@ export function getColorFamily(id: string): ColorFamily | undefined {
 
 // ── 版式：现有纯排版版式 + 新增教学语义版式（全媒介通用） ──
 export type SlideLayout =
-  | 'title-body'   // 标题+正文
+  | 'title-body'   // 标题+正文（带一个组件）
+  | 'content-text' // 纯文本页（标题+要点，**不要求组件**；没有合适组件时用它，别硬塞）
   | 'title-only'   // 仅标题
   | 'two-col'      // 两栏
   | 'blank'        // 空白
@@ -96,6 +100,7 @@ export type SlideLayout =
 
 export const LAYOUT_LABELS: Record<SlideLayout, string> = {
   'title-body': '标题+正文',
+  'content-text': '纯文本',
   'title-only': '仅标题',
   'two-col': '两栏',
   'blank': '空白',
@@ -232,7 +237,7 @@ function subjectFamily(subject: string): string {
 // 作为所有学段/学科的兜底默认骨架。
 // 几何坐标约定（画布百分比，与现有 renderLayoutContent / layoutElements 保持一致）：
 // 顶部标题窄条 y≈4~14，正文区 y≈20~88，三列卡片宽≈28~29、起步 x≈5.3 等距。
-export const EDU_LAYOUT_SKELETONS: Record<Exclude<SlideLayout, 'title-body' | 'title-only' | 'two-col' | 'blank'>, LayoutSkeleton> = {
+export const EDU_LAYOUT_SKELETONS: Record<Exclude<SlideLayout, 'title-body' | 'content-text' | 'title-only' | 'two-col' | 'blank'>, LayoutSkeleton> = {
   'edu-cover': {
     hint: '封面：填写课题、年级学科与授课教师',
     placeholders: [
@@ -486,18 +491,27 @@ export function skeletonFor(stage: StageKey, subject: string): EduSkeletons {
 // 任意一处渲染/导出/编辑都通过本函数拿到带几何的骨架，保证三端一致。
 export function getSkeleton(
   layout: SlideLayout,
-  opts?: { tplLayouts?: Partial<Record<SlideLayout, LayoutSkeleton>>; stage?: StageKey; subject?: string },
+  opts?: {
+    tplLayouts?: Partial<Record<SlideLayout, LayoutSkeleton>>
+    stage?: StageKey
+    subject?: string
+    /** 风格 key（由 themeId 派生）：几何按风格打补丁——**渲染端必须传**，否则风格只到数据层 */
+    styleKey?: StyleKey | ''
+  },
 ): LayoutSkeleton | undefined {
-  if (opts?.tplLayouts && opts.tplLayouts[layout]) return opts.tplLayouts[layout]
-  const sk = (skeletonFor(opts?.stage ?? 'upper', opts?.subject ?? '_default') as EduSkeletons)[layout]
-  if (sk) return sk
-  // 通用版式（cover/toc/content-* 等）回落到 EDU_LAYOUT_SKELETONS 全局几何真相源
-  return (EDU_LAYOUT_SKELETONS as EduSkeletons)[layout]
+  const raw = (opts?.tplLayouts && opts.tplLayouts[layout])
+    ? opts.tplLayouts[layout]
+    : (((skeletonFor(opts?.stage ?? 'upper', opts?.subject ?? '_default') as EduSkeletons)[layout])
+        ?? ((EDU_LAYOUT_SKELETONS as EduSkeletons)[layout]))
+  // 风格管形（2026-09-11 口径统一）：几何按风格打补丁。
+  // 这是"风格"真正到达画面的唯一一层——只在套模板时打补丁会数据变、像素不变（假绿）。
+  return applyStyleGeometryToLayout(raw, opts?.styleKey ?? '', layout)
 }
 
 // 判断某 layout 是否为「结构化版式」（有骨架占位、走内容与模板分离渲染）。
 // 纯排版版式（title-body/title-only/two-col/blank）走扁平 bullets 默认渲染，不在此列。
-const PLAIN_LAYOUTS: SlideLayout[] = ['title-body', 'title-only', 'two-col', 'blank']
+// 非结构化版式：不走骨架，按「风格管形」的几何直接渲染（见 styleSkeletons 的 singleColumnRect）
+const PLAIN_LAYOUTS: SlideLayout[] = ['title-body', 'content-text', 'title-only', 'two-col', 'blank']
 export function isStructuredLayout(layout?: string): layout is SlideLayout {
   if (!layout) return false
   if (PLAIN_LAYOUTS.includes(layout as SlideLayout)) return false
@@ -509,6 +523,9 @@ export function isStructuredLayout(layout?: string): layout is SlideLayout {
 export type SlideSlots = Record<string, string[]>
 
 export function distributeToSlots(layout: SlideLayout, bullets: string[], opts?: { stage?: StageKey; subject?: string }): SlideSlots {
+  // 丢弃空条目（如"- "或"•"这类只有符号没有内容的行）——
+  // 否则会渲染出"有项目符号但没内容"的空壳（用户实测）
+  bullets = (bullets || []).filter((b) => String(b).replace(/^[•\-*\s]+$/, '').trim().length > 0)
   const sk = getSkeleton(layout, opts)
   if (!sk) return {}
   const slots: SlideSlots = {}
@@ -1187,6 +1204,8 @@ export function applyTemplate(
     outline = tpl.demoOutline
   }
   // 解析真实骨架：有 ctx 走二维索引，否则用模板自带 layouts
+  // 注：**几何的风格补丁不在这里打**——统一在渲染取几何的 getSkeleton() 里按 styleKey 应用，
+  // 保证"数据层"与"画面"同源（否则会出现数据变了、画面没变的假绿）。
   const layouts: EduSkeletons = ctx?.stage
     ? skeletonFor(ctx.stage, ctx.subject ?? '')
     : (tpl.layouts as EduSkeletons)

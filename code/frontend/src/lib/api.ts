@@ -20,6 +20,37 @@ export interface MaterialItem {
   url?: string
 }
 
+/** 课件生成入参（POST /ai/courseware/generate） */
+export interface CoursewareGenParams {
+  subject: string
+  grade: string
+  lesson_title: string
+  content?: string
+  school_id?: string
+  textbook_version?: string
+  extra_requirements?: string
+  chat_context?: string
+  selected_knowledge_ids?: string[]
+  knowledge_points?: string[]
+  prerequisite_points?: string[]
+  curriculum_codes?: string[]
+  divergence_level?: 'conservative' | 'standard' | 'expansive'
+  consult_answers?: string
+  edge_enabled?: boolean
+  edge_categories?: string[]
+  style_tag?: string
+  style_profile?: string
+  style_mode?: 'auto' | 'preset' | 'free'
+  /** 教材版本**实体引用**（来自知识图谱节点自带的 version_id，与后端同源；2026-09-13） */
+  textbook_version_id?: string
+  /** 单元（来自知识图谱节点的 dan_yuan） */
+  textbook_unit?: string
+  /** 教师个人风格倾向（调节层）：与小微对话同源 user.ai_style。
+   *  未指定 style_tag/style_profile 时充默认倾向；已指定时仅作不冲突前提下的微调，不覆盖。 */
+  teacher_style?: string
+  format?: 'ppt' | 'h5'
+}
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 // 存储Token
@@ -200,35 +231,76 @@ export const aiAPI = {
     }),
 
   /** 课件生成（锚点—轨道—边缘 三层，允许受控发散） */
-  generateCourseware: (params: {
-    subject: string
-    grade: string
-    lesson_title: string
-    content?: string
-    school_id?: string
-    textbook_version?: string
-    extra_requirements?: string
-    chat_context?: string
-    selected_knowledge_ids?: string[]
-    knowledge_points?: string[]
-    prerequisite_points?: string[]
-    curriculum_codes?: string[]
-    divergence_level?: 'conservative' | 'standard' | 'expansive'
-    consult_answers?: string
-    edge_enabled?: boolean
-    edge_categories?: string[]
-    style_tag?: string
-    style_profile?: string
-    style_mode?: 'auto' | 'preset' | 'free'
-    /** 教师个人风格倾向（调节层）：与小微对话同源 user.ai_style。
-     *  未指定 style_tag/style_profile 时充默认倾向；已指定时仅作不冲突前提下的微调，不覆盖。 */
-    teacher_style?: string
-    format?: 'ppt' | 'h5'
-  }) =>
+  generateCourseware: (params: CoursewareGenParams) =>
     request<any>('/ai/courseware/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
+
+  /** 课件生成 + **实时进度**（推荐用于等待时间长的主路径）
+   *
+   * 背景：强模型的验收质量显著更好（关卡1 违规均值 1.67 vs 5.6、页数全达标），
+   * 但一次生成含重试需 150~200s。此方法并行读服务端进度事件，让教师看到"第 2 次修订中"
+   * 而不是干等；且请求期间数据持续流动 → nginx / Go 代理的读超时不再触发，长任务不被 504 掐断。
+   *
+   * 为什么用 fetch + ReadableStream 而**不用** EventSource：
+   * `EventSource` **无法设置请求头**，带不了 Authorization。本接口目前无鉴权尚可，
+   * 但只要将来给它加上鉴权，EventSource 立刻失效——现在多写几行，将来不用返工。
+   *
+   * **进度不可用时不影响生成**：进度流断开只是少一段文案，POST 照常返回完整结果。
+   * 不传 onProgress 时等价于 generateCourseware。
+   */
+  generateCoursewareStreaming: async (
+    params: CoursewareGenParams,
+    onProgress?: (stage: string, message: string) => void,
+  ) => {
+    const jobId = `cw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    let stopped = false
+
+    // 进度订阅（不 await；任何异常都静默——它只是锦上添花）
+    const sub = (async () => {
+      try {
+        const headers: Record<string, string> = { Accept: 'text/event-stream' }
+        if (!token) token = localStorage.getItem('zhiwei_token') || null
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        const res = await fetch(
+          `${API_BASE}/ai/courseware/generate/stream?job_id=${encodeURIComponent(jobId)}`,
+          { headers, credentials: 'same-origin' },
+        )
+        if (!res.ok || !res.body) return
+        const reader = res.body.getReader()
+        const dec = new TextDecoder()
+        let buf = ''
+        while (!stopped) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += dec.decode(value, { stream: true })
+          const parts = buf.split('\n\n')
+          buf = parts.pop() || ''
+          for (const p of parts) {
+            if (p.startsWith(':')) continue              // SSE 注释行（保活），非事件
+            if (p.includes('event: done')) { stopped = true; return }
+            const m = /^data: (.*)$/m.exec(p)
+            if (!m) continue
+            try {
+              const ev = JSON.parse(m[1])
+              if (ev && ev.message) onProgress?.(ev.stage || '', ev.message)
+            } catch { /* 忽略脏事件，不影响生成 */ }
+          }
+        }
+      } catch { /* 进度不可用 → 静默降级为"无进度文案"，生成不受影响 */ }
+    })()
+
+    try {
+      return await request<any>('/ai/courseware/generate', {
+        method: 'POST',
+        body: JSON.stringify({ ...params, job_id: jobId }),
+      })
+    } finally {
+      stopped = true
+      sub.catch(() => {})
+    }
+  },
 
   /** 课前问诊：返回针对性问题，教师逐项作答后回传 */
   consultCourseware: (params: {
@@ -309,6 +381,27 @@ export const aiAPI = {
     request<any>('/ai/courseware/generate-video-script', {
       method: 'POST',
       body: JSON.stringify(params),
+    }),
+
+  /** 家校宣发 H5 草稿生成（courseware.notice Skill，kind=notice 专用红线在生成侧预检） */
+  generateNotice: (params: {
+    title: string
+    topic?: string
+    school_name?: string
+    department?: string
+    teacher_name?: string
+    extra?: string
+  }) =>
+    request<any>('/ai/notice/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  /** 家校宣发发布预检（kind=notice：官方安全口径校验，不阻断草稿保存） */
+  validateNotice: (params: { markdown: string }) =>
+    request<any>('/ai/courseware/validate', {
+      method: 'POST',
+      body: JSON.stringify({ ...params, kind: 'notice' }),
     }),
 }
 
@@ -609,6 +702,18 @@ export const assignmentAPI = {
     request<any>('/assignments', { method: 'POST', body: JSON.stringify(data) }),
 }
 
+// ── 家校/学校宣发 H5（notice，2026-09-03）──
+// 后端：GET /notices（teacher 组全校只读）；POST /notices、PUT /notices/:id
+// 仅 head_teacher / registrar / principal 可调（noticeMgr 路由组）。
+export const noticeAPI = {
+  list: () => request<any>('/notices'),
+  get: (id: string) => request<any>(`/materials/${id}`),
+  create: (data: { name: string; tag?: string; content?: string; h5_html?: string; status?: string }) =>
+    request<any>('/notices', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { name?: string; tag?: string; content?: string; h5_html?: string; status?: string }) =>
+    request<any>(`/notices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+}
+
 export const api = request
 
 // 统一错误提示：console.error（可观测）+ 用户 toast（感知），替代散落的 .catch(() => {})
@@ -811,4 +916,4 @@ export const careAPI = {
 
 // 注意：default 导出必须放在所有具名 const（含 careAPI/coverageAPI/coordinateAPI）之后，
 // 否则对象字面量立即访问这些 const 会触发 TDZ（Cannot access 'careAPI' before initialization）。
-export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI, schoolReviewConfigAPI, reviewAPI }
+export default { authAPI, schoolAPI, schoolConfigAPI, classAPI, aiAPI, lessonPlanAPI, materialAPI, noticeAPI, parentAPI, tokenQuotaAPI, questionBankAPI, assignmentAPI, importAPI, adminAPI, teacherPrefAPI, careAPI, coverageAPI, coordinateAPI, schoolReviewConfigAPI, reviewAPI }

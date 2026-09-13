@@ -54,31 +54,27 @@ export interface CwTheme {
   font: string
   /** 装饰风格（版式辨识度维度，由 groupId 归类；也可在 CwTemplate 层覆盖） */
   decor?: DecorStyle
+  /** 形态字典（styleDNA morph，2026-09-03）：风格不只换色；PPT 渲染据此打散骨架气质 */
+  morph?: StyleMorph
   /** 适配学科（空 = 通用） */
   subjects?: string[]
   /** 适配学段（空 = 全学段） */
   grades?: GradeBand[]
 }
 
-// 字体按风格区分（跨平台稳定字体，不依赖外部字体文件）
-const F_YAHEI = 'Microsoft YaHei'
-const F_KAI = 'KaiTi, "楷体", "STKaiti", "Microsoft YaHei"'
-const F_SONG = '"宋体", "SimSun", "Microsoft YaHei"'
-const F_HEI = '"黑体", "SimHei", "Microsoft YaHei"'
+// 字体与"groupId → 装饰/字体"的口径已统一到 styleRegistry（2026-09-11）：
+// 本文件只做数据，不再各自维护一份风格映射表。
+import { STYLES, STYLE_ORDER, F_YAHEI } from './styleRegistry'
 
-// groupId → 装饰风格 + 字体（色系只是展示维度，decor/font 才是版式气质）
-const GROUP_DECOR: Record<string, { decor: DecorStyle; font: string }> = {
-  zhongguofeng: { decor: 'china', font: F_KAI },
-  minimal:      { decor: 'minimal', font: F_YAHEI },
-  academic:     { decor: 'academic', font: F_SONG },
-  fresh:        { decor: 'fresh', font: F_YAHEI },
-  morandi:      { decor: 'fresh', font: F_YAHEI }, // 莫兰迪复用清新圆角卡片
-  tech:         { decor: 'tech', font: F_HEI },
-  nature:       { decor: 'fresh', font: F_YAHEI }, // 自然生机复用清新柔和
-  warm:         { decor: 'warm', font: F_KAI },
-  gradient:     { decor: 'gradient', font: F_YAHEI },
-  special:      { decor: 'special', font: F_YAHEI },
-}
+/** groupId → 装饰风格 + 字体（由 styleRegistry 派生，保证 H5/PPT 同口径） */
+const GROUP_DECOR: Record<string, { decor: DecorStyle; font: string }> = (() => {
+  const m: Record<string, { decor: DecorStyle; font: string }> = {}
+  for (const k of STYLE_ORDER) {
+    const s = STYLES[k]
+    for (const g of s.groupIds) m[g] = { decor: s.decor, font: s.font }
+  }
+  return m
+})()
 
 function withDecor(t: Omit<CwTheme, 'decor' | 'font'> & { font?: string; decor?: DecorStyle }): CwTheme {
   const d = GROUP_DECOR[t.groupId] || { decor: 'minimal' as DecorStyle, font: F_YAHEI }
@@ -304,6 +300,24 @@ function readableOn(hex: string): string {
   return 0.299 * r + 0.587 * g + 0.114 * b < 140 ? '#FFFFFF' : '#1A1A1A'
 }
 
+/** 形态字典维度（2026-09-03 styleDNA 形态扩展；缺省走主题默认，见 renderer STORY_MORPH） */
+export type MorphDensity = 'loose' | 'normal' | 'tight'
+export type MorphMotion = 'calm' | 'lively' | 'energetic'
+export type MorphMotif = 'nature' | 'playful' | 'classroom' | 'urban' | 'starlit'
+
+export interface StyleMorph {
+  /** 版面疏密：影响卡片 padding / 字号 / 行距（与配色解耦的"形态"第一维） */
+  density: MorphDensity
+  /** 动效强弱：影响装饰动画周期与翻页节奏 */
+  motion: MorphMotion
+  /** 装饰母题：决定页面点缀 emoji/图案候选池 */
+  motif: MorphMotif
+}
+
+const DENSITIES: MorphDensity[] = ['loose', 'normal', 'tight']
+const MOTIONS: MorphMotion[] = ['calm', 'lively', 'energetic']
+const MOTIFS: MorphMotif[] = ['nature', 'playful', 'classroom', 'urban', 'starlit']
+
 interface ResolvedColors {
   primary: string
   accent?: string
@@ -316,6 +330,8 @@ interface ResolvedColors {
   bullet?: string
   fontBody?: string
   fontTitle?: string
+  /** styleDNA 里的形态参数（可选；缺省由各形态消费端按主题/风格兜底） */
+  morph?: StyleMorph
 }
 
 /**
@@ -336,6 +352,20 @@ export function parseStyleDNA(raw: unknown): ResolvedColors | null {
   const primary = normHex(colors.primary)
   if (!primary) return null
   const font = obj.font ?? obj.styleDNA?.font ?? obj.style_dna?.font
+  // 形态参数（可选）：{morph:{density,motion,motif}} 或顶层平铺 density/motion/motif
+  const morphRaw = obj.morph ?? obj.styleDNA?.morph ?? obj.style_dna?.morph ?? null
+  const pick = <T,>(v: unknown, list: readonly T[], fallback: T): T => {
+    const s = typeof v === 'string' ? (v as string).toLowerCase() : ''
+    return (list as readonly unknown[]).includes(s) ? (s as unknown as T) : fallback
+  }
+  const morph: StyleMorph | undefined =
+    morphRaw && typeof morphRaw === 'object'
+      ? {
+          density: pick(morphRaw.density, DENSITIES, 'normal'),
+          motion: pick(morphRaw.motion, MOTIONS, 'lively'),
+          motif: pick(morphRaw.motif, MOTIFS, 'playful'),
+        }
+      : undefined
   return {
     primary,
     accent: normHex(colors.accent),
@@ -348,6 +378,7 @@ export function parseStyleDNA(raw: unknown): ResolvedColors | null {
     bullet: normHex(obj.bullet ?? colors.bullet),
     fontBody: typeof font === 'object' && typeof font.body === 'string' ? font.body : undefined,
     fontTitle: typeof font === 'object' && typeof font.title === 'string' ? font.title : undefined,
+    morph,
   }
 }
 
@@ -388,5 +419,6 @@ export function resolveTheme(themeId: string | undefined, styleDNARaw: unknown):
     decor: base.decor,
     subjects: base.subjects,
     grades: base.grades,
+    morph: sd.morph,
   }
 }

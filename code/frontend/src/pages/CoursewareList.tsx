@@ -4,6 +4,7 @@ import { usePagination } from '../lib/useApi'
 import { EmptyState } from '../components/StateComponents'
 import { materialAPI, openWorkspace } from '../lib/api'
 import { markdownToOutline } from '../lib/exportPptx'
+import { pickLang } from '../lib/tts'
 import AppLayout from '../components/AppLayout'
 
 type CoursewareItem = {
@@ -382,7 +383,7 @@ function VideoSlideshow({ content }: { content: string }) {
     if (!text || typeof window === 'undefined' || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text)
-    u.lang = 'zh-CN'
+    u.lang = pickLang(text)   // 修复：此前硬编码 'zh-CN'，英文内容也被中文语音读
     u.onend = () => setSpeaking(false)
     u.onerror = () => setSpeaking(false)
     setSpeaking(true)

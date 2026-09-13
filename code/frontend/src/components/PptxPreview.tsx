@@ -7,9 +7,15 @@ import { layoutElements, extractBullets, normalizeInteractive } from '../lib/exp
 import type { CwTheme } from '../lib/pptThemes'
 import { DEFAULT_THEME } from '../lib/pptThemes'
 import { getSkeleton, distributeToSlots, isStructuredLayout } from '../lib/cwTemplate'
+// 风格管形（2026-09-11）：几何按 theme 的风格打补丁 + 单列块几何，均由注册表侧单一提供
+import { styleKeyFromThemeId, styleStructure, FRAMELESS_LAYOUTS, TITLE_BAND_RATIO, TYPE_MM, looksLikeHeading, splitTitle, fillTier, bodyMmForTier, type StyleKey } from '../lib/styleRegistry'
+import { singleColumnRect, twoColumnRects } from '../lib/styleSkeletons'
 import type { SlideLayout, SlideSlots } from '../lib/cwTemplate'
 import { normalizeVisuals } from '../lib/exportPptx'
 import { VisualBlockView } from './VisualBlocks'
+// 统一朗读模块（单一事实源）：语言/音色自适应 + 暂停/停止。
+// 修复前此处 `u.lang` 硬编码 'en-US' → 中文用英文读，且只有"示范"按钮、无法暂停关闭。
+import { tts } from '../lib/tts'
 import type { DecorSlots, DecorItem } from '../lib/api'
 
 const FONT = 'Microsoft YaHei'
@@ -37,6 +43,9 @@ function c(v?: string): string {
  * 垫在元素层之下，使「选模板→自动按语义分配版式」真正在画布上呈现布局差异，
  * 而不只是换色系。所有造型均绝对定位 + pointer-events-none，不干扰编辑。
  */
+// 无标题底带的版式清单已提升为共享规则（styleRegistry.FRAMELESS_LAYOUTS），
+// 预览与导出同用一份，避免"预览不画底带、导出画"这类两端不一致。
+
 function SlideFrame({ theme, layout, visCount = 0 }: { theme: CwTheme; layout: string; visCount?: number }) {
   const p = c(theme.primary)
   const f = c(theme.footer || theme.primary)
@@ -71,57 +80,21 @@ function SlideFrame({ theme, layout, visCount = 0 }: { theme: CwTheme; layout: s
           </div>
         </div>
       )
+    // ── 根因修复（2026-09-11）────────────────────────────────
+    // 此前本层为 edu-goal/explain/example/summary/homework 另画一套**写死的容器造型**，
+    // 它既不吃风格几何，也不吃内容层的铺开方式 → 换风格时"内容动、框架不动"，
+    // 两层错位、文字压在空卡上并溢出卡片（用户实测截图）。
+    // 这些版式的容器造型现统一由内容层 renderLayoutContent 按「骨架 + 风格几何」渲染，本层不再重复绘制。
     case 'edu-goal':
-      return (
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[5.3%] top-[22%] flex w-[89.4%] gap-3" style={{ height: '64%' }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex-1 rounded-xl border" style={{ borderColor: `${p}55`, background: `${p}0D` }}>
-                <div className="mx-auto mt-3 h-1.5 w-10 rounded-full" style={{ background: p }} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )
     case 'edu-explain':
-      return (
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[5.3%] top-[20%] w-[89.4%] rounded-lg border-2" style={{ height: '34%', borderColor: `${p}66`, background: `${p}0A` }} />
-          <div className="absolute left-[5.3%] top-[58%] w-[89.4%] border-t-2" style={{ borderColor: `${sub}66` }} />
-        </div>
-      )
     case 'edu-example':
-      return (
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[5.3%] top-[20%] flex w-[89.4%] items-stretch rounded-md" style={{ height: '24%', borderLeft: `6px solid ${p}`, background: `${p}0F` }} />
-          <div className="absolute left-[5.3%] top-[50%] grid w-[89.4%] grid-cols-3 gap-2" style={{ height: '34%' }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="rounded-md border" style={{ borderColor: `${f}55`, background: 'rgba(255,255,255,0.6)' }} />
-            ))}
-          </div>
-        </div>
-      )
     case 'edu-summary':
-      return (
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute right-[7%] top-[26%] h-[52%] w-[30%] rounded-full border-2 border-dashed" style={{ borderColor: `${p}77` }} />
-          <div className="absolute left-[5.3%] top-[22%] w-[52%] border-t-2" style={{ borderColor: `${sub}66` }} />
-        </div>
-      )
     case 'edu-homework':
-      return (
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[5.3%] top-[20%] w-[89.4%] space-y-2" style={{ height: '68%' }}>
-            {[0.16, 0.5, 0.84].map((op, i) => (
-              <div key={i} className="h-[28%] rounded-md border" style={{ borderColor: `${p}44`, background: `${p}${i === 0 ? '14' : i === 1 ? '0E' : '08'}` }} />
-            ))}
-          </div>
-        </div>
-      )
+      return null
     default:
       return (
         <div className="pointer-events-none absolute inset-0">
-          {band('0%', '15.3%')}
+          {band('0%', `${TITLE_BAND_RATIO * 100}%`)}
           <div className="absolute bottom-0 left-0 h-[2.5%] w-full" style={{ background: f }} />
         </div>
       )
@@ -507,16 +480,47 @@ function RevealItem({ it, theme }: { it: Extract<H5Component, { type: 'reveal' }
 }
 
 function ReadalongItem({ it }: { it: Extract<H5Component, { type: 'readalong' }> }) {
-  const tts = (t: string) => { try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u) } } catch { /* noop */ } }
+  // 播放器状态：playing = 正在朗读第几句（null 表示没在朗读）；paused = 是否暂停
+  // 修复（2026-09-13）：此前只有「▶ 示范」，点下去无法暂停/关闭，且语言硬编码英文。
+  const [playing, setPlaying] = useState<number | null>(null)
+  const [paused, setPaused] = useState(false)
+
+  const done = (i: number) => {
+    setPlaying(p => (p === i ? null : p))
+    setPaused(false)
+  }
+  const play = (i: number) => {
+    setPlaying(i)
+    setPaused(false)
+    // 语言与音色由 tts 模块按文本自适应（中文→zh-CN），不再硬编码
+    tts.speak(it.sentences[i]?.text || '', { onEnd: () => done(i), onError: () => done(i) })
+  }
+  const stop = () => { tts.stop(); setPlaying(null); setPaused(false) }
+  const togglePause = () => {
+    if (paused) { tts.resume(); setPaused(false) }
+    else { tts.pause(); setPaused(tts.isPaused() ? true : false) }
+  }
+
+  const BTN = 'rounded px-2 py-1 text-xs text-white transition-colors'
   return (
     <div>
       <div className="mb-2 text-xs font-bold text-gray-500">🎤 跟读</div>
-      {it.sentences.map((s, i) => (
-        <div key={i} className="mb-1 flex items-center gap-2">
-          <span className="text-sm">{s.text}</span>
-          <button onClick={() => tts(s.text)} className="rounded bg-blue-500 px-2 py-1 text-xs text-white">▶ 示范</button>
-        </div>
-      ))}
+      {it.sentences.map((s, i) => {
+        const on = playing === i
+        return (
+          <div key={i} className="mb-1 flex items-center gap-2">
+            <span className={`text-sm ${on ? 'font-medium text-blue-600' : ''}`}>{s.text}</span>
+            <button onClick={() => (on ? togglePause() : play(i))}
+              className={`${BTN} ${on && paused ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
+              {on ? (paused ? '▶ 继续' : '⏸ 暂停') : '▶ 示范'}
+            </button>
+            {/* 播放器控件：只有正在朗读时出现，避免每行都堆按钮 */}
+            {on && (
+              <button onClick={stop} className={`${BTN} bg-gray-500 hover:bg-gray-600`}>⏹ 停止</button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -575,9 +579,107 @@ function InteractivePanel({ components, theme }: { components: H5Component[]; th
   )
 }
 
+/**
+ * 风格结构层（PPT 端消费 styleRegistry 的结构语汇）。
+ * 存在的意义：让**纯文字页**也有结构性差异——底纹 / 边栏 / 角标，
+ * 而不是只靠"文字块位移"那点像素差。这些 token 与 H5 端同源。
+ */
+function StyleStructureLayer({ theme, styleKey }: { theme: CwTheme; styleKey: StyleKey | '' }) {
+  const t = styleStructure(styleKey)
+  const p = c(theme.primary)
+  return (
+    <>
+      {t.texture === 'grid' && (
+        <div className="pointer-events-none absolute inset-0" style={{
+          backgroundImage: `linear-gradient(${p}1F 1px, transparent 1px), linear-gradient(90deg, ${p}1F 1px, transparent 1px)`,
+          backgroundSize: '4% 7%',
+        }} />
+      )}
+      {t.texture === 'dots' && (
+        <div className="pointer-events-none absolute inset-0" style={{
+          backgroundImage: `radial-gradient(${p}2E 1.2px, transparent 1.3px)`,
+          backgroundSize: '3% 5.5%',
+        }} />
+      )}
+      {t.rail === 'scroll' && (
+        <div className="pointer-events-none absolute bottom-[10%] left-[4.2%] top-[18%] w-[0.8%] rounded-sm"
+          style={{ background: `${p}1A`, borderLeft: `2px solid ${p}55` }} />
+      )}
+      {t.rail === 'rule' && (
+        <div className="pointer-events-none absolute bottom-[12%] left-[3.4%] top-[20%] w-px" style={{ background: `${p}55` }} />
+      )}
+      {t.rail === 'index' && (
+        <div className="pointer-events-none absolute left-0 top-[18%] flex flex-col gap-[1%]" style={{ width: '2.4%' }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="w-full" style={{ height: '2%', background: i === 0 ? p : `${p}40` }} />
+          ))}
+        </div>
+      )}
+      {t.corner === 'triangle' && (
+        <div className="pointer-events-none absolute right-0 top-0" style={{
+          width: '5.5%', aspectRatio: '1', background: p, clipPath: 'polygon(100% 0, 100% 100%, 0 0)',
+        }} />
+      )}
+      {t.corner === 'seal' && (
+        <div className="pointer-events-none absolute right-[4%] top-[4%] flex items-center justify-center rounded-sm"
+          style={{ width: '4.2%', aspectRatio: '1', border: `2px solid ${p}88`, color: `${p}CC`, fontSize: '0.62rem' }}>
+          印
+        </div>
+      )}
+    </>
+  )
+}
+
+/** 标题形态（结构语汇 + 长标题拆「主标题 + 副标题」；无底带的版式用主色，避免白字白底隐形） */
+function TitleBlock({ title, theme, lay }: { title: string; theme: CwTheme; lay: string }) {
+  const t = styleStructure(styleKeyFromThemeId(theme.id))
+  const p = c(theme.primary)
+  const color = FRAMELESS_LAYOUTS.includes(lay) ? p : c(theme.onPrimary)
+  // 字体取自风格（STYLES.font → theme.font）：国风楷体 / 科技黑体 / 学术宋体 / 其余雅黑
+  // 长标题拆分为短主标题 + 副标题（共享规则 splitTitle，与 H5/导出同源）
+  const { main, sub } = splitTitle(title)
+  const mainFs = sub ? '1.95rem' : '2.6rem'
+  const mainStyle: React.CSSProperties = { color, fontSize: mainFs, fontFamily: theme.font || '"KaiTi","STKaiti",serif' }
+  const stack = (
+    <span className="flex min-w-0 flex-1 flex-col" style={{ lineHeight: 1.24 }}>
+      <span className="truncate font-bold" style={mainStyle} data-fs-role="title-main">{main}</span>
+      {sub && (
+        <span className="truncate" data-fs-role="title-sub"
+          style={{ color, opacity: 0.78, fontSize: '1.02rem', fontFamily: theme.font || '"KaiTi","STKaiti",serif', marginTop: '0.12rem' }}>
+          {sub}
+        </span>
+      )}
+    </span>
+  )
+  if (t.titleStyle === 'block') {
+    return (
+      <span className="flex min-w-0 items-center gap-2">
+        <span style={{ width: '0.42rem', height: sub ? '3.1rem' : '1.7rem', background: color, borderRadius: 2, flexShrink: 0 }} />
+        {stack}
+      </span>
+    )
+  }
+  if (t.titleStyle === 'underline') {
+    return <span className="flex min-w-0 flex-col" style={{ borderBottom: `3px solid ${color}`, paddingBottom: '0.12rem' }}>{stack}</span>
+  }
+  if (t.titleStyle === 'centerRule') {
+    return (
+      <span className="flex w-full flex-col items-center">
+        {stack}
+        <span style={{ marginTop: '0.28rem', width: '26%', height: 2, background: `${color}88` }} />
+      </span>
+    )
+  }
+  return stack
+}
+
 function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio: '16/9' | '4/3') {
   const lay = s.layout || (s.kind === 'cover' ? 'edu-cover' : 'title-body')
-  if (s.kind === 'cover') {
+  // 根因修复（2026-09-11）：`edu-cover` 是"封面版式"，但此前只有 kind==='cover' 才走封面分支。
+  // AI 生成把"一、封面"作为一页并标了 edu-cover 时，会落到普通白底分支 →
+  // 标题用 onPrimary（白）、信息条用 rgba(255,255,255,.16) → 白字白底，整页看不见（用户实测 A 版 P1）。
+  // 语义上 edu-cover 就该是封面，故一并走封面分支（深底 + 白字 + 信息条）。
+  if (s.kind === 'cover' || lay === 'edu-cover') {
     return (
       <div className="relative" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', background: c(theme.coverBg) }}>
         <SlideFrame theme={theme} layout={lay} />
@@ -597,12 +699,13 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
     <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', fontFamily: theme.font }}>
       <SlideFrame theme={theme} layout={lay} visCount={normalizeVisuals((s as any).visuals).length} />
       <SlideDecor theme={theme} layout={lay} />
+      {/* 结构语汇层（与 H5 同源）：底纹 / 边栏 / 角标 —— 纯文字页的结构性差异来源 */}
+      <StyleStructureLayer theme={theme} styleKey={styleKeyFromThemeId(theme.id)} />
       <DecorLayer decor={s.decor} />
-      <div className="absolute left-[2%] top-0 flex h-[15.3%] items-center" style={{ width: '96%' }}>
-        <span className="truncate font-bold"
-          style={{ color: c(theme.onPrimary), fontSize: '2.6rem', fontFamily: '"KaiTi","STKaiti",serif' }}>
-          {s.title}
-        </span>
+      {/* 标题形态由结构语汇决定（block/underline/centerRule/plain），
+          且无底带的版式用主色，避免 onPrimary 白字白底隐形（2026-09-11 根因修复） */}
+      <div className="absolute left-[2%] top-0 flex items-center" style={{ width: '96%', height: `${TITLE_BAND_RATIO * 100}%` }}>
+        <TitleBlock title={s.title} theme={theme} lay={lay} />
       </div>
       {/* 内容与模板分离：结构化版式优先按骨架渲染（即时分发/预存 slots），自由元素只在非结构化版式回退 */}
       {isStructuredLayout(lay) ? (
@@ -624,18 +727,28 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
 
 /* ───────────────────────── 版式感内容渲染（把 bullet 按模板分区放置） ───────────────────────── */
 function renderLayoutContent(s: CwSlide, theme: CwTheme) {
-  const lines = (s.rich || []).map((line) => `${line.options.bullet ? '• ' : ''}${line.text}`)
+  const lines = (s.rich || [])
+    .map((line) => `${line.options.bullet ? '• ' : ''}${line.text}`)
+    // 过滤"只有符号没内容"的空条目（渲染出来会是"有项目符号没文字"的空壳）
+    .filter((t) => t.replace(/^[•\-*\s]+$/, '').trim().length > 0)
   const p = c(theme.primary)
   const body = c(theme.body)
 
   // 通用单行文本块：自动缩放到容器内，字号随文字长度自适应（短文大字号、长文小字号）
-  const Line = ({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) => {
+  const Line = ({ text, className, style, heading, sparse }: { text: string; className?: string; style?: React.CSSProperties; heading?: boolean; sparse?: boolean }) => {
     const len = text?.length || 0
-    // 参考字号：≤12字 3.6mm，13-20字 3.2mm，21-30字 2.8mm，>30字 2.4mm
-    const fs = len <= 12 ? 3.6 : len <= 20 ? 3.2 : len <= 30 ? 2.8 : 2.4
+    // 字号层级（共享规则 · 2026-09-12）：
+    //   小标题 → 固定 h3 档；正文 → 按字数自适应，但**必须夹在 [bodyMin, bodyMax]**。
+    //   因 bodyMax < h3，正文永远不可能压过小标题（此前无此约束，短正文会大于长小标题）。
+    const raw = len <= 12 ? 3.6 : len <= 20 ? 3.2 : len <= 30 ? 2.8 : 2.4
+    // sparse 档（填充率<0.62）：正文字号**受控上探**到 bodyMax~h3 之间（仍 < h3），把画布撑满
+    const cap = heading ? TYPE_MM.h3 : bodyMmForTier(sparse ? 'sparse' : 'normal')
+    const fs = Math.min(cap, Math.max(TYPE_MM.bodyMin, heading ? cap : raw * (cap / TYPE_MM.bodyMax)))
     return (
       <div className={`flex h-full w-full items-center overflow-hidden ${className || ''}`} style={style}>
-        <div className="w-full leading-snug" style={{ color: body, fontSize: `${fs}mm` }}>
+        {/* data-fs-role 让"字号层级"成为可断言的 DOM 事实（E2E 会断言 body 档全部 < h3 档） */}
+        <div className="w-full" data-fs-role={heading ? 'h3' : 'body'}
+          style={{ color: body, fontSize: `${fs}mm`, lineHeight: sparse ? 2.0 : 1.38 }}>
           {text}
         </div>
       </div>
@@ -643,6 +756,50 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
   }
 
   const lay = s.layout || 'title-body'
+
+  // 结构语汇（与 H5 同源）：圆角/边框/列表记号 —— 纯文字页的结构性差异
+  const st = styleStructure(styleKeyFromThemeId(theme.id))
+  // 整页填充率 → 档位（PPT 接入共享 autofit 规则；sparse 时正文上探撑满画布）
+  const pageSparse = fillTier(lines.length * 3.4, singleColumnRect(styleKeyFromThemeId(theme.id)).h) === 'sparse'
+
+  const Marked = ({ text }: { text: string }) => {
+    const wasBullet = /^\s*[•\-*]/.test(text)
+    const clean = text.replace(/^[\s•\-*]+/, '')
+    // 语义层级：原本是列表项 → 正文；否则若"像标题" → 小标题档
+    const heading = !wasBullet && looksLikeHeading(clean)
+    return (
+      <div className="flex w-full items-start gap-2 leading-snug" style={{ color: body }}>
+        {st.mark !== 'none' && !heading && (
+          <span style={{
+            flexShrink: 0, marginTop: '0.5em',
+            width: st.mark === 'dash' ? '1em' : '0.4em',
+            height: st.mark === 'dash' ? 2 : '0.4em',
+            borderRadius: st.mark === 'square' ? 1 : '50%',
+            background: p,
+          }} />
+        )}
+        <Line text={clean} className="items-start" heading={heading} sparse={pageSparse} />
+      </div>
+    )
+  }
+  // 内容填充率自适应（与 H5 的 autofit 同思路）：
+  // 骨架高度是"给老师填空"的固定值，内容少时必然大片露白。
+  // 这里按行数估算所需高度并**收缩块高**（字号层级不动，避免破坏"标题>正文"约束）。
+  const fitH = (baseH: number, rows: number, per = 4.0, pad = 10) => {
+    const need = rows * per + pad
+    if (need >= baseH) return baseH            // 内容够多 → 用骨架高度
+    const floor = baseH * 0.55                 // 最多收缩到 55%：估不足时兜住，避免溢出
+    return Math.max(floor, need)
+  }
+
+  const boxStyle = (r: { x: number; y: number; w: number; h: number }): React.CSSProperties => ({
+    left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%`,
+    borderRadius: st.radius,
+    border: st.border === 'hairline' ? `1px solid ${p}33` : st.border === 'dashed' ? `1px dashed ${p}66` : undefined,
+    borderLeft: st.border === 'thickLeft' ? `6px solid ${p}` : undefined,
+    background: `${p}05`,
+    padding: '2% 2.5%',
+  })
 
   // ── 可视化组件优先：该页挂了递进图/对比表/时间轴/生字卡等组件时，
   // 用结构表达知识关系（真课件），而不是把 bullets 平铺成文字列表。
@@ -694,11 +851,14 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
   // 被切碎塞进三个窄栏、字号被压到 2.4mm 不可读。有真实 bullets 时改为单列铺开：
   // 宽度从 29% 提到 88%，字号可放大约一倍；无 bullets 时才回退到占位骨架。
   if (lines.length && (lay === 'edu-goal' || lay === 'edu-summary' || lay === 'edu-homework')) {
+    // 单列铺开：几何按风格给。此前写死 left:6% top:21% w:88% h:66% → 绕过骨架、换风格也一样，
+    // 是"一个头面"的一处来源；现改为随风格变（styleSkeletons 单一提供）。
+    const sc = singleColumnRect(styleKeyFromThemeId(theme.id))
+    // 字号交给 Line 的层级规则（正文夹在 bodyMin~bodyMax），此处只保裁剪，防溢出
     return (
-      <div className="absolute left-[6%] top-[21%] flex w-[88%] flex-col justify-center gap-[3.5%]" style={{ height: '66%' }}>
-        {lines.map((txt, i) => (
-          <div key={i} className="leading-snug" style={{ color: body, fontSize: '4.4mm' }}>{txt}</div>
-        ))}
+      <div className="absolute flex flex-col justify-center gap-[3%] overflow-hidden"
+        style={boxStyle(sc)}>
+        {lines.map((txt, i) => <Marked key={i} text={txt} />)}
       </div>
     )
   }
@@ -707,7 +867,8 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
   // 优先用预存 slots；无 slots 但 layout 命中骨架时，即时按骨架分发 bullets（兼容存量数据）。
   const effSlots: SlideSlots | undefined = s.slots ?? (isStructuredLayout(lay) ? distributeToSlots(lay as SlideLayout, lines) : undefined)
   if (effSlots) {
-    const sk = getSkeleton(lay as SlideLayout)
+    // 风格管形：把风格传给取几何的这一层，几何补丁才真正到达画面（否则数据变、像素不变）
+    const sk = getSkeleton(lay as SlideLayout, { styleKey: styleKeyFromThemeId(theme.id) })
     if (sk) {
       return (
         <>
@@ -716,15 +877,25 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
             const content = effSlots[ph.key] ?? []
             const r = ph.rect!
             const isBullet = ph.kind === 'bullet'
-            const display = content.length ? content : (ph.placeholder ? [ph.placeholder] : [])
+            const display = (content.length ? content : (ph.placeholder ? [ph.placeholder] : []))
+              .filter((t) => String(t).replace(/^[•\-*\s]+$/, '').trim().length > 0)
             const style: React.CSSProperties = {
-              left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%`,
+              left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`,
+              // 骨架高度保留（把画布撑满），内容在卡内**垂直居中**——消除"内容贴顶、下方大片露白"。
+              // 与 H5 的 sparse 档同思路：不动字号层级，用排布把空间填匀。
+              height: `${r.h}%`,
             }
+            // 卡片边框/圆角/记号一律取自共享结构语汇（此前 borderLeft 写死 6px、圆角写死 rounded-md）
+            const borderCss: React.CSSProperties = st.border === 'thickLeft'
+              ? { borderLeft: `6px solid ${p}` }
+              : st.border === 'hairline' ? { border: `1px solid ${p}33` }
+                : st.border === 'dashed' ? { border: `1px dashed ${p}66` }
+                  : {}
             if (isBullet && ph.columns && ph.columns > 1) {
               return (
-                <div key={ph.key} className={`absolute grid gap-2`} style={{ ...style, gridTemplateColumns: `repeat(${ph.columns}, minmax(0,1fr))` }}>
+                <div key={ph.key} className="absolute grid gap-2" style={{ ...style, gridTemplateColumns: `repeat(${ph.columns}, minmax(0,1fr))` }}>
                   {display.map((txt, i) => (
-                    <div key={i} className="flex rounded-md border p-2" style={{ borderColor: `${p}55`, background: `${p}08` }}>
+                    <div key={i} className="flex p-2" style={{ ...borderCss, borderRadius: Math.max(2, st.radius), background: `${p}08` }}>
                       <Line text={txt} className="items-center" />
                     </div>
                   ))}
@@ -734,12 +905,15 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
             return (
               <div
                 key={ph.key}
-                className="absolute overflow-hidden px-4 py-3"
+                className="absolute flex flex-col overflow-hidden px-4 py-3"
                 style={{
                   ...style,
-                  borderLeft: `6px solid ${p}`,
+                  ...borderCss,
+                  borderRadius: st.radius,
                   background: ph.kind === 'title' ? 'transparent' : `${p}0F`,
-                  display: 'flex', alignItems: ph.kind === 'title' ? 'center' : 'flex-start',
+                  alignItems: ph.kind === 'title' ? 'center' : 'flex-start',
+                  // 内容在卡内垂直居中：消除"内容贴顶、下方大片露白"（与 H5 sparse 档同思路：不动字号，用排布填匀）
+                  justifyContent: 'center',
                   fontWeight: ph.bold ? 700 : 400,
                   fontSize: ph.fontSize ? `${ph.fontSize / 18 * 3}mm` : undefined,
                   color: body,
@@ -747,7 +921,19 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
                 }}
               >
                 {display.map((txt, i) => (
-                  <div key={i} className="mb-1 leading-snug" style={{ color: body }}>{txt}</div>
+                  <div key={i} className="flex w-full items-center gap-2 leading-snug" style={{ color: body }}>
+                    {isBullet && st.mark !== 'none' && (
+                      <span style={{
+                        flexShrink: 0,
+                        width: st.mark === 'dash' ? 13 : 6,
+                        height: st.mark === 'dash' ? 2 : 6,
+                        borderRadius: st.mark === 'square' ? 1 : '50%',
+                        background: p,
+                      }} />
+                    )}
+                    <Line text={txt.replace(/^[•\-*]\s*/, '')} className="items-start"
+                      sparse={fillTier(display.length * 3.4, r.h) === 'sparse'} />
+                  </div>
                 ))}
               </div>
             )
@@ -847,12 +1033,26 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
     )
   }
 
-  // 默认/封面兜底：保持原来的顺序块
+  // 默认/正文兜底（title-body / two-col 等**非结构化版式**）
+  // 2026-09-11：此前几何写死 left:5.3% top:20% w:89.4% h:70% → 换风格完全无变化（"一个头面"盲区）。
+  // 现按风格给几何，与 edu-*/content-* 骨架同口径。
+  const sKey = styleKeyFromThemeId(theme.id)
+  if (lay === 'two-col') {
+    const { left: L, right: R } = twoColumnRects(sKey)
+    const mid = Math.ceil(lines.length / 2)
+    const col = (r: { x: number; y: number; w: number; h: number }, arr: string[], key: string) => (
+      <div key={key} className="absolute flex flex-col gap-1 overflow-hidden"
+        style={boxStyle(r)}>
+        {arr.map((txt, k) => <Marked key={k} text={txt} />)}
+      </div>
+    )
+    return <>{col(L, lines.slice(0, mid), 'L')}{col(R, lines.slice(mid), 'R')}</>
+  }
+  const sc = singleColumnRect(sKey)
   return (
-    <div className="absolute left-[5.3%] top-[20%]" style={{ width: '89.4%', height: '70%' }}>
-      {lines.map((txt, k) => (
-        <p key={k} className="mb-2 text-[3mm] leading-snug" style={{ color: body }}>{txt}</p>
-      ))}
+    <div className="absolute flex flex-col justify-center gap-1 overflow-hidden"
+      style={{ ...boxStyle(sc), height: `${fitH(sc.h, Math.max(1, lines.length))}%` }}>
+      {lines.map((txt, k) => <Marked key={k} text={txt} />)}
     </div>
   )
 }
@@ -1498,7 +1698,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   }, [slide])
 
   const applyLayout = (lay: string) => {
-    const next = layoutElements({ title: titleRef.current, bullets: extractBullets(elementsRef.current) }, lay)
+    const next = layoutElements({ title: titleRef.current, bullets: extractBullets(elementsRef.current) }, lay, styleKeyFromThemeId(theme.id))
     commit(next, titleRef.current, lay)
   }
 

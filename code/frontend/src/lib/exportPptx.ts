@@ -14,11 +14,26 @@ import type { DecoSpec } from './visualAsset/types'
 import type { DecorSlots, DecorItem } from './api'
 import type { SlideLayout, SlideSlots } from './cwTemplate'
 import { distributeToSlots, getSkeleton, isStructuredLayout, pickContentLayout } from './cwTemplate'
+// 风格管形（2026-09-11）：导出必须与预览同口径，几何同样按风格打补丁
+import { styleKeyFromThemeId, styleStructure, isFramelessLayout, TITLE_BAND_RATIO, TYPE_SCALE, looksLikeHeading, splitTitle, type StyleKey } from './styleRegistry'
+import { singleColumnRect, twoColumnRects } from './styleSkeletons'
 
 const NAVY = '1A3A6B'
 const INK = '333333'
 const GRAY = '666666'
 const FONT = 'Microsoft YaHei'
+
+/**
+ * PPTX 的 `typeface` 只接受**单个字体名**，而我们的风格字体是 CSS 字体栈
+ * （如 `"黑体", "SimHei", "Microsoft YaHei"`）。直接写入会因内含双引号而截断 XML——
+ * 实测 `typeface="黑体"...` 直接变成**空值**（导出字体静默丢失）。
+ * 这里取首个字体族并去掉引号。
+ */
+function pptxFont(css?: string): string {
+  if (!css) return FONT
+  const first = String(css).split(',')[0].trim().replace(/^["']|["']$/g, '')
+  return first || FONT
+}
 
 export interface CwOptions {
   subject: string
@@ -122,7 +137,7 @@ function clean(t: string): string {
 /** 将课件正文按行解析为 pptxgenjs 富文本块（段落 / 列表 / 表格行 / 代码块） */
 function bodyToRichLines(body: string, theme: CwTheme = DEFAULT_THEME): CwRichLine[] {
   const out: CwRichLine[] = []
-  const font = theme.font || FONT
+  const font = pptxFont(theme.font)
   const lines = body.split('\n')
   let inCode = false
   let codeBuf: string[] = []
@@ -163,8 +178,16 @@ function bodyToRichLines(body: string, theme: CwTheme = DEFAULT_THEME): CwRichLi
       out.push({ text: clean(ol[1]), options: { bullet: { type: 'number', indent: 26 }, fontFace: font, fontSize: 16, color: theme.body, breakLine: true, paraSpaceAfter: 9 } })
       continue
     }
-    // 普通段落
-    out.push({ text: clean(t), options: { fontFace: font, fontSize: 16, color: theme.body, breakLine: true, paraSpaceAfter: 11 } })
+    // 普通段落：像小标题的走 h3 档，其余走正文档（字号层级共享规则 · 2026-09-12）
+    // 此前所有段落统一 16，主标题/小标题/正文在数据层就没有层级 → 导出必然出现字号倒挂。
+    const plain = clean(t)
+    const isHeading = looksLikeHeading(plain)
+    out.push({
+      text: plain,
+      options: isHeading
+        ? { fontFace: font, fontSize: TYPE_SCALE.h3, color: theme.primary, breakLine: true, paraSpaceAfter: 8 }
+        : { fontFace: font, fontSize: TYPE_SCALE.body, color: theme.body, breakLine: true, paraSpaceAfter: 11 },
+    })
   }
   flushCode()
   return out
@@ -226,7 +249,7 @@ export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
       title: s.title,
       notes: s.notes || '',
         rich: (s.bullets && s.bullets.length ? s.bullets : [s.title]).map(b => ({
-        text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
+        text: b, options: { bullet: { indent: 18 }, fontFace: pptxFont(theme.font), fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),
       pageNo: slides.filter(x => x.kind === 'content').length,
       total,
@@ -331,6 +354,13 @@ export interface OutlineSlide {
   visuals?: SlideVisuals
   /** 装饰插槽（插槽式，非自由画布）：各槽位挂装饰元件引用或背景图 URL */
   decor?: DecorSlots | null
+  /**
+   * 透明保真行（2026-09-03，编辑器=兼容工具原则）：
+   * 编辑器不理解的原始行（H5 场景页的旁白/气泡/`**角色**`/互动注释如 weather/storm/cycle、
+   * PPT 页白名单外的注释如 read/popup 等）原样保留，保存时按原顺序写回，
+   * 绝不压成 bullets 文本或丢弃——保证"打开不破坏、保存不改写"。
+   */
+  keepRaw?: string[]
 }
 
 /** 互动组件白名单校验（防止残缺/非法对象静默丢失互动） */
@@ -369,6 +399,13 @@ function pushInteractive(cur: OutlineSlide | null, comp: H5Component) {
 export function markdownToOutline(md: string): OutlineSlide[] {
   const slides: OutlineSlide[] = []
   let cur: OutlineSlide | null = null
+  // 兼容工具原则（2026-09-03）：scene-* 版式的 H5 页进入"透明保真"模式——
+  // 编辑器不把该页旁白/气泡/未知互动注释压成 bullets，原样保留，保存时按原顺序写回。
+  let sceneMode = false
+  const keepLine = (s: OutlineSlide | null, ln: string) => {
+    if (!s) return
+    s.keepRaw = s.keepRaw ? [...s.keepRaw, ln] : [ln]
+  }
   for (const raw of md.split('\n')) {
     const line = raw.trim()
     if (!line) continue
@@ -413,7 +450,13 @@ export function markdownToOutline(md: string): OutlineSlide[] {
     if (cm && cur) {
       const kw = cm[1].toLowerCase()
       const val = cm[2]
-      if (kw === 'layout') { cur.layout = val.trim(); continue }
+      if (kw === 'layout') {
+        cur.layout = val.trim()
+        // scene-* 版式（H5 场景页）→ 整页进入透明保真；PPT edu-*/content-* 保持结构化编辑
+        sceneMode = (cur.layout || '').startsWith('scene')
+        continue
+      }
+      if (sceneMode) { keepLine(cur, line); continue }   // 场景页互动注释（weather/quiz/…）原文保留
       if (kw === 'quiz') {
         const parts = val.split(/(?<!\\)\|/).map(s => s.replace(/\\\|/g, '|').trim()).filter(Boolean)
         if (parts.length >= 3) {
@@ -433,12 +476,21 @@ export function markdownToOutline(md: string): OutlineSlide[] {
         continue
       }
       if (kw === 'draw') { pushInteractive(cur, { type: 'drawing', title: val.trim(), prompt: '' }); continue }
+      // 白名单外注释（read/audio/video/popup/weather/storm/cycle/focus…）：
+      // 编辑器不理解 → 原样保留，绝不压成 bullet 文本或丢弃
+      keepLine(cur, line)
+      continue
     }
     if (line.startsWith('## ')) {
       if (cur) { flushSlide(cur); slides.push(cur) }
       const title = line.slice(3).trim()
       cur = { title, bullets: [] }
-    } else if (cur) {
+      sceneMode = false
+      continue
+    }
+    // 场景页正文（旁白/气泡/角色声明）：## 已排除，页内其余行全部透明保真
+    if (sceneMode && cur) { keepLine(cur, line); continue }
+    if (cur) {
       cur.bullets.push(line.replace(/^[-*]\s*/, '').replace(/^#{1,2}\s*/, '').replace(/\*{1,3}/g, '').replace(/`/g, ''))
     } else {
       cur = { title: '课件', bullets: [line.replace(/^[-*]\s*/, '').replace(/^#{1,2}\s*/, '')] }
@@ -484,7 +536,7 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
       layout: s.layout,
       slots: s.slots,
       rich: (s.bullets.length ? s.bullets : [s.title]).map(b => ({
-        text: b, options: { bullet: { indent: 18 }, fontFace: theme.font || FONT, fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
+        text: b, options: { bullet: { indent: 18 }, fontFace: pptxFont(theme.font), fontSize: 18, color: theme.body, breakLine: true, paraSpaceAfter: 12 },
       })),
       elements: s.elements,
       visuals: s.visuals,
@@ -501,6 +553,10 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
   const lines: string[] = [`# ${opts.title}`, '', `> ${opts.subject} · ${opts.grade}`, '']
   outline.forEach(s => {
     lines.push(`## ${s.title}`)
+    // 版式保真（2026-09-03）：layout 注释随往返写回——否则骨架在"打开→保存"后丢失
+    if (s.layout) lines.push(`<!-- layout: ${s.layout} -->`)
+    // 透明保真行：scene 结构/未知注释等编辑器不理解的内容按原顺序写回，不做任何改写
+    if (s.keepRaw && s.keepRaw.length) lines.push(...s.keepRaw)
     const bs = s.elements && s.elements.length ? extractBullets(s.elements) : s.bullets
     bs.forEach(b => lines.push(`- ${b}`))
     if (s.notes) lines.push('', `> 教师备注：${s.notes}`)
@@ -541,17 +597,19 @@ function uid(prefix = 'el'): string {
 }
 
 /** 按版式生成默认自由元素（标题色带由主题固定渲染，不在此层） */
-export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[] {
+export function layoutElements(slide: OutlineSlide, layout?: string, styleKey?: StyleKey | ''): CwElement[] {
   const parts = slide.bullets.length ? slide.bullets : []
   // 教学目标 / 课堂小结 / 课后作业：有真实 bullets 时不走"三维目标三栏/分层三栏"占位骨架，
   // 直接列 bullets；只有在编辑态无内容时才回退到占位骨架。
+  // 几何按风格给（此前写死 6/23/88/64 → 换风格也一样，是"一个头面"的一处来源）
   if (parts.length && (layout === 'edu-goal' || layout === 'edu-summary' || layout === 'edu-homework')) {
-    return [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }]
+    const sc = singleColumnRect(styleKey ?? '')
+    return [{ id: uid(), type: 'text', x: sc.x, y: sc.y, w: sc.w, h: sc.h, text: parts.join('\n'), fontSize: 18, bullet: true }]
   }
   // 内容与模板分离：有 slots 时按骨架几何生成元素（与预览/导出一致）；无 slots 但 layout 命中骨架时即时分发（兼容存量）
   const effSlots = slide.slots ?? (layout && isStructuredLayout(layout) ? distributeToSlots(layout as SlideLayout, slide.bullets) : undefined)
   if (effSlots && layout && isStructuredLayout(layout)) {
-    const sk = getSkeleton(layout as SlideLayout)
+    const sk = getSkeleton(layout as SlideLayout, { styleKey: styleKey ?? '' })
     if (sk) {
       const els: CwElement[] = []
       for (const ph of sk.placeholders) {
@@ -586,9 +644,11 @@ export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[
       return []
     case 'two-col': {
       const mid = Math.ceil(parts.length / 2)
+      // 非结构化版式同样按风格给几何（此前写死 x:6/52 w:42 → 换风格无变化）
+      const { left: L, right: R } = twoColumnRects(styleKey ?? '')
       return [
-        { id: uid(), type: 'text', x: 6, y: 23, w: 42, h: 64, text: parts.slice(0, mid).join('\n'), fontSize: 18, bullet: true },
-        { id: uid(), type: 'text', x: 52, y: 23, w: 42, h: 64, text: parts.slice(mid).join('\n'), fontSize: 18, bullet: true },
+        { id: uid(), type: 'text', x: L.x, y: L.y, w: L.w, h: L.h, text: parts.slice(0, mid).join('\n'), fontSize: 18, bullet: true },
+        { id: uid(), type: 'text', x: R.x, y: R.y, w: R.w, h: R.h, text: parts.slice(mid).join('\n'), fontSize: 18, bullet: true },
       ]
     }
     case 'blank':
@@ -637,16 +697,23 @@ export function layoutElements(slide: OutlineSlide, layout?: string): CwElement[
         { id: uid(), type: 'text', x: 66, y: 23, w: 28, h: 60, text: '拓展\n（填写）', fontSize: 16, bullet: true },
       ]
     case 'title-body':
-    default:
-      return parts.length ? [{ id: uid(), type: 'text', x: 6, y: 23, w: 88, h: 64, text: parts.join('\n'), fontSize: 18, bullet: true }] : []
+    default: {
+      // 正文兜底：几何按风格给（此前写死 x:6 y:23 w:88 h:64）
+      const sc = singleColumnRect(styleKey ?? '')
+      return parts.length ? [{ id: uid(), type: 'text', x: sc.x, y: sc.y, w: sc.w, h: sc.h, text: parts.join('\n'), fontSize: 18, bullet: true }] : []
+    }
   }
 }
 
-/** 进入自由编辑时调用：给尚无 elements 的页物化默认元素（保留 AI 提纲内容） */
-export function materializeOutline(outline: OutlineSlide[]): OutlineSlide[] {
+/**
+ * 进入自由编辑时调用：给尚无 elements 的页物化默认元素（保留 AI 提纲内容）。
+ * 2026-09-11：新增 styleKey —— 物化出来的默认元素几何也须带风格，
+ * 否则这些页（如 title-body）会绕开骨架、换风格完全不变。
+ */
+export function materializeOutline(outline: OutlineSlide[], styleKey?: StyleKey | ''): OutlineSlide[] {
   return outline.map((s) => {
     if (s.elements && s.elements.length) return s
-    return { ...s, elements: layoutElements(s, s.layout || 'title-body') }
+    return { ...s, elements: layoutElements(s, s.layout || 'title-body', styleKey) }
   })
 }
 
@@ -684,7 +751,7 @@ function renderVisualToPptx(
   const areaH = Math.max(0.4, box.h - titleH)
 
   if (vTitle) {
-    slide.addText(vTitle, { x: box.x, y: box.y, w: box.w, h: titleH, fontFace: '"KaiTi","STKaiti",serif', fontSize: 20, bold: true, color: p })
+    slide.addText(vTitle, { x: box.x, y: box.y, w: box.w, h: titleH, fontFace: font, fontSize: 20, bold: true, color: p })
   }
 
   if (v.type === 'sequence') {
@@ -701,7 +768,7 @@ function renderVisualToPptx(
       })
       slide.addText(it.label + (it.hint ? `\n${it.hint}` : ''), {
         x, y: areaY, w: cellW, h: areaH,
-        fontFace: '"KaiTi","STKaiti",serif', fontSize: 16, bold: true,
+        fontFace: font, fontSize: 16, bold: true,
         color: i === n - 1 ? 'FFFFFF' : body, align: 'center', valign: 'middle',
       })
       if (i < n - 1) {
@@ -718,10 +785,10 @@ function renderVisualToPptx(
     // 表头 / 行首 / 单元格三级样式，形成清晰层级
     const header = [
       { text: '', options: { fill: { color: p + '26' } } },
-      ...v.cols.map(c => ({ text: c, options: { bold: true, fontSize: 15, color: p, fontFace: '"KaiTi","STKaiti",serif', fill: { color: p + '26' } } })),
+      ...v.cols.map(c => ({ text: c, options: { bold: true, fontSize: 15, color: p, fontFace: font, fill: { color: p + '26' } } })),
     ]
     const rows = v.rows.map(r => [
-      { text: r.label, options: { bold: true, fontSize: 13, color: p, fontFace: '"KaiTi","STKaiti",serif', fill: { color: p + '14' } } },
+      { text: r.label, options: { bold: true, fontSize: 13, color: p, fontFace: font, fill: { color: p + '14' } } },
       ...v.cols.map((_, j) => ({ text: r.cells?.[j] || '', options: { fontSize: 12, color: body } })),
     ])
     slide.addTable([header, ...rows], {
@@ -758,7 +825,7 @@ function renderVisualToPptx(
       })
       slide.addText(['一', '二', '三', '四', '五'][i] || String(i + 1), {
         x: badgeX, y: badgeY, w: badgeD, h: badgeD,
-        fontFace: '"KaiTi","STKaiti",serif', fontSize: isHi ? 24 : 21, bold: true,
+        fontFace: font, fontSize: isHi ? 24 : 21, bold: true,
         color: isHi ? 'FFFFFF' : p, align: 'center', valign: 'middle',
       })
       const cardH = Math.max(0.4, nodeH * 0.78)
@@ -769,7 +836,7 @@ function renderVisualToPptx(
         line: { color: p, width: isHi ? 2 : 1 }, rectRadius: 0.08,
       })
       slide.addText([
-        { text: nd.label, options: { fontSize: 23, bold: true, fontFace: '"KaiTi","STKaiti",serif', color: isHi ? 'FFFFFF' : p, breakLine: true } },
+        { text: nd.label, options: { fontSize: 23, bold: true, fontFace: font, color: isHi ? 'FFFFFF' : p, breakLine: true } },
         ...(nd.desc ? [{ text: nd.desc, options: { fontSize: 17, color: isHi ? 'F0F0F0' : body } }] : []),
       ], {
         x: cardX + 0.12, y: cardY, w: cardW - 0.24, h: cardH,
@@ -793,7 +860,7 @@ function renderVisualToPptx(
         fill: { color: 'FFFFFF' }, line: { color: p, width: 0.75, dashType: 'dash' }, rectRadius: 0.05,
       })
       // 生字 / 拼音 / 组词 三级字号（田字格感：生字足够大）
-      const rich: any[] = [{ text: c.char, options: { fontSize: 40, bold: true, fontFace: '"KaiTi","STKaiti",serif', color: body, breakLine: true } }]
+      const rich: any[] = [{ text: c.char, options: { fontSize: 40, bold: true, fontFace: font, color: body, breakLine: true } }]
       if (c.pinyin) rich.push({ text: c.pinyin, options: { fontSize: 14, bold: true, color: p, breakLine: true } })
       if (c.word) rich.push({ text: c.word, options: { fontSize: 12, color: subtle } })
       slide.addText(rich, {
@@ -811,14 +878,14 @@ function renderVisualToPptx(
       const y = areaY + i * rowH
       const labelW = pr.label ? box.w * 0.18 : 0
       if (pr.label) {
-        slide.addText(pr.label, { x: box.x, y, w: labelW, h: rowH, fontFace: '"KaiTi","STKaiti",serif', fontSize: 15, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
+        slide.addText(pr.label, { x: box.x, y, w: labelW, h: rowH, fontFace: font, fontSize: 15, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
       }
       const sideW = (box.w - labelW - 0.5) / 2
       slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: box.x + labelW, y: y + 0.05, w: sideW, h: rowH - 0.1, fill: { color: 'FFFFFF' }, line: { color: p, width: 0.75 }, rectRadius: 0.05 })
-      slide.addText(pr.left, { x: box.x + labelW, y: y + 0.05, w: sideW, h: rowH - 0.1, fontFace: '"KaiTi","STKaiti",serif', fontSize: 15, bold: true, color: body, align: 'center', valign: 'middle' })
+      slide.addText(pr.left, { x: box.x + labelW, y: y + 0.05, w: sideW, h: rowH - 0.1, fontFace: font, fontSize: 15, bold: true, color: body, align: 'center', valign: 'middle' })
       slide.addText('VS', { x: box.x + labelW + sideW, y: y + 0.05, w: 0.5, h: rowH - 0.1, fontFace: font, fontSize: 10, bold: true, color: p, align: 'center', valign: 'middle' })
       slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: box.x + labelW + sideW + 0.5, y: y + 0.05, w: sideW, h: rowH - 0.1, fill: { color: 'FFFFFF' }, line: { color: p, width: 0.75 }, rectRadius: 0.05 })
-      slide.addText(pr.right, { x: box.x + labelW + sideW + 0.5, y: y + 0.05, w: sideW, h: rowH - 0.1, fontFace: '"KaiTi","STKaiti",serif', fontSize: 15, bold: true, color: body, align: 'center', valign: 'middle' })
+      slide.addText(pr.right, { x: box.x + labelW + sideW + 0.5, y: y + 0.05, w: sideW, h: rowH - 0.1, fontFace: font, fontSize: 15, bold: true, color: body, align: 'center', valign: 'middle' })
     })
     return
   }
@@ -827,7 +894,7 @@ function renderVisualToPptx(
     const fs = v.text.length <= 20 ? 26 : v.text.length <= 40 ? 22 : v.text.length <= 70 ? 19 : 16
     slide.addText(v.text, {
       x: box.x, y: areaY, w: box.w, h: areaH,
-      fontFace: '"KaiTi","STKaiti",serif', fontSize: fs, bold: true, color: body,
+      fontFace: font, fontSize: fs, bold: true, color: body,
       align: 'center', valign: 'middle',
     })
     if (v.from) {
@@ -864,7 +931,7 @@ export async function exportCoursewareToPptx(
     ? buildCoursewareSlides(input, opts)
     : input
   const theme = opts.theme || DEFAULT_THEME
-  const font = theme.font || FONT
+  const font = pptxFont(theme.font)   // 统一净化：CSS 字体栈 → PPTX 单字体名
   const is43 = opts.aspect === '4/3'
   const CW_W = is43 ? 10 : 13.3
   const CW_H = 7.5
@@ -874,7 +941,8 @@ export async function exportCoursewareToPptx(
   pres.author = '知微教学'
   pres.title = opts.title
 
-  const bandH = (1.15 / 7.5) * CW_H
+  // 标题带高度：与预览共用同一常量（此前预览 15.3%、导出 (1.15/7.5)*CW_H，两处各自推导）
+  const bandH = TITLE_BAND_RATIO * CW_H
   const titleW = CW_W - 1.4
   slides.forEach((s) => {
     if (s.kind === 'cover') {
@@ -894,11 +962,71 @@ export async function exportCoursewareToPptx(
     }
 
     const slide = pres.addSlide()
-    // 顶部标题色带
-    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: CW_W, h: bandH, fill: { color: theme.primary } })
-    slide.addText(s.title, {
-      x: 0.7, y: 0, w: titleW, h: bandH, fontFace: '"KaiTi","STKaiti",serif', fontSize: 30, bold: true, color: theme.onPrimary, valign: 'middle',
-    })
+    // ── 风格结构语汇（2026-09-11）：导出端此前**完全没有**结构差异，
+    //    导致"预览有网格/边栏/角标、导出的 PPTX 却没有"。现与预览消费同一份 token。 ──
+    const st = styleStructure(styleKeyFromThemeId(theme.id))
+    const frameless = isFramelessLayout(s.layout)
+    const p = theme.primary
+
+    // 标题色带：仅"有底带"的版式绘制（此前导出恒画、预览不画 → 两端结构不一致）
+    if (!frameless) {
+      slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: CW_W, h: bandH, fill: { color: p } })
+    }
+    const titleColor = frameless ? p : theme.onPrimary
+    const titleY = frameless ? 0.3 : 0
+    const titleAlign = st.titleStyle === 'centerRule' ? 'center' : 'left'
+    // 长标题拆「主标题 + 副标题」两行（共享规则 splitTitle，与预览/H5 同源）
+    const { main: tMain, sub: tSub } = splitTitle(s.title)
+    if (tSub) {
+      slide.addText(tMain, {
+        x: 0.7, y: titleY, w: titleW, h: bandH * 0.62, fontFace: font,
+        fontSize: TYPE_SCALE.title - 4, bold: true, color: titleColor, valign: 'bottom', align: titleAlign,
+      })
+      slide.addText(tSub, {
+        x: 0.7, y: titleY + bandH * 0.62, w: titleW, h: bandH * 0.38, fontFace: font,
+        fontSize: TYPE_SCALE.sub - 6, color: titleColor, valign: 'top', align: titleAlign,
+      })
+    } else {
+      slide.addText(s.title, {
+        x: 0.7, y: titleY, w: titleW, h: bandH, fontFace: font, fontSize: TYPE_SCALE.title, bold: true,
+        color: titleColor, valign: 'middle', align: titleAlign,
+      })
+    }
+    // 标题形态（下划线 / 色块 / 居中带线）
+    if (st.titleStyle === 'underline') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: 0.7, y: titleY + bandH - 0.07, w: 4.0, h: 0.045, fill: { color: p } })
+    } else if (st.titleStyle === 'block') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: 0.65, y: titleY + bandH * 0.3, w: 0.12, h: bandH * 0.4, fill: { color: p } })
+    } else if (st.titleStyle === 'centerRule') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: CW_W / 2 - 1.5, y: titleY + bandH - 0.08, w: 3.0, h: 0.035, fill: { color: p } })
+    }
+    // 左边栏
+    if (st.rail === 'scroll') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: 0.16, y: 1.5, w: 0.1, h: CW_H - 3.0, fill: { color: p, transparency: 78 }, line: { color: p, width: 1 } })
+    } else if (st.rail === 'rule') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: 0.2, y: 1.4, w: 0.014, h: CW_H - 2.8, fill: { color: p, transparency: 52 } })
+    } else if (st.rail === 'index') {
+      for (let i = 0; i < 5; i++) {
+        slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 1.45 + i * 0.36, w: 0.12, h: 0.11, fill: { color: p, transparency: i === 0 ? 0 : 70 } })
+      }
+    }
+    // 右上角标
+    if (st.corner === 'triangle') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: CW_W - 0.5, y: -0.5, w: 1.0, h: 1.0, rotate: 45, fill: { color: p } })
+    } else if (st.corner === 'seal') {
+      slide.addShape(pres.shapes.RECTANGLE, { x: CW_W - 0.86, y: 0.3, w: 0.48, h: 0.48, fill: { color: 'FFFFFF', transparency: 100 }, line: { color: p, width: 1.5 } })
+    }
+    // 轻纹理（PPTX 无平铺底纹能力，用少量细线示意，保证"看得出风格"）
+    if (st.texture === 'grid') {
+      for (let i = 1; i <= 4; i++) slide.addShape(pres.shapes.RECTANGLE, { x: (CW_W / 5) * i, y: 1.35, w: 0.008, h: CW_H - 2.3, fill: { color: p, transparency: 87 } })
+      for (let i = 1; i <= 3; i++) slide.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 1.35 + i * (CW_H - 2.3) / 4, w: CW_W - 0.6, h: 0.008, fill: { color: p, transparency: 87 } })
+    } else if (st.texture === 'dots') {
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 4; c++) {
+          slide.addShape(pres.shapes.OVAL, { x: 0.5 + c * 2.6, y: 1.6 + r * 1.9, w: 0.07, h: 0.07, fill: { color: p, transparency: 74 } })
+        }
+      }
+    }
 
     // 可视化组件优先：用 PPTX 原生形状/表格绘制知识结构（递进图/对比表/时间轴/生字卡/金句）
     const visList = normalizeVisuals(s.visuals)
@@ -919,7 +1047,7 @@ export async function exportCoursewareToPptx(
     } else if (isStructuredLayout(s.layout)) {
       // 内容与模板分离：按骨架几何把每个 slot 写成独立文本框（无 slots 时即时分发，兼容存量）
       const effSlots = s.slots ?? distributeToSlots(s.layout as SlideLayout, (s.rich || []).map(r => r.text))
-      const sk = getSkeleton(s.layout as SlideLayout)
+      const sk = getSkeleton(s.layout as SlideLayout, { styleKey: styleKeyFromThemeId(theme.id) })
       if (sk && effSlots) {
         for (const ph of sk.placeholders) {
           if (ph.key === 'title' && (s.layout as SlideLayout) !== 'cover') continue

@@ -27,11 +27,31 @@ type Material struct {
 	AIModelVersion string `json:"ai_model_version,omitempty" gorm:"column:ai_model_version;type:varchar(50)"`
 	HumanEdited    bool   `json:"human_edited" gorm:"column:human_edited;not null;default:false"`
 
+	// ── 生成配方 / 溯源（2026-09-13）──
+	// 为什么需要：此前只落"产物"（content/theme/grade/subject），**不落"这份课件是按什么生成的"**。
+	// 于是从预览进编辑页时，左栏只能回填标题/主题，其余退化成空表单 → 表现为"左栏与画布脱节"。
+	// 台账依据：即使课件由系统预生成，其链路与教师手工生成**同构** ——
+	//   教材版本 → 单元 → 教案(参照) → 知识点(课标锚点) → 场景化要求/风格/发散 → 产出。
+	// 字段命名**对齐 LessonPlan**（内部模型早已有 unit/knowledge_node_ids/curriculum_alignments/
+	// period/ai_model_version），避免"同一件事两套命名"。
+	// 注意：这些是**实体引用**（配快照），不是自由文本 —— 教材版本会按学校/班级解析，
+	// 上游也会变，故 GenParams 里同时存解析时刻的快照。
+	TextbookVersionID   string      `json:"textbook_version_id,omitempty" gorm:"column:textbook_version_id;type:varchar(50)"`      // 教材版本实体（解析后）
+	Unit                string      `json:"unit,omitempty" gorm:"column:textbook_unit;type:varchar(100)"`                           // 单元（对齐 LessonPlan.Unit）
+	LessonPlanID        string      `json:"lesson_plan_id,omitempty" gorm:"column:lesson_plan_id;type:varchar(50)"`                 // 来源教案（实体引用）
+	KnowledgeNodeIDs    StringSlice `json:"knowledge_node_ids,omitempty" gorm:"column:knowledge_node_ids;type:jsonb"`               // 教师选定的知识点实体 ID（tb_kg_node）；未选时为空
+	CurriculumAlignments StringSlice `json:"curriculum_alignments,omitempty" gorm:"column:curriculum_alignments;type:jsonb"`        // 课标条目
+	Period              int         `json:"period,omitempty" gorm:"column:period;default:0"`                                        // 课时
+	// GenParams：生成参数的**完整快照**（JSON）：scope_resolved（知识面来源 teacher|kg|none、
+	// prereq_source、发散边界 orbit/edge/beyond_band）+ 补充要求/风格/跨界/问诊 + 教材版本快照。
+	// 含"当时解析结果"而非只有引用 —— 因为上游（教材/单元/知识点/教案）会变，只存 ID 复现不出来。
+	GenParams           string      `gorm:"column:gen_params;type:text" json:"gen_params,omitempty"`
+
 	// ── 装饰元件架构扩展（P0）──
 	// 仅新增字段，不动既有字段语义。存量数据 category 默认 'courseware'。
 	// facet 维度收敛为 4 维：applicable(媒介) / motif(母题) / color(色系) / page_type(页型)，
 	// 与前端 cwTemplate.ts 的 STYLE_LABELS / COLOR_FAMILIES 同源，供 AI 自动匹配。
-	Category    string    `json:"category" gorm:"type:varchar(30);default:courseware"` // courseware|decor_element|decor_component
+	Category    string    `json:"category" gorm:"type:varchar(30);default:courseware"` // courseware|decor_element|decor_component|notice(家校宣发H5，2026-09-03)
 	DecorFacets DecorFacets `json:"decor_facets" gorm:"type:jsonb"` // 4维 facet 标签路径数组，如 ["motif.国风","color.蓝系","page_type.cover"]
 	Applicable  string    `json:"applicable" gorm:"type:varchar(10)"` // ppt|h5|common（媒介适用性，冗余自 facet 便于索引）
 	MotifRoot   string    `json:"motif_root" gorm:"type:varchar(40)"` // 母题一级（冗余自 facet 便于索引）

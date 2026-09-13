@@ -20,6 +20,7 @@
 
 import re
 import json
+import os
 from subjects import normalize_subject
 
 # ── 负面清单（平台可维护；新增只需往这里加词）──
@@ -30,9 +31,40 @@ from subjects import normalize_subject
 # （CODE=CONTENT_BLOCKED / negative_symbol），产品自相矛盾。
 # 本意要拦的是「日本二次元/动漫」这一外来亚文化，已由下列 动漫/日本动漫/日本卡通/日漫/二次元 覆盖。
 NEGATIVE_KEYWORDS = [
+    # ① 商业亚文化符号
     "麦当劳", "肯德基", "汉堡王", "星巴克", "可口可乐", "百事可乐",
+    # ② 外来亚文化（日本二次元/动漫等）
     "二次元", "动漫", "日本动漫", "日本卡通", "日漫", "cosplay", "COSPLAY",
     "奥特曼", "宝可梦", "皮卡丘", "漫威", "DC", "迪士尼公主",
+
+]
+
+# ── 敏感主题词（2026-09-12 补：黄赌毒 / 暴力恐怖 / 自残 / 迷信邪教）──
+#
+# 为什么**不**放进 NEGATIVE_KEYWORDS（即不直接 block）：
+#   这些词**有合法语境**——禁毒课、普法课、心理课、安全教育课都会大量出现
+#   （"吸毒会严重损害健康，必须远离"是**合规且必要**的教学内容）。
+#   若靠词表直接判 block，会重演上面「卡通」那条教训的翻版：
+#   **禁毒教育课被自己的红线闸拦下，还会被自动"修正"逻辑删掉禁毒内容。**
+#
+# 所以分两级：
+#   · NEGATIVE_KEYWORDS  （level=block）：**无合法语境**的商业/外来亚文化符号 → 直接拦
+#   · SENSITIVE_KEYWORDS （level=warn） ：主题词/行为词 → 是否升级为 block，
+#     由 `_llm_ethic_flags` 按**立场**判定（批判/警示/科普 → 放行；美化/教唆/给方法 → block）
+#
+# 分级的好处：**可以收得更全**（不怕误伤），同时**不漏**（出现即被看见）。
+SENSITIVE_KEYWORDS = [
+    # 黄
+    "色情", "淫秽", "嫖娼", "卖淫", "情色", "成人视频", "黄色网站", "裸聊",
+    # 赌
+    "赌博", "赌场", "赌球", "六合彩", "老虎机", "博彩", "网络赌博", "赌资",
+    # 毒
+    "毒品", "吸毒", "贩毒", "制毒", "冰毒", "海洛因", "大麻", "摇头丸",
+    "罂粟", "甲基苯丙胺", "毒枭",
+    # 暴力 / 恐怖 / 自残
+    "恐怖袭击", "恐怖主义", "血腥", "虐杀", "凶杀", "分尸", "自残", "割腕", "自杀",
+    # 迷信 / 邪教
+    "邪教", "跳大神", "驱鬼", "符水", "算命", "招魂",
 ]
 
 # 民族差异化：不应出现「某族人如何/某族 vs 某族」的对比式呈现。
@@ -83,7 +115,12 @@ def subject_orbit_hint(subject: str) -> str:
 
 
 def scan_negative(text: str) -> list:
-    """关键词负面清单扫描，返回 issue 列表（block 级，必须修改）。"""
+    """敏感内容扫描（**两级**），返回 issue 列表。
+
+    · NEGATIVE_KEYWORDS  → level=block：无合法语境的商业/外来亚文化符号，直接拦。
+    · SENSITIVE_KEYWORDS → level=warn ：黄赌毒/暴力恐怖/自残/迷信邪教等**有合法语境**的主题词，
+      只提醒 + 交语义复核，是否升级 block 由 `_llm_ethic_flags` 按立场判定。
+    """
     if not text:
         return []
     issues = []
@@ -96,6 +133,17 @@ def scan_negative(text: str) -> list:
                 "keyword": kw,
                 "message": f"出现商业/外来亚文化符号「{kw}」，请移除或改用学科/生活本真案例。",
                 "suggestion": "替换为与知识点直接相关的学科情境或中性生活案例。",
+            })
+    for kw in SENSITIVE_KEYWORDS:
+        if kw in text:
+            issues.append({
+                "type": "sensitive_topic",
+                "level": "warn",
+                "keyword": kw,
+                "message": f"出现敏感主题词「{kw}」：请确认它是**合规教学内容**"
+                           f"（禁毒/普法/心理/安全教育中被明确批判或警示），还是美化/教唆。",
+                "suggestion": "若为批判/科普表述则保留（由语义复核确认）；"
+                              "若为美化、教唆或含可操作细节，必须改写。",
             })
     return issues
 
@@ -112,7 +160,7 @@ def _llm_ethic_flags(text: str, call_llm) -> list:
         return []
     prompt = (
         "你是中小学课件内容安全审核员。请审查下面这段课件是否含有以下问题，"
-        "只返回 JSON 数组，每项 {\"type\":\"ethnic_diff|value_bias|beyond_band\","
+        "只返回 JSON 数组，每项 {\"type\":\"ethnic_diff|value_bias|beyond_band|harmful_content\","
         "\"level\":\"block|warn\",\"message\":简短说明,\"suggestion\":修改建议}；若都没有，返回 []。\n"
         "审查口径（务必遵守分级）：\n"
         "1) ethnic_diff（level=block）： ONLY 当出现「国内某民族 vs 另一民族」的对比/差异化/优劣呈现时才标。"
@@ -125,10 +173,17 @@ def _llm_ethic_flags(text: str, call_llm) -> list:
         "3) beyond_band（level=warn）：内容疑似明显超出相邻一个年级档，或跨界桥接的课标对齐超出±1档。"
         "注意：课件允许受控跨界与适度超纲（如关联科学/历史/生活），这本身不是问题，"
         "只有明显严重超界才标 warn（不要标 block）。\n"
+        "4) harmful_content（level=block）：**只有出现美化、教唆、或可操作细节**时才标 block："
+        "色情露骨描写、赌博技巧与赌具、吸毒制毒方法或获取渠道、血腥暴力细节、恐怖主义宣传、"
+        "自残/自杀方法、封建迷信的具体操作（跳大神/驱鬼/符水等）。\n"
+        "   判据是**立场**，不是词面：批判/警示 → 放行；美化/教唆/给方法 → block。\n"
+        "   严禁误报（以下必须放行）：禁毒、防赌、普法、安全教育、健康与心理课中"
+        "**作为反面教材被明确批判或警示**的内容（如「吸毒会严重损害健康，必须远离」）。\n"
         f"课件内容：\n{text}\n"
     )
     try:
-        raw = call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 1200)
+        # 不写死模型：由调用方决定（红线复核必须能用**独立模型**，见 api_server 的 SAFETY_MODEL）
+        raw = call_llm([{"role": "user", "content": prompt}], max_tokens=1200)
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         if not m:
             return []
@@ -145,15 +200,122 @@ def policy_gate_publish(text: str, ctx: dict = None, call_llm=None) -> dict:
 
     返回 {pass: bool, issues: [ {type, level, message, suggestion, ...} ]}。
     level=block 必须修改后才能发布；level=warn 提醒但不阻断。
+
+    ⚠️ **LLM 复核不授予 block 权**（2026-09-12 实测修正）。
+    理由：实测三条用例误报率 100%——连"钱塘江大潮自古以来被称为天下奇观"这种
+    完全正常的内容都被判成 ethnic_diff + harmful_content；禁毒教育也被判 harmful_content。
+    在"不可靠的判官不能有判决权"这条原则上，LLM 复核只能**提示**：
+      · block 的确定性来源 = 词表（NEGATIVE_KEYWORDS，无合法语境）
+      · LLM 判定的 block 一律降级为 warn，原文案保留在 message 里，并附 ai_level 供观察
+    待准确率被标注样例证明后，可用 `CW_SAFETY_LLM_BLOCK=1` 恢复其 block 权。
     """
     ctx = ctx or {}
     issues = scan_negative(text)
-    # LLM 复核（民族差异化/价值观/超界），仅当提供了 call_llm 时才跑
+    # LLM 复核（民族差异化/价值观/超界/有害内容），仅当提供了 call_llm 时才跑
+    llm_flags = _llm_ethic_flags(text, call_llm)
+    llm_block_allowed = os.getenv("CW_SAFETY_LLM_BLOCK") == "1"
+    for f in llm_flags:
+        f.setdefault("level", "warn")
+        if f.get("level") == "block" and not llm_block_allowed:
+            f["ai_level"] = "block"
+            f["level"] = "warn"
+            f["message"] = "【AI 复核建议·需人工确认】" + str(f.get("message", ""))
+        issues.append(f)
+    # 任何 block 级问题 → 不通过
+    passed = not any(i.get("level") == "block" for i in issues)
+    return {"pass": passed, "issues": issues}
+
+
+# ── 家校宣发（notice）专用红线（2026-09-03）────────────────────────────────
+# 产品原则：安全类宣发（防溺水/交通/消防等）涉及生命安全的条款必须对齐官方口径，
+# 不允许 AI 或教师自行演绎安全条款（编造"六不"变体、自创自救步骤等）。
+# 校验策略（朴素子串匹配；官方短语集随政策由平台维护）：
+#   · 命中「强触发词」→ 正文必须含至少一条官方关键短语，否则 block；
+#   · 仅命中「弱触发词」→ warn 提醒补官方口径/求助渠道，不阻断；
+#   · 通用负面清单（policy_gate_publish 的扫描）对 notice 同样生效。
+NOTICE_SAFETY_GUARD = [
+    {
+        "topic": "防溺水",
+        "strong": ["溺水", "下水游泳", "私自下水", "防溺水"],
+        "weak": ["游泳", "水边", "河湖", "水域"],
+        "official": ["不私自下水游泳", "不擅自与他人结伴游泳", "不在无家长或教师带领的情况下游泳",
+                     "不到无安全设施、无救援人员的水域游泳", "不到不熟悉的水域游泳",
+                     "不熟悉水性的学生不擅自下水施救", "六不"],
+        "official_text": "教育部防溺水『六不一会』：不私自下水游泳；不擅自与他人结伴游泳；"
+                         "不在无家长或教师带领的情况下游泳；不到无安全设施、无救援人员的水域游泳；"
+                         "不到不熟悉的水域游泳；不熟悉水性的学生不擅自下水施救。",
+    },
+    {
+        "topic": "交通安全",
+        "strong": ["一盔一带", "头盔", "安全带", "骑电动车", "骑自行车"],
+        "weak": ["交通安全", "闯红灯", "过马路"],
+        "official": ["一盔一带", "不闯红灯", "未满12周岁不得骑自行车", "未满16周岁不得骑电动自行车",
+                     "走人行横道", "斑马线"],
+        "official_text": "交通安全官方口径：『一盔一带』；不闯红灯；过马路走人行横道（斑马线）；"
+                         "未满12周岁不得骑自行车上路；未满16周岁不得骑电动自行车上路。",
+    },
+    {
+        "topic": "消防安全",
+        "strong": ["火灾", "用火", "玩火", "消防"],
+        "weak": ["灭火器", "逃生"],
+        "official": ["不玩火", "119", "湿毛巾", "弯腰", "逃生"],
+        "official_text": "消防安全提示（官方口径）：不玩火；发现火情拨打 119；"
+                         "浓烟中用湿毛巾捂住口鼻、弯腰低姿逃生。",
+    },
+    {
+        "topic": "心理健康",
+        "strong": [],
+        "weak": ["心理健康", "情绪", "抑郁", "焦虑"],
+        "official": ["12356", "学校心理", "心理老师", "寻求帮助", "求助"],
+        "official_text": "心理健康口径：请让孩子知道——遇到困扰可第一时间告诉家长或老师，"
+                         "也可拨打全国心理援助热线 12356（24 小时）。",
+    },
+]
+
+
+def scan_notice_guard(text: str) -> list:
+    """notice 安全口径专用校验：强命中主题却缺官方句 → block；弱命中 → warn。"""
+    if not text:
+        return []
+    issues = []
+    for rule in NOTICE_SAFETY_GUARD:
+        strong_hit = any(k in text for k in rule["strong"])
+        weak_hit = any(k in text for k in rule["weak"])
+        if not (strong_hit or weak_hit):
+            continue
+        has_official = any(o in text for o in rule["official"])
+        if strong_hit and not has_official:
+            issues.append({
+                "type": "notice_official_wording",
+                "level": "block",
+                "keyword": rule["topic"],
+                "message": f"「{rule['topic']}」属安全宣发，安全条款必须采用官方口径；"
+                           f"当前正文缺少官方关键表述，请勿自行演绎安全条款。",
+                "suggestion": rule["official_text"],
+            })
+        elif not has_official:
+            issues.append({
+                "type": "notice_official_wording",
+                "level": "warn",
+                "keyword": rule["topic"],
+                "message": f"「{rule['topic']}」宣发建议补充官方口径/求助渠道，用家长和孩子都看得懂的话写清楚。",
+                "suggestion": rule["official_text"],
+            })
+    return issues
+
+
+def policy_gate_notice(text: str, ctx: dict = None, call_llm=None) -> dict:
+    """家校宣发发布校验 = 通用负面清单 + 安全口径专用校验 + 轻量复核。
+
+    与 policy_gate_publish 的区别：notice 额外执行 NOTICE_SAFETY_GUARD 的口径对照，
+    拦截「自行演绎安全条款」的宣发内容。
+    """
+    ctx = ctx or {}
+    issues = scan_negative(text) + scan_notice_guard(text)
     llm_flags = _llm_ethic_flags(text, call_llm)
     for f in llm_flags:
         f.setdefault("level", "warn")
         issues.append(f)
-    # 任何 block 级问题 → 不通过
     passed = not any(i.get("level") == "block" for i in issues)
     return {"pass": passed, "issues": issues}
 

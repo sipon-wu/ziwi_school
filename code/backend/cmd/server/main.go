@@ -343,6 +343,8 @@ func main() {
 		teacher.POST("/materials", materialHandler.UploadMaterial)
 		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		teacher.PUT("/materials/:id", materialHandler.UpdateMaterial)
+		// 家校/学校宣发 H5（notice）：全校共用资产，校内所有角色只读
+		teacher.GET("/notices", materialHandler.ListNotices)
 		// 装饰元件查询（素材库装饰元件，facet 自动匹配）
 		teacher.GET("/decor", materialHandler.ListDecor)
 		// facet 受控词表（运营维护母题/媒介/色系/页型等词库）
@@ -394,6 +396,15 @@ func main() {
 		registrar.GET("/dean/teachers", deanHandler.ListTeachers)
 		registrar.GET("/dean/semesters", deanHandler.ListSemesters)
 		registrar.POST("/dean/semesters", deanHandler.CreateSemester)
+	}
+
+	// 家校/学校宣发（notice）：仅 班主任(head_teacher) / 教务员·校务(registrar) / 校长(principal)
+	// 可创建与编辑；全校所有角色可读（见 teacher 组 GET /notices）。发布走 notice 专用红线。
+	noticeMgr := api.Group("")
+	noticeMgr.Use(middleware.RequireRole("head_teacher", "registrar", "principal"))
+	{
+		noticeMgr.POST("/notices", materialHandler.CreateNotice)
+		noticeMgr.PUT("/notices/:id", materialHandler.UpdateNotice)
 	}
 
 	// 校长端

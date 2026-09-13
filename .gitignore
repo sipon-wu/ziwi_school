@@ -117,3 +117,7 @@ qa/diversify_h5_report_*.json
 qa/h5_owner_map.tsv
 # 课件改造前的数据备份，保留在本地即可（历史上曾因行尾注释写法被误提交一次）
 qa/courseware_backup_*.sql
+
+# QA 验证截图产物（本地用，不入库）
+qa/shots_*/
+qa/batch_shots/

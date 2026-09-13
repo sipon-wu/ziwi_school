@@ -224,6 +224,14 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		Grade   string  `json:"grade"`
 		Subject string  `json:"subject"`
 		ThemeID string  `json:"theme_id"`
+		// ── 生成配方 / 溯源（2026-09-13）──
+		// 只收"需要可查询"的标量；知识点/课标等明细在 GenParams（快照）里，**不另存一份**，
+		// 避免同一份数据两处存、两处漂移（本项目历史教训）。
+		TextbookVersionID string `json:"textbook_version_id"`
+		Unit              string `json:"unit"`
+		LessonPlanID      string `json:"lesson_plan_id"`
+		Period            int    `json:"period"`
+		GenParams         string `json:"gen_params"` // 生成配方完整快照（JSON 字符串）
 		InteractiveSlots *string `json:"interactive_slots"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -248,6 +256,13 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 		Grade:     body.Grade,
 		Subject:   body.Subject,
 		ThemeID:   body.ThemeID,
+		// 生成配方 / 溯源（2026-09-13）：**必须在此显式赋值** ——
+		// 只加 DTO/model 而漏了这几行，请求里带了也会被静默丢弃（落库为空、前端读不到）。
+		TextbookVersionID: body.TextbookVersionID,
+		Unit:              body.Unit,
+		LessonPlanID:      body.LessonPlanID,
+		Period:            body.Period,
+		GenParams:         body.GenParams,
 		CreatedAt: time.Now(),
 	}
 	if body.InteractiveSlots != nil {
@@ -318,6 +333,14 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 		Grade   string  `json:"grade"`
 		Subject string  `json:"subject"`
 		ThemeID string  `json:"theme_id"`
+		// ── 生成配方 / 溯源（2026-09-13）──
+		// 只收"需要可查询"的标量；知识点/课标等明细在 GenParams（快照）里，**不另存一份**，
+		// 避免同一份数据两处存、两处漂移（本项目历史教训）。
+		TextbookVersionID string `json:"textbook_version_id"`
+		Unit              string `json:"unit"`
+		LessonPlanID      string `json:"lesson_plan_id"`
+		Period            int    `json:"period"`
+		GenParams         string `json:"gen_params"` // 生成配方完整快照（JSON 字符串）
 		InteractiveSlots *string `json:"interactive_slots"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -340,6 +363,24 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	existing.Grade = body.Grade
 	existing.Subject = body.Subject
 	existing.ThemeID = body.ThemeID
+	// 生成配方 / 溯源（2026-09-13）：**仅在传入时覆盖**，不要无条件赋值 ——
+	// 普通"保存草稿"不会带这些字段，无条件赋值会导致**每次保存都把原配方清空**。
+	// （同 InteractiveSlots 的既有约定：未传 = 不动）
+	if body.TextbookVersionID != "" {
+		existing.TextbookVersionID = body.TextbookVersionID
+	}
+	if body.Unit != "" {
+		existing.Unit = body.Unit
+	}
+	if body.LessonPlanID != "" {
+		existing.LessonPlanID = body.LessonPlanID
+	}
+	if body.Period > 0 {
+		existing.Period = body.Period
+	}
+	if body.GenParams != "" {
+		existing.GenParams = body.GenParams
+	}
 	// 指针区分：nil=未传不动；传空串=真清空（解决"删光互动无法清快照"）
 	if body.InteractiveSlots != nil {
 		existing.InteractiveSlots = *body.InteractiveSlots
@@ -380,6 +421,159 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	// 发布留痕：仅当内容真发生变化且最终为已发布状态才记新版本（避免改个标签也产生版本）
 	if existing.Status == "active" && existing.Content != originalContent {
 		h.recordReleaseVersion(c, existing, auditRes)
+	}
+	c.JSON(http.StatusOK, existing)
+}
+
+// ── 家校/学校宣发 H5（notice，2026-09-03）──────────────────────────────────
+// notice 与课件共用 materials 表：type=notice / category=notice / format=h5。
+// Content=宣发 markdown；H5HTML=滚动图文 H5（前端渲染，扫码经 GET /api/materials/:id/h5 公开访问）。
+// school 级全校共用（school_id 内所有角色可见）；创建/编辑受路由角色限制（班主任/教务·校务/校长）。
+// 发布（status=active）走 notice 专用红线：安全类主题必须对齐官方口径，不允许自行演绎安全条款。
+
+// recordReleaseNotice 宣发发布留痕（ResourceType=notice）。
+func (h *MaterialHandler) recordReleaseNotice(c *gin.Context, m *model.Material, res *policy.Result) {
+	recordRelease(h.db, c, ReleaseMeta{
+		ResourceType: "notice",
+		ResourceID:   m.ID,
+		Label:        m.Name,
+		Payload:      m.Content,
+	}, res, "")
+}
+
+// ListNotices 全校共用宣发列表（校内所有角色只读）。
+func (h *MaterialHandler) ListNotices(c *gin.Context) {
+	schoolID, _ := c.Get("school_id")
+	items, err := h.repo.ListByType(schoolID.(string), "notice")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	attachOwnerNames(h.db, items)
+	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
+}
+
+// CreateNotice 创建家校宣发 H5（班主任/教务·校务/校长；草稿可随时保存）。
+func (h *MaterialHandler) CreateNotice(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	schoolID, _ := c.Get("school_id")
+	var body struct {
+		Name    string `json:"name"`
+		Tag     string `json:"tag"` // 宣发场景码（drowning/back_to_school/parent_meeting/...）
+		Content string `json:"content"`
+		H5HTML  string `json:"h5_html"`
+		Status  string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
+		return
+	}
+	if strings.TrimSpace(body.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写宣发标题"})
+		return
+	}
+	m := &model.Material{
+		Name:      strings.TrimSpace(body.Name),
+		SchoolID:  schoolID.(string),
+		UserID:    extractUserID(userID),
+		Type:      "notice",
+		Category:  "notice",
+		Format:    "h5",
+		Tag:       body.Tag,
+		Content:   body.Content,
+		H5HTML:    body.H5HTML,
+		Status:    body.Status,
+		CreatedAt: time.Now(),
+	}
+	if m.Status == "" {
+		m.Status = "draft"
+	}
+	var auditRes *policy.Result
+	if m.Status == "active" && h.policy != nil && h.policy.Enabled() {
+		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
+			Text: strings.TrimSpace(m.Name + "\n" + m.Content),
+			Kind: "notice",
+		})
+		if err != nil {
+			log.Printf("[policy] notice 审核服务不可用，宣发降级为草稿: %v", err)
+			m.Status = "draft"
+		} else if blocking := res.Blocking(); len(blocking) > 0 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"code":    "CONTENT_BLOCKED",
+				"message": "宣发内容未通过安全审核（安全类内容须对齐官方口径，不能自行演绎安全条款），请修改后再发布",
+				"issues":  blocking,
+			})
+			return
+		} else {
+			auditRes = res
+		}
+	}
+	if err := h.repo.Create(m); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if m.Status == "active" {
+		h.recordReleaseNotice(c, m, auditRes)
+	}
+	c.JSON(http.StatusCreated, m)
+}
+
+// UpdateNotice 更新家校宣发 H5（仅 notice 资产可走此端点；已发布再次编辑仍过闸）。
+func (h *MaterialHandler) UpdateNotice(c *gin.Context) {
+	id := c.Param("id")
+	existing, err := h.repo.GetByID(id)
+	if err != nil || existing.Type != "notice" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "宣发不存在"})
+		return
+	}
+	originalContent := existing.Content
+	var body struct {
+		Name    string `json:"name"`
+		Tag     string `json:"tag"`
+		Content string `json:"content"`
+		H5HTML  string `json:"h5_html"`
+		Status  string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数有误"})
+		return
+	}
+	existing.Name = body.Name
+	existing.Tag = body.Tag
+	existing.Content = body.Content
+	existing.H5HTML = body.H5HTML
+	wasActive := existing.Status == "active"
+	if body.Status != "" {
+		existing.Status = body.Status
+	}
+	var auditRes *policy.Result
+	if existing.Status == "active" && h.policy != nil && h.policy.Enabled() {
+		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
+			Text: strings.TrimSpace(existing.Name + "\n" + existing.Content),
+			Kind: "notice",
+		})
+		if err != nil {
+			log.Printf("[policy] notice 审核服务不可用: %v", err)
+			if !wasActive {
+				existing.Status = "draft"
+			}
+		} else if blocking := res.Blocking(); len(blocking) > 0 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"code":    "CONTENT_BLOCKED",
+				"message": "宣发内容未通过安全审核（安全类内容须对齐官方口径，不能自行演绎安全条款），请修改后再发布",
+				"issues":  blocking,
+			})
+			return
+		} else {
+			auditRes = res
+		}
+	}
+	if err := h.repo.Update(existing); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if existing.Status == "active" && existing.Content != originalContent {
+		h.recordReleaseNotice(c, existing, auditRes)
 	}
 	c.JSON(http.StatusOK, existing)
 }

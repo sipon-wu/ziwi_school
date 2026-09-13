@@ -78,9 +78,12 @@ func (c *Client) Enabled() bool { return c != nil && c.baseURL != "" }
 
 // CheckRequest 审核请求。
 type CheckRequest struct {
-	Text    string // 待审文本：习题=题干+选项+答案；教案/课件=正文
+	Text    string // 待审文本：习题=题干+选项+答案；教案/课件=正文；宣发=标题+正文
 	Subject string
 	Grade   string
+	// Kind 内容类别：courseware（课件/默认）| notice（家校宣发——走 notice 专用红线：
+	// 安全类主题必须对齐官方口径，禁止 AI/教师自行演绎安全条款）。
+	Kind string
 }
 
 // Check 调用审核服务。
@@ -92,10 +95,15 @@ func (c *Client) Check(ctx context.Context, req CheckRequest) (*Result, error) {
 	if !c.Enabled() {
 		return nil, fmt.Errorf("policy: AIBaseURL 未配置，审核服务不可用")
 	}
+	kind := req.Kind
+	if kind == "" {
+		kind = "courseware"
+	}
 	body, err := json.Marshal(map[string]string{
 		"markdown": req.Text,
 		"subject":  req.Subject,
 		"grade":    req.Grade,
+		"kind":     kind,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("policy: 构造请求失败: %w", err)

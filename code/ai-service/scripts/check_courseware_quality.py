@@ -26,8 +26,21 @@ from collections import Counter
 VALID_LAYOUTS = {
     "edu-cover", "edu-goal", "edu-summary", "edu-homework", "edu-example",
     "edu-explain", "content-2col", "content-grid", "image-text", "title-body",
-    "scene",   # H5 专用；PPT 与 H5 的版式集合互斥，不可混用
+    # 纯文本页（2026-09-12 新增）：**不要求组件**。
+    # 由来：此前只有 4 类"内容页"且都强制带组件，逼着模型给纯文本页硬塞组件
+    # （与质量宪法第 12 条"禁止为填满而注水"冲突）。给它一个合法出口。
+    "content-text",
 }
+# H5 受控场景版式集合（v1 7 类 + v2 phenomenon 现象演示页，2026-09-03）
+# 与 frontend mdToStory SCENE_TYPES / 场景与互动规范.md 同源。
+H5_SCENE_LAYOUTS = {
+    "scene", "scene-dialog", "scene-read", "scene-quiz", "scene-reveal",
+    "scene-draw", "scene-focus", "scene-transition", "scene-phenomenon",
+}
+# 现象互动标记：命中这些应显式标 scene-phenomenon（渲染端会推断，故仅 WARN 提醒）
+PHENOMENON_INTERACTIONS = {"weather", "storm", "cycle"}
+# 自然科学学科关键词（理科课件流程要求至少 1 页现象演示，防全程对话气泡套路）
+SCIENCE_KWS = ("科学", "物理", "化学", "生物", "地理")
 # H5 里出现这些标题 = 把 PPT 结构套到了 H5 上
 FORBIDDEN_IN_H5 = re.compile(r"学习目标|课堂小结|分层作业|板书设计|课后作业|教学重点")
 # 气泡：`水滴: 我藏在江河里`（排除 `**角色**：A，B` 这种声明行）
@@ -41,8 +54,8 @@ CONTENT_LAYOUTS = {"content-2col", "content-grid", "image-text", "title-body"}
 # 教学页：以 bullets 为主，若加 visual 只能是文本型
 EDU_TEXT_LAYOUTS = {"edu-goal", "edu-summary", "edu-homework"}
 TEXT_ONLY_VISUALS = {"quote", "annotate"}
-# 互动标记白名单（与生成脚本一致）
-INTERACTION_RE = re.compile(r"<!--\s*(read|readalong|quiz|reveal|draw)\s*:")
+# 互动标记白名单（与生成脚本一致；v2 加入自然科学组件 weather/storm/cycle）
+INTERACTION_RE = re.compile(r"<!--\s*(read|readalong|quiz|reveal|draw|weather|storm|cycle)\s*:")
 # quiz：问句 | 选项... | 正确答案索引（0 起）
 QUIZ_RE = re.compile(r"<!--\s*quiz:\s*(.*?)\s*-->", re.DOTALL)
 
@@ -121,7 +134,7 @@ def parse(md: str) -> list:
 
 # ─────────────────────────── 校验项 ───────────────────────────
 
-def check_courseware(pages, fmt="ppt") -> list:
+def check_courseware(pages, fmt="ppt", name="") -> list:
     """课件级检查。返回 [(级别, 项, 说明)]，级别 ∈ {ERR, WARN}"""
     issues = []
     n = len(pages)
@@ -137,18 +150,60 @@ def check_courseware(pages, fmt="ppt") -> list:
                  if isinstance(v, dict) and v.get("type")}
         if len(types) < 3:
             issues.append(("ERR", "组件多样性", f"仅 {len(types)} 种（{sorted(types)}），要求 ≥3"))
+        # 版式多样性 + 连用节奏（2026-09-03 流程要求：防"每页同一个壳"）
+        layouts = [p["layout"] for p in pages if p["layout"]]
+        uniq = set(layouts)
+        if len(uniq) < 4:
+            issues.append(("ERR", "版式多样性",
+                           f"全课仅 {len(uniq)} 种版式（{sorted(uniq)}），要求 ≥4 种交错"
+                           "（封面/目标/讲解/练习/内容用不同版式，不要全程 content-2col）"))
+        run, prev = 1, None
+        for l in layouts:
+            run = run + 1 if l == prev else 1
+            if run == 3:
+                issues.append(("WARN", "版式连用",
+                               f"`{l}` 已连续 3 页，建议插入其他版式打断节奏"))
+            prev = l
     else:
-        # H5 专属：版式必须 scene、禁止 PPT 结构页、不应有 VISUAL
+        # H5 专属：版式必须在受控场景集合、禁止 PPT 结构页、不应有 VISUAL
+        scene_types: dict = {}      # 显式 scene-<type> 计数（骨架多样性/现象页判定）
+        phenomenon_unmarked = []    # 有现象互动却未标 scene-phenomenon 的页
         for i, p in enumerate(pages, 1):
-            if p["layout"] and p["layout"] != "scene":
-                issues.append(("ERR", "H5 版式必须是 scene",
-                               f"第 {i} 页用了 {p['layout']}"))
+            if p["layout"] and p["layout"] not in H5_SCENE_LAYOUTS:
+                issues.append(("ERR", "H5 版式必须在受控场景集合",
+                               f"第 {i} 页用了 {p['layout']}（应属 {sorted(H5_SCENE_LAYOUTS)}）"))
             if FORBIDDEN_IN_H5.search(p["title"]):
                 issues.append(("ERR", "H5 禁止 PPT 结构页",
                                f"第 {i} 页《{p['title'][:14]}》"))
             if p["visuals"]:
                 issues.append(("ERR", "H5 不应有 VISUAL 组件",
                                f"第 {i} 页有 {len(p['visuals'])} 个（那是 PPT 的）"))
+            if p["layout"] and p["layout"].startswith("scene-"):
+                scene_types[p["layout"][6:]] = scene_types.get(p["layout"][6:], 0) + 1
+            if (set(p["interactions"]) & PHENOMENON_INTERACTIONS
+                    and p["layout"] != "scene-phenomenon"):
+                phenomenon_unmarked.append(i)
+        explicit_pages = sum(scene_types.values())
+        # 骨架多样性（v2 流程）：显式标注 ≥6 页时，版式不应单一
+        if explicit_pages >= 6:
+            if len(scene_types) == 1:
+                issues.append(("ERR", "H5 骨架单一",
+                               f"{explicit_pages} 页全用 scene-{next(iter(scene_types))}，"
+                               "要求多类版式按教学动作交错"))
+            elif len(scene_types) < 3:
+                issues.append(("WARN", "H5 版式偏少",
+                               f"显式版式仅 {len(scene_types)} 种（{sorted(scene_types)}），建议 ≥3 种"))
+        # 理科课件流程要求：至少 1 页现象演示（现象页承载实验/观察，防止全程对话气泡）
+        if explicit_pages >= 6 and any(k in (name or "") for k in SCIENCE_KWS) \
+                and "phenomenon" not in scene_types:
+            issues.append(("ERR", "理科缺现象页",
+                           "自然科学课件至少 1 页 scene-phenomenon（weather/storm/cycle 现象演示），"
+                           "避免整课都是对话气泡"))
+        # 现象互动缺现象页标注（渲染端会推断 sceneType，故 WARN 提醒对齐新流程）
+        for i in phenomenon_unmarked[:3]:
+            issues.append(("WARN", "现象页建议标注",
+                           f"第 {i} 页含 weather/storm/cycle 互动，建议显式标 "
+                           "<!-- layout: scene-phenomenon -->"))
 
     # 互动
     inter = sum(len(p["interactions"]) for p in pages)
@@ -194,7 +249,8 @@ def check_page(p, idx: int, fmt: str = "ppt") -> list:
         return issues
     if len(p["layouts"]) > 1:
         issues.append(("ERR", "多版式", f"{tag} 有 {len(p['layouts'])} 个"))
-    if p["layout"] not in VALID_LAYOUTS:
+    allowed_layouts = H5_SCENE_LAYOUTS if fmt == "h5" else VALID_LAYOUTS
+    if p["layout"] not in allowed_layouts:
         issues.append(("ERR", "非法版式", f"{tag}：{p['layout']}"))
 
     # 中文按字、英文按词（标准见 shared/字数分拆.md 的英文换算表）
@@ -444,11 +500,12 @@ def check_visual(v, tag: str) -> list:
 
 # ─────────────────────────── 主流程 ───────────────────────────
 
-def check_markdown(md: str, name: str = "") -> dict:
+def check_markdown(md: str, name: str = "", subject: str = "") -> dict:
     """从字符串校验（供生成脚本做 S4 重试闭环时调用）。"""
     fmt = "h5" if "h5" in (name or "").lower() else "ppt"
     pages = parse(md)
-    issues = check_courseware(pages, fmt)
+    # 理科规则以「文件名 + subject」双路判定（种子文件名常不带"科学"字样）
+    issues = check_courseware(pages, fmt, f"{subject} {name}")
     for i, p in enumerate(pages, 1):
         issues.extend(check_page(p, i, fmt))
     return {"file": name or "", "pages": len(pages), "issues": issues}

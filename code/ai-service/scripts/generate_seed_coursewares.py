@@ -127,12 +127,16 @@ def skill_rules(fmt: str, style: str) -> str:
         page_structure(fmt) -- 决定产物形态的那一段,不可通用
       风格卡:只给语义倾向,色值由 Skill 当次生成
     """
+    # 与 api_server.py 的 _SKILL_REFS 必须一致（两套清单 = 两套 prompt，历史上正是这样漂移的）
     refs = [
         "shared/质量宪法.md",
         "shared/输出契约.md",
         "shared/字数分拆.md",
         "courseware-h5/references/场景与互动规范.md" if fmt == "h5"
         else "courseware-ppt/references/版式与组件选型.md",
+        # 媒介纪律（2026-09-12 接线）：此前写好却未进提示词，等于没写
+        "courseware-h5/references/媒介纪律-H5.md" if fmt == "h5"
+        else "courseware-ppt/references/媒介纪律-PPT.md",
     ]
     chunks = [load_skill_doc(r) for r in refs]
     chunks.append(page_structure(fmt))
@@ -166,10 +170,13 @@ PPT_STRUCTURE = """[本课件是 PPT]
 - 不要自创版式名;不要把组件类型当版式
 
 **自检**:
-- 内容页(content-2col / content-grid / image-text / title-body)每页必须有 visual
+- 内容页(content-2col / content-grid / image-text / title-body)每页必须有 visual；
+  **没有合适组件时用 content-text(纯文本页,不要求组件)**,不要硬塞组件凑数
 - 12~15 页,每页正文 <=120 字,要点 <=5 条
 - edu-goal / edu-summary / edu-homework 只能用 quote / annotate
 - 互动 >=2 处,组件 >=3 种不同类型
+- **版式多样性(流程要求,2026-09-03):全课版式 >=4 种且交错;禁止连续 3 页同一版式;
+  结构页(cover/goal/summary/homework)合计 <=4 页,主体是教学/内容页**
 - 组件数量下限(填不满就换组件或不放):sequence items 3~6 / compare-table rows 2~5 /
   timeline nodes 3~6 / char-card chars 4~12 / icon-card items 3~6 / flow steps 3~8 /
   diagram branches 3~6 / structure levels 2~4 且每层 children 2~6
@@ -178,22 +185,35 @@ PPT_STRUCTURE = """[本课件是 PPT]
 
 H5_STRUCTURE = """[本课件是 H5]
 
-**结构骨架**(顺序固定,缺一不可):
-`## 场景标题` -> `<!-- layout: scene -->` -> 旁白 -> `**角色**:A,B` -> `A: 对话`
+**结构骨架**(每页):
+`## 场景标题` -> `<!-- layout: scene-<类型> -->` -> 旁白/角色对话 -> (可选)互动标记
+即升级自检为受控版式集合:每页**必须**在下列 8 类中显式选 1 个(v1 7 类 + v2 phenomenon)。
+
+**受控场景版式集合(按本页主要教学动作选,不要跟风上一页)**:
+- scene-dialog 角色对话推进 / scene-read 词汇点读跟读 / scene-quiz 随堂选择
+- scene-reveal 悬念揭晓 / scene-draw 现场绘图 / scene-focus 单条重点收束
+- scene-transition 封面转场结尾(纯旁白低密度)
+- scene-phenomenon 自然现象演示(科学/观察类:天气雷电水循环,须带 weather/storm/cycle)
+
+**v2 自然科学互动**(科学/物理/化学/生物/地理/观察内容用):
+- `<!-- weather: 晴,多云,雷阵雨,雪 -->` 天气切换
+- `<!-- storm: 云里的正负电荷越聚越多,就会放电 -->` 雷电模拟
+- `<!-- cycle: 水的循环:蒸发 => 凝结 => 降水 => 径流 -->` 现象循环
+语法细则见 references,不许在非气象/非现象主题凑数.
 
 **约束**(全部见 `courseware-h5/references/场景与互动规范.md`):
 - 场景数,字数,互动类型,学段差异,屏幕适配
 
 **不要做的**:
-- **不示范具体场景**--你自己按课题设计情节与对话,**不要参考\"## 水在哪里?\"这样的固定模板**
-- 不要写 VISUAL_JSON 组件(那是 PPT 的)
-- 不要用 `- 要点` 罗列(那是 PPT 写法)
-- 不要出现学习目标 / 课堂小结 / 分层作业页
-- layout 必须是 scene,不得用 PPT 版式
+- **不示范具体场景**--自己按课题设计情节与对话,不要套固定模板
+- 不要写 VISUAL_JSON 组件(那是 PPT 的);不要用 `- 要点` 罗列(那是 PPT 写法)
+- 不要出现学习目标 / 课堂小结 / 分层作业页;layout 只用上表 8 类,不得用 PPT 版式
 
 **自检**:
 - 8~16 个场景,每场景 <=60 字(旁白 <=40,气泡每条 <=20,每场景 2~4 条)
-- 互动 >=2 处且类型不单一(quiz 之外要穿插 reveal / draw / read)
+- 互动 >=2 处且类型不单一(quiz 之外穿插 reveal/draw/read;自然科学可用 v2 组件)
+- **骨架节奏**:显式 scene-<类型> 至少 3 种并交错;禁止满篇同一种(如全 scene-dialog)
+- **理科课件(科学/物理/化学/生物/地理)必须含 1 页 scene-phenomenon 现象演示**
 - 角色有性格区分,气泡推进情节(不是复述旁白)
 - 窄屏装得下:quiz 每个选项 <=12 字
 - 严禁 null / None / 空串
@@ -336,7 +356,12 @@ def encode_visuals(md: str) -> tuple:
 
 # 平台渲染器认识的注释白名单.白名单外的注释会被当成正文显示给学生--
 # STYLEDNA 事故即因前端不识别而直接出现在页面上,故此处兜底删除.
-ALLOWED_COMMENTS = {"layout", "VISUAL", "read", "readalong", "quiz", "reveal", "draw"}
+# 口径来源：前端解析端（mdToStory.ts）**真正能解析**的标记集合——白名单必须 ≥ 解析集，
+# 否则模型写对了标记也会被这里删掉（静默失效）。2026-09-12 补齐此前被误删的四个：
+#   focus（场景重点条，H5 SKILL 明确教过）/ popup / audio / video
+ALLOWED_COMMENTS = {"layout", "VISUAL", "read", "readalong", "quiz", "reveal", "draw",
+                    "focus", "popup", "audio", "video",
+                    "weather", "storm", "cycle"}
 
 
 def strip_unknown_comments(md: str) -> tuple:
@@ -403,6 +428,19 @@ _STYLE_HUE_ANCHORS = {
     "tech":  [212, 190, 165, 235],
 }
 _DEFAULT_HUES = [0, 40, 80, 120, 160, 200, 240, 280, 320]
+# 形态字典 morph（2026-09-03，与 api_server._STYLE_MORPH / 前端同构）：
+# styleDNA 不再只是配色，还携带疏密/动效/装饰母题，供渲染端打散同套路。
+_STYLE_MORPH = {
+    "china":     {"density": "tight",  "motion": "calm",      "motif": "classroom"},
+    "tech":      {"density": "tight",  "motion": "energetic", "motif": "urban"},
+    "fresh":     {"density": "loose",  "motion": "lively",    "motif": "nature"},
+    "minimal":   {"density": "normal", "motion": "calm",      "motif": "classroom"},
+    "academic":  {"density": "normal", "motion": "lively",    "motif": "classroom"},
+    "cartoon":   {"density": "loose",  "motion": "energetic", "motif": "playful"},
+    "flat":      {"density": "normal", "motion": "lively",    "motif": "playful"},
+    "business":  {"density": "tight",  "motion": "calm",      "motif": "urban"},
+    "":          {"density": "normal", "motion": "lively",    "motif": "playful"},
+}
 
 
 def _hue_anchor(style: str, idx: int) -> float:
@@ -480,6 +518,8 @@ def distinct_style_dna(style_dna, style: str, used: set) -> dict:
     colors["accent"] = _hsl_to_hex(acc_hue, 70.0, 55.0)
 
     used.add(h)
+    # 形态字典随 styleDNA 落库（配色之外的"形态"维；缺省兜底）
+    sd["morph"] = dict(_STYLE_MORPH.get(style, _STYLE_MORPH[""]))
     return sd
 
 
@@ -540,6 +580,49 @@ def call_llm(prompt: str, retries: int = 3):
     raise RuntimeError(f"LLM 调用失败({retries} 次):{last}")
 
 
+_REPAIR_GUIDE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "skills", "shared", "返修指引.md")
+
+
+def _load_repair_guide(items=None) -> str:
+    """返修指引（**只在重试时注入**，且**按本次违规项裁剪**）。
+
+    实测结论 1：光给违规清单，模型改不对——它不知道自己写的 quiz 被当成非法组件丢掉了，
+    也不知道"下界类"违规必须**补内容**而不是改措辞。
+    实测结论 2（2026-09-12）：**注入整份（约 4000 字）会"规则过载"**——模型为满足所有条款
+    过度补偿，反而引入上一轮没有的新违规（如 grid 字长）。故**只给它这次真正踩到的那几类**。
+
+    单一事实源在 `skills/shared/返修指引.md`，本函数只读取，不内置副本。
+    """
+    try:
+        with open(_REPAIR_GUIDE_PATH, encoding="utf-8") as fh:
+            doc = fh.read()
+    except Exception as e:
+        print(f"[warn] 返修指引读取失败：{e}", file=sys.stderr)
+        return ""
+
+    hits = [str(i) for i in (items or []) if i]
+    parts = re.split(r"\n(?=#{2,3} )", doc)
+    if not hits:                                    # 拿不到违规项时退回整份（保守）
+        return "\n\n[返修指引 —— 按违规类型逐条对照着改]\n" + doc.strip()
+
+    keep = []
+    for p in parts:
+        head = p.lstrip()
+        if head.startswith("### "):                  # 具体违规类型：命中才留
+            if any(h in p for h in hits):
+                keep.append(p)
+        elif head.startswith("## 总则"):              # 总则：永远留（判断上界/下界的方法论）
+            keep.append(p)
+        elif not head.startswith("#"):               # 文档标题与引言
+            keep.append(p)
+    if not keep:
+        return ""
+    return ("\n\n[返修指引 —— 只列了本次踩到的这几类，逐条对照着改]\n"
+            + "\n".join(s.strip() for s in keep).strip())
+
+
 def retry_prompt(base: str, report: dict, bad: list, current_md: str = "") -> str:
     """把关卡1 的违规清单回灌提示词,让 Skill 自己改--平台不代改内容.
 
@@ -567,11 +650,12 @@ def retry_prompt(base: str, report: dict, bad: list, current_md: str = "") -> st
         keep = (f"\n\n[你上一版的产出--请在它的基础上**逐条修订**,不要推倒重写]\n"
                 f"{current_md}\n")
 
+    repair = _load_repair_guide([item for _, item, _ in errs])
     return (
         f"{base}\n\n"
         f"[上一次产出未通过自动规则校验]\n"
         f"逐条违规如下(判据就是你手上那份规则,不是新增要求):\n{lines}{more}"
-        f"{dropped}{keep}\n\n"
+        f"{dropped}{repair}{keep}\n\n"
         f"要求:在上面这一版的基础上**只改违规条目**,已合规的页面务必一字不动;"
         f"修订后**完整重新输出** COURSEWARE 与 META 两段,不要解释,不要只给改动部分."
     )
@@ -593,7 +677,7 @@ def generate_one(cw: dict, max_retry: int = 2, palette_hint: str = "") -> tuple:
         md, b = encode_visuals(md)
         md, d = strip_unknown_comments(md)
 
-        report = check_markdown(md, cw["name"])
+        report = check_markdown(md, cw["name"], cw.get("subject", ""))
         errs = [i for i in report["issues"] if i[0] == "ERR"]
         # 保留违规最少的一版:每次重生成都是全新产出,可能比上一版更差.
         # 取"最后一次"等于听天由命--实测出现过 10 -> 5 -> 9 的反弹.
@@ -798,7 +882,7 @@ def main():
         warns = [i for i in report["issues"] if i[0] == "WARN"]
         print(f"  页数 {pages} / 版式 {layouts} / VISUAL "
               f"{len(re.findall(r'<!-- VISUAL:', md))} / 互动 "
-              f"{len(re.findall(r'<!-- (?:read|readalong|quiz|reveal|draw):', md))}"
+              f"{len(re.findall(r'<!-- (?:read|readalong|quiz|reveal|draw|weather|storm|cycle):', md))}"
               f" / 关卡1 违规 {len(errs)}(提醒 {len(warns)})")
         for _, item, detail in errs[:6]:
             print(f"      . {item}: {detail}")

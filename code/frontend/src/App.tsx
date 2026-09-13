@@ -30,6 +30,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const ITAdminPage = lazy(() => import('./pages/ITAdminPage'))
 const PrincipalPage = lazy(() => import('./pages/PrincipalPage'))
 const FacetAdmin = lazy(() => import('./pages/FacetAdmin'))
+const NoticeCenter = lazy(() => import('./pages/NoticeCenter'))
 
 const Loading = () => <div className="flex items-center justify-center h-screen bg-[#F6F7F8]"><div className="w-8 h-8 border-4 border-[#02A7F0]/20 border-t-[#02A7F0] rounded-full animate-spin" /></div>
 
@@ -72,6 +73,9 @@ export default function App() {
         <Route path="/care" element={<Suspense fallback={<Loading />}><CarePage /></Suspense>} />
         <Route path="/care/:id" element={<Suspense fallback={<Loading />}><CareDetail /></Suspense>} />
         <Route path="/parent-sign" element={<Suspense fallback={<Loading />}><ParentSignPage /></Suspense>} />
+        <Route path="/notices" element={<Suspense fallback={<Loading />}><NoticeCenter /></Suspense>} />
+        <Route path="/notices/new" element={<Suspense fallback={<Loading />}><NoticeCenter /></Suspense>} />
+        <Route path="/notices/:id/edit" element={<Suspense fallback={<Loading />}><NoticeCenter /></Suspense>} />
         <Route path="/published-lessons" element={<Suspense fallback={<Loading />}><PublishedLessons /></Suspense>} />
         <Route path="/review-pool" element={<Suspense fallback={<Loading />}><ReviewPool /></Suspense>} />
         <Route path="/facet-admin" element={<Suspense fallback={<Loading />}><FacetAdmin /></Suspense>} />

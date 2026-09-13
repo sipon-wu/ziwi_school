@@ -12,14 +12,34 @@ type MaterialRepository struct{ db *gorm.DB }
 
 func NewMaterialRepository(db *gorm.DB) *MaterialRepository { return &MaterialRepository{db} }
 
+// listColumns 列表页所需列（刻意排除 content / h5_html / interactive_slots 大字段）：
+// 2026-09-03 实测每份 H5 的 h5_html ≈90KB，105 份即 ~9.5MB 全量塞进列表 JSON，
+// 导致课件库/宣发列表加载极慢（用户误判为"空"）。列表只要卡片字段；正文/快照走单条详情。
+var listColumns = []string{
+	"id", "school_id", "user_id", "name", "type", "format", "size", "tag", "url",
+	"status", "grade", "subject", "theme_id", "category", "decor_facets", "applicable",
+	"motif_root", "color_root", "page_type", "parent_ids", "created_at", "updated_at",
+}
+
 func (r *MaterialRepository) List(schoolID string) ([]model.Material, error) {
 	var items []model.Material
-	err := r.db.Where("school_id = ?", schoolID).Order("created_at DESC").Find(&items).Error
+	err := r.db.Select(listColumns).Where("school_id = ?", schoolID).Order("created_at DESC").Find(&items).Error
 	return items, err
 }
 
 func (r *MaterialRepository) Create(m *model.Material) error {
 	return r.db.Create(m).Error
+}
+
+// ListByType 按类型列出校内资产（notice 全校共用宣发 H5 用；空 type 不过滤）。
+func (r *MaterialRepository) ListByType(schoolID, typ string) ([]model.Material, error) {
+	var items []model.Material
+	q := r.db.Select(listColumns).Where("school_id = ?", schoolID)
+	if typ != "" {
+		q = q.Where("type = ?", typ)
+	}
+	err := q.Order("created_at DESC").Find(&items).Error
+	return items, err
 }
 
 // Update 更新素材（课件草稿/发布落库复用），仅更新可编辑字段

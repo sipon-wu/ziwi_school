@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Sparkles, Loader2, FileText, MessageSquare, History, Plus, X, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Download, Maximize2, Undo2, Redo2, TextCursorInput, Shapes, Image as ImageIcon, ZoomIn } from 'lucide-react'
+import { Sparkles, Loader2, FileText, MessageSquare, History, Plus, X, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Download, Maximize2, Undo2, Redo2, TextCursorInput, Shapes, Image as ImageIcon, ZoomIn, Smartphone } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
@@ -13,6 +13,8 @@ import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
 import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets, isValidComponent, normalizeInteractive, type H5Component } from '../lib/exportPptx'
 import { distributeToSlots } from '../lib/cwTemplate'
+// 口径统一（2026-09-11）：风格 key 由注册表单一提供（物化默认元素时也要带风格）
+import { styleKeyFromThemeId } from '../lib/styleRegistry'
 import { exportH5Courseware, buildH5FromOutline, buildH5Html, renderInteractive, type H5Slide } from '../lib/exportH5'
 import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import QRCode from 'qrcode'
@@ -357,6 +359,13 @@ export default function CoursewareBuilder() {
 
   // ── 产物状态 ──
   const [genLoading, setGenLoading] = useState(false)
+  // 生成进度（来自 SSE）：强模型一次生成含重试需 150~200s，无进度时教师会以为卡死。
+  // stage 用于按钮上的短文案；message 作 title 悬浮详情（完整合规信息）。
+  const [genStage, setGenStage] = useState<{ stage: string; message: string } | null>(null)
+  // 生成配方（溯源）：服务端回传的"这次是按什么生成的"（知识面来源 teacher|kg、前置来源、
+  // 发散边界 orbit/edge/beyond_band、教材版本、单元、模型）。生成后随草稿落库，
+  // 编辑页才能回填「来源」——这是修"左栏与画布脱节"的关键数据。
+  const [scopeResolved, setScopeResolved] = useState<any>(null)
   const [cwMarkdown, setCwMarkdown] = useState('')
   const [cwH5Html, setCwH5Html] = useState('')
   const [cwSimilar, setCwSimilar] = useState<any>(null)
@@ -368,6 +377,8 @@ export default function CoursewareBuilder() {
   const [validating, setValidating] = useState(false)
   const [savingCw, setSavingCw] = useState(false)
   const [h5Qr, setH5Qr] = useState<{ url: string; dataUrl: string } | null>(null)
+  // H5 播放/预览态右栏的「扫码分享」二维码（通用 H5 分享样式）
+  const [h5ShareQr, setH5ShareQr] = useState<{ url: string; dataUrl: string } | null>(null)
   const [polishing, setPolishing] = useState(false)
   const [genVideo, setGenVideo] = useState(false)
   const [docSlide, setDocSlide] = useState(0)
@@ -504,7 +515,7 @@ export default function CoursewareBuilder() {
     try {
       const base: any = await materialAPI.get(genBaseId)
       const md: string = base?.content || ''
-      return materializeOutline(markdownToOutline(md))
+      return materializeOutline(markdownToOutline(md), styleKeyFromThemeId(themeId))
     } catch { return [] }
   }
 
@@ -524,7 +535,7 @@ export default function CoursewareBuilder() {
         setGenTitle(d.title || '')
         setCwExtra(d.extra || '')
         setCwMarkdown(d.markdown || '')
-        setCwOutline(materializeOutline(Array.isArray(d.outline) ? d.outline : []))
+        setCwOutline(materializeOutline(Array.isArray(d.outline) ? d.outline : [], styleKeyFromThemeId(d.themeId || themeId)))
         setCwH5Html(d.h5Html || '')
         setCwDivergence(Array.isArray(d.divergence) ? d.divergence : [])
         if (d.divergenceLevel) setDivergenceLevel(d.divergenceLevel)
@@ -543,28 +554,52 @@ export default function CoursewareBuilder() {
     setCwLoading(true)
     materialAPI.get(id).then((m: any) => {
       if (!m) return
+      // 先算出"本次生效主题/配色"，再渲染（与生成路径同一原则）
+      const effTheme = m.theme_id
+        || (m.grade ? recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId : themeId)
+      const effColorRoot = m.color_root || ''
       setGenTitle((m.name || '').replace(/_课件$/, ''))
-      setCwOutline(materializeOutline(markdownToOutline(m.content || '')))
+      setCwOutline(materializeOutline(markdownToOutline(m.content || ''), styleKeyFromThemeId(effTheme)))
       setCwMarkdown(m.content || '')
+      // 配方回填（溯源，2026-09-13）：编辑页左栏「来源」区块据此显示"这份课件是按什么生成的"。
+      // 此前这里什么都不回填 → 左栏退化成空表单 → 与画布上的成品"脱节"。
+      try { setScopeResolved(m.gen_params ? JSON.parse(m.gen_params) : null) } catch { setScopeResolved(null) }
       // H5 绘本态：优先用服务端已有的 h5_html，否则本地由 content 重新渲染
+      // 修复（2026-09-12）：此前这里用**闭包里的旧 themeId** 渲染，而 setThemeId 在其之后才生效 →
+      // 两份不同主题的 H5 草稿会渲染成一模一样（用户实测：国风/科技两版"完全一样"）。
       if (cwFormat === 'h5') {
         if (m.h5_html) {
           setCwH5Html(m.h5_html)
         } else if (m.content) {
-          setCwH5Html(markdownToStorybookH5(m.content, {
-            subject: m.subject || teaching.subject, grade: m.grade || gradeName,
-            title: m.name || '', teacherName: safeGetUser().name || '教师', themeId: 'storybook',
-            colorRoot: m.color_root || '',
-          }))
+          // 拆静默（2026-09-13）：此前这里的异常被外层 `.catch(() => {})` 吞掉，
+          // 结果是"H5 编辑页一片空白，且没有任何提示"（排查了整轮才定位）。现在显式暴露。
+          try {
+            const html = markdownToStorybookH5(m.content, {
+              subject: m.subject || teaching.subject, grade: m.grade || gradeName,
+              title: m.name || '', teacherName: safeGetUser().name || '教师',
+              themeId: effTheme, colorRoot: effColorRoot,
+            })
+            // 只在"渲染为空"时打印：这是"H5 编辑页空白"的直接判据（不抛错、只是没内容）
+            if (!html) {
+              console.error('[H5] markdownToStorybookH5 返回空 → 绘本无法显示。'
+                + ' content 长度=' + (m.content || '').length
+                + ' 开头=' + JSON.stringify((m.content || '').slice(0, 80)))
+              toast('H5 绘本渲染为空（内容可能缺少可识别场景），已降级显示', 'error')
+            }
+            setCwH5Html(html || '')
+          } catch (e: any) {
+            console.error('[H5] markdownToStorybookH5 渲染失败（H5 绘本将无法显示）', e)
+            toast('H5 绘本渲染失败：' + (e?.message || e), 'error')
+          }
         }
       }
-      if (m.theme_id) {
-        setThemeId(m.theme_id)
-      } else if (m.grade) {
-        setThemeId(recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId)
-      }
-      setColorRoot(m.color_root || '')
-    }).catch(() => {}).finally(() => setCwLoading(false))
+      setThemeId(effTheme)
+      setColorRoot(effColorRoot)
+    }).catch((e) => {
+      // 拆静默（2026-09-13）：加载失败必须可见 —— 此前静默吞掉 → "页面空白且无任何线索"
+      console.error('[课件加载] materialAPI.get 失败', e)
+      toast('课件加载失败：' + (e?.message || e), 'error')
+    }).finally(() => setCwLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -596,6 +631,7 @@ export default function CoursewareBuilder() {
   const handleGenCourseware = async (leftChatContext?: string) => {
     if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
     setGenLoading(true)
+    setGenStage(null)
     setColorRoot('') // 新生成走 theme_id 兜底，清掉旧课件的 styleDNA
     try {
       const base = genBaseId ? await materialAPI.get(genBaseId).catch(() => null) : null
@@ -605,10 +641,15 @@ export default function CoursewareBuilder() {
         ? consultQuestions.map((q: any) => `· ${q.question} → ${consultAnswers[q.id] || '（未答）'}`).join('；')
         : ''
       const isH5 = cwFormat === 'h5'
-      const res = await aiAPI.generateCourseware({
+      const res = await aiAPI.generateCoursewareStreaming({
         subject: teaching.subject, grade: gradeName, lesson_title: genTitle.trim(),
         content: (base as any)?.content || '', school_id: getSchoolId(),
         textbook_version: teaching?.currentTextbook?.() || '',
+        // 教材版本**实体引用**（2026-09-13）：来自知识图谱节点自带的 version_id —— 与后端同源，
+        // 可作为真实引用落库；此前只有版本**名称**（字符串），无法回答"按哪个版本解析的"。
+        textbook_version_id: ((picker.selectedNodes[0] as any)?.version_id
+          || (picker.knowledgeData.find((n: any) => n.version_id) as any)?.version_id || '') as string,
+        textbook_unit: (picker.selectedUnit || (picker.selectedNodes[0] as any)?.unit || '') as string,
         extra_requirements: cwExtra || undefined,
         chat_context: leftChatContext || getXiaoweiContext() || undefined,
         selected_knowledge_ids: picker.selectedIds,
@@ -626,27 +667,24 @@ export default function CoursewareBuilder() {
         // 未显式选风格时作为默认倾向；已选风格时仅在不冲突前提下自然体现，不覆盖所选风格。
         teacher_style: (safeGetUser() as any)?.ai_style || undefined,
         format: isH5 ? 'h5' : 'ppt',
-      })
-      setCwMarkdown(res.courseware_markdown || '')
-      setCwOutline(materializeOutline(markdownToOutline(res.courseware_markdown || '')))
+      },
+      // 实时进度：让教师看到"第 2 次修订中"，而不是对着转圈干等 2~3 分钟
+      (stage, message) => setGenStage({ stage, message }))
+      // ── 先算出"本轮产物"，再统一落地 ──
+      // 修复（2026-09-11）：此前 H5 在算出本轮 themeId/colorRoot 之前渲染，用的还是闭包旧值
+      // → 生成后预览/发布仍是旧皮肤（"还是一个头面"的直接成因之一）。
+      const md = res.courseware_markdown || ''
+      // 生成配方（溯源）：接住服务端回传的 scope_resolved，随草稿一起落库（见 handleSaveDraft）
+      // 统一形状：state 存"整个配方对象"（与从 gen_params 反解析出来的形状一致），
+      // 避免生成态与加载态两种结构互相嵌套错位。
+      setScopeResolved({ scope_resolved: (res as any).scope_resolved || null })
       // 实时生成配色快照：后端按 学科/年级/风格 派生 styleDNA，优先于 theme_id 还原专属配色
-      if ((res as any).color_palette) setColorRoot(JSON.stringify((res as any).color_palette))
-      // H5 频道：同时渲染为绘本式 HTML，预览/发布均直接使用
-      if (isH5 && res.courseware_markdown) {
-        setCwH5Html(markdownToStorybookH5(res.courseware_markdown, {
-          subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
-          teacherName: safeGetUser().name || '教师', themeId: 'storybook',
-          colorRoot: colorRoot,
-        }))
-      } else {
-        setCwH5Html('')
-      }
-      setCwDivergence(Array.isArray(res.divergence_map) ? res.divergence_map : [])
-      setRemovedDivergence({})
-      setCwSimilar(res.similar_material || null)
-      setValidateIssues(null)
+      const nextColorRoot = (res as any).color_palette ? JSON.stringify((res as any).color_palette) : ''
       // 风格模板（P1）：AI 生成后自动套用"最匹配模板"（风格+学段+学科多维匹配），无需教师再手动挑
       const styleEcho = (res.style_tag as StyleTag) || genStyleTag
+      // 修复：模板须套在"本轮新提纲"上（此前误用旧 state cwOutline，导致模板套错对象）
+      // 物化默认元素时带上本轮风格：title-body 等非结构化页此前绕开骨架，换风格完全无变化
+      const nextOutlineBase = materializeOutline(markdownToOutline(md), styleEcho || styleKeyFromThemeId(themeId))
       // 多维匹配：风格优先，叠加学段/学科 facet（OR 语义），取首个命中模板自动套用
       const matches = getTemplates(
         cwFormat === 'video' ? 'h5' : cwFormat,
@@ -657,21 +695,39 @@ export default function CoursewareBuilder() {
         },
       )
       const autoTpl = matches[0] || (styleEcho ? PPT_TEMPLATES.find(t => templateStyleTags(t).includes(styleEcho)) : undefined)
+      let nextOutline = nextOutlineBase
+      let nextThemeId = themeId
       if (autoTpl) {
-        const r = applyTemplate(cwOutline, autoTpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-        setCwOutline(r.outline)
-        setThemeId(r.themeId)
+        const r = applyTemplate(nextOutlineBase, autoTpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
+        nextOutline = r.outline
+        nextThemeId = r.themeId
         tplAppliedId.current = autoTpl.id
         tplPrevTheme.current = r.prevThemeId
         tplPrevLayouts.current = r.prevLayouts
-        if (styleEcho) setThemeId(defaultThemeForStyle(styleEcho)) // 风格强制优先于模板 theme（保持一致）
-      } else if (styleEcho) {
-        setThemeId(defaultThemeForStyle(styleEcho))
       }
+      if (styleEcho) nextThemeId = defaultThemeForStyle(styleEcho) // 风格强制优先于模板 theme（保持一致）
+      // H5 频道：用本轮确定的 nextThemeId/nextColorRoot 渲染（预览/发布均直接使用）
+      const nextH5Html = isH5 && md
+        ? markdownToStorybookH5(md, {
+            subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+            teacherName: safeGetUser().name || '教师', themeId: nextThemeId,
+            colorRoot: nextColorRoot,
+          })
+        : ''
+      // 统一落地状态（一次性提交本轮产物）
+      setCwMarkdown(md)
+      setCwOutline(nextOutline)
+      setColorRoot(nextColorRoot)
+      setThemeId(nextThemeId)
+      setCwH5Html(nextH5Html)
+      setCwDivergence(Array.isArray(res.divergence_map) ? res.divergence_map : [])
+      setRemovedDivergence({})
+      setCwSimilar(res.similar_material || null)
+      setValidateIssues(null)
       ctrl.setWorkMode('doc')
       toast('课件已生成并自动套用推荐模板，可在右侧编辑提纲', 'success')
     } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
-    finally { setGenLoading(false) }
+    finally { setGenLoading(false); setGenStage(null) }
   }
 
   // 小微「应用到当前内容」
@@ -685,7 +741,7 @@ export default function CoursewareBuilder() {
     try {
       const r: any = await aiAPI.trimCourseware({ markdown: cwMarkdown, remove_items: toRemove })
       setCwMarkdown(r.trimmed_markdown || cwMarkdown)
-      setCwOutline(materializeOutline(markdownToOutline(r.trimmed_markdown || cwMarkdown)))
+      setCwOutline(materializeOutline(markdownToOutline(r.trimmed_markdown || cwMarkdown), styleKeyFromThemeId(themeId)))
       setCwDivergence(Array.isArray(r.divergence_map) ? r.divergence_map : [])
       setRemovedDivergence({})
       setValidateIssues(null)
@@ -754,7 +810,7 @@ export default function CoursewareBuilder() {
         const layout = s.layout || 'title-body'
         const slots = layout.startsWith('edu-') ? distributeToSlots(layout as any, p.bullets) : s.slots
         return { ...s, title: p.title, bullets: p.bullets, slots }
-      }))
+      }, styleKeyFromThemeId(r.theme_id || themeId)))
       if (r.theme_id) setThemeId(r.theme_id)
       if (r.color_palette) setColorRoot(JSON.stringify(r.color_palette))
       if (out.length) { setCwOutline(out); setCwMarkdown(md); toast('提纲已 AI 润色（含讲稿）', 'success') }
@@ -874,6 +930,32 @@ export default function CoursewareBuilder() {
       subject: teaching.subject,
       theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
       color_root: colorRoot, // 课件专属配色 DNA（Skill 当次生成）；随提纲落库，渲染优先于 theme_id
+      // 溯源（2026-09-13）：教材版本**实体引用** + 单元 —— 来自知识图谱实体（与后端同源），
+      // 不是自由文本。此前只落产物，编辑页因此回填不出"来源"（"左栏与画布脱节"的根因）。
+      textbook_version_id: ((picker.selectedNodes[0] as any)?.version_id
+        || (picker.knowledgeData.find((n: any) => n.version_id) as any)?.version_id || '') as string,
+      unit: (picker.selectedUnit || (picker.selectedNodes[0] as any)?.unit || '') as string,
+      // ── 生成配方 / 溯源（2026-09-13）──
+      // 目的：落"这份课件是按什么生成的"，修"从预览进编辑、左栏与画布脱节"。
+      // 素材表已由 migrations/0009 加列；Go 侧 DTO/handler 已接线（material_handler.go）。
+      // （2026-09-13 更新）textbook_version_id 不再留空：已由知识图谱节点自带的 version_id
+      // 填入（见上方），教材版本**实体引用**的链路已通。
+      gen_params: scopeResolved
+        ? JSON.stringify({
+            ...scopeResolved,                           // 含 scope_resolved（知识面来源/前置来源/发散边界）
+            textbook_version_name: teaching.currentTextbook(),  // 快照（解析口径：学校/班级/教师）
+            subject: teaching.subject,
+            grade: gradeName,
+            extra_requirements: cwExtra || '',
+            divergence_level: divergenceLevel,
+            edge_enabled: edgeEnabled,
+            edge_categories: Object.entries(edgeCats).filter(([, v]) => v).map(([k]) => k),
+            style_tag: genStyleTag || '',
+            style_profile: genStyleProfile || '',
+            style_mode: genStyleTag ? 'preset' : (genStyleProfile.trim() ? 'free' : 'auto'),
+            captured_at: new Date().toISOString(),
+          })
+        : undefined,
     }
     try {
       // 本地兜底暂存（未发布前可恢复）
@@ -928,17 +1010,15 @@ export default function CoursewareBuilder() {
         // 互动插槽摘要快照（每页 interactive 序列化，支持数组）；留空数组=真清空（指针区分）
         interactive_slots: JSON.stringify(cwOutline.map(s => normalizeInteractive(s.interactive))),
       }
-      // H5 互动课件：将完整互动 HTML 一并写入 h5_html，供手机扫码访问端点直接渲染
+      // H5 互动课件：发布时**一律按当前提纲 + 当前 themeId/colorRoot 重渲染**，
+      // 不复用可能过期的 cwH5Html——否则换风格/改内容后发布，扫码打开的仍是旧皮肤。
+      // 与上方「源数据=提纲(content) + 模板引用(theme_id)，渲染随时由模板重算」原则一致。
       if (cwFormat === 'h5') {
-        if (cwH5Html) {
-          payload.h5_html = cwH5Html
-        } else {
-          payload.h5_html = markdownToStorybookH5(outlineToMarkdown(cwOutline, cwOpts()), {
-            subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
-            teacherName: safeGetUser().name || '教师', themeId: 'storybook',
-            colorRoot: colorRoot,
-          })
-        }
+        payload.h5_html = markdownToStorybookH5(outlineToMarkdown(cwOutline, cwOpts()), {
+          subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+          teacherName: safeGetUser().name || '教师', themeId: themeId,
+          colorRoot: colorRoot,
+        })
       }
       let newId = materialId
       if (materialId) await materialAPI.update(materialId, payload)
@@ -966,6 +1046,16 @@ export default function CoursewareBuilder() {
   const cwAnnTargetId = materialId || getDraftKey(materialId)
   const cwAnn = useAnnotations('material', cwAnnTargetId)
   const cwVer = useVersions('material', cwAnnTargetId, cwLocked)
+  // H5 扫码分享：播放/预览态右栏二维码（有 materialId 才生成；未发布时提示先发布）
+  useEffect(() => {
+    let alive = true
+    if (cwFormat !== 'h5' || !materialId) { setH5ShareQr(null); return }
+    const url = `${window.location.origin}/api/materials/${materialId}/h5`
+    QRCode.toDataURL(url, { width: 220, margin: 1 })
+      .then((d: string) => { if (alive) setH5ShareQr({ url, dataUrl: d }) })
+      .catch(() => { if (alive) setH5ShareQr(null) })
+    return () => { alive = false }
+  }, [cwFormat, materialId])
   const [cwAnnText, setCwAnnText] = useState('')
   const [cwHistoryVisible, setCwHistoryVisible] = useState(true)
   const [cwAnnTab, setCwAnnTab] = useState<'annotations' | 'history'>('annotations')
@@ -1040,6 +1130,60 @@ export default function CoursewareBuilder() {
           className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
       </div>
 
+      {/* ── 来源（只读溯源，2026-09-13）──
+          回答"这份课件是按什么生成的"。**只有已记录配方的课件才显示**（新课件没有）。
+          为什么必须有它：此前编辑页左栏只能回填标题/主题，其余退化成空表单
+          → 与画布上的成品"脱节"（反馈实例：左栏写着"英语·对话·绘图"，而这份 PPT 并非按它生成）。 */}
+      {(() => {
+        const sr = (scopeResolved as any)?.scope_resolved
+        if (!sr) return null
+        const srcLabel = sr.source === 'teacher' ? '教师锚定'
+          : sr.source === 'kg' ? '系统按知识图谱边界' : '未指定'
+        const preLabel = sr.prereq_source === 'qian_zhi' ? '前置链'
+          : sr.prereq_source === 'parent_id' ? '父节点一级兜底'
+            : sr.prereq_source === 'frontend' ? '前端直传' : '无'
+        const dv = sr.divergence || {}
+        const kps: string[] = sr.knowledge_points || []
+        const tbv = (scopeResolved as any)?.textbook_version_name || ''
+        const row = 'flex gap-1 text-[11px] leading-relaxed'
+        return (
+          <div className="px-5 py-3 border-t border-[#F0F0F0] bg-[#FAFBFC]">
+            <label className="block text-[12px] font-medium text-[#353535] mb-2">
+              来源
+              <span className="ml-1 text-[10px] font-normal text-[#9A9A9A]">只读 · 这份课件是按什么生成的</span>
+            </label>
+            <div className="space-y-1">
+              <div className={row}>
+                <span className="shrink-0 text-[#9A9A9A] w-14">知识面</span>
+                <span className="text-[#353535]">{srcLabel}
+                  {kps.length > 0 && <span className="text-[#9A9A9A]">（{kps.slice(0, 5).join('、')}{kps.length > 5 ? '…' : ''}）</span>}
+                </span>
+              </div>
+              <div className={row}>
+                <span className="shrink-0 text-[#9A9A9A] w-14">前置来源</span>
+                <span className="text-[#353535]">{preLabel}</span>
+              </div>
+              <div className={row}>
+                <span className="shrink-0 text-[#9A9A9A] w-14">发散边界</span>
+                <span className="text-[#353535]">{dv.label || dv.level || '—'}
+                  <span className="text-[#9A9A9A]">（跨界 {dv.orbit ?? '—'} / 边缘 {dv.edge ?? '—'} / {dv.beyond_band ? '允许 ±1 档外' : '不超 ±1 档'}）</span>
+                </span>
+              </div>
+              {(tbv || sr.unit) && (
+                <div className={row}>
+                  <span className="shrink-0 text-[#9A9A9A] w-14">教材</span>
+                  <span className="text-[#353535]">{[tbv, sr.unit].filter(Boolean).join(' · ')}</span>
+                </div>
+              )}
+              <div className={row}>
+                <span className="shrink-0 text-[#9A9A9A] w-14">生成模型</span>
+                <span className="text-[#353535]">{sr.model || '—'}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* 场景化课件快捷模板（小微/场景化制作入口） */}
       <div className="px-5 py-3 border-t border-[#F0F0F0]">
         <label className="block text-[12px] font-medium text-[#353535] mb-2">场景化课件（一键套用）</label>
@@ -1065,11 +1209,19 @@ export default function CoursewareBuilder() {
           <button onClick={() => {
             setCwExtra('英语场景对话：校园生活/购物/问路情景对话，带绘图（对话气泡图+句型结构树），配点读跟读与自动播放，满足10分钟讲课时长')
             toast('已组好完整场景，点 AI 生成即可', 'success')
-          }} className="px-2.5 py-1.5 text-[12px] bg-[#02A7F0] text-white rounded-full hover:bg-[#0398D8] transition-colors">
+          }} className="px-2.5 py-1.5 text-[12px] bg-[#EAF7FF] text-[#0284C7] rounded-full hover:bg-[#D6EEFF] transition-colors">
             ✨ 英语对话·绘图·点读·自动（全套）
           </button>
+          {/* 修复（2026-09-13）：此按钮样式原为**硬编码深蓝选中态**（bg-[#02A7F0] text-white），
+              在 PPT 页里永远看起来"已选中" → 用户误以为"这份课件是按它生成的"（"脱节"的视觉来源之一）。
+              统一为与其它 chip 相同的浅色样式：它只是**快捷填入补充要求**的入口，不代表任何已生效状态。 */}
         </div>
         <span className="text-[10px] text-[#9A9A9A] mt-1.5 block">也可在左下角小微对话提需求，点「应用到当前内容」自动带入并生成。</span>
+        {/* 明确"参数 ≠ 对当前课件生效"：以下都是**生成参数**，改完要点「AI 生成课件」重新生成；
+            否则用户会以为点了就作用在正在编辑的课件上（"脱节"的另一半来源）。 */}
+        <span className="text-[10px] text-[#FA8C16] mt-1 block">
+          ⚠ 以上为「生成参数」：改动只在点「AI 生成课件」重新生成时生效，不会改动画布上的现有内容。
+        </span>
       </div>
 
       {/* 风格模板（P1）：AI 一键生成不同视觉风格，标签由后端 facet 词表动态提供（AI 巡增） */}
@@ -1180,10 +1332,13 @@ export default function CoursewareBuilder() {
       {/* 生成按钮（仅 AI 模式显示；文档模式提纲已生成，无需此按钮） */}
       {ctrl.workMode === 'ai' && (
         <div className="px-5 py-4 border-t border-[#F0F0F0]">
-          <button onClick={() => handleGenCourseware()} disabled={genLoading}
+          <button onClick={() => handleGenCourseware()} disabled={genLoading} title={genStage?.message || undefined}
             className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] disabled:opacity-50 transition-colors">
             {genLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            {genLoading ? 'AI 生成中...' : cwOutline.length > 0 ? '重新生成课件' : 'AI 生成课件'}
+            {/* 进度短文案（完整合规详情见 title 悬浮）：150~200s 的等待必须有可感知的推进 */}
+            {genLoading
+              ? (genStage?.stage === 'retry' ? 'AI 修订中…' : genStage?.stage === 'gate1' ? 'AI 校验中…' : 'AI 生成中…')
+              : (cwOutline.length > 0 ? '重新生成课件' : 'AI 生成课件')}
           </button>
           {cwSimilar && <p className="text-[10px] text-[#9A9A9A] mt-2">参照相近课件《{cwSimilar.name}》生成的新版本</p>}
         </div>
@@ -1593,8 +1748,28 @@ export default function CoursewareBuilder() {
         )}
         {previewSlideElems}
       </div>
-      {/* 右：批注 / 版本（与全屏态一致，预览态下默认展开） */}
-      {cwAnnTargetId && (
+      {/* 右：H5 播放/预览态 → 扫码分享（通用 H5 分享样式）；其余 → 批注 / 版本 */}
+      {cwFormat === 'h5' ? (
+        <div className="w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col overflow-hidden z-20">
+          <div className="px-3 py-2 text-[11px] font-medium text-[#353535] border-b border-[#F0F0F0] bg-white shrink-0 flex items-center gap-1">
+            <Smartphone size={11} /> 手机扫码查看
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-5">
+            {h5ShareQr ? (
+              <>
+                <div className="bg-white rounded-xl p-3 shadow-sm border border-[#EEE]">
+                  <img src={h5ShareQr.dataUrl} alt="扫码查看" className="w-[180px] h-[180px] block" />
+                </div>
+                <p className="text-[11px] text-[#888] text-center mt-3 leading-relaxed">手机扫码在浏览器打开，可翻页 / 点读 / 互动，也可投屏上课。</p>
+                <button onClick={() => { try { navigator.clipboard?.writeText(h5ShareQr.url) } catch { /* noop */ } toast('链接已复制', 'success') }}
+                  className="mt-3 px-3 py-1.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">复制链接</button>
+              </>
+            ) : (
+              <p className="text-[11px] text-[#C0C0C0] text-center leading-relaxed">发布后生成扫码链接，<br />手机扫码即可查看互动课件。</p>
+            )}
+          </div>
+        </div>
+      ) : cwAnnTargetId && (
         <div className="relative w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden">
           <div className="flex border-b border-[#F0F0F0] shrink-0">
             <button onClick={() => setCwAnnTab('annotations')}
@@ -2031,7 +2206,12 @@ export default function CoursewareBuilder() {
       primaryLeft={leftPanel}
       primaryRight={rightPanelAi}
       secondaryLeft={leftPanel}
-      secondaryRight={rightPanelDoc}
+      // 修复（2026-09-13）：H5 编辑态"空白页"的真因 ——
+      // 主画布此前**固定用 rightPanelDoc**（PPT 式提纲/画布编辑器），而 H5 绘本只在
+      // `previewSlot` 里（且要手动开预览）→ 于是"H5 进编辑"等于用 PPT 编辑器打开一份绘本：
+      // 右栏只有骨架/近乎空白，用户报"从预览进编辑是空白页"。
+      // H5 有绘本 HTML 时，主画布直接用 previewPane（其内部 `cwFormat==='h5' && cwH5Html` → iframe）。
+      secondaryRight={cwFormat === 'h5' && cwH5Html ? previewPane : rightPanelDoc}
       mode={ctrl.workMode === 'ai' ? 'primary' : 'secondary'}
       onModeChange={m => ctrl.setWorkMode(m === 'primary' ? 'ai' : 'doc')}
       sceneName={channel.scene}
@@ -2050,7 +2230,12 @@ export default function CoursewareBuilder() {
         if (open) { ctrl.flush().then(() => setPreviewOpen(true)) }
         else setPreviewOpen(false)
       }}
-      previewSlot={cwOutline.length > 0 ? previewPane : (
+      // 修复（2026-09-13）：H5 编辑态空白页。
+      // `cwOutline` 由 **PPT 的 markdownToOutline** 解析，而 H5 的 Story 内容（`## 封面：… /
+      // <!-- layout: scene-transition -->`）解析结果为 **0 页** → 此前条件为假 → 右侧什么都不渲染（空白页）。
+      // 而查看态（第 2071 行）`previewSlot={previewPane}` 是**无条件**的，所以"预览正常、进编辑就空白"。
+      // 故条件必须把"有 H5 HTML"也算作有内容。
+      previewSlot={(cwFormat === 'h5' && cwH5Html) || cwOutline.length > 0 ? previewPane : (
           <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
         )}
     />

@@ -32,6 +32,10 @@ export type StoryInteractionType =
   | 'audio'     // 音频
   | 'video'     // 视频
   | 'gallery'   // 图册
+  // ── 自然科学互动组件（2026-09-03 v2）──
+  | 'weather'   // 天气切换：点按钮在 晴/多云/阴/雨/雷阵雨/雪… 间切换，背景/粒子/音效随之变化
+  | 'storm'     // 雷电模拟：点云朵触发 电荷聚集→闪电→雷声，展示放电现象
+  | 'cycle'     // 现象循环：点"下一步"逐帧推进（水循环/四季/月相/昼夜/植物生长）
 
 /** 点读单元（一句话/一个词，可点击朗读） */
 export interface ReadUnit {
@@ -56,6 +60,14 @@ export interface QuizUnit {
   correct: number
 }
 
+/** 现象循环的一步（如 水循环的"蒸发"） */
+export interface CycleStep {
+  /** 步骤名（渲染端按关键词映射 emoji） */
+  name: string
+  /** 该步的一句说明（可选） */
+  note?: string
+}
+
 export interface StoryInteraction {
   type: StoryInteractionType
   /** read：点读单元列表 */
@@ -78,13 +90,21 @@ export interface StoryInteraction {
   poster?: string
   images?: string[]
   title?: string
+  /** weather：天气状态列表（如 ["晴","多云","雷阵雨"]），渲染端按关键词归类成 晴/云/雨/雷/雪… */
+  states?: string[]
+  /** storm：雷电现象的一句说明/悬念（放电后展示） */
+  caption?: string
+  /** cycle：现象循环标题（可空，如"水的循环"） */
+  cycleTitle?: string
+  /** cycle：推进步骤（如 [蒸发, 凝结, 降水, 径流]） */
+  steps?: CycleStep[]
 }
 
 /**
- * 场景版式类型（2026-09-03 引入，H5「受控版式集合」v1）
+ * 场景版式类型（2026-09-03 引入，H5「受控版式集合」v1；v2 新增 phenomenon）
  *
  * 背景：H5 曾是"每页都是 scene 一个版式"，互动类型区分了内容却未区分长相。
- * 本次按"该页的主要教学动作"把场景分成 7 类，每类一套视觉骨架（CSS 差异化）：
+ * 本次按"该页的主要教学动作"把场景分成若干类，每类一套视觉骨架（CSS 差异化）：
  *   dialog     角色对话推进情节（默认：无互动/有对话）
  *   read       词汇点读 / 跟读（点读词块放大居中）
  *   quiz       随堂选择（选项卡大按钮）
@@ -92,10 +112,12 @@ export interface StoryInteraction {
  *   draw       现场绘图 / 涂鸦（画布全宽）
  *   focus      关键词收束（大字卡 + 重点条强化）
  *   transition 情节转场 / 封面 / 收束（低信息密度，纯旁白居中）
+ *   phenomenon 自然现象演示页（v2，2026-09-03）：weather/storm/cycle 等互动组件独占主体，
+ *              旁白精简、无对话，整页聚焦一个现象（注意：不会隐藏 interact）。
  * 解析优先级：正文 `<!-- layout: scene-xxx -->` 显式标注 > 按互动/气泡推断。
  * 向后兼容：旧内容只写 `<!-- layout: scene -->`，推断后等价于 dialog。
  */
-export type SceneType = 'dialog' | 'read' | 'quiz' | 'reveal' | 'draw' | 'focus' | 'transition'
+export type SceneType = 'dialog' | 'read' | 'quiz' | 'reveal' | 'draw' | 'focus' | 'transition' | 'phenomenon'
 
 /** 一个绘本场景（=一页） */
 export interface StoryScene {

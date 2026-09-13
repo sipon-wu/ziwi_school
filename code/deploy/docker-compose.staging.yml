@@ -75,6 +75,18 @@ services:
       AI_PORT: "8000"
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL}
+      # ── LLM 通道（2026-09-12 统一为 OpenAI 兼容协议；换厂商只改这里，不改代码）──
+      # 换 DeepSeek 示例：
+      #   LLM_BASE_URL=https://api.deepseek.com/v1
+      #   LLM_API_KEY=<deepseek key>
+      #   LLM_MODEL=deepseek-chat
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      # 分工模型：生成器优先给算力；红线复核**最好与生成器不同厂商**（否则没有交叉验证意义）
+      CW_GEN_MODEL: ${CW_GEN_MODEL:-qwen-turbo}
+      CW_REVIEW_MODEL: ${CW_REVIEW_MODEL:-qwen-turbo}
+      CW_SAFETY_MODEL: ${CW_SAFETY_MODEL:-qwen-turbo}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres-staging:5432/${DB_NAME}?sslmode=disable
       REDIS_URL: redis://redis-staging:6379/1
     volumes:

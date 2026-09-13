@@ -9,7 +9,9 @@ from dashscope import Generation
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse   # SSE 进度反馈（长任务不被网关掐断）
 import uvicorn
+import asyncio
 import sys
 import logging
 
@@ -21,7 +23,105 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # 百炼（阿里云 DashScope）凭证，由 docker-compose 注入 DASHSCOPE_API_KEY
 # DASHSCOPE_BASE_URL 为兼容模式端点，dashscope 原生 SDK 走官方域名即可，这里仅读 key
 dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
-DEFAULT_MODEL = os.getenv("DASHSCOPE_MODEL", "qwen-turbo")
+# ── LLM 通道（2026-09-12 改为 **OpenAI 兼容协议**，以便按厂商切换）──
+# 为什么改：此前直连 dashscope 原生 SDK → "换模型=改代码"。现在统一走 OpenAI 兼容端点，
+# 百炼 / DeepSeek / 其他厂商都支持，**换厂商只需改环境变量**：
+#   LLM_BASE_URL  如 https://api.deepseek.com/v1
+#                 或 https://dashscope.aliyuncs.com/compatible-mode/v1（默认）
+#   LLM_API_KEY   该厂商的 key（缺省回落 DASHSCOPE_API_KEY）
+#   LLM_MODEL     默认模型名（缺省 qwen-turbo；换 DeepSeek 则填 deepseek-chat）
+#
+# ⚠️ **embedding 不走本通道**：DeepSeek 目前没有 embedding API，RAG 向量检索继续用
+#    百炼 text-embedding-v3（见 embeddings.py）。将来若要换 embedding 模型，注意
+#    **向量维度/空间不同 → 现有向量库必须整体重建**，不能新旧混用。
+LLM_BASE_URL = os.getenv("LLM_BASE_URL") or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+LLM_API_KEY = os.getenv("LLM_API_KEY") or os.getenv("DASHSCOPE_API_KEY", "")
+DEFAULT_MODEL = os.getenv("LLM_MODEL") or os.getenv("DASHSCOPE_MODEL", "qwen-turbo")
+
+from openai import OpenAI  # noqa: E402
+
+# base_url 决定厂商；缺 key 时给占位符，让错误在**调用时**以清晰信息抛出（而不是 import 时崩）
+_llm_client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "MISSING_KEY", timeout=600.0)
+
+# ── 通道热生效（2026-09-12）──
+# 上层是 env 兜底；**库里有配置就以库为准**（运营可在界面改，不用部署）。
+# 详见 llm_channel.py 的设计说明。
+from llm_channel import ensure_schema as _llm_channel_ensure, load_all as _llm_channel_load, mask as _mask_key, status as _llm_channel_status, save as _llm_channel_save  # noqa: E402
+
+_LLM_CFG_TTL = float(os.getenv("LLM_CFG_TTL", "30"))
+_llm_cfg = {"ts": 0.0, "loaded": False, "channels": {}}
+_llm_clients = {}
+
+
+def _client(base_url: str, api_key: str):
+    """按 (base_url, api_key) 缓存客户端 —— 配置变了自然换新客户端。"""
+    key = (base_url, api_key)
+    c = _llm_clients.get(key)
+    if c is None:
+        c = OpenAI(base_url=base_url, api_key=api_key or "MISSING_KEY", timeout=600.0)
+        _llm_clients[key] = c
+    return c
+
+
+def refresh_channels(force: bool = False) -> None:
+    """从库刷新通道配置（TTL 缓存）。**这是"改完即生效"的关键**。"""
+    now = time.monotonic()
+    if not force and _llm_cfg["loaded"] and now - _llm_cfg["ts"] < _LLM_CFG_TTL:
+        return
+    _llm_cfg["ts"] = now
+    try:
+        _llm_cfg["channels"] = _llm_channel_load()
+        _llm_cfg["loaded"] = True
+    except Exception as e:
+        logger.warning("通道配置读取失败（沿用 env / 上次配置）：%s", e)
+        if not _llm_cfg["loaded"]:          # 避免每请求都打库重试
+            _llm_cfg["loaded"] = True
+            _llm_cfg["channels"] = {}
+
+
+def channel_for(role: str = "gen") -> dict:
+    """某角色生效的通道：**库优先（且 enabled），env 兜底**。"""
+    refresh_channels()
+    row = _llm_cfg["channels"].get(role)
+    if row and row.get("enabled"):
+        return {"base_url": row["base_url"], "api_key": row["api_key"] or LLM_API_KEY,
+                "model": row["model"], "source": "db"}
+    return {"base_url": LLM_BASE_URL, "api_key": LLM_API_KEY,
+            "model": {"gen": GEN_MODEL, "review": REVIEW_MODEL, "safety": SAFETY_MODEL}
+                     .get(role, DEFAULT_MODEL),
+            "source": "env"}
+
+
+def _effective_model(role: str = "gen") -> str:
+    """当前**实际生效**的模型名（响应里回报它，避免"跑着 plus 却报 turbo"的误导）。"""
+    return channel_for(role)["model"]
+# 生成器与评审员**分开配置**（2026-09-12）：
+#   产品原则——**算力优先给生成器**（首轮质量决定成本与体验）。
+#   此前 7 处硬编码 "qwen-turbo"，DEFAULT_MODEL 形同虚设：想换更强模型必须改代码。
+#   现在：生成器可用 CW_GEN_MODEL 单独升级；评审可用 CW_REVIEW_MODEL 单独降本/换模型。
+# ⚠ 对外回报模型名**一律用 `_effective_model(role)`**（库优先、env 兜底），不要用下面的静态常量。
+#   静态常量只在 channel_for 的"env 兜底"分支里参与解析；直接拿去回报会出现
+#   "跑着 plus 却报 turbo"（2026-09-13 已统一收口 —— 生成/教案/视频分镜 3 处）。
+#   同理：**调用时也不要把它当实参传**（会绕过通道配置，导致主流程与分支各用一个模型）。
+GEN_MODEL = os.getenv("CW_GEN_MODEL", DEFAULT_MODEL)
+REVIEW_MODEL = os.getenv("CW_REVIEW_MODEL", DEFAULT_MODEL)
+# S4 关卡2（AI 内容评审）默认**关闭**：同模型自评可靠度有限（共同盲区 + 自偏好），
+# 而这些算力投给生成器收益更高。需要时按请求开启（body.content_review=true）或设
+# 环境变量 CW_ENABLE_REVIEW=1 全局开启——代码保留，不默认烧算力。
+REVIEW_ENABLED_DEFAULT = os.getenv("CW_ENABLE_REVIEW") == "1"
+# 红线（合规/安全）复核专用模型：**必须与生成器不同**才能交叉验证。
+# 理由：质量评审同模型只是"看不准"；**红线同模型是危险**——生成时写下的擦边内容，
+# 自己复核会放过（共享同一套价值判断与盲区）。生产请把 CW_SAFETY_MODEL 指向另一模型/厂商。
+SAFETY_MODEL = os.getenv("CW_SAFETY_MODEL", DEFAULT_MODEL)
+
+
+def _call_llm_safety(messages, _model=None, max_tokens=2000):
+    """红线复核通道（同步，供 policy.py 调用）：**忽略调用方模型名，固定走 SAFETY_MODEL**。
+
+    用同步版是因为 `policy._llm_ethic_flags` 是同步调用（历史实现）；
+    在异步端点中须用 run_in_threadpool 包装，避免阻塞事件循环。
+    """
+    return _call_llm(messages, None, max_tokens, role="safety")
 
 # 向量检索（备课包/教材底料 RAG）
 from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
@@ -35,9 +135,21 @@ from vector_store import (
 # 素材库检索（AI 决定挂载 / 找相近生成新版本）
 from materials_store import list_materials, rank_materials  # noqa: E402
 # 知识图谱 / 课标 / 题库检索（知识面约束、课标备注、组卷抽题）
-from kg_store import resolve_knowledge_scope, map_curriculum, list_bank_questions  # noqa: E402
+from kg_store import (  # noqa: E402
+    resolve_knowledge_scope, map_curriculum, list_bank_questions,
+    list_kg_nodes, list_kg_units,   # 统一数据源：前端选择器改为读 DB（2026-09-13）
+)
 # 课件红线策略（发布校验 / 课前问诊 / 发散预算）
-from policy import policy_gate_publish, policy_consult, divergence_budget, ETHIC_PRINCIPLE, subject_orbit_hint  # noqa: E402
+from policy import policy_gate_publish, policy_gate_notice, policy_consult, divergence_budget, ETHIC_PRINCIPLE, subject_orbit_hint  # noqa: E402
+# Skill 输出的**确定性后处理**（两段式剥离 + 注释白名单兜底）：
+# 复用本地预生成脚本的同一份实现，避免"两套链路各写一套"（历史教训：STYLEDNA 曾因
+# 前端不识别而直接显示在页面上）。2026-09-12：服务端此前**完全没有**这两步，
+# 而 skills/shared/输出契约.md 已要求 `<<<COURSEWARE>>>/<<<META>>>` 两段式，
+# 不剥离就会把标记文字显示给教师。
+from scripts.generate_seed_coursewares import (  # noqa: E402
+    encode_visuals, page_structure, retry_prompt, split_output, strip_unknown_comments,
+)
+from scripts.check_courseware_quality import check_markdown  # noqa: E402
 
 app = FastAPI(
     title="知微 AI 服务",
@@ -54,26 +166,38 @@ app.add_middleware(
 )
 
 
-def _call_llm(messages, model=DEFAULT_MODEL, max_tokens=2000):
-    """同步调用百炼文本生成（dashscope 原生 SDK）。"""
-    resp = Generation.call(
-        model=model,
+def _call_llm(messages, model=None, max_tokens=2000, role="gen"):
+    """同步调用（OpenAI 兼容协议）。
+
+    通道（base_url / api_key）与模型名由 `channel_for(role)` 解析：
+    **库优先、env 兜底、改完即生效（不用部署）**。
+    model 传 None 时用该角色配置的模型名；显式传值则覆盖。
+    """
+    ch = channel_for(role)
+    use_model = model or ch["model"]
+    if not ch["api_key"]:
+        raise RuntimeError(f"通道 {role} 未配置 api_key（库与 env 都没有）")
+    resp = _client(ch["base_url"], ch["api_key"]).chat.completions.create(
+        model=use_model,
         messages=messages,
-        result_format="message",
         max_tokens=max_tokens,
     )
-    if resp.status_code != 200:
-        raise RuntimeError(f"dashscope {resp.status_code}: {getattr(resp, 'message', 'unknown error')}")
-    return resp.output.choices[0].message.content
+    msg = resp.choices[0].message
+    text = (msg.content or "").strip()
+    if not text:
+        # 推理型模型（如 deepseek-reasoner）会把内容放在 reasoning_content。
+        # 本系统只要**最终答案**，故显式报错，而不是把思考过程当正文返回。
+        raise RuntimeError(f"模型 {model} 返回空内容（若用推理模型，请改用 deepseek-chat）")
+    return text
 
 
-async def call_llm(messages, model=DEFAULT_MODEL, max_tokens=2000):
+async def call_llm(messages, model=None, max_tokens=2000, role="gen"):
     """在 FastAPI 异步端点中在线程池调用同步 SDK，避免阻塞事件循环。"""
     try:
-        return await run_in_threadpool(_call_llm, messages, model, max_tokens)
+        return await run_in_threadpool(_call_llm, messages, model, max_tokens, role)
     except Exception:
         # 统一记录 AI 调用失败根因（route 层仍按原样静默降级，保证有返回）
-        logger.exception("call_llm failed model=%s", model)
+        logger.exception("call_llm failed role=%s model=%s", role, model)
         raise
 
 
@@ -103,7 +227,7 @@ def _recommend_materials(lesson_title, subject, grade, school_id, top_k=3):
     try:
         import json
         import re
-        resp = _call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 800)
+        resp = _call_llm([{"role": "user", "content": prompt}], None, 800)
         m = re.search(r"\[.*\]", resp, re.DOTALL)
         if not m:
             raise ValueError("no json array")
@@ -369,18 +493,66 @@ async def xiaowei_chat(req: Request):
     }
 
 
-def _resolve_scope(body: dict):
-    """解析知识面：优先用前端直传的知识点名称，否则按 ID 从知识图谱取名称+前置。"""
+def _resolve_scope_meta(body: dict):
+    """解析知识面，并**返回溯源信息**（2026-09-13）。
+
+    为什么需要 meta：此前只返回两个名称列表，**丢掉了"这次知识面是怎么来的"** —— 于是事后
+    无法回答「这份课件是**教师锚定**的，还是系统按**知识图谱边界**兜底的」，这正是"编辑页左栏
+    与画布脱节"的根因之一（生成配方没有被记录、回传）。
+    返回 (kp_names, prereq_names, meta)；meta 只增信息，不改变生成行为。
+    """
     kp_names = body.get("knowledge_points") or []
     prereq_names = body.get("prerequisite_points") or []
-    kp_ids = body.get("selected_knowledge_ids") or []
-    if not kp_names and kp_ids:
+    kp_ids = [str(i) for i in (body.get("selected_knowledge_ids") or [])]
+    # 口径：前端直传名称 = 教师选定；无名称但有 ID = 交给知识图谱按边界解析（系统预置）
+    source = "teacher" if kp_names else ("kg" if kp_ids else "none")
+    prereq_source = "frontend" if prereq_names else "none"
+    resolved_ids = []
+    parent_ids = []
+    # 只要给了 ID 就查图谱（与"是否已传名称"无关）——
+    # 修复（2026-09-13，链路验收实测发现）：此前条件是 `not kp_names and kp_ids`，
+    # 而前端 `buildKnowledgeScope` **同时**传名称与 ID → 条件恒为假 →
+    # **selected_knowledge_ids 被整体忽略、前置知识点从未进入提示词**（"知识面约束"静默失效，
+    # 表现为配方里 prereq_source=none）。前置该由图谱给，与"谁选了名称"无关。
+    if kp_ids:
         try:
             sc = resolve_knowledge_scope(kp_ids)
-            kp_names = sc.get("selected") or []
-            prereq_names = sc.get("prerequisites") or []
+            if not kp_names:
+                kp_names = sc.get("selected") or []
+            if not prereq_names:
+                prereq_names = sc.get("prerequisites") or []
+                prereq_source = sc.get("prereq_source") or "none"
+            resolved_ids = sc.get("selected_ids") or []
+            parent_ids = sc.get("parent_ids") or []
         except Exception:
             pass
+    # 锚点对（ID ↔ 权威名称）：
+    # **ID 是身份，名称是匹配依据** —— 修复（2026-09-13）：anchor_coverage 此前只用
+    # "前端传进来的名称"做字符串匹配，一旦知识点在图谱里改名就**静默失配**，
+    # 而且命中/缺失无法追溯到具体实体。现在带上 ID，且名称取图谱解析出的**权威名**。
+    anchor_pairs = []
+    if kp_names:
+        if resolved_ids and len(resolved_ids) == len(kp_names):
+            anchor_pairs = [{"id": i, "name": n} for i, n in zip(resolved_ids, kp_names)]
+        else:
+            anchor_pairs = [{"id": "", "name": n} for n in kp_names]
+
+    meta = {
+        "source": source,               # teacher=教师锚定 / kg=图谱边界解析 / none=未指定
+        "node_ids": kp_ids,             # 教师选的实体 ID（tb_kg_node）
+        "resolved_ids": resolved_ids,   # 图谱实际返回的节点 ID
+        "knowledge_points": kp_names,
+        "prerequisites": prereq_names,
+        "prereq_source": prereq_source,  # qian_zhi=前置链 / parent_id=父节点兜底 / frontend / none
+        "parent_ids": parent_ids,
+        "anchors": anchor_pairs,        # [{id, name}]：ID 为身份，name 为匹配依据（权威名）
+    }
+    return kp_names, prereq_names, meta
+
+
+def _resolve_scope(body: dict):
+    """解析知识面：优先用前端直传的知识点名称，否则按 ID 从知识图谱取名称+前置。"""
+    kp_names, prereq_names, _ = _resolve_scope_meta(body)
     return kp_names, prereq_names
 
 
@@ -453,9 +625,9 @@ async def gen_lesson_plan(req: Request):
     )
     start = time.time()
     try:
-        content = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 5000)
+        content = await call_llm([{"role": "user", "content": prompt}], None, 5000)
     except Exception as e:
-        return {"content": f"AI 生成失败：{e}", "curriculum_alignments": [], "material_refs": [], "recommended_materials": [], "knowledge_scope": kp_names, "model": "qwen-turbo", "generation_time_ms": 0}
+        return {"content": f"AI 生成失败：{e}", "curriculum_alignments": [], "material_refs": [], "recommended_materials": [], "knowledge_scope": kp_names, "model": _effective_model(), "generation_time_ms": 0}
     # AI 决定挂载：检索素材库并挑选适宜课件
     material_refs, recommended = [], []
     try:
@@ -470,7 +642,7 @@ async def gen_lesson_plan(req: Request):
         "material_refs": material_refs,
         "recommended_materials": recommended,
         "knowledge_scope": kp_names,
-        "model": "qwen-turbo",
+        "model": _effective_model(),
         "generation_time_ms": int((time.time() - start) * 1000),
     }
 
@@ -478,9 +650,24 @@ async def gen_lesson_plan(req: Request):
 _SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
 
 # PPT 与 H5 各用专用 Skill 的领域知识（约定 0：课件只能由 Skill 生成，两条链路共用一套）
+#
+# 2026-09-12 修复：此处与 scripts/generate_seed_coursewares.py 的 skill_rules() 曾是**两套清单**
+# （本文件漏了「输出契约 / 字数分拆」）——直接违反下面 _skill_rules() 自己写下的
+# 「不得各写一套 prompt」。现对齐为「通用三份 + 专属两份」，两处引用同一套路径。
+_SKILL_COMMON = (
+    "shared/质量宪法.md",
+    "shared/输出契约.md",
+    "shared/字数分拆.md",
+)
 _SKILL_REFS = {
-    "ppt": ("shared/质量宪法.md", "courseware-ppt/references/版式与组件选型.md"),
-    "h5": ("shared/质量宪法.md", "courseware-h5/references/场景与互动规范.md"),
+    "ppt": _SKILL_COMMON + (
+        "courseware-ppt/references/版式与组件选型.md",
+        "courseware-ppt/references/媒介纪律-PPT.md",
+    ),
+    "h5": _SKILL_COMMON + (
+        "courseware-h5/references/场景与互动规范.md",
+        "courseware-h5/references/媒介纪律-H5.md",
+    ),
 }
 
 
@@ -503,7 +690,198 @@ def _skill_rules(fmt: str) -> str:
                 chunks.append(fh.read().strip())
         except Exception as e:
             logging.warning("Skill 领域知识读取失败 %s：%s", path, e)
+    # 页面结构模板（**决定产物形态**的那一段）：与本地预生成脚本同源。
+    # 2026-09-12 修复：服务端此前漏了它，模型不知道 `VISUAL_JSON` 的结构长什么样 →
+    # 线上实测"组件多样性 0 种""把组件类型 quote 当版式"，且**两轮回灌重试毫无改善**
+    # （因为缺的是"结构示例"，而重试只能回灌"违规描述"——实测文档早有结论：
+    #  "字段说明 ≠ 字段结构，模型需要看到嵌套长什么样"）。
+    chunks.append(page_structure(fmt))
     return "\n\n---\n\n".join(chunks)
+
+
+# Skill 自己的 SKILL.md（声明层）——循环参数等从**声明**读，不在代码里写死。
+_SKILL_MD = {"ppt": "courseware-ppt/SKILL.md", "h5": "courseware-h5/SKILL.md"}
+
+
+def _skill_frontmatter(fmt: str) -> str:
+    """读取 SKILL.md 头部 frontmatter。
+
+    原则（2026-09-12 确立）：**SKILL.md 是声明，代码只是执行**。
+    凡是"可被声明"的参数（重试上限、门禁开关…）都必须从声明读，
+    否则代码里就会长出第二份会漂移的副本——本项目已多次因此踩坑。
+    """
+    rel = _SKILL_MD.get(fmt)
+    if not rel:
+        return ""
+    try:
+        with open(os.path.join(_SKILLS_DIR, rel), encoding="utf-8") as fh:
+            txt = fh.read()
+    except Exception as e:
+        logger.warning("SKILL.md 读取失败 %s：%s", rel, e)
+        return ""
+    m = re.match(r"^---\n(.*?)\n---", txt, re.DOTALL)
+    return m.group(1) if m else ""
+
+
+def _skill_max_retry(fmt: str) -> int:
+    """S4 关卡1 的重试上限（默认 2；实测 2 轮足够收敛到首轮违规 ~3/套）。"""
+    m = re.search(r"max_retry\s*:\s*(\d+)", _skill_frontmatter(fmt))
+    if not m:
+        return 2
+    try:
+        return max(0, min(5, int(m.group(1))))
+    except Exception:
+        return 2
+
+
+# S4 关卡2：AI 内容评审的五层（判据同 skills/shared/质量宪法.md 的「五层质量模型」）
+_REVIEW_LAYERS = [
+    ("alignment", "对齐", "教的是对的、完整的吗？目标覆盖 / 知识点覆盖 / 课标对齐 / 环节完整 / 教学评一致"),
+    ("depth", "深度", "教到足够深了吗？Webb DOK：≥30% 的任务应在 L3-4（分析/推理/迁移），不是照抄记忆"),
+    ("load", "负荷", "学生消化得了吗？认知负荷：外部减负、内部分块、相关增强（不堆砌无关信息）"),
+    ("media", "呈现", "看得清、学得进吗？Mayer CTML：多媒体、空间邻近、冗余、一致性、信号化"),
+    ("correctness", "科学", "内容有错吗？事实 / 术语 / 公式 / 史实 / 数据 / 表述准确性"),
+]
+
+
+async def _content_review(md: str, subject: str, grade: str, title: str) -> dict:
+    """S4 关卡2：AI 内容评审（五层质量模型，各项 ≥4 分才算过）。
+
+    为什么单独给评审员一份 rubric：评审是**独立判官**，不能假设它读过生成用的领域知识；
+    且判据必须与 `skills/shared/质量宪法.md` 的「五层质量模型」一致（单一事实源）。
+    失败不阻断——返回 available=False，由调用方决定是否展示给教师。
+    """
+    if not md.strip():
+        return {"available": False, "reason": "空课件"}
+    rubric = "\n".join(f"- `{key}`（{name}）：{desc}" for key, name, desc in _REVIEW_LAYERS)
+    review_prompt = (
+        f"你是中小学课件质量评审员。请按五层质量模型评审下面这份{grade}{subject}《{title}》课件。\n\n"
+        f"评分维度（每项 1~5 分，**4 分及以上 = 合格**）：\n{rubric}\n\n"
+        "输出要求：**只输出一个 JSON 对象**，不要解释、不要代码块。结构：\n"
+        '{"scores":{"alignment":4,"depth":3,"load":4,"media":4,"correctness":5},'
+        '"issues":[{"layer":"depth","severity":"major","detail":"第 5 页只有记忆性问题，建议增加追问"}],"verdict":"pass|fail"}\n\n'
+        "判定规则：五项**全部 ≥4** → verdict=pass，否则 fail。\n"
+        "issues 只写真实存在的问题（不要凑数），按严重度排序，最多 8 条；"
+        "每条必须落到**具体页码 + 问题 + 怎么改**。若确实没问题就给空数组。\n"
+        f"\n课件正文：\n{md}\n"
+    )
+    try:
+        raw = await call_llm([{"role": "user", "content": review_prompt}], None, 2000, role="review")
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not m:
+            return {"available": False, "reason": "评审输出不可解析"}
+        data = json.loads(m.group(0))
+        scores = {k: v for k, v in (data.get("scores") or {}).items()
+                  if isinstance(v, (int, float))}
+        got_all = all(key in scores for key, _, _ in _REVIEW_LAYERS)
+        passed = bool(got_all and all(scores[key] >= 4 for key, _, _ in _REVIEW_LAYERS)
+                      and data.get("verdict") == "pass")
+        return {
+            "available": True,
+            "scores": scores,
+            "issues": data.get("issues") or [],
+            "passed": passed,
+            "pass_criteria": "五项全部 ≥4 分",
+            "layers": {name: desc for _, name, desc in _REVIEW_LAYERS},
+        }
+    except Exception as e:
+        logger.warning("关卡2（AI 内容评审）失败：%s", e)
+        return {"available": False, "reason": str(e)}
+
+
+@app.get("/api/ai/knowledge/nodes")
+async def knowledge_nodes(version_id: int = 0, dan_yuan: str = "", q: str = "",
+                          level: int = -1, limit: int = 300):
+    """知识点节点列表 —— 前端**选择器的统一数据源**（2026-09-13）。
+
+    为什么要加它（链路验收查实）：前端选择器此前读**前端静态 JSON**
+    （`public/knowledge-graph.json`：168 节点、字符串 ID 如 `m-1-1-1`），
+    而后端生成查**本库 tb_kg_node**（5552 节点、int64 ID）→ **ID 体系不同**，
+    于是"前端选中的 ID"在后端永远查不到，**前置链/知识面约束在真实操作下从未生效**。
+    统一后：选择器给出的 ID 与后端同源 → 前置链、课标、单元归属、溯源配方全部成立。
+    另外返回值自带 `version_id` / `unit` —— 即"教材版本 + 单元"两层实体引用，直接可入配方。
+    """
+    try:
+        nodes = await run_in_threadpool(
+            list_kg_nodes, version_id or None, dan_yuan or None,
+            q or None, (level if level >= 0 else None), limit)
+    except Exception as e:
+        logger.warning("knowledge/nodes 失败：%s", e)
+        return {"nodes": [], "count": 0, "error": str(e)}
+    return {"nodes": nodes, "count": len(nodes)}
+
+
+@app.get("/api/ai/knowledge/units")
+async def knowledge_units(version_id: int = 0, limit: int = 200):
+    """单元列表（前端单元下拉用；数据源与 knowledge/nodes 同源）。"""
+    try:
+        units = await run_in_threadpool(list_kg_units, version_id or None, limit)
+    except Exception as e:
+        logger.warning("knowledge/units 失败：%s", e)
+        return {"units": [], "error": str(e)}
+    return {"units": units, "count": len(units)}
+
+
+# ── 生成进度事件表（SSE 进度反馈，2026-09-12）──
+# 为什么需要：qwen-plus 的验收质量显著更好（关卡1 ERR 均值 1.67 vs turbo 5.6、页数全达标），
+# 但一次生成含重试需 150~200s，而 prod 网关只有 60s → 必被 504 掐断，**连最好的一版都丢**。
+# **流式反馈同时解决两件事**：① 教师看到"第 2 次修订中"而不是干等；② 数据持续流动，
+# nginx 的 `proxy_read_timeout` 不再触发（这才是"能安全用强模型"的真正前提）。
+# 单进程安全性：本服务 `CMD uvicorn api_server:app`（**无 --workers**），故进程内字典足够。
+# ⚠ 若将来加多 worker，必须换成 Redis 等共享存储——否则 SSE 与生成落在不同进程，读到空。
+_GEN_PROGRESS: "dict[str, dict]" = {}
+_GEN_PROGRESS_MAX = 50          # 最多保留 50 个任务，防内存增长
+
+
+def _note_progress(job_id, stage: str, message: str) -> None:
+    """记录一个进度事件（job_id 为空则什么都不做 → 不影响既有调用方）。"""
+    if not job_id:
+        return
+    job = _GEN_PROGRESS.get(job_id)
+    if job is None:
+        if len(_GEN_PROGRESS) >= _GEN_PROGRESS_MAX:
+            for k in sorted(_GEN_PROGRESS, key=lambda x: _GEN_PROGRESS[x]["at"])[:10]:
+                _GEN_PROGRESS.pop(k, None)
+        job = _GEN_PROGRESS[job_id] = {"events": [], "done": False, "at": time.time()}
+    job["events"].append({"stage": stage, "message": message, "elapsed": round(time.time() - job["at"], 1)})
+    job["at"] = time.time()
+
+
+def _finish_progress(job_id) -> None:
+    _note_progress(job_id, "done", "生成完成")
+    if job_id and job_id in _GEN_PROGRESS:
+        _GEN_PROGRESS[job_id]["done"] = True
+
+
+@app.get("/api/ai/courseware/generate/stream")
+async def gen_courseware_stream(job_id: str = ""):
+    """SSE 进度反馈。用法：先带 `job_id` 调 POST /api/ai/courseware/generate，
+    再开本端点接收各阶段事件（start / retry / gate1 / budget / safety / done）。
+
+    `X-Accel-Buffering: no` 是关键：不加的话 nginx 会缓冲 SSE，前端依然看不到实时事件。
+    """
+    async def ev():
+        sent = 0
+        deadline = time.time() + 900     # 15 分钟上限，防连接悬挂
+        while time.time() < deadline:
+            job = _GEN_PROGRESS.get(job_id)
+            if job:
+                while sent < len(job["events"]):
+                    yield "data: " + json.dumps(job["events"][sent], ensure_ascii=False) + "\n\n"
+                    sent += 1
+                if job["done"]:
+                    yield "event: done\ndata: {}\n\n"
+                    return
+            else:
+                yield ": waiting\n\n"    # SSE 注释行：仅保活，不产生事件
+            await asyncio.sleep(0.8)
+        yield "event: timeout\ndata: {}\n\n"
+
+    return StreamingResponse(
+        ev(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
+                 "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/ai/courseware/generate")
@@ -523,6 +901,7 @@ async def gen_courseware(req: Request):
     grade = body.get("grade", "四年级")
     title = body.get("lesson_title", "")
     content = body.get("content", "")  # 教案正文 markdown
+    job_id = body.get("job_id") or None   # 可选：带上则可用 SSE 接收进度（不带则行为完全不变）
     school_id = body.get("school_id")
     textbook_version = body.get("textbook_version", "")
     extra = (body.get("extra_requirements") or "").strip()
@@ -544,8 +923,24 @@ async def gen_courseware(req: Request):
     # 故 teacher_style 只作倾向提示：未指定风格时充默认，已指定风格时不覆盖。
     teacher_style = (body.get("teacher_style") or "").strip()
 
-    kp_names, prereq_names = _resolve_scope(body)
+    kp_names, prereq_names, scope_meta = _resolve_scope_meta(body)
     budget = divergence_budget(divergence_level)
+
+    # ── 生成配方（溯源，2026-09-13）──
+    # 这些值**后端本来就算过**（_resolve_scope_meta 的知识面 + DIVERGENCE_BUDGET 的 ±1 档边界），
+    # 此前只喂进提示词、**不回传也不落库** → 编辑页无法回答"这份课件是按什么生成的"，
+    # 表现为"左栏与画布脱节"。此处随响应回传，前端落库后即可在编辑页回填「来源」。
+    scope_resolved = {
+        **scope_meta,
+        # 往后边界：orbit/edge 条数 + beyond_band（是否允许 ±1 档外延伸，默认仅 ±1）
+        "divergence": {**budget, "level": divergence_level},
+        "textbook_version": textbook_version or "",
+        # 教材版本**实体引用**（2026-09-13）：前端由知识图谱节点自带 version_id 传入（与后端同源），
+        # 可直接作为真实引用落库；此前只有版本名称（字符串），回答不了"按哪个版本解析的"。
+        "textbook_version_id": body.get("textbook_version_id") or "",
+        "unit": unit or "",
+        "model": _effective_model(),   # 复用既有实现（勿另写一份）：库优先、env 兜底
+    }
 
     # 1) 找相近素材（AI 生成新版本的参照）
     similar = None
@@ -643,11 +1038,31 @@ async def gen_courseware(req: Request):
         "fresh(清新)", "academic(严谨学术)", "cartoon(卡通)", "flat(扁平)", "business(商务)",
     ])
     if style_tag:
+        # 关键修复（2026-09-03）：风格卡 skills/shared/styles/{tag}.md 此前从未进入生成提示词，
+        # 模型只拿到一句泛泛引导 → 风格只能换色、骨架不变。此处真正读取风格卡的「骨架形态语言」
+        # 并注入，让风格驱动分栏/留白/卡片形态/图形语言（风格的一维），而非仅换色。
+        layout_lang = _load_style_layout_language(style_tag)
         scope_hint += (
             f"\n【风格·指定大类】本课件视觉风格须为【{style_tag}】，属于受控风格词表之一：{STYLE_TAGS}。"
-            f"请在版式节奏与内容组织上体现该风格（如科技风多用双栏/大图/模块化、国风多用留白与韵味、"
+            f"请在版式节奏与内容组织上体现该风格（科技风多用双栏/大图/模块化、国风多用留白与韵味、"
             f"极简风要点更精简、卡通风更活泼）。版式标注（<!-- layout -->）仍须从现有版式集合中取，不得自创版式。"
         )
+        if layout_lang:
+            scope_hint += (
+                f"\n【风格·骨架形态语言】这是【{style_tag}】风格在「骨架」维度的硬性约定，"
+                f"必须据此选择分栏/留白/卡片形态/图形语言，而不只是换配色：\n{layout_lang}"
+            )
+        struct_order = _load_style_structure_order(style_tag)
+        if struct_order:
+            scope_hint += (
+                f"\n【风格·结构序】这是【{style_tag}】风格在「内容结构」维度的硬性约定，"
+                f"必须据此决定先讲什么、后讲什么与页面顺序，而非只改版式：\n{struct_order}"
+            )
+        asset_scope_text = _load_style_asset_scope(style_tag)
+        if asset_scope_text:
+            scope_hint += (
+                f"\n【风格·素材范围】这是【{style_tag}】风格允许/禁用的装饰素材（硬约束，禁用项不得出现）：\n{asset_scope_text}"
+            )
     if style_profile:
         scope_hint += (
             f"\n【风格·自由描述】用户期望风格：{style_profile}。"
@@ -674,87 +1089,29 @@ async def gen_courseware(req: Request):
     # 按输出格式决定内容结构：PPT 用教案式章节；H5 用绘本情景场景
     if fmt == "h5":
         structure_hint = (
-            "输出要求：\n"
-            "1. 本课件为 H5 绘本情景互动课件，用于课堂大屏/平板/手机投屏，不是 PPT 教案。\n"
-            "2. 整体结构必须是连续生活情境/故事线：封面 → 场景一 → 场景二 → … → 结尾。"
-            "禁止输出“学习目标、教学重难点、课堂小结、板书设计、分层作业”等教案章节。\n"
-            "3. 用 Markdown 输出，每页一个 `## 场景标题`（封面可用 `## 封面：xxx`），每页 1 个情境，建议 6~10 页。\n"
-            "4. 每页 `## 标题` 下一行必须紧跟版式标注 `<!-- layout: scene-<类型> -->`，类型只能取自受控集合 7 类：\n"
-            "   - scene-dialog：角色对话推进情节（默认；凡有 ≥2 条对话气泡即属此类）\n"
-            "   - scene-read：词汇点读/跟读（必须同时带 read 或 readalong 标记）\n"
-            "   - scene-quiz：随堂选择（必须同时带 quiz 标记）\n"
-            "   - scene-reveal：悬念/答案揭晓（必须同时带 reveal 标记）\n"
-            "   - scene-draw：现场绘图/涂鸦（必须同时带 draw 标记）\n"
-            "   - scene-focus：单条重点收束（只强调 1 条，勿堆叠）\n"
-            "   - scene-transition：封面/转场/结尾——纯旁白、无对话无互动、低信息密度\n"
-            "   选型按本页主要教学动作，不要跟风上一页；渲染端对每类有独立视觉骨架。\n"
-            "5. 角色与对话：在相关场景用 `**角色**：A（顾客），B（店员）` 声明角色，"
-            "随后用 `A: Hello!` / `B: Yes!` 输出对话；或用绘本原生格式 `[妈妈] 我们买苹果吧。`。"
-            "对话要自然、简短、口语化，符合{grade}学生认知。\n"
-            "6. 互动标注：每页至少包含 1 处互动，从以下标记中选择至少一种插入到场景内：\n"
-            "   - `<!-- read: 苹果 apple / 香蕉 banana -->`：点读词汇（适合英语/识字）\n"
-            "   - `<!-- readalong: Hello! -->`：跟读句\n"
-            "   - `<!-- quiz: 问句 | 选项A | 选项B | 选项C | 正确答案索引（0起） -->`：随堂选择\n"
-            "   - `<!-- reveal: 提示语 => 要揭示的内容 -->`：点击揭示\n"
-            "   - `<!-- draw: 绘图说明 -->`：建议教师现场绘图/学生涂鸦\n"
-            "7. 视觉描述：每个场景用 1~2 句话描述画面（角色、环境、情绪），便于渲染为儿童绘本风格。\n"
-            "8. 语言精炼、画面感强，避免大段说教文字。\n"
+            # 口径收口（2026-09-12）：**结构与格式全部由 Skill 领域知识给出**
+            # （page_structure / 场景与互动规范 / 输出契约 / 质量宪法 / 媒介纪律）。
+            # 本分支只保留"本次特有约束"。历史教训：此处曾写"建议 6~10 页"，而校验器要求
+            # 8~16 —— 同一件事两处定义，副本自己腐化后**直接制造违规**。
+            "输出要求（本次特有约束）：\n"
+            "1. 安全口径（硬约束）：严禁出现商业或外来亚文化符号；严禁对国内各民族做差异化对比呈现。\n"
+            "（其余全部——场景数 8~16、页内字数、角色与气泡语法、画面描述、互动标记、"
+            "受控版式 8 类与选型节奏、故事线组织——以上文【Skill 领域知识】为准。"
+            "本段不重复定义数字与集合，避免两处口径不一致。）\n"
         )
     else:
         structure_hint = (
-            "输出要求：\n"
-            "1. 用 Markdown 输出，以 `##` 分节，每节 = 一页幻灯片；建议 12~15 页，不要超过 16 页，能覆盖完整一节课（约 40~45 分钟），每页内容精简。\n"
-            "\n"
-            "【内容原则·必须遵守】（课件服务学生，不是复述教案）\n"
-            "- 学生视角：每条要点写“学生将看到/学会什么”，禁止写成“教师引导学生…”“教师点拨…”这类教师备课提示。\n"
-            "- 目标具体化：禁止只写抽象目标（如“会认会写 N 个生字词”“掌握重点词语”），必须落出具体内容"
-            "（是哪 N 个字、哪些词语、哪句原文、哪道例题）。\n"
-            "- 引用真实内容：文科须出现课文/原文金句、生字表、词句赏析；理科须出现具体公式、例题数据与解答步骤。\n"
-            "- 趣味性按学段设计：小学低段用游戏/竞赛/角色扮演，小学中高段用情境/探究任务，初高中用问题链/辩论/实验。\n"
-            "  每节课至少含 2 处互动或趣味环节，用【互动】【游戏】【挑战】【角色扮演】等标记显式标注。\n"
-            "- 时长匹配：按课时总时长反推页数与密度，每页都要有足以支撑 2~4 分钟讲解/活动的具体内容，避免整页空泛。\n"
-            "- 零占位符：禁止输出“思维导图占位”“图片占位”“待补充”“XXX”等未填充占位内容。\n"
-            "\n"
-            "2. 章节顺序（按真实课堂节奏组织；其中“教学重难点”“板书设计”不单独成页，"
-            "须融入对应内容页或用一两句话带过，因为它们属于教师备课信息、不是投屏给学生看的内容）：\n"
-            "   - 学习目标（3~4 条，用学生能懂的语言写“这节课我要学会…”）\n"
-            "   - 情境导入（用生活现象 / 实验 / 问题情境引出本课，1~2 段，标注【导入】）\n"
-            "   - 新知探究（2~3 节，每节聚焦一个核心概念：讲清定义、原理、关键特征，并给出“易错提醒”）\n"
-            "   - 典例精讲（1~2 道典型例题，含“读题→思路→解答”的完整过程）\n"
-            "   - 活动探究（标注【互动】，设计一个可当堂操作的探究 / 讨论 / 小实验；若启用边缘知识，可在此融入价值观/行为情境）\n"
-            "   - 课堂练习（2~3 道，附答案要点）\n"
-            "   - 课堂小结（知识框架 + 方法提炼）\n"
-            "   - 分层作业（基础题 + 提升题）\n"
-            "3. “合适”原则：每页都要有足以支撑讲解的具体知识点、例题或活动，能真正撑满这节课；"
-            "但不要堆砌冗余大段文字——投屏以要点、关键词、必要例题为主，便于学生速记。\n"
-            f"4. 语言精炼、专业，符合{grade}学生的认知水平；在互动环节用“【互动】”提示。\n"
-            "5. 发散内容（跨界/超纲/边缘）须自然融入，不喧宾夺主；严禁出现商业或外来亚文化符号、"
-            "严禁对国内各民族做差异化对比呈现。\n"
-            "6. 版式标注（重要）：每一页 `## 标题` 的下一行必须紧跟一行版式注释，格式为 "
-            "`<!-- layout: 版式名 -->`。按内容形态选版式，不要全部用 edu-*：\n"
-            "   - `edu-cover`：封面（仅课件总标题那一页用，标题即课件名）\n"
-            "   - `edu-goal`：学习目标页\n"
-            "   - `edu-summary`：课堂小结页\n"
-            "   - `edu-homework`：分层作业页\n"
-            "   - `edu-explain`：仅用于“1 段定义/概念 + 1 组要点”两段式讲解页（槽位只有 2 个，"
-            "要点多于 3 条时不要用，否则会挤在一起）\n"
-            "   - `edu-example`：典例精讲 / 课堂练习页\n"
-            "   - `content-2col`：2~4 条并列要点（每条 ≤30 字）/ 对比类内容（如步骤、异同对比）\n"
-            "   - `content-grid`：5~6 条并列短要点，且**每条必须 ≤12 字**（如生字表、词语积累、知识点清单）\n"
-            "   - `image-text`：需要配图/配示意图的重点段落（如精读原文 + 赏析）\n"
-            "   - `title-body`：上述之外的普通内容页\n"
-            "   示例：\n"
-            "   ## 一、学习目标\n"
-            "   <!-- layout: edu-goal -->\n"
-            "   - 会认会写：盐、屹、昂、鼎（具体列出，不写“N 个生字”）\n"
-            "   必须每页都标注，且注释独占一行、紧接标题行之后。\n"
-            "7. **版式与要点字数必须匹配（硬约束）**：content-grid / content-2col / edu-goal / edu-summary "
-            "等版式会把每条要点渲染成并列卡片，卡片横向列宽有限，单条越长、列数越多，字被压得越小。\n"
-            "   - 单条 ≤12 字 → 才可用 content-grid\n"
-            "   - 单条 13~30 字 → **严禁 content-grid**，只能 content-2col（≤3 条）或 title-body\n"
-            "   - 单条 >30 字 → **严禁任何多列版式**，走 title-body 竖排，或先拆成多条短句\n"
-            "   写完一页要点后逐条数字数，任一条超标就换版式或拆句——"
-            "切勿先定版式再把长句硬塞进卡片。\n"
+            # 口径收口（2026-09-12）：页数/章节顺序/内容原则/版式集合/版式×字长/组件字段契约与
+            # 完整示例/互动标记/骨架节奏/占位符禁忌，**全部只在 Skill 文档里定义一份**。
+            # 本分支只留"本次特有约束"——历史教训：两处并存时模型会抄到本段那个"缺组件的示例"，
+            # 于是整节课 0 个组件，并把组件类型名（quote/sequence）当 layout 写。
+            "输出要求（本次特有约束）：\n"
+            "1. 时长匹配：按课时总时长反推页数与密度，每页都要有足以支撑 2~4 分钟讲解/活动的具体内容，避免整页空泛。\n"
+            "2. 发散内容（跨界/超纲/边缘）须自然融入，不喧宾夺主。\n"
+            "3. 安全口径（硬约束）：严禁出现商业或外来亚文化符号；严禁对国内各民族做差异化对比呈现。\n"
+            "（其余全部——页数与章节顺序、内容原则、版式集合与版式×字长、组件字段契约与完整示例、"
+            "互动标记、骨架节奏、占位符禁忌、字号与层次——以上文【Skill 领域知识】为准。"
+            "本段不重复定义，避免两处口径不一致。）\n"
         )
 
     # Skill 领域知识：PPT / H5 各自加载专用 Skill 的规则（约定 0：唯一生成路径）
@@ -769,23 +1126,211 @@ async def gen_courseware(req: Request):
         f"{structure_hint}"
     )
     start = time.time()
-    try:
-        courseware = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 6000)
-    except Exception as e:
-        courseware = f"# {title}\n\n（AI 课件生成失败：{e}）\n\n{content}"
+    base_prompt = prompt
+    max_retry = _skill_max_retry(fmt)   # 声明化：来自 SKILL.md frontmatter
+    best = None                         # (违规数, md, meta, report, dropped)
+    quality_notes = []
 
-    # 3) 提取发散地图（divergence_map）：供教师审阅每条发散的锚点与理由
+    # 进度事件：既进 quality_notes（随响应返回，便于事后追溯），也进 SSE 表（教师实时可见）
+    def prog(stage: str, message: str) -> None:
+        quality_notes.append(message)
+        _note_progress(job_id, stage, message)
+
+    prog("start", f"提示词已组装（{len(prompt)} 字，其中 Skill 领域知识 {len(skill_rules)} 字），开始生成")
+
+    # ── 时间预算守卫（2026-09-12）──
+    # 背景（实测，2026-09-12 修正）：qwen-turbo 单次尝试 ~12s、qwen-plus ~50s；
+    # 此前把"整请求含 3 次重试的 175s"误记为单次耗时，特此更正。而"1~3 次重试"叠加后，
+    # 强模型必然逼近/超过网关超时（nginx proxy_read_timeout）。**被网关掐断的代价是
+    # 连最好的一版都拿不到**——教师白等几分钟、一个字都看不到。
+    # 故主动设预算：若"再来一轮"会越过预算，就停手，把当前最好版交出去。
+    # 预算须 **小于** 网关超时（staging 已达 300s；prod 仍 60s → 用强模型前必须一并调整）。
+    budget_s = float(os.getenv("CW_GEN_BUDGET_S", "240"))
+    for attempt in range(max_retry + 1):
+        attempt_started = time.time()
+        try:
+            raw = await call_llm([{"role": "user", "content": prompt}], None, 6000)
+        except Exception as e:
+            if best is None:
+                md, meta = split_output(f"# {title}\n\n（AI 课件生成失败：{e}）\n\n{content}")
+                best = (0, md, meta, {"issues": [], "pages": 0}, [])
+            quality_notes.append(f"生成失败：{e}")
+            _note_progress(job_id, "error", f"生成失败：{e}")
+            break
+
+        # a. 两段式剥离（输出契约要求 `<<<COURSEWARE>>>` / `<<<META>>>`，不剥离会显示给学生）
+        md, meta = split_output(raw)
+
+        # b. VISUAL base64 编码：**平台必须兜底的一步**（模型写不了 base64，而前端
+        #    `markdownToOutline` 只认 `<!-- VISUAL:base64 -->`，不认 VISUAL_JSON）。
+        #    此前服务端从未做这一步 → 线上 PPT 的可视化组件前端解析不到、退化成正文。
+        #    H5 按契约不应有 VISUAL，故不编码（保持 VISUAL_JSON 交 mdToStory 处理）。
+        bad_visuals = []
+        if fmt != "h5":
+            md, bad_visuals = encode_visuals(md)
+
+        # c. 注释白名单兜底：白名单外的注释会原样显示给学生
+        md, dropped = strip_unknown_comments(md)
+
+        # d. S4 关卡1（自动规则）：判据来自质量宪法与版式选型，与本地脚本同一份实现
+        report = check_markdown(md, f"{title}__{fmt}", subject)
+        errs = [i for i in report["issues"] if i[0] == "ERR"]
+        # 保留违规最少的一版：重生成是全新产出，可能比上一版更差（实测 10→5→9 反弹）
+        if best is None or len(errs) < best[0]:
+            best = (len(errs), md, meta, report, dropped)
+        if not errs:
+            prog("gate1", f"关卡1 通过（{report.get('pages', 0)} 页，0 处违规）")
+            break
+        if attempt < max_retry:
+            elapsed = time.time() - start
+            cost = time.time() - attempt_started
+            if elapsed + cost > budget_s:
+                prog("budget",
+                     f"时间预算不足（已用 {elapsed:.0f}s + 本轮 {cost:.0f}s > 预算 {budget_s:.0f}s）："
+                     f"停止重试，返回最好一版（{best[0]} 处违规）")
+                break
+            prog("retry", f"第 {attempt + 1} 次关卡1 未过（{len(errs)} 处），已回灌重生成")
+            prompt = retry_prompt(base_prompt, report, bad_visuals, md)
+        else:
+            prog("gate1", f"已达重试上限，仍有 {len(errs)} 处违规（保留最好一版：{best[0]} 处）")
+
+    _, courseware, meta, report, dropped_comments = best
+    if dropped_comments:
+        logger.warning("已剥离白名单外注释（会显示成乱码）：%s", dropped_comments)
+
+    # 3) 红线闸（**生成时就跑**，不等发布）+ 命中 block 即自动修正一次
+    #    · 为什么提前：此前只在 /validate（发布）跑，教师改完才知道违规；红线应当越早发现越好。
+    #    · 为什么独立模型：同模型会放过自己写下的擦边内容（共享同一套价值判断）——
+    #      这是红线与"质量评审"最大的不同，红线**绝不能自评**。
+    #    · 不改产品决议："发布才强制拦截"仍然成立，草稿永远可编辑；此处只是生成时自纠。
+    safety_ctx = {"subject": subject, "grade": grade}
+    safety = await run_in_threadpool(policy_gate_publish, courseware, safety_ctx, _call_llm_safety)
+    _blocks = [i for i in safety.get("issues", []) if i.get("level") == "block"]
+    # 自动修正要再花一次生成（plus 下 ~175s）→ 同样受时间预算约束，避免把请求拖过网关超时
+    if _blocks and (time.time() - start) > budget_s * 0.6:
+        quality_notes.append(
+            f"红线命中 {len(_blocks)} 处，但剩余时间不足（已用 {time.time() - start:.0f}s / 预算 "
+            f"{budget_s:.0f}s），**未自动修正**，请人工确认后再发布")
+        _blocks = []
+    if _blocks and courseware.strip().startswith("#"):
+        safety_fix = (
+            "\n\n[红线闸未通过：必须修改以下内容后，**完整重新输出**]\n"
+            + "\n".join(f"  - {b.get('keyword') or b.get('type')}：{b.get('message', '')}"
+                        for b in _blocks[:10])
+            + "\n要求：移除或改写上述内容，改用与知识点直接相关的中性案例；"
+              "**不要**因为回避而删掉该页的教学内容本身。"
+              "修订后完整输出 COURSEWARE 与 META 两段，不要解释。\n"
+        )
+        try:
+            # 修复（2026-09-13）：此处显式传 GEN_MODEL（静态）会**绕过通道配置** ——
+            # 结果是"主生成走 plus、红线修正走 turbo"两套模型。改传 None，与主生成同源。
+            raw_fix = await call_llm([{"role": "user", "content": base_prompt + safety_fix}],
+                                     None, 6000)
+            md_fix, meta_fix = split_output(raw_fix)
+            if fmt != "h5":
+                md_fix, _ = encode_visuals(md_fix)
+            md_fix, _ = strip_unknown_comments(md_fix)
+            if md_fix.strip():
+                recheck = await run_in_threadpool(
+                    policy_gate_publish, md_fix, safety_ctx, _call_llm_safety)
+                if recheck.get("pass"):
+                    courseware, meta = md_fix, meta_fix
+                    report = check_markdown(md_fix, f"{title}__{fmt}", subject)
+                    safety = recheck
+                    quality_notes.append(f"红线闸命中 {len(_blocks)} 处，已自动修正并通过")
+                else:
+                    quality_notes.append(
+                        f"红线闸命中 {len(_blocks)} 处，自动修正后仍未全过（保留原版，需人工确认）")
+        except Exception as e:
+            logger.warning("红线自动修正失败：%s", e)
+            quality_notes.append(f"红线自动修正失败：{e}")
+
+    # 4) 提取发散地图（divergence_map）：用**剥离后**的正文，避免 META 的 JSON 污染提取
     divergence_map = await _extract_divergence(courseware)
+
+    # 5) 零算力质量信号：**锚点覆盖率**（用代码替代模型评"对齐"）
+    #    匹配依据只能是**名称**（成品是自然语言，按文字命中），但**身份用 ID 标注**：
+    #    修复（2026-09-13）——名称取图谱解析出的**权威名**（不再用前端传的字符串），
+    #    且命中/缺失都附 ID，于是"哪个知识点实体没被覆盖"可追溯；
+    #    此前只用前端名称做匹配 → 图谱改名即静默失配，且看不出命中的是哪个实体。
+    #    不需要模型算力，可复现、可审计（对照质量宪法 A2：覆盖 ≥90%）。
+    anchors = scope_meta.get("anchors") or [{"id": "", "name": n} for n in kp_names]
+    anchor_coverage = None
+    if anchors:
+        def _hit(a):
+            n = (a.get("name") or "").strip()
+            return bool(n) and n in courseware
+        hit_n = sum(1 for a in anchors if _hit(a))
+        tot = len(anchors)
+        anchor_coverage = {
+            "covered": hit_n,
+            "total": tot,
+            "ratio": round(hit_n / max(1, tot), 3),
+            "missing": [a["name"] for a in anchors if not _hit(a)][:10],      # 兼容原字段
+            "missing_ids": [a["id"] for a in anchors if not _hit(a)][:10],    # 新增：可追溯实体
+            "anchors": [{"id": a["id"], "name": a["name"], "hit": _hit(a)} for a in anchors],
+            "passed": hit_n / max(1, tot) >= 0.9,
+        }
+
+    # 6) S4 关卡2：AI 内容评审（**默认关闭**，按需开启）
+    #    产品原则（2026-09-12）：**算力优先给生成器**。同模型自评有共同盲区 + 自偏好，
+    #    且它拿不到外部标尺（课标/教案），"对齐"分数其实没有依据。代码保留供抽检/调参，
+    #    但默认不烧算力：body.content_review=true 或环境变量 CW_ENABLE_REVIEW=1 才跑。
+    want_review = bool(body.get("content_review")) or REVIEW_ENABLED_DEFAULT
+    if want_review:
+        content_review = await _content_review(courseware, subject, grade, title)
+    else:
+        content_review = {
+            "available": False,
+            "reason": "按配置关闭（算力优先给生成器；如需开启：body.content_review=true）",
+        }
+
+    _errs = [i for i in report.get("issues", []) if i[0] == "ERR"]
+    _warns = [i for i in report.get("issues", []) if i[0] == "WARN"]
+
+    # 7) 进度收尾：SSE 侧据此结束等待（无 job_id 时为空操作）
+    _finish_progress(job_id)
+    quality_notes.append(f"生成完成：{len(_errs)} 处违规，耗时 {time.time() - start:.0f}s")
 
     return {
         "courseware_markdown": courseware,
+        "style_dna": meta.get("style_dna") if isinstance(meta, dict) else None,
+        "decor_refs": meta.get("decor_refs") if isinstance(meta, dict) else None,
+        # 生成配方（溯源，2026-09-13）：本次知识面（source=teacher/kg + 前置来源）+ 发散边界
+        # （orbit/edge/beyond_band，即"往后不超过 ±1 档"）+ 教材版本/单元/模型。
+        # 前端**须随产物一起落库**；否则编辑页仍无法回答"这份课件按什么生成的"（即"脱节"根因）。
+        "scope_resolved": scope_resolved,
+        # S4 关卡1 结果：草稿永远可编辑（约定：只有发布才强制拦截），此处**只报告不阻断**，
+        # 让教师看到"哪里不合规"，也让前端能把 issues 展示成可点改的清单。
+        "quality_report": {
+            "passed": not _errs,
+            "pages": report.get("pages", 0),
+            "error_count": len(_errs),
+            "warning_count": len(_warns),
+            "errors": [{"item": a, "detail": c} for _, a, c in _errs[:30]],
+            "warnings": [{"item": a, "detail": c} for _, a, c in _warns[:20]],
+            "notes": quality_notes,
+            "max_retry": max_retry,
+            # 零算力信号：锚点覆盖率（替代模型评"对齐"）
+            "anchor_coverage": anchor_coverage,
+            # 红线闸（合规/安全）：**生成时**就给出，不等发布——教师当场能看到。
+            # block 级会阻止"发布进素材库"（/validate 同口径），warn 仅提醒。
+            "safety": {
+                "passed": bool(safety.get("pass")),
+                "block_count": sum(1 for i in safety.get("issues", []) if i.get("level") == "block"),
+                "warn_count": sum(1 for i in safety.get("issues", []) if i.get("level") == "warn"),
+                "issues": safety.get("issues", [])[:20],
+            },
+        },
         "divergence_map": divergence_map,
+        # S4 关卡2 结果（默认关闭）。开启时同样只报告不阻断。
+        "content_review": content_review,
         "similar_material": similar,
         "recommended_refs": recommended_refs,
         "style_tag": style_tag,
         "style_profile": style_profile,
         "color_palette": _courseware_palette(subject, grade, style_tag),
-        "model": "qwen-turbo",
+        "model": _effective_model(),
         "generation_time_ms": int((time.time() - start) * 1000),
     }
 
@@ -803,7 +1348,7 @@ async def _extract_divergence(courseware: str) -> list:
             "若没有发散内容返回 []。只输出 JSON 数组。"
             f"\n课件：\n{courseware}\n"
         )
-        dm_raw = await call_llm([{"role": "user", "content": dm_prompt}], "qwen-turbo", 1500)
+        dm_raw = await call_llm([{"role": "user", "content": dm_prompt}], None, 1500)
         m = re.search(r"\[.*\]", dm_raw, re.DOTALL)
         if m:
             divergence_map = json.loads(m.group(0))
@@ -867,6 +1412,115 @@ _STYLE_HUE = {
     "minimal": 220, "academic": 245, "business": 270, "cartoon": 330,
 }
 # 说明：色相由「风格」独占决定，学科不再拉扯色相。
+# 形态字典 morph（2026-09-03）：风格不只换色，还给出疏密/动效/装饰母题，
+# 随 styleDNA 一并落库；与前端 STYLE_PREFIX_MORPH / courseware-h5 的 StyleMorph 同构。
+_STYLE_MORPH = {
+    "china":     {"density": "tight",  "motion": "calm",      "motif": "classroom"},
+    "tech":      {"density": "tight",  "motion": "energetic", "motif": "urban"},
+    "fresh":     {"density": "loose",  "motion": "lively",    "motif": "nature"},
+    "minimal":   {"density": "normal", "motion": "calm",      "motif": "classroom"},
+    "academic":  {"density": "normal", "motion": "lively",    "motif": "classroom"},
+    "cartoon":   {"density": "loose",  "motion": "energetic", "motif": "playful"},
+    "flat":      {"density": "normal", "motion": "lively",    "motif": "playful"},
+    # 2026-09-12 对齐前端 styleRegistry（单一事实源）：此前 business 写 tight/urban，
+    # 与前端 normal/classroom 不一致 → 同一风格两端拿到不同形态（漂移实例）。
+    "business":  {"density": "normal", "motion": "calm",      "motif": "classroom"},
+    "":          {"density": "normal", "motion": "lively",    "motif": "playful"},
+}
+
+
+def _warn_unknown_style(style: str) -> dict:
+    """风格认不出时的**显式**兜底（禁止静默回落 · 2026-09-12）。
+
+    回落到默认值本身没错——错在"悄悄回落"：所有异常都收敛成同一个样子，
+    从产出上看就是"所有课件长得一样"，且无法定位是哪一环漏了。
+    故此处必须留痕（日志），让"风格没生效"可被观测、可被追责。
+    """
+    logger.warning("未知风格 %r：已回落默认 morph（请检查风格词表是否漏登记）", style)
+    return _STYLE_MORPH[""]
+# 风格卡目录（skills/shared/styles/*.md）：含 semantic 语义层与「骨架形态语言」段
+_STYLES_DIR = os.path.join(os.path.dirname(__file__), "skills", "shared", "styles")
+
+
+def _load_style_layout_language(style_tag: str) -> str:
+    """读取风格卡的『骨架形态语言』段并注入生成 prompt。
+
+    历史缺陷（2026-09-03）：风格卡语义层从未进入生成提示词，模型只拿到 style_tag 名字 +
+    一句泛泛引导 + color_seed 决定的配色 → 风格只能换色、骨架不变。
+    此函数让风格真正驱动分栏/留白/卡片形态/图形语言（风格的一维），而非仅换色。
+    """
+    if not style_tag:
+        return ""
+    path = os.path.join(_STYLES_DIR, f"{style_tag}.md")
+    if not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except Exception:
+        return ""
+    m = re.search(r"##\s*骨架形态语言[\s\S]*?(?=\n##\s|\Z)", text)
+    return m.group(0).strip() if m else ""
+
+
+def _load_style_structure_order(style_tag: str) -> str:
+    """读取风格卡的『结构序』段并注入生成 prompt。
+
+    动机（2026-09-11）：风格不止"长什么样"（骨架形态语言），还有"先讲什么、后讲什么"——
+    内容的结构序（起承转合 / 问题→证据→结论 / 定义→例题→归纳…）本身就是风格的一维。
+    此前生成端只注入版式骨架、不改内容顺序 → 所有风格产出同一套结构序（"一个头面"的更深根因）。
+    """
+    if not style_tag:
+        return ""
+    path = os.path.join(_STYLES_DIR, f"{style_tag}.md")
+    if not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except Exception:
+        return ""
+    m = re.search(r"##\s*结构序[\s\S]*?(?=\n##\s|\Z)", text)
+    return m.group(0).strip() if m else ""
+
+
+# 风格结构化片段（asset_scope + 母题禁忌）：与前端 visualAsset 共用同一份，放此处保证容器内可达
+_STYLE_RULES_JSON = os.path.join(_STYLES_DIR, "asset_scope.json")
+
+
+def _load_style_asset_scope(style_tag: str) -> str:
+    """读取风格卡结构化片段（asset_scope.json）并格式化为 prompt 可用的素材范围说明。
+
+    为什么：asset_scope 此前只存在于各风格 .md 的 YAML 里、**从未进入生成提示词**，
+    模型选素材时没有"该风格常用/可用/禁用"的约束（交通灯被塞进《观潮》即此类问题）。
+    本函数让服务端与前端（visualAsset/motifPools）消费**同一份结构化规则**。
+    """
+    if not style_tag:
+        return ""
+    try:
+        with open(_STYLE_RULES_JSON, encoding="utf-8") as fh:
+            rules = json.load(fh)
+    except Exception:
+        return ""
+    s = (rules.get("styles") or {}).get(style_tag)
+    if not s:
+        return ""
+    scope = s.get("assetScope") or {}
+    motif = s.get("motif") or {}
+    lines = []
+    if scope.get("常用"):
+        lines.append("常用素材：" + "、".join(map(str, scope["常用"])))
+    if scope.get("可用"):
+        lines.append("可用素材：" + "、".join(map(str, scope["可用"])))
+    if scope.get("禁用"):
+        lines.append("禁用素材：" + "、".join(map(str, scope["禁用"])))
+    for k, v in (scope.get("学科收敛") or {}).items():
+        lines.append(f"  学科收敛·{k}：{v}")
+    if motif.get("vetoGlyphs"):
+        lines.append("禁用母题元素：" + "".join(map(str, motif["vetoGlyphs"])))
+    if motif.get("reasons"):
+        lines.append("理由：" + str(motif["reasons"]))
+    return "\n".join(lines)
 # 依据产品原则（2026-09-03）：UI 风格服务于「内容 + 风格提示词 + 个人风格倾向」
 # ——内容决定用哪种版式/组件（结构层），风格决定长什么样（视觉层）。
 # 若让学科色相也参与色相计算，会把 tech/minimal/academic/business 这些
@@ -924,7 +1578,10 @@ def _courseware_palette(subject: str, grade: str, style_tag: str) -> dict:
             "lightText": light,
             "footer": footer,
             "bullet": bullet,
-        }
+        },
+        # 禁止静默回落（2026-09-12）：风格认不出时必须报出来，否则所有异常都伪装成
+        # "同一个默认样子"——这正是历史上"清一色/一个头面"的生成机制。
+        "morph": dict(_STYLE_MORPH.get(style) or _warn_unknown_style(style)),
     }
 
 
@@ -949,18 +1606,180 @@ async def courseware_validate(req: Request):
     """发布校验（平台红线锁）：对课件 Markdown 做负面清单 + 轻量复核，指出问题并提醒修改。
 
     草稿永远可编辑；只有「发布进素材库」才调用本端点。不过则列出问题，教师修改后重发。
+    kind=courseware（默认）走课件红线；kind=notice（家校宣发）额外执行官方安全口径校验。
     """
     try:
         body = await req.json()
     except Exception:
         body = {}
     text = body.get("markdown", "")
-    result = policy_gate_publish(
-        text,
-        {"subject": body.get("subject", ""), "grade": body.get("grade", "")},
-        _call_llm,
-    )
+    kind = (body.get("kind") or "courseware").strip().lower()
+    if kind == "notice":
+        result = policy_gate_notice(
+            text,
+            {"subject": body.get("subject", ""), "grade": body.get("grade", "")},
+            _call_llm,
+        )
+    else:
+        result = policy_gate_publish(
+            text,
+            {"subject": body.get("subject", ""), "grade": body.get("grade", "")},
+            _call_llm,
+        )
     return result
+
+
+# ── LLM 通道管理（运营可维护 · 热生效 · 2026-09-12）──────────────────
+# 设计：**能力在本服务，控制权将来挂到 cloud.ziwi.cn**（那边只需调下面这些接口）。
+# 安全：api_key **只接受写入、永不回传明文**（一律脱敏）。
+@app.get("/api/ai/llm/config")
+async def llm_config_status():
+    """查看各角色当前生效的通道（含来源 db / env）。密钥已脱敏。"""
+    roles = ("gen", "review", "safety")
+    eff = {}
+    for r in roles:
+        ch = channel_for(r)
+        eff[r] = {"base_url": ch["base_url"], "model": ch["model"],
+                  "source": ch["source"], "has_api_key": bool(ch["api_key"])}
+    st = _llm_channel_status(env_fallback=eff)
+    st["effective"] = eff
+    st["models"] = {r: eff[r]["model"] for r in roles}
+    return st
+
+
+@app.post("/api/ai/llm/config")
+async def llm_config_save(req: Request):
+    """写入某角色通道配置（upsert）。
+
+    api_key 留空 = 保留原值（避免改模型名时把密钥清空）；传 "CLEAR" = 清空并回落 env。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    role = (body.get("role") or "").strip()
+    try:
+        saved = _llm_channel_save(
+            role,
+            base_url=body.get("base_url"),
+            model=body.get("model"),
+            api_key=body.get("api_key"),
+            enabled=bool(body.get("enabled", True)),
+            updated_by=body.get("updated_by"),
+        )
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    refresh_channels(force=True)          # 立即生效，不等 TTL
+    return {"ok": True, "saved": saved, "effective_model": channel_for(role)["model"]}
+
+
+@app.post("/api/ai/llm/test")
+async def llm_config_test(req: Request):
+    """连通性测试：对指定角色发一句最短请求，返回耗时与错误。"""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    role = (body.get("role") or "gen").strip()
+    ch = channel_for(role)
+    t0 = time.time()
+    base = {"role": role, "source": ch["source"], "model": ch["model"], "base_url": ch["base_url"]}
+    try:
+        out = await call_llm([{"role": "user", "content": "ping"}], None, 16, role=role)
+        return {**base, "ok": True, "latency_ms": int((time.time() - t0) * 1000),
+                "reply": (out or "").strip()[:40]}
+    except Exception as e:
+        return {**base, "ok": False, "latency_ms": int((time.time() - t0) * 1000),
+                "error": str(e)}
+
+
+@app.post("/api/ai/llm/reload")
+async def llm_config_reload():
+    """强制刷新配置缓存（多实例时让其他实例立即生效）。"""
+    refresh_channels(force=True)
+    return {"ok": True, "models": {r: channel_for(r)["model"] for r in ("gen", "review", "safety")}}
+
+
+@app.on_event("startup")
+async def _startup_llm_channel():
+    """启动时建表并预热通道配置（失败不阻断服务：沿用 env）。"""
+    try:
+        _llm_channel_ensure()
+        refresh_channels(force=True)
+        logger.info("LLM 通道就绪：%s",
+                    {r: f"{channel_for(r)['model']}@{channel_for(r)['source']}"
+                     for r in ("gen", "review", "safety")})
+    except Exception as e:
+        logger.warning("LLM 通道初始化失败（沿用 env）：%s", e)
+
+
+_NOTICE_SKILL_REFS = ("courseware-notice/SKILL.md",
+                      "courseware-notice/references/家校宣发规范.md")
+
+
+def _notice_skill_rules() -> str:
+    """加载 courseware.notice Skill 领域知识（与本地文件单一事实源）。"""
+    chunks = []
+    for rel in _NOTICE_SKILL_REFS:
+        path = os.path.join(_SKILLS_DIR, rel)
+        if not os.path.exists(path):
+            logging.warning("notice Skill 领域知识缺失：%s", path)
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                chunks.append(fh.read().strip())
+        except Exception as e:
+            logging.warning("notice Skill 领域知识读取失败 %s：%s", path, e)
+    return "\n\n---\n\n".join(chunks)
+
+
+@app.post("/api/ai/notice/generate")
+async def notice_generate(req: Request):
+    """家校宣发 H5 草稿生成（courseware.notice Skill，2026-09-03）。
+
+    输入：{title, topic(场景码), school_name, department, teacher_name, extra}
+    输出：{markdown, topic, issues, pass}。生成后即跑 notice 红线预检，
+    提示口径问题（不阻断；发布时后端会强制再过闸）。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    title = (body.get("title") or "").strip()
+    topic = (body.get("topic") or "notice").strip()
+    school = (body.get("school_name") or "本校").strip()
+    dept = (body.get("department") or "德育处").strip()
+    teacher = (body.get("teacher_name") or "").strip()
+    extra = (body.get("extra") or "").strip()
+    if not title:
+        return {"markdown": "", "topic": topic, "issues": [], "pass": True,
+                "error": "请填写宣发标题（主题）"}
+    skills = _notice_skill_rules()
+    date_hint = time.strftime("%Y年%m月%d日")
+    user_brief = (
+        f"请为《{title}》起草一份家校宣发 H5 的 Markdown 稿。\n"
+        f"发布主体：{school} {dept}（{date_hint}）"
+        + (f"；起草教师：{teacher}" if teacher else "")
+        + (f"\n补充要求：{extra}" if extra else "")
+        + f"\n场景类型（topic）：{topic}，请按该类型的结构建议与官方口径起草，"
+          "安全类条款必须一字不改引用官方口径。"
+          "\n输出仅 Markdown 正文，不要解释、不要加代码围栏或前后缀。"
+    )
+    try:
+        md = await call_llm(
+            [{"role": "system", "content": skills}, {"role": "user", "content": user_brief}],
+            "qwen-plus", 3000,
+        )
+    except Exception as e:
+        return {"markdown": "", "topic": topic, "issues": [], "pass": True,
+                "error": f"生成失败：{e}"}
+    md = (md or "").strip()
+    if not md:
+        return {"markdown": "", "topic": topic, "issues": [], "pass": True,
+                "error": "生成内容为空，请重试"}
+    # 生成即预检（不阻断；发布时后端强制再检，防止模型自嗨后靠人工把关）
+    gate = policy_gate_notice(md, {}, None)
+    return {"markdown": md, "topic": topic, "issues": gate["issues"], "pass": gate["pass"]}
 
 
 @app.post("/api/ai/courseware/trim")
@@ -990,7 +1809,7 @@ async def courseware_trim(req: Request):
         f"待剔除列表：\n{items_txt}\n\n课件原文：\n{markdown}\n"
     )
     try:
-        trimmed = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 6000)
+        trimmed = await call_llm([{"role": "user", "content": prompt}], None, 6000)
     except Exception:
         trimmed = markdown
     dm = await _extract_divergence(trimmed)
@@ -1034,7 +1853,7 @@ async def courseware_render_ppt(req: Request):
         f"课件总标题：{title}（{subject}{grade}）\n\n课件原文：\n{markdown}\n"
     )
     try:
-        raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 4000)
+        raw = await call_llm([{"role": "user", "content": prompt}], None, 4000)
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         if m:
             slides = json.loads(m.group(0))
@@ -1173,11 +1992,11 @@ async def courseware_generate_video_script(req: Request):
         f"课件总标题：{title}（{subject}{grade}）\n\n课件原文：\n{markdown}\n"
     )
     try:
-        raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 2000)
+        raw = await call_llm([{"role": "user", "content": prompt}], None, 2000)
         shots = _parse_video_shots(raw)
         if shots:
             total = sum(x["duration_s"] for x in shots)
-            return {"video_script": shots, "total_duration_s": total, "model": "qwen-turbo"}
+            return {"video_script": shots, "total_duration_s": total, "model": _effective_model()}
     except Exception:
         logger.exception("generate-video-script failed")
     # 兜底：封面 + 一段概述
@@ -1340,7 +2159,7 @@ async def gen_exam(req: Request):
         max_tokens = min(6000, max(1500, c * 220))
         for attempt in range(2):  # 解析失败重试一次
             try:
-                raw = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", max_tokens)
+                raw = await call_llm([{"role": "user", "content": prompt}], None, max_tokens)
                 ai_qs = _parse_questions_json(raw)
                 if isinstance(ai_qs, list) and ai_qs:
                     for q in ai_qs:
@@ -1366,7 +2185,7 @@ async def gen_exam(req: Request):
         "total_questions": len(questions),
         "curriculum_alignments": curriculum,
         "knowledge_scope": kp_names,
-        "model": "qwen-turbo",
+        "model": _effective_model(),
         "generation_time_ms": int((time.time() - start) * 1000),
     }
 
@@ -1382,10 +2201,10 @@ async def auto_grading(req: Request):
     prompt = "以下是学生作答内容，请逐题批阅，给出得分点、评语与改进建议：\n" + json.dumps(answers, ensure_ascii=False)
     start = time.time()
     try:
-        content = await call_llm([{"role": "user", "content": prompt}], "qwen-turbo", 3000)
+        content = await call_llm([{"role": "user", "content": prompt}], None, 3000)
     except Exception as e:
         content = f"AI 批阅失败：{e}"
-    return {"result": content, "model": "qwen-turbo", "generation_time_ms": int((time.time() - start) * 1000)}
+    return {"result": content, "model": _effective_model(), "generation_time_ms": int((time.time() - start) * 1000)}
 
 
 @app.post("/api/ai/embed")

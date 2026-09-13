@@ -30,6 +30,16 @@ Skill 发挥配色 → styleDNA 快照进课件 → 渲染层按 styleDNA 执行
 
 ---
 
+## 结构化片段（机器可读 · 2026-09-11）
+
+除人写的 `<tag>.md` 说明外，本目录还有一份**结构化事实源** `asset_scope.json`：
+
+- 内容：各风格的 `assetScope`（常用/可用/**禁用**/学科收敛）+ `motif`（偏好母题 / **禁用母题元素** / 理由）
+- 谁用：
+  - **服务端** `api_server._load_style_asset_scope()` → 注入生成 prompt（硬约束：禁用项不得出现）
+  - **前端** `lib/visualAsset/motifPools.ts` → 渲染端 veto（H5 与 PPT 同源）
+- 约定：调禁忌/素材范围时，请同时更新 `.md` 说明与 `asset_scope.json`，两者是"人话 ↔ 结构化"的同一份规则。
+
 ## 风格索引
 
 | tag | 名称 | 提示词文件 | 定位 / 状态 |

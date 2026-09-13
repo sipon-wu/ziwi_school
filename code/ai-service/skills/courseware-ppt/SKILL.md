@@ -5,23 +5,26 @@ version: 1.0.0
 status: active
 intent: 用户要求生成 / 修改 / 优化课件
 triggers:
-  - 生成课件
   - 做个PPT
-  - 出课件
-  - 帮我做课件
-  - 课件
+  - 生成PPT
+  - 出PPT
+  - PPT课件
+  # 2026-09-12：泛词（课件 / 生成课件 / 出课件）**故意移出**——
+  # 它们是 PPT / H5 / notice 的公共语义，会造成路由抢答。
+  # H5 走 courseware.h5，家长宣发走 courseware.notice；路由须按 format 字段判定，不能靠"课件"二字。
 input:
   topic: 课题（必填，如《函数》《观潮》）
   subject: 学科（必填）
   grade: 年级（必填）
   period: 课时（默认 1）
-  format: ppt | h5（默认 ppt）
   style_tag: 受控风格词表之一（可选，见 styles/受控风格词表.md）
   style_profile: 风格自由描述（可选，由 Skill 匹配到受控词表）
   lesson_plan: 教案（可选；无教案时走 S0 从课标/知识点推断）
 output:
-  format: 课件内容（Markdown + `<!-- layout: -->` 版式标注 + VISUAL 组件）
-  deliverables: [平台课件, PPTX, PDF, H5]
+  format: PPT 课件内容（Markdown + `<!-- layout: -->` 版式标注 + VISUAL 组件）
+  deliverables: [平台课件, PPTX, PDF]
+  # 2026-09-12：移除 H5。H5 由 courseware.h5 产出；本 Skill 声明"能出 H5"
+  # 与「两个 Skill 不可混用」直接矛盾（历史教训：PPT 结构被套进 H5，产出"PPT 化的 H5"）。
 sop:
   - S0 需求澄清 ★课标对齐守门
   - S1 教案解析
@@ -37,6 +40,12 @@ tools:
 quality:
   gates: [自动规则, AI评审, 视觉检查]
   pass_criteria: 关卡1全过；关卡2各项≥4分；关卡3无阻塞问题
+  max_retry: 2          # S4 关卡1 未过时的回灌重试上限（服务端从本字段读，不写死在代码里）
+                        # 2026-09-12 记录一次**被数据证伪的调参**：曾因 3 个样本（8→3→1 / 14→3→3 /
+                        # 14→1→1）看着"第 3 轮零收益"而改为 1，但后续样本出现**首轮 19 处违规**
+                        # （2 次尝试后仍剩 5 处）——第 3 次尝试正是救这类样本的。
+                        # 实测对比：max_retry=2 → ERR 均值 1.67（146~165s）；=1 → ERR 均值 3.5（105~112s）。
+                        # **结论：时延问题用"进度反馈"解，不用减少重试换**（n 小、勿再凭 3 个样本调此值）。
 ---
 
 # 课件生成 Skill
@@ -99,8 +108,9 @@ quality:
 提示词 + 风格卡 + 资产库 → 课件内容。
 
 **必须遵守 references/ 下的硬约束**：
+- `references/媒介纪律-PPT.md` —— **固定画布媒介的硬纪律**（1-6-6 / 字号远观可读 / 空间是分配出来的 / 静态可读）
 - `references/版式与组件选型.md` —— 版式 × 字长、组件 × 形态（防止字密/撑破）
-- `references/质量宪法.md` —— 内容质量（学生视角、具体化、互动）
+- `../shared/质量宪法.md` —— 通用约束：质量（学生视角、具体化、互动）、层次可辨、内容量与版面平衡
 
 ### S4 质量检验（三关）
 
@@ -144,7 +154,7 @@ quality:
 | 组件 × 形态 | 长文本（>12 字）严禁进 icon-card / diagram / sequence / flow / timeline |
 | 对比表完整性 | cells 与 cols 等长，且每格必须填内容，严禁空串/占位 |
 | 组件多样性 | 同一课件 ≥3 种不同组件 |
-| 页数 | PPT 12~15 页；H5 8~16 页 |
+| 页数 | PPT 12~15 页（H5 的 8~16 场景见 `courseware-h5`，勿在此混用） |
 
 ---
 

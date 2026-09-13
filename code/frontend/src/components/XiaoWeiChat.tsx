@@ -281,7 +281,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       // 进度提示气泡
       const progressMsg: Message = {
         role: 'xiaowei',
-        content: `好的，正在为你制作 H5 互动课件《${meta.title}》……（生成中，预计十几秒）`,
+        content: `好的，正在为你制作 H5 互动课件《${meta.title}》……（生成中，通常需 1~3 分钟，请先不要关闭页面）`,
         time: getTimeString(),
       }
       setMessages(prev => [...prev, progressMsg])

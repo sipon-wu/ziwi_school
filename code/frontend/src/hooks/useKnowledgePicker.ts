@@ -76,13 +76,44 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
 
   useEffect(() => {
     const load = async () => {
+      // ── 知识点数据源：**优先读后端 DB**（2026-09-13 统一数据源）──
+      // 此前读前端静态 JSON（`/knowledge-graph.json`：168 节点、字符串 ID 如 "m-1-1-1"），
+      // 而后端生成查的是本库 tb_kg_node（5552 节点、int64 ID）→ **两套 ID 体系不同**，
+      // 于是"前端选中的 ID"在后端**永远查不到**，前置链/知识面约束在真实操作下**从未生效**。
+      // 现在选择器与后端同源；静态 JSON 仅作**接口不可用时的降级**（避免白屏）。
+      let dbNodes: KnowledgeNode[] = []
       try {
-        const kgRes = await fetch('/knowledge-graph.json')
-        if (kgRes.ok) {
-          const kg = await kgRes.json()
-          setKnowledgeData(Array.isArray(kg) ? kg : [])
+        const res = await fetch('/api/ai/knowledge/nodes?limit=2000')
+        if (res.ok) {
+          const j = await res.json()
+          dbNodes = (j.nodes || []).map((n: any) => ({
+            id: String(n.id),                 // ← DB 的 int64（字符串化），与后端同源
+            name: n.name || '',
+            subject: '',                      // tb_kg_node 无 subject/grade 列（归属由 version_id 决定）
+            grade: 0,
+            unit: n.unit || '',
+            version_id: n.version_id || '',   // ← 教材版本**实体 ID**（溯源用，见 CoursewareBuilder）
+            prerequisites: n.prerequisites || [],
+            curriculum_code: '',
+            difficulty: n.difficulty || '',
+            cognitive: n.cognitive || '',
+            parent_id: n.parent_id || null,
+            next: [],
+          })) as KnowledgeNode[]
         }
-      } catch { /* 静默降级 */ }
+      } catch { /* 降级静态 JSON */ }
+
+      if (dbNodes.length) {
+        setKnowledgeData(dbNodes)
+      } else {
+        try {
+          const kgRes = await fetch('/knowledge-graph.json')
+          if (kgRes.ok) {
+            const kg = await kgRes.json()
+            setKnowledgeData(Array.isArray(kg) ? kg : [])
+          }
+        } catch { /* 静默降级 */ }
+      }
       try {
         const tbRes = await fetch('/textbook-math.json')
         if (tbRes.ok) {

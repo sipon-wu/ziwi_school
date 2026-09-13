@@ -62,6 +62,16 @@ ssh "$SERVER" "mkdir -p $REMOTE_CODE/ai-service"
 rsync -az --delete --ignore-times --exclude='.env' --exclude='__pycache__/' --exclude='*.pyc' \
   "$HERE/ai-service/" "$SERVER:$REMOTE_CODE/ai-service/"
 
+echo "==> [${ENV}] 2.6/4 同步 compose 与部署脚本到服务器"
+# 修复历史坑：此前**只同步 backend/ 与 ai-service/**，不同步 deploy/，
+# 于是"改了 compose（例如新增环境变量）"会**静默失效**——容器按旧配置起，无任何提示。
+# 实测（2026-09-12）：给 ai-service 加了 CW_GEN_MODEL / LLM_* 环境变量，部署两次都不生效，
+# 进容器 printenv 才发现远端 compose 是旧版。这类"改配置没生效"最耗时，故在此根除。
+# 只同步 compose 与脚本：**排除 .env*（含密钥）与日志**，且不用 --delete（避免误删远端密钥文件）。
+ssh "$SERVER" "mkdir -p $COMPOSE_DIR"
+rsync -az --ignore-times --exclude='.env*' --exclude='*.log' \
+  "$HERE/deploy/" "$SERVER:$COMPOSE_DIR/"
+
 echo "==> [${ENV}] 3/4 上传前端到 ${DOCROOT}"
 ssh "$SERVER" "mkdir -p $DOCROOT"
 # 发布前快照（保留最近 3 份，供 rollback 使用）
@@ -70,6 +80,42 @@ TS=$(ssh "$SERVER" "date +%Y%m%d_%H%M%S")
 ssh "$SERVER" "mkdir -p $SNAP_DIR && tar czf $SNAP_DIR/${ENV}_${TS}.tar.gz -C $DOCROOT . 2>/dev/null || true"
 ssh "$SERVER" "ls -t $SNAP_DIR/${ENV}_*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f"
 ( cd "$FE_DIR" && tar czf - dist ) | ssh "$SERVER" "rm -rf $DOCROOT && mkdir -p $DOCROOT && tar xzf - -C $DOCROOT --strip-components=1"
+
+echo "==> [${ENV}] 3.2/4 应用数据库迁移（幂等；必须在后端启动之前、且早于容器清理）"
+# 为什么必须自动化（2026-09-13）：schema 变更此前**没有迁移步骤** —— 加列只能人工
+# `ssh + psql`（本轮 0009 就是这么打的）。而"忘了迁移就部署新后端"会让 GORM 读取
+# 不存在的列**直接报错**，报错点远离根因，极难排查。
+# 位置很关键：必须在 **3.5 清理容器之前**（那一步会 `docker rm -f` 掉 postgres，
+# 之后 docker exec 找不到容器 —— 第一版就踩了这个坑）。
+# 做法：migrations/*.sql 按文件名顺序、逐个从**本地**管道执行（不依赖远端是否已同步）；
+# 脚本均为 `IF NOT EXISTS` 风格、可重复执行；任一步失败即**中止部署**，
+# 避免"schema 与代码不一致"的半成品上线。容器名：zhiwei-postgres-${ENV}（staging/prod 独立栈）。
+# 自愈（2026-09-13 首次试运行踩到）：若 postgres 容器**不存在**（例如上一次部署在 3.5 清掉容器后中途失败），
+# 先把它拉起来 —— 否则迁移无容器可执行，部署会卡死在这里，且**服务会一直处于停的状态**。
+if ! ssh "$SERVER" "docker ps --format '{{.Names}}' | grep -q '^zhiwei-postgres-${ENV}\$'"; then
+  echo "    ! postgres 容器不存在，先拉起（自愈）"
+  ssh "$SERVER" "cd $COMPOSE_DIR && docker compose $PROJECT -f $COMPOSE --env-file $ENV_FILE up -d postgres-${ENV}" || true
+  sleep 6
+fi
+
+# ⚠ 只跑「编号 3 位以上、且非 .down.sql」的迁移 ——
+# 事故记录（2026-09-13，我犯的错）：第一版写成 `migrations/*.sql`，于是把**回滚脚本**
+# `001_init_schema.down.sql`（内容是一串 `DROP TABLE ... CASCADE`）也当成迁移执行了，
+# 直接删掉 23 张表（含 materials 素材库、users、schools、lesson_plans），
+# 而随后的 `001_init_schema.up.sql` 又因外键类型不兼容报错停在半途 →
+# **staging 数据被清空且 schema 不一致**。教训：
+#   ① 迁移目录里的**回滚脚本**绝不能被"按序全跑"的逻辑扫到；
+#   ② 基线脚本（001）是"从零建库"用的，也不该在增量部署里跑。
+# 因此这里显式排除 down 与 001 基线，并只认 `NNN[0-9]_*.sql`。
+for _f in "$BE_DIR"/migrations/[0-9][0-9][0-9][0-9]_*.sql "$BE_DIR"/migrations/[0-9][0-9][0-9][0-9][0-9]_*.sql; do
+  case "$_f" in
+    *.down.sql) continue ;;   # 双保险：回滚脚本永不自动执行
+  esac
+  [ -f "$_f" ] || continue
+  echo "    - 应用 $(basename "$_f")"
+  ssh "$SERVER" "set -a; . $ENV_FILE; set +a; docker exec -i zhiwei-postgres-${ENV} psql -U \"\$DB_USER\" -d \"\$DB_NAME\" -v ON_ERROR_STOP=1 -f -" \
+    < "$_f" || { echo "    ✗ 迁移失败：$(basename "$_f")（已中止部署，避免 schema 与代码不一致）"; exit 1; }
+done
 
 echo "==> [${ENV}] 3.5/4 清理可能遗留的非 compose 托管孤儿容器（历史手搓部署遗留），确保可干净重建"
 if [ "$ENV" = "staging" ]; then
