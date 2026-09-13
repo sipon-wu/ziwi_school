@@ -527,17 +527,51 @@ const RUNTIME_JS = `
   function pickLang(t){
     return /[\\u4e00-\\u9fa5]/.test(t || '') ? 'zh-CN' : 'en-US';
   }
+  // 停止/关闭控件（2026-09-13 补）：此前点读**只能开始、无法暂停或关闭**
+  // （反馈"没有播放器，不知道如何暂停与关闭"）。现在朗读时右下角出现「停止朗读」，
+  // 再点同一个词也等于关闭，朗读结束自动收起。
+  function stopSpeak(){
+    try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){}
+    var b = root.querySelector('.tts-stop');
+    if(b && b.parentNode) b.parentNode.removeChild(b);
+    root.querySelectorAll('.read-word').forEach(function(x){ x.classList.remove('on'); });
+  }
+  function showStopBtn(){
+    if(root.querySelector('.tts-stop')) return;
+    var b = document.createElement('button');
+    b.className = 'tts-stop';
+    b.textContent = '停止朗读';
+    b.setAttribute('style','position:fixed;right:16px;bottom:16px;z-index:9999;padding:9px 16px;'
+      + 'border-radius:999px;border:0;background:rgba(17,17,17,.78);color:#fff;font-size:13px;'
+      + 'line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25)');
+    b.addEventListener('click', function(){ stopSpeak(); });
+    root.appendChild(b);
+  }
   function tts(text){
     try{
       if('speechSynthesis' in window){
         var u = new SpeechSynthesisUtterance(text);
-        u.lang = pickLang(text); u.rate = 0.9;
+        var lang = pickLang(text);
+        u.lang = lang; u.rate = 0.9;
+        // 只设 lang 不够：系统若无对应音色，浏览器会回落默认音色（常见为英文）
+        // —— 这正是"设了 zh-CN 仍读英文"的常见原因，故显式挑一个匹配音色。
+        try{
+          var vs = speechSynthesis.getVoices() || [];
+          var base = lang.split('-')[0].toLowerCase();
+          for(var i=0;i<vs.length;i++){
+            if((vs[i].lang||'').toLowerCase().indexOf(base) === 0){ u.voice = vs[i]; u.lang = vs[i].lang; break; }
+          }
+        }catch(e){}
+        u.onend = function(){ stopSpeak(); };
+        u.onerror = function(){ stopSpeak(); };
         speechSynthesis.cancel(); speechSynthesis.speak(u);
+        showStopBtn();
       }
     }catch(e){}
   }
   root.querySelectorAll('.read-word').forEach(function(b){
     b.addEventListener('click', function(){
+      if(b.classList.contains('on')){ stopSpeak(); return; }   // 再点一次 = 关闭朗读
       root.querySelectorAll('.read-word').forEach(function(x){ x.classList.remove('on'); });
       b.classList.add('on'); tts(b.getAttribute('data-text'));
     });
@@ -549,7 +583,16 @@ const RUNTIME_JS = `
     var i = item.getAttribute('data-i');
     var text = item.getAttribute('data-text');
     var status = item.querySelector('.ra-status');
-    item.querySelector('.ra-play').addEventListener('click', function(){ tts(text); });
+    // 跟读的「示范」同样可关闭（2026-09-13）：再点一次＝停止，避免"点了关不掉"
+    var _raPlay = item.querySelector('.ra-play');
+    if(_raPlay){
+      _raPlay.addEventListener('click', function(){
+        if(_raPlay.classList.contains('on')){ stopSpeak(); _raPlay.classList.remove('on'); _raPlay.textContent = '▶ 示范'; return; }
+        root.querySelectorAll('.ra-play').forEach(function(x){ x.classList.remove('on'); x.textContent = '▶ 示范'; });
+        _raPlay.classList.add('on'); _raPlay.textContent = '⏹ 停止';
+        tts(text);
+      });
+    }
     var recBtn = item.querySelector('.ra-rec');
     recBtn.addEventListener('click', function(){
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ status.textContent='设备不支持'; return; }

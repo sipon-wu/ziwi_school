@@ -200,10 +200,18 @@ def list_kg_units(version_id=None, limit=200):
     if version_id:
         where = "WHERE version_id = %s"
         params.append(version_id)
+    # 排序与过滤（2026-09-13 修）：
+    #   ① 此前 `ORDER BY dan_yuan` 是**按字符串升序** → 少量"数字编码"行（如 '100000'）
+    #      恰好排在汉字前 → 只取前几条时**看起来像"整列的单元都是数字"**（我据此误判过一次）。
+    #   ② 真实分布以可读单元名为绝大多数（课文一~八 / 识字一 …），数字串是少数数据质量瑕疵行。
+    # 故：过滤纯数字值 + 让可读名称优先（数字串即使存在也沉到最后，不再干扰取值）。
+    # 说明：不删数据、不改表，仅调整本接口的呈现口径。
     sql = (
         "SELECT dan_yuan AS unit, count(*) AS cnt FROM tb_kg_node "
-        f"{where} GROUP BY dan_yuan HAVING dan_yuan IS NOT NULL AND dan_yuan <> '' "
-        "ORDER BY dan_yuan LIMIT %s"
+        f"{where} {'AND' if where else 'WHERE'} dan_yuan IS NOT NULL AND dan_yuan <> '' "
+        "AND dan_yuan !~ '^[0-9]+$' "                    # 排除纯数字编码
+        "GROUP BY dan_yuan "
+        "ORDER BY (dan_yuan ~ '^[0-9]') ASC, dan_yuan LIMIT %s"   # 可读名称优先
     )
     params.append(max(1, min(500, int(limit or 200))))
     out = []

@@ -15,6 +15,7 @@ import { useToast } from '../components/Toast'
 import { pushXiaoweiPrompt } from '@/lib/xiaoweiContext'
 
 interface Message {
+  id?: string          // 可选 id：用于「原地更新」某条消息（如生成进度气泡，2026-09-14）
   role: 'user' | 'xiaowei'
   content: string
   imageUrl?: string
@@ -278,18 +279,26 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
     const intent = detectCoursewareIntent(text)
     if (intent.hit) {
       const meta = parseCoursewareMeta(text, { subject: teaching.subject, grade: teaching.grade })
-      // 进度提示气泡
+      // 进度提示气泡（2026-09-14 改为**原地更新**）：接入 SSE 后，气泡会随阶段变化，
+      // 不再是一句话挂 2 分钟、让人以为卡死。用 id 定位这条消息（Message 新增可选 id）。
+      const progressId = 'cw-' + Date.now()
       const progressMsg: Message = {
+        id: progressId,
         role: 'xiaowei',
         content: `好的，正在为你制作 H5 互动课件《${meta.title}》……（生成中，通常需 1~3 分钟，请先不要关闭页面）`,
         time: getTimeString(),
       }
       setMessages(prev => [...prev, progressMsg])
       try {
-        const res = await aiAPI.generateCourseware({
+        const res = await aiAPI.generateCoursewareStreaming({
           subject: meta.subject, grade: meta.grade, lesson_title: meta.title,
           content: '', school_id: '', extra_requirements: intent.extra,
           format: 'h5',
+        }, (_stage, message) => {
+          // 原地更新进度气泡（气泡里显示后端推来的真实阶段）
+          setMessages(prev => prev.map(m => m.id === progressId
+            ? { ...m, content: `正在为你制作 H5 互动课件《${meta.title}》……（${message}）` }
+            : m))
         })
         const md = res.courseware_markdown || ''
         if (!md) throw new Error('生成内容为空')

@@ -158,6 +158,8 @@ export default function LessonPlanEditor() {
   const [coursewareMarkdown, setCoursewareMarkdown] = useState('')
   const [showCourseware, setShowCourseware] = useState(false)
   const [generatingCourseware, setGeneratingCourseware] = useState(false)
+  // 课件生成进度（来自 SSE）：本页暂无展示位，先持有以避免"静默长等待"（后续可在按钮旁显示）
+  const [cwStage, setCwStage] = useState('')
   const [coursewareSimilar, setCoursewareSimilar] = useState<any>(null)
   const [savingCourseware, setSavingCourseware] = useState(false)
   // 富媒体编辑器全屏
@@ -442,11 +444,15 @@ export default function LessonPlanEditor() {
   const handleGenerateCourseware = async () => {
     if (!content) { toast('请先生成或填写教案正文', 'warning'); return }
     setGeneratingCourseware(true)
+    setCwStage('')
     try {
-      const res = await aiAPI.generateCourseware({
+      // 改为流式（2026-09-14）：与课件编辑器走**同一条链路** —— SSE 让数据持续流动，
+      // 避免长任务被网关读超时掐断（强模型含重试时可达 150~200s）。
+      // 进度写入 cwStage（本页当前没有对应的展示位，故先只用于避免"静默长等待"）。
+      const res = await aiAPI.generateCoursewareStreaming({
         subject, grade, lesson_title: lessonTitle || '未命名教案',
         content, school_id: getSchoolId(),
-      })
+      }, (_stage, message) => setCwStage(message))
       setCoursewareMarkdown(res.courseware_markdown || '')
       setCoursewareSimilar(res.similar_material || null)
       if (Array.isArray(res.recommended_refs) && res.recommended_refs.length) {
@@ -455,6 +461,7 @@ export default function LessonPlanEditor() {
       setShowCourseware(true)
     } catch (e: any) { toast('课件生成失败: ' + (e.message || '未知错误'), 'error') }
     setGeneratingCourseware(false)
+    setCwStage('')
   }
 
   // 保存生成的课件到素材库并挂载到本教案
