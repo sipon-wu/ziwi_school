@@ -62,3 +62,30 @@
 ### 说明
 - 配色 `theme_id` 仅存引用字符串，配色解析仍由前端 `pptThemes.ts` 负责，后端不维护 theme 表。
 - 前端常量 → 后端切换、生成课件时按 facet 推荐模板，列为后续任务。
+
+---
+
+## 2026-09-12 ~ 09-16（回填：会话改动盘点）
+
+> 来源：代码注释盘点 + 独立复核（`qa/文档评审_20260916.md`）。
+> 决议类改动见根 `DECISIONS.md` 同日期回填段；本段只记**缺陷修正**与实现细节。
+
+### 修正（缺陷）
+- H5 生成用**旧 themeId/旧 colorRoot** 渲染（生成端 `setState` 异步致快照用旧值）— `CoursewareBuilder.tsx:588`
+- 素材库"新建课件"跳登录页：`/courseware/new` 不匹配任何路由 → 命中 `*` — `Materials.tsx:179`
+- `GEN_MODEL` 显式传参**绕过通道配置** — `api_server.py:1246`
+- 知识点判定条件写错（`not kp_names and kp_ids` 用错分支）— `api_server.py:522`
+- `anchor_coverage` 只按名称匹配（应"ID 是身份、名称是匹配依据"）— `api_server.py:539`
+- H5 点读**只能开始、无法暂停/关闭** — `renderer.ts:559/615`
+- H5 编辑态空白页（真因）— `CoursewareBuilder.tsx:2513/2537`
+- **生成后白屏**根因：组件数据消毒（模型把 `items[].label` 写成对象 → React #31）+ 文本元素消毒 + 截断样式落内层 div + 排序传感器须在组件顶层调用 — `VisualBlocks.tsx:531/198`、`PptxPreview.tsx:350`、`CoursewareBuilder.tsx:1611`
+- 窄屏词卡被压成"一字一行"（`.read-list` 死写 `1fr 1fr`）— `renderer.ts:1185`
+- H1 标题行**永不当旁白** — `mdToStory.ts:334`
+- compare-table「残表」修正 — `ai-service/scripts/generate_seed_coursewares.py:447`
+- 素材库上传/列表与编辑器渲染不同源（改为物化元素层）— `Materials.tsx:438`
+- 左栏按钮硬编码深蓝选中态（脱离主题）— `CoursewareBuilder.tsx:1450`
+- 迁移/备份踩坑技术细节（回滚脚本被当迁移执行 → 迁移自动化 + 资产快照）— `deploy.sh:85/93`
+
+### 说明
+- 本轮同时落地：`lib/layoutLaw.ts`、`lib/textClean.ts`、`lib/versionPolicy.ts` 三个缺省规则模块（规格见 `产品规划/缺省规则.md`）。
+- 静默吞异常仍有约 20 处残留（清单见评审记录），**待专项清理**。
