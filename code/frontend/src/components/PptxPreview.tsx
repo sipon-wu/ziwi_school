@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Undo2, Redo2 } from 'lucide-react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { CwElement, CwSlide, H5Component } from '../lib/exportPptx'
-import { layoutElements, extractBullets, normalizeInteractive } from '../lib/exportPptx'
+import { layoutElements, extractBullets, normalizeInteractive, resolveElementRect } from '../lib/exportPptx'
 import type { CwTheme } from '../lib/pptThemes'
 import { DEFAULT_THEME } from '../lib/pptThemes'
 import { getSkeleton, distributeToSlots, isStructuredLayout } from '../lib/cwTemplate'
@@ -46,7 +46,7 @@ function c(v?: string): string {
 // 无标题底带的版式清单已提升为共享规则（styleRegistry.FRAMELESS_LAYOUTS），
 // 预览与导出同用一份，避免"预览不画底带、导出画"这类两端不一致。
 
-function SlideFrame({ theme, layout, visCount = 0 }: { theme: CwTheme; layout: string; visCount?: number }) {
+function SlideFrame({ theme, layout, visCount = 0, info }: { theme: CwTheme; layout: string; visCount?: number; info?: Array<{ label: string; value: string }> }) {
   const p = c(theme.primary)
   const f = c(theme.footer || theme.primary)
   const sub = c(theme.subtle)
@@ -58,25 +58,23 @@ function SlideFrame({ theme, layout, visCount = 0 }: { theme: CwTheme; layout: s
   if (visCount > 0) return null
   switch (layout) {
     case 'edu-cover':
+      // 底部信息条（2026-09-15 改为**真实值**）：此前是写死的三格装饰（标签"年级/学科/教师"、值恒为"—"），
+      // 教师看到的是一条空格子，观感像没做完。现在渲染 学科/年级/班级/教师署名（值来自 coverInfoFrom），
+      // 空项不出现（连条也不画）——"没值就留白"好过"印一串破折号"。
+      if (!info || info.length === 0) return null
       return (
         <div className="pointer-events-none absolute inset-0">
-          {/* 底部信息条（年级/学科/教师三栏底纹） */}
-          <div className="absolute bottom-[8%] left-[12%] flex w-[76%] items-center justify-between rounded-md px-5 py-3"
+          <div className="absolute bottom-[8%] left-[12%] flex w-[76%] items-center justify-center gap-6 rounded-md px-5 py-3"
                style={{ background: 'rgba(255,255,255,0.16)', backdropFilter: 'blur(2px)' }}>
-            <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
-              <div className="text-[10px] opacity-70">年级</div>
-              <div className="text-sm font-bold">—</div>
-            </div>
-            <div className="h-6 w-px" style={{ background: 'rgba(255,255,255,0.4)' }} />
-            <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
-              <div className="text-[10px] opacity-70">学科</div>
-              <div className="text-sm font-bold">—</div>
-            </div>
-            <div className="h-6 w-px" style={{ background: 'rgba(255,255,255,0.4)' }} />
-            <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
-              <div className="text-[10px] opacity-70">教师</div>
-              <div className="text-sm font-bold">—</div>
-            </div>
+            {info.map((it, i) => (
+              <div key={it.label} className="flex items-center gap-6">
+                <div className="text-center" style={{ color: c(theme.onPrimary), fontFamily: theme.font }}>
+                  <div className="text-[10px] opacity-70">{it.label}</div>
+                  <div className="text-sm font-bold">{it.value}</div>
+                </div>
+                {i < info.length - 1 && <div className="h-6 w-px" style={{ background: 'rgba(255,255,255,0.4)' }} />}
+              </div>
+            ))}
           </div>
         </div>
       )
@@ -318,6 +316,71 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 /** 按版心比例取画布基准尺寸（4:3 高度更高） */
 const canvasSizeOf = (ar: '16/9' | '4/3') => ar === '4/3' ? { w: 960, h: 720 } : { w: 960, h: 540 }
 
+/** 静态幻灯片的缩放容器（2026-09-14）。
+ *  统一"逻辑画布 + 按可用宽高缩放"这一条机制：编辑态与静态态由此尺寸规则一致
+ *  （此前静态态用 CSS aspect-ratio 撑满容器宽度，**不看高度** → 短窗口下会超出视口）。 */
+function ScaledSlide({ cw, ch, fitHeight = true, children }: { cw: number; ch: number; fitHeight?: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+  useLayoutEffect(() => {
+    const wrap = ref.current?.parentElement
+    if (!wrap) return
+    const update = () => {
+      const availW = wrap.clientWidth
+      const top = wrap.getBoundingClientRect().top
+      const availH = Math.max(200, window.innerHeight - top - 34)
+      const s = fitHeight ? Math.min(availW / cw, availH / ch) : availW / cw
+      setScale(s > 0 ? s : 1)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(wrap)
+    window.addEventListener('resize', update)
+    return () => { ro.disconnect(); window.removeEventListener('resize', update) }
+  }, [cw, ch, fitHeight])
+  return (
+    <div ref={ref} className="mx-auto" style={{ width: cw * scale, height: ch * scale }}>
+      <div style={{ width: cw, height: ch, transform: `scale(${scale})`, transformOrigin: 'top left' }}>{children}</div>
+    </div>
+  )
+}
+
+import { stripDecorMarkers } from '../lib/textClean'
+
+/** 文本消毒（2026-09-15）：元素/组件里本该是字符串的字段，模型偶尔写成对象
+ *  （实测 `items[].label = {label, desc}` → React #31 → 整页白屏）。
+ *  渲染前统一过一遍，取对象里的文本，兜住"生成内容把画布打崩"这一类事故。 */
+export function asText(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return stripDecorMarkers(v)
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  const rec = v as Record<string, unknown>
+  for (const k of ['text', 'label', 'title', 'name', 'desc', 'value']) {
+    const x = rec[k]
+    if (typeof x === 'string' || typeof x === 'number') return stripDecorMarkers(String(x))
+  }
+  return ''
+}
+
+/** 真实缩略图（2026-09-14）：与画布/预览**同一个渲染器**（renderStaticSlide）的缩微实例，按容器宽度等比缩放。
+ *  此前用的是 `renderSlideThumb`（cwTemplate.ts）—— 它画的是"示意线框"（几条灰条 + 标题），
+ *  内容、版式、组件都与真实页无关；教师按缩略图找页时会看到"不是这一页的样子"。
+ *  这里只做两件事：① 复用同一渲染器；② 关闭内部交互（pointer-events:none，点击交给外层按钮）。 */
+export function SlideThumb({ slide, theme, idx, ar = '16/9' }: {
+  slide?: CwSlide; theme: CwTheme; idx: number; ar?: '16/9' | '4/3'
+}) {
+  const { w: CW, h: CH } = canvasSizeOf(ar)
+  if (!slide) {
+    return <div className="w-full bg-[#F2F3F5]" style={{ aspectRatio: ar === '4/3' ? '4 / 3' : '16 / 9' }} />
+  }
+  return (
+    <div className="pointer-events-none select-none overflow-hidden bg-white">
+      {/* fitHeight=false：缩略图只按宽度缩放（不参与"整页可见"的窗口适配） */}
+      <ScaledSlide cw={CW} ch={CH} fitHeight={false}>{renderStaticSlide(slide, theme, idx, ar)}</ScaledSlide>
+    </div>
+  )
+}
+
 export default function PptxPreview({
   slides,
   theme: themeProp,
@@ -372,9 +435,14 @@ export default function PptxPreview({
     onSlideChange?.(current, slide)
   }
 
+  // 高度链（2026-09-14）：此前根节点没有 h-full/min-h-0 → 画布 pane 的高度不受视口约束，
+  // 内容（486px）把 pane 撑住且不收缩，窗口一矮画布就被顶到屏幕外（实测 1000×520 被裁 119px）。
   return (
-    <div className={`flex flex-col ${className || ''}`}>
-      <div className="mx-auto max-w-4xl" style={{ width: 'min(896px, 100%)' }}>
+    <div className={`flex h-full min-h-0 flex-col ${className || ''}`}>
+      {/* 画布外层（2026-09-14 修）：此前 `max-w-4xl` + `min(896px,100%)` 把画布**钉死在 896px**
+          → 全屏编辑/大屏都不放大（实测 1440 与 1920 下都是 864；全屏前后也是 864），
+          "全屏编辑=最大化画布"的意图落空。现改为跟随容器宽度，尺寸由缩放层按可用宽高适配。 */}
+      <div className="mx-auto flex w-full flex-1 min-h-0 flex-col">
         {editable ? (
           <EditableCanvas key={current} slideKey={current} slide={slides[current]} theme={theme} onChange={handleSlideChange} cw={CW} ch={CH} ar={ar} onArChange={setAr} embedFullscreen={embedFullscreen} onSelect={onSelect} onSelectDecor={onSelectDecor} onReplaceDecor={onReplaceDecor} />
         ) : viewMode === 'single' ? (
@@ -390,14 +458,14 @@ export default function PptxPreview({
                 window.setTimeout(() => { wheelLock.current = false }, 320)
               }}
             >
-              {renderStaticSlide(slides[current], theme, current, ar)}
+              <ScaledSlide cw={CW} ch={CH}>{renderStaticSlide(slides[current], theme, current, ar)}</ScaledSlide>
             </div>
           </div>
         ) : (
           <div className="space-y-6">
             {slides.map((s, idx) => (
               <div key={idx} className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
-                {renderStaticSlide(s, theme, idx, ar)}
+                <ScaledSlide cw={CW} ch={CH} fitHeight={false}>{renderStaticSlide(s, theme, idx, ar)}</ScaledSlide>
               </div>
             ))}
           </div>
@@ -681,8 +749,8 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
   // 语义上 edu-cover 就该是封面，故一并走封面分支（深底 + 白字 + 信息条）。
   if (s.kind === 'cover' || lay === 'edu-cover') {
     return (
-      <div className="relative" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', background: c(theme.coverBg) }}>
-        <SlideFrame theme={theme} layout={lay} />
+      <div className="relative h-full w-full" style={{ background: c(theme.coverBg), fontFamily: theme.font }}>
+        <SlideFrame theme={theme} layout={lay} info={s.coverInfo} />
         <SlideDecor theme={theme} layout={lay} />
         <DecorLayer decor={s.decor} />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8" style={{ fontFamily: theme.font }}>
@@ -696,7 +764,7 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
     )
   }
   return (
-    <div className="relative bg-white" style={{ aspectRatio: aspectRatio === '4/3' ? '4 / 3' : '16 / 9', fontFamily: theme.font }}>
+    <div className="relative h-full w-full bg-white" style={{ fontFamily: theme.font }}>
       <SlideFrame theme={theme} layout={lay} visCount={normalizeVisuals((s as any).visuals).length} />
       <SlideDecor theme={theme} layout={lay} />
       {/* 结构语汇层（与 H5 同源）：底纹 / 边栏 / 角标 —— 纯文字页的结构性差异来源 */}
@@ -708,10 +776,12 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
         <TitleBlock title={s.title} theme={theme} lay={lay} />
       </div>
       {/* 内容与模板分离：结构化版式优先按骨架渲染（即时分发/预存 slots），自由元素只在非结构化版式回退 */}
-      {isStructuredLayout(lay) ? (
-        renderLayoutContent(s, theme)
-      ) : s.elements && s.elements.length ? (
-        renderElementsStatic(s.elements)
+      {/* 渲染收敛（2026-09-14）：**元素层是唯一渲染源** —— 编辑态与预览态由此渲染同一份数据、同一套几何。
+          此前是「结构化版式走 renderLayoutContent（slots + 硬编码几何），非结构化才走 elements」，
+          于是同页两态不一致、且组件只在预览可见（因为编辑态根本不渲染组件）。
+          仅当页面没有元素（极端历史数据）才回落到版式渲染，保证任何课件都能显示。 */}
+      {s.elements && s.elements.length ? (
+        renderElementsStatic(s.elements, lay, styleKeyFromThemeId(theme.id), theme)
       ) : (
         renderLayoutContent(s, theme)
       )}
@@ -1057,18 +1127,27 @@ function renderLayoutContent(s: CwSlide, theme: CwTheme) {
   )
 }
 
-function renderElementsStatic(elements: CwElement[]) {
+function renderElementsStatic(elements: CwElement[], layout?: string, styleKey?: StyleKey | '', theme?: CwTheme) {
+  // 组件元素的主题：与旧 vis 分支同一份构造，保证"元素层里的组件"与"原组件渲染"视觉一致
+  const vt = theme
+    ? { primary: c(theme.primary), body: c(theme.body), subtle: c(theme.subtle || '777777'), font: theme.font || FONT }
+    : undefined
   return (
     <>
-      {elements.map((el) => (
+      {elements.map((el) => {
+        // 未覆盖的元素跟随「当前版式 + 当前风格」（与编辑态同一个解析出口 → 编辑=预览）
+        const r = resolveElementRect(el, layout, styleKey)
+        return (
         <div
           key={el.id}
           className="absolute overflow-hidden"
           style={{
-            left: `${el.x}%`, top: `${el.y}%`, width: `${el.w}%`, height: `${el.h}%`,
+            left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%`,
             transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
           }}
         >
+          {/* 组件元素（type='visual'）：与文本框/形状同层同源，只是渲染交给组件自身 */}
+          {el.type === 'visual' && el.visual && vt && <VisualBlockView block={el.visual} theme={vt} />}
           {el.type === 'text' && (
             <div
               className="h-full w-full whitespace-pre-wrap"
@@ -1079,7 +1158,7 @@ function renderElementsStatic(elements: CwElement[]) {
                 textAlign: el.align || 'left', fontFamily: el.fontFamily || FONT, lineHeight: el.lineHeight || 1.4,
               }}
             >
-              {el.bullet ? (el.text || '').split('\n').map((t, k) => <div key={k}>• {t}</div>) : el.text}
+              {el.bullet ? asText(el.text).split('\n').map((t, k) => <div key={k}>• {t}</div>) : asText(el.text)}
             </div>
           )}
           {el.type === 'image' && el.src && (
@@ -1089,7 +1168,8 @@ function renderElementsStatic(elements: CwElement[]) {
             <ShapeRender shape={el.shape} fill={el.fill} />
           )}
         </div>
-      ))}
+        )
+      })}
     </>
   )
 }
@@ -1173,6 +1253,18 @@ const FONT_OPTS = ['Microsoft YaHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', '
 function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChange, embedFullscreen, onSelect, onSelectDecor, onReplaceDecor }: EditableCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
+  // 适配档位（2026-09-14）：'window' = 宽高双向适配（保证完整可见，默认）；
+  //                    'width'  = 只按宽度适配（画布更大，纵向可滚动）。
+  // 小窗口下"完整可见"与"看得够大"是两个合理诉求，交给教师选；偏好持久化。
+  // ★ 必须声明在下方缩放 effect 之前 —— deps 数组在 render 时求值，放后面会触发 TDZ 崩溃。
+  const [fitMode, setFitMode] = useState<'window' | 'width'>(() => {
+    try { return localStorage.getItem('cw_fit_mode') === 'width' ? 'width' : 'window' } catch { return 'window' }
+  })
+  const toggleFitMode = () => setFitMode((m) => {
+    const next = m === 'window' ? 'width' : 'window'
+    try { localStorage.setItem('cw_fit_mode', next) } catch { /* 存储不可用时忽略 */ }
+    return next
+  })
   const [selIds, setSelIds] = useState<string[]>([])
   const [selDecor, setSelDecor] = useState<DecorSelection | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1221,30 +1313,64 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   useEffect(() => { hIndexRef.current = hIndex }, [hIndex])
   useEffect(() => { historyRef.current = history }, [history])
 
-  // 自适应缩放：用 canvasRef 父级的父级（flex-1 容器）的 clientWidth 作为可用宽度基准
+  // 自适应缩放（2026-09-14 修：此前**只看宽度**且封顶 1）：
+  //   ① 只按宽度算 → 窗口一矮，画布下半截被切掉，而承载它的 pane 因 flexbox min-height 不收缩、
+  //      也不可滚动 → 画布直接看不到（实测 1200×600 裁 39px、1000×520 裁 119px，且滚不动）。
+  //   ② 封顶 1 → 全屏/大屏永不放大（实测全屏前后都是 864×486）。
+  // 现改为**按可用宽高双向适配**：任何窗口下画布都完整可见；容器变大即随之放大（全屏才真正"最大化"）。
   useLayoutEffect(() => {
     const wrap = canvasRef.current?.parentElement?.parentElement
     if (!wrap) return
-    const update = () => setScale(Math.min(1, wrap.clientWidth / cw))
+    const update = () => {
+      const availW = wrap.clientWidth
+      // 高度基准 = min(pane 自身高度, 视口内剩余高度)：
+      //   · 视口项（wrap.top 由布局决定，不随画布尺寸变化 → 无反馈回环）**保证完整可见**；
+      //   · pane 项防止画布超出承载容器。
+      // 只用 pane 高度不行：高度链上任一层缺 min-h-0，pane 就会被内容撑住（实测会把画布顶出屏幕）。
+      const paneH = wrap.clientHeight - 16
+      const viewH = Math.max(200, window.innerHeight - wrap.getBoundingClientRect().top - 34)
+      const availH = Math.min(paneH, viewH)
+      // 适配档位：'window' = 宽高取小（完整可见）；'width' = 只看宽（更大，画布纵向超出时 pane 可滚动）
+      const s = fitMode === 'width' ? availW / cw : Math.min(availW / cw, availH / ch)
+      setScale(s > 0 ? s : 1)
+    }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(wrap)
-    return () => ro.disconnect()
-  }, [])
+    window.addEventListener('resize', update)
+    return () => { ro.disconnect(); window.removeEventListener('resize', update) }
+  }, [cw, ch, fitMode])
 
   const emit = (els: CwElement[], t: string, lay: string) => {
     onChange({ ...slide, title: t, layout: lay as CwSlide['layout'], elements: els })
   }
+  /** 影响「跟随」的字段：几何与视觉样式。纯文本改动不在其中 —— 改字不该让这一页失去跟随风格的能力
+   *  （与 PPT「改内容 ≠ 改格式」一致）。 */
+  const OVERRIDE_KEYS: (keyof CwElement)[] = ['x', 'y', 'w', 'h', 'rotation', 'fontSize', 'color',
+    'bold', 'italic', 'underline', 'align', 'lineHeight', 'fontFamily', 'bullet', 'shape', 'fill', 'src']
+  /** 教师改动 → 把「几何或视觉样式变了」的元素标记为已覆盖（固化，不再跟随版式/风格）。
+   *  未覆盖元素只是显示时解析，数据里仍留着出生时的坐标，所以这里必须真的写回 overridden。 */
+  const markOverridden = (els: CwElement[]): CwElement[] => {
+    const prev = new Map(elementsRef.current.map((e) => [e.id, e]))
+    return els.map((el) => {
+      if (!el.slotKey || el.overridden) return el              // 无版式引用 / 已覆盖 → 不动
+      const p = prev.get(el.id)
+      if (!p) return { ...el, overridden: true }               // 新增元素
+      return OVERRIDE_KEYS.some((k) => p[k] !== el[k]) ? { ...el, overridden: true } : el
+    })
+  }
   /** 应用变更（不入历史栈，拖动过程中的实时预览用） */
   const apply = (els: CwElement[], t = titleRef.current, lay = layoutRef.current) => {
-    setElements(els); setTitle(t); setLayout(lay)
-    emit(els, t, lay)
+    const next = markOverridden(els)
+    setElements(next); setTitle(t); setLayout(lay)
+    emit(next, t, lay)
   }
   /** 提交变更（入历史栈，截断 redo 分支） */
   const commit = (els: CwElement[], t = titleRef.current, lay = layoutRef.current) => {
-    setElements(els); setTitle(t); setLayout(lay)
-    emit(els, t, lay)
-    const snap: Snap = { elements: els, title: t, layout: lay }
+    const next = markOverridden(els)
+    setElements(next); setTitle(t); setLayout(lay)
+    emit(next, t, lay)
+    const snap: Snap = { elements: next, title: t, layout: lay }
     setHistory(prev => [...prev.slice(0, hIndexRef.current + 1), snap].slice(-50))
     setHIndex(prev => Math.min(prev + 1, 49))
   }
@@ -1706,6 +1832,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   const B = 'border border-[#E7E7EB] hover:bg-[#F6F7F8] text-[#353535]'
   const BActive = 'border border-[#02A7F0] bg-[#02A7F0] text-white'
   const SEL = '#02A7F0' // 选中高亮（替代 #4472C4）
+  // 组件元素（type='visual'）的主题：与静态渲染同一份构造 → 编辑态看到的组件 = 预览态看到的组件
+  const visTheme = { primary: c(theme.primary), body: c(theme.body), subtle: c(theme.subtle || '777777'), font: theme.font || FONT }
 
   // ── 属性面板（Portal 到 body，fixed 定位跟随选中元件，避免遮挡画布内容与批注栏） ──
   const propPanelContent = !panelCollapsed && selId && sel && (dragPos || popupPos) && (
@@ -1840,7 +1968,10 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
       {/* 中央：工具条 + 画布 */}
       <div className="flex-1 flex flex-col overflow-hidden px-4 py-3">
         {/* 工具条（与画布同宽居中） */}
-        <div className="mb-1.5 flex flex-wrap items-center gap-1 text-[11px] shrink-0 mx-auto" style={{ maxWidth: 'min(896px, 100%)' }}>
+        {/* 工具条（2026-09-14 修）：此前 `flex-wrap` → 按钮多时换行成 3~4 行，
+            实测吃掉 100~250px 高度（全屏 pane 只剩 538 高，画布因此比非全屏还小）。
+            改为**不换行 + 横向可滚动**：高度恒定，画布拿到应得的高度。 */}
+        <div className="mb-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto text-[11px] shrink-0 mx-auto w-full">
           <button title="撤销 (Ctrl+Z)" disabled={hIndex <= 0} onClick={undo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40 flex items-center gap-1`}><Undo2 size={13} /> 撤销</button>
           <button title="重做 (Ctrl+Y)" disabled={hIndex >= history.length - 1} onClick={redo} className={`px-1.5 py-0.5 rounded ${B} disabled:opacity-40 flex items-center gap-1`}><Redo2 size={13} /> 重做</button>
           <span className="mx-0.5 text-[#E7E7EB]">|</span>
@@ -1911,6 +2042,14 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
           </select>
           {/* 版心比例由父级顶栏控制（避免重复），此处不重复 */}
           <span className={`rounded px-1.5 py-0.5 ${B} text-[#9A9A9A]`} title="版心比例">版心 {ar}</span>
+          {/* 适配档位（2026-09-14）：小窗口下"完整可见"与"看得更大"是两种合理诉求，交给教师选 */}
+          <button onClick={toggleFitMode}
+            title={fitMode === 'window'
+              ? '当前：适应窗口（整页完整可见）→ 点击切换到「适应宽度」（画布更大，可上下滚动）'
+              : '当前：适应宽度（画布更大，可上下滚动）→ 点击切回「适应窗口」（整页完整可见）'}
+            className={`px-2 py-0.5 rounded ${fitMode === 'width' ? 'border border-[#02A7F0] text-[#02A7F0] hover:bg-[#E8F7FF]' : B}`}>
+            {fitMode === 'window' ? '适应窗口' : '适应宽度'}
+          </button>
           <span className="flex-1" />
           {!fullscreen && !embedFullscreen && (
             <button onClick={() => setFullscreen(true)} title="全屏编辑" className={`px-2 py-0.5 rounded ${B}`}>⛶ 全屏</button>
@@ -1918,7 +2057,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
         </div>
 
         {/* 画布（按版心比例基准，按容器缩放） */}
-        <div className="flex-1 overflow-x-hidden overflow-y-auto flex items-start justify-center py-2">
+        <div className="flex-1 min-h-0 overflow-x-hidden overflow-y-auto flex items-start justify-center py-2">
           <div style={{ width: cw * scale, height: ch * scale }}>
             <div
               ref={canvasRef}
@@ -1929,7 +2068,11 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
               style={{ width: cw, height: ch, transform: `scale(${scale})`, transformOrigin: 'top left', background: isCover ? (theme.coverGradient || c(theme.coverBg)) : '#FFFFFF', fontFamily: theme.font }}
             >
               {/* 版式框架层（按 layout 绘制容器造型，垫在元素层下） */}
-              <SlideFrame theme={theme} layout={layout} />
+              <SlideFrame theme={theme} layout={layout} visCount={normalizeVisuals((slide as any).visuals).length} />
+              {/* 结构语汇层（2026-09-14 补齐）：底纹 / 边栏 / 角标。
+                  预览态一直渲染它、编辑态此前没有 → 同一页在编辑态少一层，是「编辑≠预览」的第 2 处残余。
+                  现与预览共用同一组件、同一入参，层序也一致（都垫在元素层下）。 */}
+              <StyleStructureLayer theme={theme} styleKey={styleKeyFromThemeId(theme.id)} />
               {editingTitle ? (
                 <input
                   autoFocus value={title}
@@ -1940,13 +2083,16 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                   style={{ width: '90%', color: isCover ? c(theme.onPrimary) : '#222', background: isCover ? 'transparent' : 'rgba(255,255,255,0.9)' }}
                 />
               ) : (
+                /* 标题形态与预览一致（2026-09-14）：编辑态此前用 `text-2xl font-bold` 平铺，
+                   预览用 TitleBlock（结构语汇决定 block/underline/centerRule/plain，且长标题拆「主+副」）
+                   → 两态标题长得不一样（上次实测那"1 个字符差"就是这个来源）。现复用同一组件。 */
                 <div
-                  className="absolute left-[2%] top-0 flex h-[15.3%] items-center"
-                  style={{ width: '96%' }}
+                  className="absolute left-[2%] top-0 flex items-center"
+                  style={{ width: '96%', height: `${TITLE_BAND_RATIO * 100}%` }}
                   onDoubleClick={() => setEditingTitle(true)}
                   title="双击编辑标题"
                 >
-                  <span className="truncate text-2xl font-bold" style={{ color: c(theme.onPrimary) }}>{title}</span>
+                  <TitleBlock title={title} theme={theme} lay={layout} />
                 </div>
               )}
 
@@ -1964,11 +2110,15 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
                       cursor: editing ? 'text' : el.locked ? 'default' : 'move',
                       zIndex: selected ? 10 : 1,
+                      // 组件元素：不拦截指针事件（组件内部的按钮/翻转等交互在编辑态让位给画布选择）
+                      pointerEvents: el.type === 'visual' ? 'none' : undefined,
                     }}
                     onPointerDown={(e) => onPointerDown(e, el, 'move')}
                     onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text' && !el.locked) setEditingId(el.id) }}
                     onContextMenu={(e) => onElementContextMenu(e, el)}
                   >
+                    {/* 组件元素：只读呈现（交互交给外层，内部不参与元素级编辑） */}
+                    {el.type === 'visual' && el.visual && <VisualBlockView block={el.visual} theme={visTheme} />}
                     {el.type === 'text' && (
                       editing ? (
                         <textarea
@@ -1994,7 +2144,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                             textAlign: el.align || 'left', fontFamily: el.fontFamily || FONT, lineHeight: el.lineHeight || 1.4,
                           }}
                         >
-                          {el.bullet ? (el.text || '').split('\n').map((t, k) => <div key={k}>• {t}</div>) : el.text}
+                          {el.bullet ? asText(el.text).split('\n').map((t, k) => <div key={k}>• {t}</div>) : asText(el.text)}
                         </div>
                       )
                     )}
@@ -2063,6 +2213,18 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
                 <div className="absolute pointer-events-none border bg-opacity-10" style={{ left: `${marquee.x}%`, top: `${marquee.y}%`, width: `${marquee.w}%`, height: `${marquee.h}%`, zIndex: 60, borderColor: SEL, background: `${SEL}1A` }} />
               )}
 
+              {/* 页脚（2026-09-14 补齐）：预览与导出都渲染 s.footer，编辑态此前不渲染
+                  → 同一页在编辑态少一行字，属「编辑≠预览」的残余差异 */}
+              {slide.footer && (
+                <div className="absolute bottom-[2%] right-[3%] text-[10px]" style={{ color: c(theme.footer), fontFamily: theme.font }}>{slide.footer}</div>
+              )}
+              {/* 互动层（2026-09-14 补齐）：预览渲染 InteractivePanel、编辑态此前没有 → 同一页编辑态少一层。
+                  编辑态**只读呈现**（pointer-events:none）：交互行为属播放/预览态，编辑态不该被它拦住画布操作。 */}
+              {normalizeInteractive((slide as any).interactive).length > 0 && (
+                <div className="pointer-events-none">
+                  <InteractivePanel components={normalizeInteractive((slide as any).interactive)} theme={theme} />
+                </div>
+              )}
               {/* 内容页底部主题色带（增强模板风格辨识，封面整页已用主题底故不叠） */}
               {!isCover && <div className="absolute left-0 bottom-0 h-[2.5%] w-full" style={{ background: c(theme.footer || theme.primary) }} />}
             </div>
@@ -2125,5 +2287,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     )
   }
 
-  return <div className="w-full select-none flex flex-col">{body}</div>
+  // flex-1 min-h-0（2026-09-14）：此前该根节点是 `flex: 0 1 auto` + `min-height: auto`
+  // → 既不伸展也不收缩，把画布 pane 卡在 ~550 高（实测可用 808 却只用 550），
+  //   全屏编辑因此比非全屏还小（928×522 < 960×540）。
+  return <div className="w-full flex-1 min-h-0 select-none flex flex-col">{body}</div>
 }

@@ -13,6 +13,10 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useTeaching } from '@/lib/TeachingContext'
 import { useToast } from '../components/Toast'
 import { pushXiaoweiPrompt } from '@/lib/xiaoweiContext'
+import {
+  detectTemplateIntent, requestStyleSwitch, styleFlowStep, styleAskText, styleConfirmText,
+  styleDoneText, STYLE_CANCEL_TEXT, STYLE_LIST_TEXT, STYLE_REVERT_DONE, type StyleFlowState,
+} from '../lib/styleIntent'
 
 interface Message {
   id?: string          // 可选 id：用于「原地更新」某条消息（如生成进度气泡，2026-09-14）
@@ -48,6 +52,9 @@ function detectCoursewareIntent(text: string): { hit: boolean; extra: string } {
   return { hit: true, extra: parts.join('，') }
 }
 
+// 意图识别：操作者是否让小微「换风格 / 换模板」（**确定性动作，不发模型请求**）──
+// 规则与回报文案都在 `lib/styleIntent.ts`（**单一事实源**：编辑器里的 EditXiaoWeiPanel 用同一份，
+// 否则同一个指令会得到两个答案）。命中条件=切换动词+风格词，只说风格属于生成意图，不抢它的活。
 // 从操作者表述中尽量提取课题名/学科/年级
 function parseCoursewareMeta(text: string, teaching: { subject: string; grade: string | number }) {
   // 课题名：引号内、或"关于X的"、"X课件"、"X对话"
@@ -155,6 +162,8 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  // 换风格多轮流程的待定状态（选好档、等确认）
+  const [pendingStyle, setPendingStyle] = useState<StyleFlowState | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // ── 多媒体状态 ──
@@ -274,6 +283,39 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
     setInput('')
     setPreviewImage(null)
     setLoading(true)
+
+    // ── 换风格 / 换模板：确定性动作 + **多轮固定话术**（选档 → 二次确认含风险/开销 → 才执行）──
+    const pushXW = (content: string) =>
+      setMessages(prev => prev.concat([{ role: 'xiaowei' as const, content, time: getTimeString() }]))
+    const step = styleFlowStep(pendingStyle, text)
+    if (step) {
+      if (step.kind === 'cancelled') { pushXW(STYLE_CANCEL_TEXT); setPendingStyle(null); setLoading(false); return }
+      if (step.kind === 'confirmAsk') {
+        // **预演**（dry-run，不落地）：重档要如实报"会重排几页 / 几个元素"
+        const r = await requestStyleSwitch({ styleTag: pendingStyle?.styleTag, level: step.level, dryRun: true })
+        pushXW(styleConfirmText(pendingStyle?.label || '', step.level, r))
+        setPendingStyle(prev => ({ ...(prev || {}), level: step.level, stage: 'confirm' }))
+        setLoading(false); return
+      }
+      if (step.kind === 'execute') {
+        const r = await requestStyleSwitch({ styleTag: pendingStyle?.styleTag, level: step.level })
+        pushXW(styleDoneText(pendingStyle?.label || '', step.level, r))
+        setPendingStyle(null)
+        setLoading(false); return
+      }
+    }
+    const tplIntent = detectTemplateIntent(text)
+    if (tplIntent.hit) {
+      if (tplIntent.revert) {        // 回退动作低风险 → 即刻执行
+        const r = await requestStyleSwitch({ revert: true })
+        pushXW(r.handled ? STYLE_REVERT_DONE : (r.error || '这里没有可恢复的风格。'))
+        setPendingStyle(null); setLoading(false); return
+      }
+      if (!tplIntent.styleTag) { pushXW(STYLE_LIST_TEXT); setLoading(false); return }
+      setPendingStyle({ styleTag: tplIntent.styleTag, label: tplIntent.label, stage: 'choose' })
+      pushXW(styleAskText(tplIntent.label || ''))
+      setLoading(false); return
+    }
 
     // ── 场景化课件产出：操作者让小微直接做一个 H5 互动课件成品 ──
     const intent = detectCoursewareIntent(text)

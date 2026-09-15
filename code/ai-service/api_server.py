@@ -87,7 +87,8 @@ def channel_for(role: str = "gen") -> dict:
         return {"base_url": row["base_url"], "api_key": row["api_key"] or LLM_API_KEY,
                 "model": row["model"], "source": "db"}
     return {"base_url": LLM_BASE_URL, "api_key": LLM_API_KEY,
-            "model": {"gen": GEN_MODEL, "review": REVIEW_MODEL, "safety": SAFETY_MODEL}
+            "model": {"gen": GEN_MODEL, "review": REVIEW_MODEL, "safety": SAFETY_MODEL,
+                      "repair": REPAIR_MODEL}
                      .get(role, DEFAULT_MODEL),
             "source": "env"}
 
@@ -113,6 +114,13 @@ REVIEW_ENABLED_DEFAULT = os.getenv("CW_ENABLE_REVIEW") == "1"
 # 理由：质量评审同模型只是"看不准"；**红线同模型是危险**——生成时写下的擦边内容，
 # 自己复核会放过（共享同一套价值判断与盲区）。生产请把 CW_SAFETY_MODEL 指向另一模型/厂商。
 SAFETY_MODEL = os.getenv("CW_SAFETY_MODEL", DEFAULT_MODEL)
+# S4 返修轮（2026-09-14）：**必须比首轮快**，否则重试根本不会发生。
+# 实测：plus 通道单次 ~150s，而预算 240s、判断条件是 `已用 + 本轮 > 预算`
+# → 首轮 150s 后必然停手，**重试从未真正跑过**（这就是"残余违规总在"的真因，
+#   而不是"违规没喂回去"——回灌其实做得很细：逐条违规 + 被丢弃组件 + 裁剪后的返修指引 + 上一版原稿）。
+# 返修是**定向修改**（只改违规条目）而非重新创作，快模型够用；且循环里有
+# "保留违规最少的一版"守卫（`if len(errs) < best[0]`），**快模型改差了也不会被采用** —— 安全。
+REPAIR_MODEL = os.getenv("CW_REPAIR_MODEL", "qwen-turbo")
 
 
 def _call_llm_safety(messages, _model=None, max_tokens=2000):
@@ -147,7 +155,8 @@ from policy import policy_gate_publish, policy_gate_notice, policy_consult, dive
 # 而 skills/shared/输出契约.md 已要求 `<<<COURSEWARE>>>/<<<META>>>` 两段式，
 # 不剥离就会把标记文字显示给教师。
 from scripts.generate_seed_coursewares import (  # noqa: E402
-    encode_visuals, page_structure, retry_prompt, split_output, strip_unknown_comments,
+    encode_visuals, page_structure, repair_violations, retry_prompt, split_output,
+    strip_unknown_comments,
 )
 from scripts.check_courseware_quality import check_markdown  # noqa: E402
 
@@ -914,7 +923,7 @@ async def gen_courseware(req: Request):
     # 输出格式：ppt 走传统教案式幻灯片；h5 走绘本情景互动页
     fmt = (body.get("format") or "ppt").lower().strip()
     # ── 风格模板（P1）：AI 定风格语义，系统映射到 CwTheme 配色盘 ──
-    style_tag = (body.get("style_tag") or "").strip()
+    style_tag = _norm_style_tag(body.get("style_tag") or "")   # 中文标签 → key（防御，见 _norm_style_tag）
     style_profile = (body.get("style_profile") or "").strip()
     style_mode = (body.get("style_mode") or "auto").strip()  # auto | preset | free
     # 个人风格倾向（调节层，2026-09-03 接入）
@@ -1148,8 +1157,11 @@ async def gen_courseware(req: Request):
     budget_s = float(os.getenv("CW_GEN_BUDGET_S", "240"))
     for attempt in range(max_retry + 1):
         attempt_started = time.time()
+        # 首轮走生成通道（质量优先）；**返修轮走 repair 通道**（必须更快，否则预算内根本跑不起重试，
+        # 见 REPAIR_MODEL 注释）。返修若改差了会被下面的"保留违规最少一版"守卫丢弃，故不担心降质。
+        role = "gen" if attempt == 0 else "repair"
         try:
-            raw = await call_llm([{"role": "user", "content": prompt}], None, 6000)
+            raw = await call_llm([{"role": "user", "content": prompt}], None, 6000, role)
         except Exception as e:
             if best is None:
                 md, meta = split_output(f"# {title}\n\n（AI 课件生成失败：{e}）\n\n{content}")
@@ -1171,6 +1183,15 @@ async def gen_courseware(req: Request):
 
         # c. 注释白名单兜底：白名单外的注释会原样显示给学生
         md, dropped = strip_unknown_comments(md)
+
+        # d0. 平台确定性兜底（2026-09-14）：把"规则可机械判定、模型反复违规"的三类就地修好
+        #     （annotate.marks 非原文 / 多列版式字长超标 / 内容页缺组件）——**不改内容文字**。
+        #     为什么放在关卡1 之前：让关卡1 面对"平台已尽力"的产物，而不是拿模型的失误去触发重试。
+        #     实测重试回路会 10→5→9 反弹（全新产出），成本高且不保证收敛；而这三类本可由平台判定。
+        md, repaired = repair_violations(md, fmt)
+        if repaired:
+            logger.info("关卡1 前置平台兜底：%s", repaired)
+            quality_notes.extend(f"平台兜底：{r}" for r in repaired[:8])
 
         # d. S4 关卡1（自动规则）：判据来自质量宪法与版式选型，与本地脚本同一份实现
         report = check_markdown(md, f"{title}__{fmt}", subject)
@@ -1440,6 +1461,23 @@ def _warn_unknown_style(style: str) -> dict:
     return _STYLE_MORPH[""]
 # 风格卡目录（skills/shared/styles/*.md）：含 semantic 语义层与「骨架形态语言」段
 _STYLES_DIR = os.path.join(os.path.dirname(__file__), "skills", "shared", "styles")
+
+
+# 风格标签（中文）→ 风格 key（2026-09-15）。风格卡按 key 命名（skills/shared/styles/china.md …），
+# 前端此前把 facet 词表的中文 `value`（"国风"/"科技"）直接当 style_tag 传上来 →
+# `_load_style_*` 找不到 {style_tag}.md，风格语义（骨架形态语言/结构序/资产域）**全部失效**：
+# 教师点了"国风"，生成的既没有国风骨架、配色也回落默认（前端 defaultThemeForStyle 同样按 key 匹配）。
+# 前端已改为传 key；这里再加一层防御，任何客户端传中文标签也能正确命中。
+_STYLE_LABEL_TO_KEY = {
+    "国风": "china", "素净": "minimal", "科技": "tech", "清新": "fresh",
+    "严谨": "academic", "卡通": "cartoon", "扁平": "flat", "沉稳": "business",
+    "通用": "basic", "森林": "forest",
+}
+
+
+def _norm_style_tag(style_tag: str) -> str:
+    s = (style_tag or "").strip()
+    return _STYLE_LABEL_TO_KEY.get(s, s)
 
 
 def _load_style_layout_language(style_tag: str) -> str:
@@ -1832,7 +1870,7 @@ async def courseware_render_ppt(req: Request):
     title = body.get("title", "课件")
     subject = body.get("subject", "")
     grade = body.get("grade", "")
-    style_tag = (body.get("style_tag") or "").strip()
+    style_tag = _norm_style_tag(body.get("style_tag") or "")   # 中文标签 → key（防御）
     theme_id = (body.get("theme_id") or "").strip()
     if not markdown:
         return {"ppt_slides": [{"kind": "cover", "title": title,

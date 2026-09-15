@@ -29,6 +29,16 @@ import sys
 import time
 from datetime import datetime, timezone
 
+# 复用检查器的字数口径（**单一事实源**）：本文件既被 api_server 以包方式导入
+# （`from scripts.generate_seed_coursewares import ...`），也可能被
+# `python scripts/generate_seed_coursewares.py` 直接执行 —— 两种情况都要能 import。
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts.check_courseware_quality import (  # noqa: E402
+    text_len, is_en, VALID_LAYOUTS as SLIDE_VALID_LAYOUTS, H5_SCENE_LAYOUTS,
+    CONTENT_LAYOUTS as CHECKER_CONTENT_LAYOUTS, INTERACTION_RE as CHECKER_INTERACTION_RE,
+)
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -361,7 +371,12 @@ def encode_visuals(md: str) -> tuple:
 #   focus（场景重点条，H5 SKILL 明确教过）/ popup / audio / video
 ALLOWED_COMMENTS = {"layout", "VISUAL", "read", "readalong", "quiz", "reveal", "draw",
                     "focus", "popup", "audio", "video",
-                    "weather", "storm", "cycle"}
+                    "weather", "storm", "cycle",
+                    # 前端**落盘**格式（2026-09-14）：元素层与互动组件保存后以它们持久化
+                    # （`exportPptx.ts:581/583` 写 `<!-- CW-EL:... -->` / `<!-- CW-IT:... -->`）。
+                    # 不放进白名单 → 一旦模型在回灌/修订时把当前 markdown 原样带回，
+                    # strip_unknown_comments 会把教师的手工排版（元素层）与互动组件**整段删掉**。
+                    "CW-EL", "CW-IT"}
 
 
 def strip_unknown_comments(md: str) -> tuple:
@@ -384,6 +399,254 @@ def strip_unknown_comments(md: str) -> tuple:
     out = re.sub(r"<!--\s*([A-Za-z_][\w-]*)[:\s](?:(?!-->).)*-->", repl, md)
     out = re.sub(r"\n{3,}", "\n\n", out)   # 删除后可能留下的连续空行
     return out, dropped
+
+
+# ───────────────────── 违规的**确定性兜底**（2026-09-14）─────────────────────
+# 背景（staging 实测，非推测）：检查器的判据**已全部写进 skills/**，但模型仍反复违反三类：
+#   · `annotate.marks` 被写成"关键事实/日期"而非 text 中真实出现的词
+#     （实测：marks=["八月十八"]，text 里根本没有这四个字）
+#   · `content-grid` 塞 15~30 字长句（技能明写每条 ≤12 字）、`content-2col` 塞 36 字（明写 ≤30）
+#   · 内容页不带组件（技能明写"必须带且只带一个组件"）
+# S4 关卡1 的**重试闭环存在且会回灌报告**（api_server 里 retry_prompt），但连续重试后仍残留
+# （实测国风 7 处 / 科技 4 处）——说明这三类属于"模型能力边界"，按本仓既有范式
+# （encode_visuals / strip_unknown_comments 都是"平台替模型做它做不稳的一步"）应由平台兜底。
+#
+# 原则：只做**规则可机械判定**的修复，且**不改一个字的内容**（改写语义属模型职责，不在这里做）。
+#   ① marks 过滤到 text 中真实出现者；不足 2 个则从 text 的标点边界取短片段；仍取不到就丢弃该组件
+#   ② 多列版式单条字长超标 → 按**技能自己的规则**降级版式（grid→2col→title-body）
+#   ③ 内容页无组件且无互动 → 降级 content-text（前端与检查器都认，且它本就不要求组件）
+LAYOUT_COMMENT_RE = re.compile(r"<!--\s*layout:\s*[\w-]+\s*-->")
+VISUAL_B64_RE = re.compile(r"<!--\s*VISUAL:([A-Za-z0-9+/=]+)\s*-->")
+CW_EL_ANY_RE = re.compile(r"<!--\s*CW-EL:([A-Za-z0-9+/=]+)\s*-->")
+INTERACTION_ANY_RE = CHECKER_INTERACTION_RE       # 单一事实源：与检查器同一份（含 CW-IT 之外的全部互动标记）
+CONTENT_LAYOUTS = CHECKER_CONTENT_LAYOUTS          # 单一事实源：这些版式"必须有组件"
+MARK_SPLIT_RE = re.compile(r"[，。！？、；：,.;:!?（）()「」“”\s]+")
+
+
+def _decode_visual(b64: str):
+    """解出 VISUAL 的 JSON（失败返回 None）。"""
+    try:
+        return json.loads(base64.b64decode(b64).decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _has_component(chunk: str) -> bool:
+    """该页是否有组件 —— 两种落盘形态都算：`<!-- VISUAL:... -->` 与 CW-EL 里的 visual 元素。"""
+    for b in VISUAL_B64_RE.findall(chunk):
+        if isinstance(_decode_visual(b), dict):
+            return True
+    for b in CW_EL_ANY_RE.findall(chunk):
+        els = _decode_visual(b)
+        if isinstance(els, list) and any(isinstance(e, dict) and e.get("visual") for e in els):
+            return True
+    return False
+
+
+def fix_compare_table(v: dict) -> str:
+    """compare-table「残表」修正（2026-09-15），返回修复说明（无修复则空串）。
+
+    契约（`skills/shared/返修指引.md:33/91`）：`cols` 是**数据列**（对象甲/对象乙…），`rows[].label`
+    是行首，且 `len(cells) == len(cols)`。实测（PPT·科技 P7「跨界桥接①」）：模型给
+    `cols=[物理量,数值,生活参照]`（3 列）而每行只给 2 个 cells → 检查器报「compare-table 残表」，
+    画布上表格**列错位**（1.5米落在“物理量”列下、最后一列空白）——教师看到的正是"表格没画对"。
+
+    机械判定：cols 比 cells 恰好多 1 → 首列其实是**行首列的名字**（已由 label 承担），删掉即可；
+    多更多 → 同样删首列后截断；cols 比 cells 少 → 截断 cells（保留模型给的列定义）。
+    只动列定义与多余单元格，**不改一个字的内容语义**。
+    **可单独调用**：存量课件也能只修这一项（不动其它页面/组件）。
+    """
+    cols = list(v.get("cols") or [])
+    rows = v.get("rows") or []
+    if not cols or not rows:
+        return ""
+    maxc = max((len(r.get("cells") or []) for r in rows if isinstance(r, dict)), default=0)
+    if maxc == 0 or len(cols) == maxc:
+        return ""
+    before = (len(cols), maxc)
+    if len(cols) >= maxc + 1:
+        v["cols"] = cols[1:1 + maxc]
+    for r in rows:
+        if isinstance(r, dict) and isinstance(r.get("cells"), list) and len(r["cells"]) > len(v["cols"]):
+            r["cells"] = r["cells"][:len(v["cols"])]
+    return (f"compare-table 残表（cols {before[0]} / cells {before[1]}）"
+            f"→ 对齐为 {len(v['cols'])} 列")
+
+
+def fix_compare_tables_in(obj) -> list:
+    """对 dict（VISUAL 载荷）或 list（CW-EL 元素数组）就地修 compare-table，返回修复说明列表。"""
+    targets = []
+    if isinstance(obj, dict) and obj.get("type") == "compare-table":
+        targets.append(obj)
+    if isinstance(obj, list):
+        for e in obj:
+            if (isinstance(e, dict) and isinstance(e.get("visual"), dict)
+                    and e["visual"].get("type") == "compare-table"):
+                targets.append(e["visual"])
+    return [n for n in (fix_compare_table(v) for v in targets) if n]
+
+
+def repair_violations(md: str, fmt: str = "ppt") -> tuple:
+    """确定性修复"规则可机械判定"的违规，返回 (md, notes)。
+
+    notes 是给教师/日志看的**修复说明**（平台做了什么，而不是模型说了什么）。
+    fmt 用于选**合法版式集合**（PPT 与 H5 是两套，绝不能混用）。
+    """
+    valid_layouts = H5_SCENE_LAYOUTS if fmt == "h5" else SLIDE_VALID_LAYOUTS
+    notes: list = []
+    notes_append = notes.append
+    parts = re.split(r"(?m)^(?=## )", md)      # parts[0] = 页前前言，与检查器 parse 的 [1:] 对齐
+    out = [parts[0]]
+    # 每种版式出现几次：供下面的"改动是否安全"判断
+    kinds: dict = {}
+    for k in re.findall(r"<!--\s*layout:\s*([\w-]+)\s*-->", md):
+        kinds[k] = kinds.get(k, 0) + 1
+    # 修复必须**单调**：只消除违规，绝不引入新违规。
+    # 版式多样性规则是"全课 ≥4 种"（check_courseware），所以任何改版式前先试算：
+    # 改完种类数不得低于 min(4, 原有的种类数) —— 不然就会出现
+    # "grid 字长修好了，却冒出 版式多样性 违规"（实测国风 4 页降级即中招）。
+    _target_kinds = min(4, len([k for k, v in kinds.items() if v > 0]))
+
+    def _safe_layout_change(old: str, new: str) -> bool:
+        ks = dict(kinds)
+        ks[old] = ks.get(old, 0) - 1
+        ks[new] = ks.get(new, 0) + 1
+        return len([k for k, v in ks.items() if v > 0]) >= _target_kinds
+
+    for ch in parts[1:]:
+        lines = ch.split("\n")
+        title = lines[0].strip() if lines else ""
+        bullets = [l[2:].strip() for l in lines if l.startswith("- ")]
+        layouts = re.findall(r"<!--\s*layout:\s*([\w-]+)\s*-->", ch)
+        lay = layouts[0] if layouts else None
+        short = title[:12]
+
+        # ① annotate.marks 修正 —— 兼容**两种落盘形态**：
+        #    `<!-- VISUAL:b64 -->`（组件本体）与 `<!-- CW-EL:b64 -->`（元素数组，组件在 visual 元素里）。
+        #    只改前者会导致"改了一份、另一份仍是旧的"（实测：兜底报已修正，检查器仍报旧 marks）。
+        def _marks_fixed(v: dict):
+            """返回修正后的 marks；None = 无需改动；[] = text 里构造不出，保留原样并记 note。"""
+            txt = str(v.get("text") or "")
+            orig = list(dict.fromkeys(
+                str(x.get("text", "")) if isinstance(x, dict) else str(x)
+                for x in (v.get("marks") or [])))
+            good = [s for s in orig if s and s in txt and text_len(s) <= 10]
+            if len(good) < 2:                   # 不足 2 个：从 text 的标点边界取短片段
+                for seg in MARK_SPLIT_RE.split(txt):
+                    seg = seg.strip()
+                    if 2 <= len(seg) <= 10 and seg in txt and seg not in good:
+                        good.append(seg)
+                    if len(good) >= 3:
+                        break
+            if not good:
+                notes_append(f"{short}：annotate 的 text 无法构造 marks → 保留原样（需人工/重试）")
+                return None
+            if good[:5] == orig:
+                return None
+            notes_append(f"{short}：annotate.marks {orig} → {good[:5]}")
+            return good[:5]
+
+        def _fix_annotate_in(obj):
+            """就地修正 obj（或元素数组）里的 annotate；返回是否改动过。"""
+            targets = []
+            if isinstance(obj, dict) and obj.get("type") == "annotate":
+                targets.append(obj)
+            if isinstance(obj, list):
+                for e in obj:
+                    if (isinstance(e, dict) and isinstance(e.get("visual"), dict)
+                            and e["visual"].get("type") == "annotate"):
+                        targets.append(e["visual"])
+            changed = False
+            for v in targets:
+                new = _marks_fixed(v)
+                if new is not None:
+                    v["marks"] = new
+                    changed = True
+            return changed
+
+
+        def _fix_table_in(obj) -> bool:
+            """就地修正 obj（或元素数组）里的 compare-table；返回是否改动过。"""
+            fixed = fix_compare_tables_in(obj)
+            for n in fixed:
+                notes_append(f"{short}：{n}")
+            return bool(fixed)
+
+        def _fix_payload(m):
+            obj = _decode_visual(m.group(2))
+            if obj is None:
+                return m.group(0)
+            changed = _fix_annotate_in(obj)
+            if _fix_table_in(obj):
+                changed = True
+            if not changed:
+                return m.group(0)
+            b64 = base64.b64encode(json.dumps(obj, ensure_ascii=False).encode("utf-8")).decode()
+            return f"<!-- {m.group(1)}:{b64} -->"
+
+        ch = re.sub(r"<!--\s*(VISUAL|CW-EL):([A-Za-z0-9+/=]+)\s*-->", _fix_payload, ch)
+
+        # ①.5 版式写成了**组件名**（技能明写"组件类型名绝不能当 layout 写"，实测 sequence / compare-card /
+        #      structure 各占一页）→ 修正为合法版式。取法与前端 materializeOutline 的"提升"同一语义：
+        #        · 该页有组件 → `visual-top`（组件页的承载版式：组件在上、正文在下）
+        #        · 该页无组件 → `content-text`（技能里唯一不要求组件的版式）
+        #      H5 的受控场景集合另有一套，凭语义猜不出来 → 只记 note，不擅改。
+        if lay and lay not in valid_layouts:
+            if fmt != "h5":
+                new = "visual-top" if _has_component(ch) else "content-text"
+                if _safe_layout_change(lay, new):
+                    ch = LAYOUT_COMMENT_RE.sub(f"<!-- layout: {new} -->", ch, count=1)
+                    notes_append(f"{short}：版式「{lay}」非法（疑似组件名）→ 修正为 {new}")
+                    kinds[lay] = kinds.get(lay, 0) - 1
+                    kinds[new] = kinds.get(new, 0) + 1
+                    lay = new
+                else:
+                    notes_append(f"{short}：版式「{lay}」非法，但修正会使版式种类不足 → 保留（需人工/重试）")
+            else:
+                notes_append(f"{short}：H5 版式「{lay}」不在受控场景集合 → 保留原样（需人工/重试）")
+
+        # ② 多列版式字长（判据与检查器完全一致：中文 12/30，英文 6/15）
+        #    这一类是**真实渲染缺陷**（卡片装不下长句 → 字被压小）。改动前先试算种类数（见上），
+        #    若降级会把某一种版式改没、从而触发版式多样性违规，则**不改**并把原因写进 notes
+        #    （宁可留一处可见的违规，也不引入一处新的 —— 修复必须单调）。
+        longest = max((text_len(b) for b in bullets), default=0)
+        gmax, cmax = (6, 15) if is_en(title + "".join(bullets)) else (12, 30)
+        if lay == "content-grid" and longest > gmax:
+            new = "content-2col" if longest <= cmax else "title-body"
+            if _safe_layout_change(lay, new):
+                ch = LAYOUT_COMMENT_RE.sub(f"<!-- layout: {new} -->", ch, count=1)
+                notes_append(f"{short}：grid 最长 {longest} 字 >{gmax} → 降级 {new}")
+                kinds[lay] = kinds.get(lay, 0) - 1
+                kinds[new] = kinds.get(new, 0) + 1
+                lay = new
+            else:
+                notes_append(f"{short}：grid 最长 {longest} 字 >{gmax}，"
+                             f"但降级会使版式种类不足 → 保留原版式（留待重试/人工）")
+        if lay == "content-2col" and longest > cmax:
+            if _safe_layout_change(lay, "title-body"):
+                ch = LAYOUT_COMMENT_RE.sub("<!-- layout: title-body -->", ch, count=1)
+                notes_append(f"{short}：2col 最长 {longest} 字 >{cmax} → 降级 title-body")
+                kinds[lay] = kinds.get(lay, 0) - 1
+                kinds["title-body"] = kinds.get("title-body", 0) + 1
+                lay = "title-body"
+            else:
+                notes_append(f"{short}：2col 最长 {longest} 字 >{cmax}，"
+                             f"但降级会使版式种类不足 → 保留原版式（留待重试/人工）")
+
+        # ③ 内容页无组件且无互动 → 纯文本页（技能里唯一不要求组件的版式）。
+        #    注意：这不是"掩盖生成缺陷" —— 该页本来就只有文字，content-text 是它的**真实形态**；
+        #    且技能明写"没有合适组件时用 content-text"。修正动作本身以 notes 形式回报给教师/日志。
+        has_visual = _has_component(ch)
+        if (lay in CONTENT_LAYOUTS and not has_visual and not INTERACTION_ANY_RE.search(ch)
+                and _safe_layout_change(lay, "content-text")):
+            ch = LAYOUT_COMMENT_RE.sub("<!-- layout: content-text -->", ch, count=1)
+            notes_append(f"{short}：内容页无组件 → 降级 content-text")
+            kinds[lay] = kinds.get(lay, 0) - 1
+            kinds["content-text"] = kinds.get("content-text", 0) + 1
+
+        out.append(ch)
+
+    return "".join(out), notes
 
 
 def split_output(raw: str) -> tuple:

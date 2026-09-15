@@ -168,7 +168,11 @@ export default function LessonPlanEditor() {
   // ── 任教班级（班级切换联动）──
   const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
-  const classLabel = myClasses.find(it => it.class_id === teaching.selectedClassId)?.class_name || grade
+  // 班级取**任教班级名**；取不到就留空由信息卡显示"—"，**不能拿年级顶替**（2026-09-15 准确性修正：
+  // 此前回退成 `grade`，于是信息卡"班级"栏一直显示"四年级"这类年级值，看着像班级名）
+  const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)
+    || myClasses.find(it => (it as { is_primary?: boolean }).is_primary)
+    || myClasses[0])?.class_name || ''
 
   // workMode 已收口到 useEditorController（统一路由判定，ai/doc 单一套语义）
   // AI 润色覆盖确认（仅编辑已有且正文非空时提示，会话内可“不再提示”）

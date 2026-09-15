@@ -26,6 +26,11 @@ from collections import Counter
 VALID_LAYOUTS = {
     "edu-cover", "edu-goal", "edu-summary", "edu-homework", "edu-example",
     "edu-explain", "content-2col", "content-grid", "image-text", "title-body",
+    # 组件页承载版式（2026-09-14）：前端 `materializeOutline` 在"页面有组件、而它的版式
+    # 没有组件槽位"时会把版式提升为 `visual-top`（组件在上、正文在下），并**随保存回写进
+    # markdown** —— 若这里不认它，教师一保存就会凭空多出"非法版式"的违规。
+    # 它按定义必然带组件，故不进 CONTENT_LAYOUTS（不额外要求"必须有组件"）。
+    "visual-top",
     # 纯文本页（2026-09-12 新增）：**不要求组件**。
     # 由来：此前只有 4 类"内容页"且都强制带组件，逼着模型给纯文本页硬塞组件
     # （与质量宪法第 12 条"禁止为填满而注水"冲突）。给它一个合法出口。
@@ -99,6 +104,54 @@ def decode_visual(b64: str):
         return None
 
 
+# ── 前端**落盘格式**的兼容解析（2026-09-14，实测踩到的两类假阴性）──
+# 前端保存课件时（`exportPptx.ts:581/583`）会把组件与互动改写成：
+#   <!-- CW-EL:base64 -->  元素层（组件元素 `type:'visual'` + 其 `visual` 载荷，与 VISUAL 注释同构）
+#   <!-- CW-IT:base64 -->  互动组件（`type:'reveal' | 'readalong' | 'quiz' | ...`）
+# 而检查器此前**只认** `<!-- VISUAL:... -->` 与 `<!-- quiz: 明文 -->` → 于是：
+#   · 保存过的课件一律被判「内容页缺 visual」（实测科技 4 页、国风 7 页皆是此因）
+#   · 互动一律被判 0 处（实测国风有 3 处 reveal/readalong、科技 2 处，全被漏掉）
+# 这类是**检查器假阴性**，不是模型漏写 —— 判据必须认"真源里的真格式"。
+CW_EL_RE = re.compile(r"<!--\s*CW-EL:([A-Za-z0-9+/=]+)\s*-->")
+CW_IT_RE = re.compile(r"<!--\s*CW-IT:([A-Za-z0-9+/=]+)\s*-->")
+
+
+def _b64_json(b64: str):
+    try:
+        return json.loads(base64.b64decode(b64).decode("utf-8"))
+    except Exception:
+        return None
+
+
+def cw_components(chunk: str) -> list:
+    """`CW-EL` 元素层里的**组件元素**，返回与 VISUAL 注释同构的 dict 列表。"""
+    out = []
+    for b64 in CW_EL_RE.findall(chunk):
+        els = _b64_json(b64)
+        if not isinstance(els, list):
+            continue
+        for e in els:
+            if isinstance(e, dict) and e.get("type") == "visual":
+                v = e.get("visual")
+                if isinstance(v, dict) and v.get("type"):
+                    out.append(v)
+    return out
+
+
+def cw_interactions(chunk: str) -> list:
+    """`CW-IT` 里的互动组件类型列表（可多个，也可能是数组）。"""
+    out = []
+    for b64 in CW_IT_RE.findall(chunk):
+        obj = _b64_json(b64)
+        if obj is None:
+            out.append("cw-it")            # 解不开也要计一处，避免"存了却当作没有"
+            continue
+        items = obj if isinstance(obj, list) else [obj]
+        for o in items:
+            out.append(str(o.get("type") or "cw-it") if isinstance(o, dict) else "cw-it")
+    return out
+
+
 def parse(md: str) -> list:
     """按 `## ` 分页。返回每页的结构化信息。"""
     pages = []
@@ -115,7 +168,13 @@ def parse(md: str) -> list:
                 visuals.append(v)
             else:
                 visuals.append({"__decode_error": True})
-        interactions = INTERACTION_RE.findall(ch)
+        # 前端保存后的形态：组件住在元素层（CW-EL）里 —— 与 VISUAL 注释同构。
+        # 同页可能两种写法都存在（旧注释 + 新元素层是同一个组件），按内容去重避免重复计问题。
+        for v in cw_components(ch):
+            key = json.dumps(v, sort_keys=True, ensure_ascii=False)
+            if key not in {json.dumps(x, sort_keys=True, ensure_ascii=False) for x in visuals}:
+                visuals.append(v)
+        interactions = INTERACTION_RE.findall(ch) + cw_interactions(ch)
         bubbles = [m[1] for m in BUBBLE_RE.finditer(ch)]
         quizzes = [m[1] for m in QUIZ_RE.finditer(ch)]
         pages.append({

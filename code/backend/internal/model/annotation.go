@@ -56,7 +56,12 @@ type Version struct {
 	ReviewStatus string `gorm:"column:review_status;type:varchar(20);not null;default:'none';index" json:"review_status"`
 	// none 未提交审查 | pending 待人工 | auto_pass 机检+AI评审通过自动放行
 	// | approved 人工审核通过 | rejected 驳回（须修改）
-	CheckResult   string     `gorm:"column:check_result;type:jsonb" json:"check_result"` // 机检+AI评审完整结论 issues[]，事后可复现当时判定
+	// ⚠️ 必须是**可空指针**（2026-09-15 修）：jsonb 列不接受空字符串 ——
+	// GORM 对非指针 string 的零值会写 `''`，PG 直接报 `invalid input syntax for type json`，
+	// 于是 POST /versions（存快照）**每次 500**，整个"版本快照"功能从未成功过。
+	// 其它 jsonb 字段之所以没坏，是因为它们带 `default:'[]' / '{}'` 标签（GORM 会省略零值走默认），
+	// 而本字段没有默认值。改为指针：未审 = NULL（语义也更准确）。
+	CheckResult   *string    `gorm:"column:check_result;type:jsonb" json:"check_result"` // 机检+AI评审完整结论 issues[]，事后可复现当时判定
 	ReviewerID    string     `gorm:"column:reviewer_id;type:varchar(50);index" json:"reviewer_id"`
 	ReviewComment string     `gorm:"column:review_comment;type:text" json:"review_comment"`
 	ReviewedAt    *time.Time `gorm:"column:reviewed_at" json:"reviewed_at"`

@@ -97,6 +97,7 @@ export type SlideLayout =
   | 'chart'        // 图表页
   | 'image-text'   // 图文混排
   | 'image-full'   // 全屏图片
+  | 'visual-top'   // 组件（知识结构）在上 + 正文要点在下：**组件页的承载版式**
 
 export const LAYOUT_LABELS: Record<SlideLayout, string> = {
   'title-body': '标题+正文',
@@ -124,6 +125,7 @@ export const LAYOUT_LABELS: Record<SlideLayout, string> = {
   'chart': '图表页',
   'image-text': '图文混排',
   'image-full': '全屏图片',
+  'visual-top': '组件+正文',
 }
 
 // 自适应：content-* 系列按内容条目数选最优版式（1+2→1+3 等自动扩展/降级）。
@@ -140,11 +142,11 @@ export function pickContentLayout(itemCount: number): SlideLayout {
 export const GENERIC_LAYOUTS: SlideLayout[] = [
   'cover', 'toc', 'section', 'content-1col', 'content-2col', 'content-3col',
   'content-4col', 'content-grid', 'summary', 'comparison', 'timeline', 'chart',
-  'image-text', 'image-full',
+  'image-text', 'image-full', 'visual-top',
 ]
 
 // 占位区块的类型
-export type PlaceholderKind = 'title' | 'body' | 'bullet' | 'info-block'
+export type PlaceholderKind = 'title' | 'body' | 'bullet' | 'info-block' | 'visual'
 
 // 占位区块几何（画布百分比坐标，x/y/w/h 均为 0~100）
 // 这是「内容与模板分离」的物理契约：相同 key 在不同版式下位置不同，
@@ -390,6 +392,18 @@ export const EDU_LAYOUT_SKELETONS: Record<Exclude<SlideLayout, 'title-body' | 'c
       { key: 'caption', label: '图注', kind: 'body', rect: { x: 6.3, y: 86, w: 87.4, h: 8 }, fontSize: 14, align: 'center', placeholder: '图注' },
     ],
   },
+  // 组件页的承载版式（2026-09-14）。引入理由：
+  // 此前"组件在上 50% / 要点在下 26%"这套几何是**硬编码在渲染分支里**的（renderLayoutContent 的 vis 分支），
+  // 于是走骨架的 elements 与走硬编码的预览几何不一致 —— 「编辑≠预览」的直接成因。
+  // 把它提升为版式契约后，几何只有一个出口（getSkeleton），编辑/预览/导出/缩略图四端同源。
+  'visual-top': {
+    hint: '组件（知识结构）在上 + 正文要点在下',
+    placeholders: [
+      { key: 'title', label: '标题', kind: 'title', rect: { x: 6.3, y: 12, w: 87.4, h: 10 }, fontSize: 24, bold: true, placeholder: '标题' },
+      { key: 'visual', label: '知识结构', kind: 'visual', rect: { x: 5, y: 16, w: 90, h: 50 }, placeholder: '知识结构组件' },
+      { key: 'body', label: '正文要点', kind: 'bullet', rect: { x: 5, y: 70, w: 90, h: 26 }, columns: 1, fontSize: 16, placeholder: '要点' },
+    ],
+  },
 }
 
 // ── 学段 × 学科 二维骨架索引（内置，教师无感） ──
@@ -522,7 +536,7 @@ export function isStructuredLayout(layout?: string): layout is SlideLayout {
 // 规则：title 占位接首条；bullet 占位按列数等分剩余；其它占位各接一条；溢出内容进 __overflow。
 export type SlideSlots = Record<string, string[]>
 
-export function distributeToSlots(layout: SlideLayout, bullets: string[], opts?: { stage?: StageKey; subject?: string }): SlideSlots {
+export function distributeToSlots(layout: SlideLayout, bullets: string[], opts?: { stage?: StageKey; subject?: string; skipKeys?: string[] }): SlideSlots {
   // 丢弃空条目（如"- "或"•"这类只有符号没有内容的行）——
   // 否则会渲染出"有项目符号但没内容"的空壳（用户实测）
   bullets = (bullets || []).filter((b) => String(b).replace(/^[•\-*\s]+$/, '').trim().length > 0)
@@ -536,6 +550,11 @@ export function distributeToSlots(layout: SlideLayout, bullets: string[], opts?:
       slots[p.key] = []
       continue
     }
+    // 组件槽位不接文本：它由 visuals（知识结构组件）填充；文本塞进去会被组件覆盖、位置错乱
+    if (p.kind === 'visual') { slots[p.key] = []; continue }
+    // 被组件占用的槽位同样不参与分发（如 image-text 的图片槽被组件占用时）——
+    // 否则分发到该槽的那条文本会随组件一起消失（内容丢失）。
+    if (opts?.skipKeys && opts.skipKeys.includes(p.key)) { slots[p.key] = []; continue }
     if (p.kind === 'bullet') {
       const n = Math.max(1, Math.ceil((bullets.length - idx) / remainingBulletCount(sk.placeholders, p)))
       let chunk = bullets.slice(idx, idx + n)
@@ -1254,9 +1273,66 @@ export function revertTemplate(
   outline: OutlineSlide[],
   prevThemeId: string,
   prevLayouts: (string | undefined)[],
+  prevElements?: (OutlineSlide['elements'])[] | null,
 ): { outline: OutlineSlide[]; themeId: string } {
-  const reverted = outline.map((s, i) => ({ ...s, layout: prevLayouts[i] }))
+  const reverted = outline.map((s, i) => ({
+    ...s,
+    layout: prevLayouts[i],
+    // 位置回退（2026-09-15）：「重新套版」（重档）会改元素几何，只回退 layout 不够 ——
+    // 若不回退 elements，教师点"撤销套用"后位置仍停在被重排的样子（体验上等于撤不掉）。
+    ...(prevElements && prevElements[i] ? { elements: prevElements[i] } : {}),
+  }))
   return { outline: reverted, themeId: prevThemeId }
+}
+
+/**
+ * 「重新套版」（重档的实质动作）：把每页元素**按当前版式骨架的槽位重排位置与尺寸**。
+ * 只改几何，**不动文字、字号、配色**（那三样属于内容与风格语汇，各有各的通道）。
+ *
+ * 两条通道：
+ *   ① 有 `slotKey` 且未被 `overridden` 的元素 → 按自己的槽位解析（跟随新骨架，安全）；
+ *   ② 其余元素 → 按"从上到下、从左到右"顺序**循环分配**到骨架槽位（启发式）。
+ *      这是重档**有风险**的地方：早期课件（AI 生成时就把坐标写进 CW-EL）没有槽位引用，
+ *      也没有"教师是否手工挪过"的记录，因此那些手工位置也会被重排 —— 二次确认里明说了这一点，
+ *      且执行后可整页回退（见 revertTemplate 的 prevElements）。
+ *
+ * 返回值里的 pages/elements 就是"影响范围"，供**预演**（dry-run）报给教师看。
+ */
+export function reflowToSkeleton(
+  outline: OutlineSlide[],
+  styleKey?: StyleKey | '',
+): { outline: OutlineSlide[]; pages: number; elements: number } {
+  let pages = 0
+  let count = 0
+  const out = outline.map((s) => {
+    const els = s.elements || []
+    if (!els.length) return s
+    const sk = getSkeleton((s.layout || 'title-body') as SlideLayout, { styleKey: styleKey ?? '' })
+    const phs = sk?.placeholders || []
+    if (!phs.length) return s
+    // 分配顺序：从上到下、同一行从左到右（让"循环分配"落得尽量自然）
+    const ordered = [...els].sort((a, b) => (a.y - b.y) || (a.x - b.x))
+    const byId = new Map<string, (typeof phs)[number]>()
+    let k = 0
+    for (const el of ordered) {
+      const own = el.slotKey ? phs.find((p) => p.key === el.slotKey) : undefined
+      const ph = own || phs[k++ % phs.length]
+      if (ph?.rect) byId.set(el.id, ph)
+    }
+    if (!byId.size) return s
+    let touched = 0
+    const next = els.map((el) => {
+      const ph = byId.get(el.id)
+      if (!ph?.rect) return el
+      touched++
+      return { ...el, x: ph.rect.x, y: ph.rect.y, w: ph.rect.w, h: ph.rect.h }
+    })
+    if (!touched) return s
+    pages++
+    count += touched
+    return { ...s, elements: next }
+  })
+  return { outline: out, pages, elements: count }
 }
 
 // ── 封面缩微图：用真实配色实时渲染"多页版式示意"SVG（零外部图片依赖、所见即所得） ──
@@ -1326,54 +1402,6 @@ function svgColor(c?: string, fallback = '#CCCCCC'): string {
   if (c.startsWith('#')) return c
   if (c.startsWith('linear-gradient') || c.startsWith('rgb') || c.startsWith('hsl')) return fallback
   return '#' + c
-}
-
-/** 课件单页缩微图：按主题色 + 版式生成 SVG dataURL，用于左侧页面列表预览 */
-export function renderSlideThumb(
-  slide: { title?: string; bullets?: string[]; layout?: string },
-  theme: CwTheme,
-  index: number,
-): string {
-  const W = 160
-  const H = 90
-  const primary = svgColor(theme.primary, '#1A3A6B')
-  const onPrimary = svgColor(theme.onPrimary, '#FFFFFF')
-  const subtle = svgColor(theme.subtle, '#9A9A9A')
-  const body = svgColor(theme.body, '#333333')
-  const title = escapeXml((slide.title || '（无标题）').slice(0, 18))
-  const layout = slide.layout || 'title-body'
-  const isTwoCol = layout.includes('two') || layout.includes('col')
-
-  let contentSvg = ''
-  if (isTwoCol) {
-    const cw = 62
-    const ch = 44
-    const cy = 28
-    contentSvg = `<rect x="12" y="${cy}" width="${cw}" height="${ch}" rx="2" fill="#F2F3F5" stroke="${subtle}" stroke-width="0.5"/>`
-      + `<rect x="86" y="${cy}" width="${cw}" height="${ch}" rx="2" fill="#F2F3F5" stroke="${subtle}" stroke-width="0.5"/>`
-      + `<rect x="16" y="${cy + 6}" width="40" height="3" rx="1.5" fill="${subtle}"/>`
-      + `<rect x="90" y="${cy + 6}" width="40" height="3" rx="1.5" fill="${subtle}"/>`
-  } else {
-    const bullets = (slide.bullets || []).filter(Boolean).slice(0, 3)
-    const lines = bullets.length
-      ? bullets.map((b, i) => `<rect x="20" y="${34 + i * 11}" width="${Math.max(40, Math.min(110, (b.length || 4) * 8))}" height="4" rx="2" fill="${subtle}"/>`)
-      : [0, 1, 2].map((i) => `<rect x="20" y="${34 + i * 11}" width="${90 - i * 15}" height="4" rx="2" fill="${subtle}"/>`)
-    contentSvg = `<circle cx="14" cy="37" r="2" fill="${primary}"/>`
-      + lines.map((l, i) => `<circle cx="14" cy="${48 + i * 11}" r="2" fill="${primary}"/>` + l).join('')
-  }
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    <defs><clipPath id="r${index}"><rect width="${W}" height="${H}" rx="5"/></clipPath></defs>
-    <g clip-path="url(#r${index})">
-      <rect width="${W}" height="${H}" fill="#FFFFFF"/>
-      <rect x="0" y="0" width="${W}" height="16" fill="${primary}"/>
-      <text x="8" y="11" font-family="${escapeXmlAttr(theme.font || 'sans-serif')}" font-size="7" font-weight="600" fill="${onPrimary}">${title}</text>
-      ${contentSvg}
-      <rect x="126" y="72" width="26" height="12" rx="3" fill="${primary}" opacity="0.85"/>
-      <text x="139" y="81" text-anchor="middle" font-family="sans-serif" font-size="8" font-weight="700" fill="#FFFFFF">${index + 1}</text>
-    </g>
-  </svg>`
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 // ── 「通用」结构模板：不绑固定配色，仅提供一套百搭版式骨架 ──

@@ -10,8 +10,11 @@ import { STORY_THEMES, ROLE_COLORS } from './types'
 import { resolveAssetParams } from '../visualAsset/types'
 import { getAssetsByStyle } from '../visualAsset/presets'
 import { pickDecoGlyphs, styleKeyFromThemeId } from '../visualAsset/motifPools'
+
 import { styleSpec, styleStructure, STYLE_ORDER, STYLE_TITLE_PX, H5_CONTENT_PX, splitTitle, TYPE_SCALE } from '../styleRegistry'
 import { parseStyleDNA, getTheme, type StyleMorph } from '../pptThemes'
+// 版面底层法则 → token（缺省规则单一真源，见 lib/layoutLaw.ts；数字出处 = 媒介纪律-PPT/H5）
+import { SPACE, TEXT, H5 as H5LAW } from '../layoutLaw'
 
 /** 把色值按 ratio 混入白色，得到浅色调（保持绘本式浅底可读） */
 function mixWhite(hex: string, ratio: number): string {
@@ -449,10 +452,14 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
   }
   return `
   <section class="scene scene-${stype}" data-index="${index}" data-type="${stype}" style="background:${bg}">
-    ${decoHtml}
-    ${sceneTitleHtml(s.title)}
-    ${body}
-    ${s.focus ? `<div class="focus-bar">⭐ 重点：${esc(s.focus)}</div>` : ''}
+    <!-- 内容壳（2026-09-15）：HD 固定舞台下，若整页内容高于舞台可用高度，缩放的只能是**内容**（卡片底色/圆角/阴影
+         仍铺满舞台，视觉更像课堂投屏的一页）；没有这层壳，缩放就没有可施加的对象。 -->
+    <div class="scene-inner">
+      ${decoHtml}
+      ${sceneTitleHtml(s.title)}
+      ${body}
+      ${s.focus ? `<div class="focus-bar">⭐ 重点：${esc(s.focus)}</div>` : ''}
+    </div>
   </section>`
 }
 
@@ -486,14 +493,36 @@ const RUNTIME_JS = `
     }
     return h;
   }
+  // 等比适配（2026-09-15）：HD 固定舞台下，若整页内容高于舞台可用高度，按 avail/need 缩放**内容壳**，
+  // 保证整页可见（课堂投屏不该出现滚动条/被截断）。手机（非 HD）保持原来的自然流 + 滚动。
+  function fitToStage(sc, avail, need){
+    var inner = sc.querySelector('.scene-inner');
+    if (!inner) return;
+    inner.style.transform = ''; inner.style.width = ''; inner.style.transformOrigin = '';
+    sc.classList.remove('fit');
+    if (!document.body.classList.contains('hd') || need <= avail + 1) return;
+    var k = Math.max(0.6, avail / need);            // 下限 0.6：再小就伤可读性，宁可留一点滚动
+    inner.style.transformOrigin = 'top left';
+    inner.style.transform = 'scale(' + k + ')';
+    inner.style.width = 'calc(100% / ' + k + ')';   // 宽度补偿：缩放后仍满宽，避免换行变化引起反复
+    sc.classList.add('fit');
+  }
   function autofit(sc){
     if (!sc) return;
+    // 先还原适配，再量高度 —— 否则量到的是"缩放后的高度"，会越缩越小（自激）
+    var innerEl = sc.querySelector('.scene-inner');
+    if (innerEl) { innerEl.style.transform = ''; innerEl.style.width = ''; innerEl.style.transformOrigin = ''; }
+    sc.classList.remove('fit');
     var cs = getComputedStyle(sc);
-    var avail = sc.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    var pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    var avail = sc.clientHeight - pad;
     if (avail <= 0) return;
-    var fill = contentH(sc) / avail;
+    // 内容总高取两者较大：内容壳高度 vs 场景自身的可滚动高度（后者包含"子元素溢出壳"的部分，如互动组件内部）
+    var need = Math.max(contentH(sc), sc.scrollHeight - pad);
+    var fill = need / avail;
     sc.classList.toggle('sparse', fill < 0.62);
     sc.classList.toggle('dense', fill > 1.0);
+    fitToStage(sc, avail, need);
   }
   window.addEventListener('resize', function(){ setTimeout(function(){ autofit(scenes[idx]); }, 60); });
   root.querySelector('.next').addEventListener('click', function(){ show(idx+1); });
@@ -849,17 +878,68 @@ const RUNTIME_JS = `
     showCycle(0, false);
   });
 
+  // ── HD 舞台开关（2026-09-15）──
+  // 大屏（电视/电子白板）用固定 16:9 舞台并等比缩放铺满，课堂投屏不再"忽高忽低"。
+  function syncHd(){
+    var q = null;
+    try { q = new URLSearchParams(location.search).get('hd'); } catch(e){}
+    var on = window.innerWidth >= 1024 && window.innerHeight >= 576;
+    if (q === '1') on = true; else if (q === '0') on = false;
+    if (typeof window.__hdForced === 'boolean') on = window.__hdForced;
+    if (on) {
+      var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+      root.style.setProperty('--hd-s', String(s));
+    }
+    document.body.classList.toggle('hd', on);
+    setTimeout(function(){ autofit(scenes[idx]); }, 40);
+  }
+  window.addEventListener('message', function(e){
+    var d = e && e.data;
+    if (d && d.type === 'cw-h5-hd') { window.__hdForced = !!d.on; syncHd(); }
+  });
+  window.addEventListener('resize', function(){ syncHd(); });
+  syncHd();
+
   show(0);
 })();
+`
+
+/* ── HD 舞台样式（2026-09-15）：电视 / 电子白板等大屏课堂投屏 ──
+   问题：此前页面高度由内容撑开（.scene 的 min-height:min(480px,72vh)），同一份课件在不同屏幕上高度不一 ——
+   投到课堂大屏"忽高忽低"，且与编辑器画布看到的比例不一致。
+   做法：HD 下把整份绘本放进固定 1280×720（16:9）逻辑舞台，再按视口等比缩放铺满；内容超出舞台时在场景内滚动。
+   手机（<1024px）保持原来的自适应阅读体验。
+   触发：① 视口自动判定（宽≥1024 且 高≥576）② URL 问号参数 hd=1/0 ③ 父窗口 postMessage
+        （编辑器画布窗格通常 <1024，但要让教师看到与课堂投屏**同一比例**，由父级显式开启）。
+   注意：必须注入在结构 CSS **之后** —— 结构 CSS 也写了 .story-root 的尺寸，同特异性下后者胜出
+        （实测：放在 RUNTIME_CSS 里会被盖掉，舞台按内容走、比例不是 16:9）。 */
+const HD_STAGE_CSS = `
+body.hd{display:flex;align-items:center;justify-content:center;padding:0 !important;overflow:hidden;min-height:100vh;}
+body.hd .story-root{flex:none;width:1280px !important;height:720px !important;max-width:none;min-height:0;margin:0;box-sizing:border-box;
+  padding:18px 26px 14px;display:flex;flex-direction:column;
+  transform:scale(var(--hd-s,1));transform-origin:center center;}
+body.hd .story-header{flex:0 0 auto;}
+body.hd .scene{min-height:0;height:auto;flex:1 1 auto;overflow:auto;}
+body.hd .scene.active{justify-content:center;}
+body.hd .scene.active.dense{justify-content:flex-start;}
+/* 内容高于舞台 → 等比缩到整页可见（课堂投屏不该出现滚动/截断）；卡片底色/圆角仍铺满舞台 */
+body.hd .scene.fit{justify-content:flex-start;overflow:hidden;}
+body.hd .scene.fit .scene-inner{justify-content:flex-start;}
+body.hd .progress{flex:0 0 auto;margin-top:8px;}
+body.hd .nav-bar{position:absolute;right:12px;top:50%;transform:translateY(-50%);flex-direction:column;gap:12px;margin:0;z-index:40;}
+body.hd .nav-bar button{width:44px;height:44px;font-size:20px;}
 `
 
 const RUNTIME_CSS = `
 .story-root{position:relative;z-index:1;width:100%;max-width:960px;margin:0 auto;min-height:560px;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--text,#3A2E2E);outline:none;overscroll-behavior:contain;}
 :root{--bg1:#FFE8C9;--bg2:#FFD6E0;--card:#FFFDF8;--accent:#FF8A5B;--accent2:#FFB454;--text:#3A2E2E;--ink:#5A4A4A;}
-.scene{display:none;padding:36px 30px 84px;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.16);min-height:min(480px,72vh);animation:fade .45s ease;overflow:hidden;position:relative;background:var(--card);}
+.scene{display:none;padding:36px 32px 84px;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.16);min-height:min(480px,72vh);animation:fade .45s ease;overflow:hidden;position:relative;background:var(--card);}   /* 左右 32 = 法则阶梯（xxl）；下 84 保留固定导航避让 */
 /* 留白自适应（2026-09-11）：内容量少时**垂直居中**，空白四周均衡，避免"顶对齐 + 底部空洞"；
    内容多时自然撑满。min-height 用 min(480px,72vh) 随视口收缩，小屏不浪费。 */
 .scene.active{display:flex;flex-direction:column;justify-content:center;}
+/* 场景内容壳：等价于原来"场景直接当列 flex 容器"的排版（居中），多一层是为了能在 HD 下单独缩放内容。
+   注意 flex 用 0 0 auto：壳的高度必须等于**内容高度**（若 flex:1 会被拉伸到舞台高，"量内容"就量不到了）。 */
+.scene-inner{display:flex;flex-direction:column;flex:0 0 auto;min-height:0;min-width:0;width:100%;justify-content:center;}
 @keyframes fade{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .deco{position:absolute;pointer-events:none;z-index:0;opacity:.92;filter:drop-shadow(0 6px 10px rgba(0,0,0,.08));animation:decoFloat var(--deco-dur,6s) ease-in-out infinite;}
 @keyframes decoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
@@ -875,22 +955,22 @@ const RUNTIME_CSS = `
 .scene-transition .scene-title::before{content:"✨";}
 .scene-phenomenon .scene-title::before{content:"🔬";}
 /* read：点读词块放大居中（窄屏自动换行） */
-.scene-read .interact{margin-top:22px;padding:20px 22px;}
-.scene-read .read-list{gap:18px;justify-content:center;}
-.scene-read .read-word{font-size:24px;padding:14px 30px;border-radius:32px;}
+.scene-read .interact{margin-top:${H5LAW.blockGap}px;padding:${H5LAW.panelPadY}px ${H5LAW.panelPadX}px;}
+.scene-read .read-list{gap:${H5LAW.itemGap}px;justify-content:center;}
+.scene-read .read-word{font-size:24px;padding:12px 32px;border-radius:32px;}
 .scene-read .read-word .hint{font-size:13px;}
 /* quiz：选项卡大按钮（适合点选） */
-.scene-quiz .quiz-opts{gap:14px;}
-.scene-quiz .quiz-opt{font-size:18px;padding:16px 20px;}
+.scene-quiz .quiz-opts{gap:${H5LAW.itemGap}px;}
+.scene-quiz .quiz-opt{font-size:18px;padding:16px 24px;}
 /* reveal：揭晓大按钮居中 */
 .scene-reveal .interact{display:flex;flex-direction:column;align-items:center;text-align:center;}
-.scene-reveal .reveal-btn{font-size:18px;padding:14px 32px;border-radius:28px;}
+.scene-reveal .reveal-btn{font-size:18px;padding:12px 32px;border-radius:28px;}
 .scene-reveal .reveal-answer{font-size:17px;}
 /* draw：绘图画布加高，现场边讲边画更宽敞 */
-.scene-draw .interact{padding:14px;}
+.scene-draw .interact{padding:${H5LAW.itemGap}px;}
 .scene-draw .draw-canvas{height:270px;}
 /* focus：重点大字条强化（关键字收束页） */
-.scene-focus .focus-bar{font-size:19px;padding:16px 22px;margin-top:26px;}
+.scene-focus .focus-bar{font-size:19px;padding:16px 24px;margin-top:24px;}
 /* transition：转场/封面/收束——低信息密度，旁白居中，隐藏对话与互动 */
 .scene-transition{padding:56px 34px 92px;}
 .scene-transition .narration{font-size:21px;line-height:2;text-align:center;background:rgba(255,255,255,.55);}
@@ -898,7 +978,7 @@ const RUNTIME_CSS = `
 /* phenomenon（v2）：现象演示页——weather/storm/cycle 组件独占主体，去掉卡片化 interact 外壳 */
 .scene-phenomenon .stage{display:none;}
 .scene-phenomenon .narration{text-align:center;font-size:16px;border-style:solid;}
-.scene-phenomenon .interact{background:transparent;border:0;padding:0;margin-top:14px;box-shadow:none;}
+.scene-phenomenon .interact{background:transparent;border:0;padding:0;margin-top:${H5LAW.blockGap}px;box-shadow:none;}
 /* ── 自然科学组件 v2（weather / storm / cycle）样式 ── */
 /* weather：天空舞台 + 粒子 + 闪电 */
 .w-stage{position:relative;height:200px;border-radius:20px;overflow:hidden;border:2px solid rgba(0,0,0,.06);
@@ -951,10 +1031,12 @@ const RUNTIME_CSS = `
 .storm-caption{margin-top:10px;font-weight:800;color:var(--accent);font-size:14px;background:rgba(255,255,255,.8);border-radius:12px;padding:9px 14px;border:2px dashed rgba(0,0,0,.06);}
 .storm-msg{margin-top:8px;min-height:22px;font-weight:800;color:var(--ink);text-align:center;font-size:14px;}
 /* cycle：现象循环推进 */
-.cycle-zone{background:rgba(255,255,255,.72);border:2px solid rgba(0,0,0,.05);padding:16px 18px;border-radius:18px;}
+.cycle-zone{background:rgba(255,255,255,.72);border:2px solid rgba(0,0,0,.05);padding:16px 16px;border-radius:18px;}
 .cy-title{font-weight:900;font-size:18px;color:var(--accent);text-align:center;margin-bottom:4px;}
 .cy-track{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0 12px;flex-wrap:wrap;}
-.cy-dot{width:15px;height:15px;border-radius:50%;background:#e3e3e3;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.07);cursor:pointer;transition:.2s;}
+.cy-dot{position:relative;width:15px;height:15px;border-radius:50%;background:#e3e3e3;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.07);cursor:pointer;transition:.2s;}
+/* 圆点视觉只有 15px（设计如此），但**有效触控区**必须 ≥44×44（R3）：用透明伪元素补足，不改观感 */
+.cy-dot::after{content:"";position:absolute;left:50%;top:50%;width:${TEXT.minTouchPx}px;height:${TEXT.minTouchPx}px;transform:translate(-50%,-50%);}
 .cy-dot.cur{background:var(--accent);transform:scale(1.3);}
 .cy-dot.done{background:var(--accent2);}
 .cy-body{text-align:center;background:linear-gradient(150deg,#ffffff,#fff6ea);border-radius:18px;padding:16px 12px;border:2px dashed rgba(0,0,0,.07);}
@@ -965,29 +1047,35 @@ const RUNTIME_CSS = `
 .cy-note{color:var(--ink);font-size:14px;margin-top:6px;min-height:44px;}
 .cy-next{margin-top:12px;width:100%;border:none;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border-radius:24px;padding:12px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.16);transition:.2s;}
 .cy-next:hover{filter:brightness(1.06);}
-.narration{position:relative;z-index:2;font-size:16px;line-height:1.75;background:rgba(255,255,255,.66);padding:14px 18px;border-radius:16px;margin-bottom:18px;color:var(--ink);border:2px dashed rgba(0,0,0,.06);}
-.stage{position:relative;z-index:2;display:flex;flex-direction:column;gap:14px;}
-.bubble-row{display:flex;gap:12px;align-items:flex-start;}
+/* 间距一律取法则 token（H5 媒介纪律 R2 行高≥1.6 / 间距走 4-8 阶梯），不再出现 13/14/18 这类随手值 */
+.narration{position:relative;z-index:2;font-size:${TEXT.minBodyPx}px;line-height:1.75;background:rgba(255,255,255,.66);padding:${H5LAW.panelPadY}px ${H5LAW.panelPadX}px;border-radius:16px;margin-bottom:${H5LAW.blockGap}px;color:var(--ink);border:2px dashed rgba(0,0,0,.06);overflow-wrap:anywhere;}
+.stage{position:relative;z-index:2;display:flex;flex-direction:column;gap:${H5LAW.blockGap}px;}
+.bubble-row{display:flex;gap:${H5LAW.rowGap}px;align-items:flex-start;}
 .avatar{width:46px;height:46px;border-radius:50%;color:#fff;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 6px 14px rgba(0,0,0,.18);border:3px solid #fff;}
-.bubble{position:relative;background:#fff;padding:13px 18px;border-radius:20px;border-top-left-radius:6px;max-width:78%;box-shadow:0 6px 16px rgba(0,0,0,.1);border:2px solid rgba(0,0,0,.04);}
+.bubble{position:relative;background:#fff;padding:${H5LAW.bubblePadY}px ${H5LAW.bubblePadX}px;border-radius:20px;border-top-left-radius:6px;max-width:86%;box-shadow:0 6px 16px rgba(0,0,0,.1);border:2px solid rgba(0,0,0,.04);}   /* 86%：保证中文行宽 ≥20 字（R2 行宽 20~35 字），78% 时只剩 ~17 字 */
 .role-name{font-size:12px;font-weight:800;color:var(--c);margin-bottom:4px;}
 .bubble-text{font-size:16px;line-height:1.6;}
-.interact{position:relative;z-index:2;margin-top:18px;background:rgba(255,255,255,.72);border-radius:18px;padding:16px 18px;border:2px solid rgba(0,0,0,.05);}
-.interact-label{font-weight:800;font-size:14px;color:var(--accent);margin-bottom:10px;display:inline-flex;align-items:center;gap:6px;}
-.read-list{display:flex;flex-wrap:wrap;gap:10px;}
-.read-word{position:relative;border:2px solid var(--accent2);background:#FFF7E8;color:#C2541B;border-radius:30px;padding:9px 18px;font-size:16px;cursor:pointer;transition:.2s;font-weight:700;}
+.interact{position:relative;z-index:2;margin-top:${H5LAW.blockGap}px;background:rgba(255,255,255,.72);border-radius:18px;padding:${H5LAW.panelPadY}px ${H5LAW.panelPadX}px;border:2px solid rgba(0,0,0,.05);}
+.interact-label{font-weight:800;font-size:14px;color:var(--accent);margin-bottom:${H5LAW.labelGap}px;display:inline-flex;align-items:center;gap:${SPACE.sm}px;}
+.read-list{display:flex;flex-wrap:wrap;gap:${H5LAW.itemGap}px;min-width:0;}
+.read-word{position:relative;border:2px solid var(--accent2);background:#FFF7E8;color:#C2541B;border-radius:30px;padding:${H5LAW.itemGap}px ${H5LAW.bubblePadX}px;font-size:${TEXT.minBodyPx}px;cursor:pointer;transition:.2s;font-weight:700;display:inline-flex;align-items:center;min-height:${TEXT.minTouchPx}px;flex:0 0 auto;max-width:100%;overflow-wrap:anywhere;}   /* min-height 44：R3 触控硬下限；flex:0 0 auto：词卡不许被 flex 压成"一字一行"（实测手机竖排惨状） */
 .read-word:hover{transform:translateY(-3px);box-shadow:0 8px 18px rgba(255,138,91,.35);}
 .read-word.on{background:var(--accent);color:#fff;border-color:var(--accent);}
 .read-word .hint{display:block;font-size:11px;color:#999;font-weight:400;}
 .read-word.on .hint{color:#ffe;}
 .readalong-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;background:#fff;border-radius:12px;padding:8px 12px;}
 .ra-text{font-weight:600;flex:1;min-width:140px;}
-.ra-play,.ra-rec{border:none;background:#5B8DEF;color:#fff;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:13px;}
+/* 跟读示范/录音：触控区必须 ≥44×44（R3），字号取正文下限 16（R2） */
+.ra-play,.ra-rec{border:none;background:#5B8DEF;color:#fff;border-radius:22px;padding:0 ${SPACE.lg}px;cursor:pointer;font-size:${TEXT.minBodyPx}px;min-height:${TEXT.minTouchPx}px;display:inline-flex;align-items:center;}
+/* 绘图工具栏：清除按钮与取色器同样要够大才点得准（R3） */
+.draw-tools{display:flex;align-items:center;gap:${SPACE.md}px;}
+.draw-clear{min-height:${TEXT.minTouchPx}px;padding:0 ${SPACE.lg}px;border-radius:22px;border:2px solid var(--accent2);background:#fff;color:#C2541B;font-size:${TEXT.minBodyPx}px;cursor:pointer;}
+.draw-color{width:${TEXT.minTouchPx}px;height:${TEXT.minTouchPx}px;padding:0;border:none;background:none;cursor:pointer;}
 .ra-rec{background:#FF6B6B;}
 .ra-status a{color:#3FA34D;font-weight:600;}
 .quiz-zone .quiz-q{font-weight:800;margin-bottom:10px;}
 .quiz-opts{display:flex;flex-direction:column;gap:8px;}
-.quiz-opt{border:2px solid var(--accent2);background:#fff;border-radius:14px;padding:11px 15px;text-align:left;cursor:pointer;font-size:15px;transition:.15s;font-weight:600;}
+.quiz-opt{border:2px solid var(--accent2);background:#fff;border-radius:14px;padding:${H5LAW.itemGap}px ${H5LAW.itemGap}px;text-align:left;cursor:pointer;font-size:15px;transition:.15s;font-weight:600;display:flex;align-items:center;min-height:${TEXT.minTouchPx}px;}   /* 选项也要 ≥44 高（R3：别把选择题做成小 chip） */
 .quiz-opt:hover{background:#FFF7E8;transform:translateX(3px);}
 .quiz-opt.right{background:#3FA34D;color:#fff;border-color:#3FA34D;}
 .quiz-opt.wrong{background:#FF6B6B;color:#fff;border-color:#FF6B6B;}
@@ -1001,7 +1089,7 @@ const RUNTIME_CSS = `
 .draw-hint{font-size:12px;color:#999;margin-top:6px;}
 .popup-trigger{border:none;background:#22B8A6;color:#fff;border-radius:20px;padding:8px 18px;cursor:pointer;}
 .popup-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99;}
-.popup-box{background:#fff;border-radius:18px;padding:24px 28px;max-width:80%;position:relative;}
+.popup-box{background:#fff;border-radius:18px;padding:24px 32px;max-width:80%;position:relative;}
 .popup-close{position:absolute;top:8px;right:14px;font-size:22px;cursor:pointer;color:#999;}
 .focus-bar{position:relative;z-index:2;margin-top:18px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;padding:11px 18px;border-radius:16px;font-weight:800;font-size:14px;box-shadow:0 8px 20px rgba(0,0,0,.16);display:flex;align-items:center;gap:8px;}
 .focus-bar::before{content:"✨";}
@@ -1032,7 +1120,7 @@ const RUNTIME_CSS = `
 .morph-loose .scene{padding:44px 40px 98px;border-radius:34px;}
 .morph-loose .scene-title{font-size:28px;letter-spacing:2px;}
 .morph-loose .bubble-text{font-size:17px;line-height:1.8;}
-.morph-loose .narration{font-size:17px;line-height:2.1;padding:18px 22px;}
+.morph-loose .narration{font-size:17px;line-height:2.1;padding:16px 24px;}
 .morph-loose .stage{gap:18px;}
 .morph-loose .read-word{font-size:20px;}
 /* 紧凑 tight：信息密度高，适合夜读/复习收束 */
@@ -1048,14 +1136,14 @@ const RUNTIME_CSS = `
 /* 词卡页：点读词放大成卡片网格（不再是"气泡列里塞词"） */
 .sk-read .interact{background:transparent;border:0;padding:0;box-shadow:none;}
 .sk-read .read-list{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}
-.sk-read .read-word{font-size:26px;padding:22px 28px;border-radius:22px;border-width:3px;min-width:118px;text-align:center;box-shadow:0 6px 16px rgba(0,0,0,.08);}
-.sk-read .read-word .hint{font-size:14px;margin-top:6px;}
+.sk-read .read-word{font-size:26px;padding:24px 32px;border-radius:22px;border-width:3px;min-width:118px;text-align:center;box-shadow:0 6px 16px rgba(0,0,0,.08);}
+.sk-read .read-word .hint{font-size:14px;margin-top:${SPACE.sm}px;}
 .sk-read .interact-label{font-size:16px;}
 /* 选择页：题目居中 + 大按钮纵向，成为页面主角 */
-.sk-quiz .interact{background:rgba(255,255,255,.92);border-radius:26px;padding:26px 24px;box-shadow:0 10px 26px rgba(0,0,0,.1);text-align:center;}
-.sk-quiz .quiz-q{font-size:22px;font-weight:800;margin:6px 0 18px;line-height:1.6;}
-.sk-quiz .quiz-opts{gap:14px;}
-.sk-quiz .quiz-opt{font-size:19px;padding:18px 20px;border-radius:18px;border-width:3px;justify-content:center;}
+.sk-quiz .interact{background:rgba(255,255,255,.92);border-radius:26px;padding:${SPACE.xl}px ${SPACE.xl}px;box-shadow:0 10px 26px rgba(0,0,0,.1);text-align:center;}
+.sk-quiz .quiz-q{font-size:22px;font-weight:800;margin:${SPACE.sm}px 0 ${SPACE.lg}px;line-height:1.6;}
+.sk-quiz .quiz-opts{gap:${H5LAW.itemGap}px;}
+.sk-quiz .quiz-opt{font-size:19px;padding:${SPACE.lg}px ${SPACE.xl}px;border-radius:18px;border-width:3px;justify-content:center;}
 .sk-quiz .interact-label{font-size:16px;}
 /* 绘图页：画布占主体 */
 .sk-draw .interact{padding:16px;}
@@ -1092,11 +1180,14 @@ const RUNTIME_CSS = `
 .layout-tech .scene{padding:28px 5% 84px;border-radius:10px;box-shadow:0 0 0 1px rgba(80,160,255,.20),0 18px 50px rgba(20,60,120,.20);}
 .layout-tech .scene-title{text-align:left;letter-spacing:1px;}
 .layout-tech .narration{text-align:left;border-left:4px solid rgba(80,160,255,.60);border-radius:0;background:rgba(255,255,255,.55);}
-.layout-tech .scene:not(.scene-transition) .stage{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.layout-tech .scene:not(.scene-transition) .stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;}
 .layout-tech .interact{border:1px solid rgba(80,160,255,.38);box-shadow:0 0 18px rgba(80,160,255,.18);border-radius:6px;}
-.layout-tech .read-list{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+/* 窄屏自适应（2026-09-15）：原来是死写 1fr 1fr，手机 390px 下每个词卡只剩 ~155px →
+   24 字的词卡被压成"每行 5 个字、竖成长条"（教师截图的实际观感）。
+   改为自动列数：容器放得下几列就几列，放不下就一列占满。 */
+.layout-tech .read-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;}
 .layout-tech .read-word{border-radius:4px;border-width:2px;box-shadow:0 0 14px rgba(80,160,255,.22);}
-.layout-tech .sk-quiz .quiz-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.layout-tech .sk-quiz .quiz-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;}
 .layout-tech .bubble{border-radius:8px;border:1px solid rgba(80,160,255,.40);box-shadow:0 0 12px rgba(80,160,255,.18);}
 .layout-tech .focus-bar{border-radius:6px;box-shadow:0 0 18px rgba(80,160,255,.30);}
 .layout-tech .scene-transition .narration{max-width:560px;margin:0 auto;text-align:left;border-left:4px solid rgba(80,160,255,.6);}
@@ -1125,7 +1216,7 @@ const RUNTIME_CSS = `
 .layout-academic .scene{padding:32px 6% 88px;}
 .layout-academic .scene-title{text-align:left;border-left:5px solid rgba(31,78,121,.7);padding-left:12px;}
 .layout-academic .narration{text-align:left;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);border-radius:6px;}
-.layout-academic .read-list{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.layout-academic .read-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;}
 .layout-academic .read-word{border-radius:8px;text-align:left;}
 .layout-academic .bubble{border-radius:8px;}
 .layout-academic .scene-transition .narration{text-align:left;}
@@ -1206,13 +1297,14 @@ export function buildStoryH5(story: Story): string {
 <style>:root{--bg1:${theme.bg1};--bg2:${theme.bg2};--card:${theme.card};--accent:${theme.accent};--accent2:${theme.accent2};--text:${theme.text};--ink:${theme.ink};}
 .morph-${morph.density}{--density:${morph.density};}
 .mv-${morph.motion}{--deco-dur:${morph.motion === 'calm' ? 11 : morph.motion === 'energetic' ? 3.6 : 6}s;}
-${structureCssFromTokens()}</style>
+${structureCssFromTokens()}
+${HD_STAGE_CSS}</style>
 </head>
 <body class="morph-${morph.density} mv-${morph.motion} layout-${layout}" data-theme="${themeId}" data-motif="${morph.motif}" data-layout="${layout}" style="margin:0;background:linear-gradient(135deg,${theme.bg1},${theme.bg2});min-height:100vh;padding:20px 0;">
 <div class="story-root" data-auto="${story.autoPlay ? '1' : '0'}" data-interval="${story.autoPlayInterval || 5000}">
   <div class="story-header">
     <div class="h-title">📖 ${esc(story.title)}</div>
-    ${meta ? `<div class="h-meta">${esc(meta)}${story.teacherName ? ' · ' + esc(story.teacherName) + '老师' : ''}</div>` : ''}
+    ${meta ? `<div class="h-meta">${esc(meta)}${story.teacherName ? ' · ' + esc(story.teacherName) : ''}</div>` : ''}
   </div>
   ${scenesHtml}
   <div class="progress"><div class="progress-bar"></div></div>

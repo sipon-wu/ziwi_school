@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react'
 import type { VisualBlock } from '../lib/exportPptx'
 import type { DecoSpec } from '../lib/visualAsset/types'
+// 版面底层法则 → token（间距/内边距的缺省值单一真源，见 lib/layoutLaw.ts）
+import { PPT, floorMm, type TypeRole } from '../lib/layoutLaw'
 
 /**
  * 可视化组件渲染层（真课件的知识结构载体）。
@@ -40,27 +42,38 @@ const clamp = (lines: number): CSSProperties => ({
 })
 
 /**
- * 字号自适应：按文本长度缩放，长文本自动变小，避免换行撑破卡片。
- * @param base 基准字号(mm) @param text 文本
+ * 字号自适应（**有下限**）：按文本长度缩放，但**不许压到法则阶梯以下**。
+ *
+ * 法则（媒介纪律-PPT R2 + 质量宪法 12）：**"字小就意味着内容太多——正确做法是拆页或减字，不是缩字号"**。
+ * 此前这里最长文本可缩到基准的 0.5（× 基准 3.2mm → 1.6mm ≈ 4.5pt，投影上根本不可读），
+ * 等于把"内容过载"这件事**用字号掩盖**掉了。现在触底即停：溢出暴露出来，交由内容侧（拆页/减字）解决。
+ * @param base 基准字号(mm) @param text 文本 @param role 层级（决定下限，见 layoutLaw.floorMm）
  */
-function fs(text: string | undefined, base: number): number {
+function fs(text: string | undefined, base: number, role: TypeRole = 'note'): number {
   const len = (text || '').length
-  if (!len) return base
+  const fl = floorMm(role)
+  if (!len) return Math.max(base, fl)
   const scale = len <= 6 ? 1 : len <= 12 ? 0.9 : len <= 20 ? 0.8 : len <= 32 ? 0.68 : len <= 48 ? 0.58 : 0.5
-  return +(base * scale).toFixed(2)
+  return Math.max(fl, +(base * scale).toFixed(2))
 }
 
 /** 风格令牌：把"视觉语言"参数化，各组件统一取用 */
 function tokens(style: VisualStyle) {
+  // 间距/内边距**由法则给定**（缺省规则，见 lib/layoutLaw.ts；出处：媒介纪律-PPT R2/R6 与"文本不贴框"），
+  // 风格只负责圆角/边框/装饰/徽标比例 —— 此前各风格各写 py-[10px]/py-[10px].5/py-3、gap-2/gap-2.5/gap-3（随手值，不成阶梯），
+  // 且单元格用 px-[10px] py-[8px]（≈1mm）导致"文字贴着框线"。
+  const gap = `gap-[${PPT.blockGap}px]`
+  const padX = `px-[${PPT.cardPadX}px]`
+  const padY = `py-[${PPT.cardPadY}px]`
   switch (style) {
     case 'minimal':
-      return { radius: 'rounded-md', bw: 1, padY: 'py-2', deco: false, badge: 0.85, gap: 'gap-2' }
+      return { radius: 'rounded-md', bw: 1, padX, padY, deco: false, badge: 0.85, gap }
     case 'playful':
-      return { radius: 'rounded-2xl', bw: 4, padY: 'py-3', deco: true, badge: 1.15, gap: 'gap-3' }
+      return { radius: 'rounded-2xl', bw: 4, padX, padY, deco: true, badge: 1.15, gap }
     case 'academic':
-      return { radius: 'rounded-sm', bw: 2, padY: 'py-2', deco: false, badge: 0.9, gap: 'gap-2' }
+      return { radius: 'rounded-sm', bw: 2, padX, padY, deco: false, badge: 0.9, gap }
     default: // illustrated
-      return { radius: 'rounded-xl', bw: 3, padY: 'py-2.5', deco: true, badge: 1, gap: 'gap-2.5' }
+      return { radius: 'rounded-xl', bw: 3, padX, padY, deco: true, badge: 1, gap }
   }
 }
 
@@ -129,7 +142,7 @@ function Sequence({ v, t, style }: { v: Extract<VisualBlock, { type: 'sequence' 
           const isLast = i === n - 1
           return (
             <div key={i} className="flex min-w-0 flex-1 items-center gap-1.5">
-              <div className={`flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden text-center ${tk.radius} ${tk.padY} px-1.5`}
+              <div className={`flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden text-center ${tk.radius} ${tk.padX} ${tk.padY}`}
                 style={{ background: isLast ? `#${p}30` : `#${p}0D`, border: `${tk.bw}px solid ${isLast ? `#${p}` : `#${p}66`}` }}>
                 <div className="mb-0.5 flex shrink-0 items-center justify-center rounded-full"
                   style={{ width: `${badgeMm}mm`, height: `${badgeMm}mm`, background: isLast ? `#${p}` : `#${p}33`, color: isLast ? '#FFFFFF' : `#${p}`, fontSize: `${badgeMm * 0.62}mm`, fontWeight: 700, lineHeight: 1 }}>
@@ -172,9 +185,9 @@ function CompareTable({ v, t, style }: { v: Extract<VisualBlock, { type: 'compar
         <table className="h-full w-full table-fixed border-collapse">
           <thead>
             <tr style={{ background: `#${p}26` }}>
-              <th className="w-[16%] px-1 py-1" style={{ border: `1px solid #${p}44` }} />
+              <th className="w-[16%] px-[10px] py-[8px]" style={{ border: `1px solid #${p}44` }} />
               {v.cols.map((c, i) => (
-                <th key={i} className="px-1 py-1 font-bold"
+                <th key={i} className="px-[10px] py-[8px] font-bold"
                   style={{ border: `1px solid #${p}44`, color: `#${p}`, fontFamily: KAI, fontSize: `${fs(c, cellFs)}mm` }}>{c}</th>
               ))}
             </tr>
@@ -182,14 +195,18 @@ function CompareTable({ v, t, style }: { v: Extract<VisualBlock, { type: 'compar
           <tbody>
             {v.rows.map((r, i) => (
               <tr key={i}>
-                <td className="px-1 py-1 font-bold"
-                  style={{ border: `1px solid #${p}44`, background: `#${p}14`, color: `#${p}`, fontFamily: KAI, fontSize: `${fs(r.label, rowFs)}mm`, ...clamp(2) }}>
-                  {r.label}
+                {/* 截断样式必须落在**内层 div**（2026-09-15 修）：`clamp()` 会写 `display:-webkit-box`，
+                    直接铺在 `<td>` 上会把 `table-cell` 改成块盒 → 浏览器把整行单元格 blockify，
+                    正文塌成一列（实测 PPT·科技 P7：三格 x 全等 = 表格"画不出来"，教师看到的正是这个）。
+                    td 只管边框与底色，内容另起一层做行数截断。 */}
+                <td className="px-[10px] py-[8px] font-bold"
+                  style={{ border: `1px solid #${p}44`, background: `#${p}14`, color: `#${p}`, fontFamily: KAI, fontSize: `${fs(r.label, rowFs)}mm` }}>
+                  <div style={{ ...clamp(2) }}>{r.label}</div>
                 </td>
                 {v.cols.map((_, j) => (
-                  <td key={j} className="px-1 py-1 align-middle"
-                    style={{ border: `1px solid #${p}44`, color: `#${hex(t.body)}`, fontSize: `${fs(r.cells?.[j], cellFs * shrink)}mm`, ...clamp(3) }}>
-                    {r.cells?.[j] || ''}
+                  <td key={j} className="px-[10px] py-[8px] align-middle"
+                    style={{ border: `1px solid #${p}44`, color: `#${hex(t.body)}`, fontSize: `${fs(r.cells?.[j], cellFs * shrink)}mm` }}>
+                    <div style={{ ...clamp(3) }}>{r.cells?.[j] || ''}</div>
                   </td>
                 ))}
               </tr>
@@ -233,7 +250,7 @@ function Timeline({ v, t, style }: { v: Extract<VisualBlock, { type: 'timeline' 
                 }}>
                 {['一', '二', '三', '四', '五', '六'][i] || i + 1}
               </div>
-              <div className={`flex min-w-0 flex-1 flex-col justify-center overflow-hidden px-3 py-2 ${tk.radius}`}
+              <div className={`flex min-w-0 flex-1 flex-col justify-center overflow-hidden px-3 py-[10px] ${tk.radius}`}
                 style={{ background: isHi ? `#${p}` : `#${p}0D`, border: `${tk.bw}px solid ${isHi ? `#${p}` : `#${p}66`}` }}>
                 <div className="font-bold leading-tight"
                   style={{ color: isHi ? '#FFFFFF' : `#${p}`, fontSize: `${fs(nd.label, labelFs)}mm`, fontFamily: KAI, ...clamp(1) }}>
@@ -271,7 +288,7 @@ function CharCard({ v, t, style }: { v: Extract<VisualBlock, { type: 'char-card'
       <div className="grid min-h-0 flex-1 gap-2"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gridTemplateRows: `repeat(${rowsN}, minmax(0,1fr))` }}>
         {v.chars.map((c, i) => (
-          <div key={i} className="relative flex flex-col items-center justify-center overflow-hidden rounded-xl py-1"
+          <div key={i} className="relative flex flex-col items-center justify-center overflow-hidden rounded-xl py-[10px]"
             style={{ border: `2px solid #${p}77`, background: `#${p}0A` }}>
             {/* 田字格十字参考线（十字实线，比虚线更像田字格） */}
             {style !== 'minimal' && (
@@ -307,10 +324,10 @@ function CompareCard({ v, t, style }: { v: Extract<VisualBlock, { type: 'compare
               <div className="flex w-[14%] shrink-0 items-center justify-center rounded-xl font-bold"
                 style={{ background: `#${p}`, color: '#FFFFFF', fontFamily: KAI, fontSize: `${fs(pr.label, sideFs)}mm`, ...clamp(2) }}>{pr.label}</div>
             )}
-            <div className={`flex min-w-0 flex-1 items-center justify-center px-2 py-2 text-center font-bold ${tk.radius}`}
+            <div className={`flex min-w-0 flex-1 items-center justify-center px-[12px] py-[10px] text-center font-bold ${tk.radius}`}
               style={{ border: `${tk.bw}px solid #${p}66`, background: `#${p}0D`, color: `#${body}`, fontSize: `${fs(pr.left, sideFs)}mm`, ...clamp(3) }}>{pr.left}</div>
             <div className="flex shrink-0 items-center font-bold" style={{ color: `#${p}`, fontSize: `${3.8 * tk.badge}mm` }}>VS</div>
-            <div className={`flex min-w-0 flex-1 items-center justify-center px-2 py-2 text-center font-bold ${tk.radius}`}
+            <div className={`flex min-w-0 flex-1 items-center justify-center px-[12px] py-[10px] text-center font-bold ${tk.radius}`}
               style={{ border: `${tk.bw}px solid #${p}66`, background: `#${p}0D`, color: `#${body}`, fontSize: `${fs(pr.right, sideFs)}mm`, ...clamp(3) }}>{pr.right}</div>
           </div>
         ))}
@@ -350,7 +367,7 @@ function Diagram({ v, t, style }: { v: Extract<VisualBlock, { type: 'diagram' }>
       {v.title && <SectionTitle text={v.title} color={p} style={style} />}
       {/* 中心主题 */}
       <div className="flex shrink-0 justify-center">
-        <div className={`px-5 py-2 text-center font-bold ${tk.radius}`}
+        <div className={`px-5 py-[10px] text-center font-bold ${tk.radius}`}
           style={{ background: `#${p}`, color: '#FFFFFF', fontFamily: KAI, fontSize: `${fs(v.center, 6.5)}mm`, ...clamp(2), maxWidth: '70%' }}>
           {v.center}
         </div>
@@ -358,7 +375,7 @@ function Diagram({ v, t, style }: { v: Extract<VisualBlock, { type: 'diagram' }>
       {/* 分支网格 */}
       <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
         {v.branches.map((b, i) => (
-          <div key={i} className={`flex min-w-0 flex-col items-center justify-center overflow-hidden px-2 py-2 text-center ${tk.radius}`}
+          <div key={i} className={`flex min-w-0 flex-col items-center justify-center overflow-hidden px-[12px] py-[10px] text-center ${tk.radius}`}
             style={{ border: `${tk.bw}px solid #${p}55`, background: `#${p}0D` }}>
             <div className="font-bold leading-tight" style={{ color: `#${p}`, fontSize: `${fs(b.label, 4.8)}mm`, ...clamp(2) }}>{b.label}</div>
             {b.desc && <div className="mt-1 leading-tight" style={{ color: `#${body}`, fontSize: `${fs(b.desc, 3.6)}mm`, ...clamp(2) }}>{b.desc}</div>}
@@ -388,7 +405,7 @@ function IconCard({ v, t, style }: { v: Extract<VisualBlock, { type: 'icon-card'
       {v.title && <SectionTitle text={v.title} color={p} style={style} />}
       <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
         {v.items.map((it, i) => (
-          <div key={i} className={`flex min-w-0 flex-col items-center justify-center overflow-hidden text-center ${tk.radius} ${bare ? 'px-1 py-1' : 'px-2 py-2'}`}
+          <div key={i} className={`flex min-w-0 flex-col items-center justify-center overflow-hidden text-center ${tk.radius} ${bare ? 'px-[10px] py-[8px]' : 'px-[12px] py-[10px]'}`}
             style={decoStyle(deco, p, style)}>
             {showNum ? (
               <div className="mb-1 flex shrink-0 items-center justify-center rounded-full font-bold"
@@ -421,7 +438,7 @@ function Structure({ v, t, style }: { v: Extract<VisualBlock, { type: 'structure
             </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
               {lv.children.map((c, j) => (
-                <div key={j} className="rounded-lg px-2 py-1"
+                <div key={j} className="rounded-lg px-[10px] py-[8px]"
                   style={{ border: `1px solid #${p}55`, background: `#${p}0A`, color: `#${hex(t.body)}`, fontSize: `${fs(c, 3.8)}mm`, ...clamp(2) }}>
                   {c}
                 </div>
@@ -448,7 +465,7 @@ function Flow({ v, t, style }: { v: Extract<VisualBlock, { type: 'flow' }>; t: V
       <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateRows: `repeat(${rows}, minmax(0,1fr))`, gridTemplateColumns: `repeat(${Math.ceil(n / rows)}, minmax(0,1fr))` }}>
         {v.steps.map((s, i) => (
           <div key={i} className="flex min-w-0 items-center gap-1">
-            <div className={`flex min-w-0 flex-1 flex-col justify-center overflow-hidden px-2 py-2 text-center ${tk.radius}`}
+            <div className={`flex min-w-0 flex-1 flex-col justify-center overflow-hidden px-[12px] py-[10px] text-center ${tk.radius}`}
               style={{ border: `${tk.bw}px solid #${p}66`, background: `#${p}0D` }}>
               <div className="font-bold leading-tight" style={{ color: `#${p}`, fontFamily: KAI, fontSize: `${fs(s.label, n > 6 ? 3.6 : 4.4)}mm`, ...clamp(2) }}>{s.label}</div>
               {s.desc && <div className="mt-0.5 leading-tight" style={{ color: `#${body}`, fontSize: `${fs(s.desc, 3.2)}mm`, ...clamp(2) }}>{s.desc}</div>}
@@ -511,19 +528,51 @@ function Annotate({ v, t, style }: { v: Extract<VisualBlock, { type: 'annotate' 
 }
 
 /* ─────────────────────────── 分发入口 ─────────────────────────── */
+/* 组件数据消毒（2026-09-15）：白屏根因修复。
+ * 实测（科技风格 PPT 生成完成那一刻）：模型把 `items[].label` 写成了**对象** `{label, desc}` 而非字符串，
+ * 渲染处 `{it.label}` 直接把对象当 React 子节点 → React #31
+ * 「Objects are not valid as a React child (found: object with keys {label, desc})」→ **整棵组件树崩掉、画布白屏**，
+ * 教师看到的是空白页（内容其实生成好了，只是渲染崩了）。
+ * 在**唯一入口**做一次深消毒：字符串位（label/desc/text/title/icon/…）上若来了对象，取其中的文本；
+ * 其余结构原样递归。这样任何组件、任何落盘形态（VISUAL 注释 / CW-EL 元素层）都受同一层保护。 */
+const STRINGISH = new Set(['label', 'desc', 'text', 'title', 'icon', 'caption', 'value', 'name', 'unit', 'note'])
+function toText(o: unknown): string {
+  if (o == null) return ''
+  if (typeof o === 'string' || typeof o === 'number') return String(o)
+  const rec = o as Record<string, unknown>
+  for (const k of ['label', 'text', 'title', 'name', 'desc', 'value']) {
+    const v = rec[k]
+    if (typeof v === 'string' || typeof v === 'number') return String(v)
+  }
+  return ''
+}
+function sanitizeVisual<T>(x: T): T {
+  if (Array.isArray(x)) return x.map(v => sanitizeVisual(v)) as unknown as T
+  if (x && typeof x === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
+      if (v && typeof v === 'object' && !Array.isArray(v) && STRINGISH.has(k)) out[k] = toText(v)
+      else out[k] = sanitizeVisual(v)
+    }
+    return out as T
+  }
+  return x
+}
+
 export function VisualBlockView({ block, theme, style = 'illustrated' }: { block: VisualBlock; theme: VisualTheme; style?: VisualStyle }) {
-  switch (block.type) {
-    case 'sequence': return <Sequence v={block} t={theme} style={style} />
-    case 'compare-table': return <CompareTable v={block} t={theme} style={style} />
-    case 'timeline': return <Timeline v={block} t={theme} style={style} />
-    case 'char-card': return <CharCard v={block} t={theme} style={style} />
-    case 'compare-card': return <CompareCard v={block} t={theme} style={style} />
-    case 'quote': return <Quote v={block} t={theme} style={style} />
-    case 'diagram': return <Diagram v={block} t={theme} style={style} />
-    case 'icon-card': return <IconCard v={block} t={theme} style={style} />
-    case 'structure': return <Structure v={block} t={theme} style={style} />
-    case 'flow': return <Flow v={block} t={theme} style={style} />
-    case 'annotate': return <Annotate v={block} t={theme} style={style} />
+  const b = sanitizeVisual(block)
+  switch (b.type) {
+    case 'sequence': return <Sequence v={b} t={theme} style={style} />
+    case 'compare-table': return <CompareTable v={b} t={theme} style={style} />
+    case 'timeline': return <Timeline v={b} t={theme} style={style} />
+    case 'char-card': return <CharCard v={b} t={theme} style={style} />
+    case 'compare-card': return <CompareCard v={b} t={theme} style={style} />
+    case 'quote': return <Quote v={b} t={theme} style={style} />
+    case 'diagram': return <Diagram v={b} t={theme} style={style} />
+    case 'icon-card': return <IconCard v={b} t={theme} style={style} />
+    case 'structure': return <Structure v={b} t={theme} style={style} />
+    case 'flow': return <Flow v={b} t={theme} style={style} />
+    case 'annotate': return <Annotate v={b} t={theme} style={style} />
     default: return null
   }
 }

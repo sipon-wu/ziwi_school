@@ -17,6 +17,8 @@
  */
 
 import type { DecorStyle, StyleMorph } from './pptThemes'
+// 版面底层法则 → token（字号阶梯/触控/行高的缺省值单一真源，见 lib/layoutLaw.ts）
+import { PT_TO_MM, TYPE, TEXT } from './layoutLaw'
 
 /* ───────────── 字体（PPT 与 H5 共用口径） ───────────── */
 export const F_KAI = 'KaiTi, "楷体", "STKaiti", "Microsoft YaHei"'
@@ -201,11 +203,27 @@ export const TITLE_BAND_RATIO = 0.153
 /** 导出与 H5 用的 px 层级（sub = 副标题，介于主标题与小标题之间） */
 export const TYPE_SCALE = { title: 30, sub: 24, h3: 22, body: 16, caption: 12 } as const
 
-/** 正文自适应上下界（px）：上限必须 ≤ h3，保证正文永远压不过小标题 */
-export const BODY_RANGE = { min: 13, max: 18 } as const
+/** 正文自适应上下界（px）：下限取 H5 媒介纪律 R2 的正文硬下限 16px（此前 13px 低于法则） */
+export const BODY_RANGE = { min: TEXT.minBodyPx, max: 18 } as const
 
-/** 预览用的 mm 层级（同一层级的另一种量纲表达） */
-export const TYPE_MM = { title: 11, sub: 6.2, h3: 4.8, bodyMax: 3.6, bodyMin: 2.6, caption: 2.2 } as const
+/**
+ * 预览用的 mm 层级 —— **由法则派生**（2026-09-15 纳入缺省规则，见 lib/layoutLaw.ts）。
+ *
+ * 规则（媒介纪律-PPT R2/R3）：正文 **≥22pt**；相邻层级差 **≥1.25×**；标题落在 36~44pt。
+ * 于是自下而上推：正文 = 22pt → h3 = ×1.25 → sub = ×1.25² → title = ×1.25³（=43pt，落在 36~44 内 ✔）。
+ * 注释级 = 正文 / 1.25 ≈ 17.6pt（降一档的边界）。
+ *
+ * 此前是一组**明显低于法则**的随手值（title 11 / h3 4.8 / bodyMax 3.6 / bodyMin 2.6 ≈ 正文 10pt 与 7pt），
+ * 投影上根本不可读 —— 而且 bodyMin 还允许正文再缩到 7pt，等于"用缩小字号掩盖内容过载"（质量宪法 12 明禁）。
+ */
+export const TYPE_MM = {
+  title: +(TYPE.bodyPt * 1.25 ** 3 * PT_TO_MM).toFixed(1),    // 43pt ≈ 15.2mm
+  sub: +(TYPE.bodyPt * 1.25 ** 2 * PT_TO_MM).toFixed(1),      // 34pt ≈ 12.1mm
+  h3: +(TYPE.bodyPt * 1.25 * PT_TO_MM).toFixed(1),            // 28pt ≈ 9.7mm
+  bodyMax: +(TYPE.bodyPt * PT_TO_MM).toFixed(2),              // 22pt = 7.76mm（法则下限，也是常态）
+  bodyMin: +(TYPE.bodyPt * PT_TO_MM).toFixed(2),              // 同上：正文不再允许缩小
+  caption: +(TYPE.notePt * PT_TO_MM).toFixed(1),              // 18pt ≈ 6.4mm
+} as const
 
 /** 各风格页面标题字号（px）——H5 用它保证"标题永远最大"，也供内容元素封顶 */
 export const STYLE_TITLE_PX: Record<StyleKey, number> = {
@@ -260,6 +278,26 @@ export function typeOrderValid(): boolean {
   const mm = TYPE_MM.title > TYPE_MM.sub && TYPE_MM.sub > TYPE_MM.h3 && TYPE_MM.h3 > TYPE_MM.bodyMax
     && TYPE_MM.bodyMax >= TYPE_MM.bodyMin && TYPE_MM.bodyMin >= TYPE_MM.caption
   return px && mm
+}
+
+/**
+ * 字体是否**合法则**（2026-09-15 纳入缺省规则）：层级不变量之外，再断言"投影可读"的硬下限。
+ *   ① 正文 ≥ 22pt（R2）——投影远观可读的下限，低于它等于"用缩小字号塞内容"（质量宪法 12 明禁）
+ *   ② 相邻层级差 ≥1.25×（R3）——同屏全可见时，字号是唯一区分手段
+ *   ③ 标题落在 36~44pt（R2）
+ * 任何一条不满足 → 返回 false，由运行期断言 / E2E 抓住（不再靠人肉目测）。
+ */
+export function typeLawValid(): boolean {
+  const pt = (mm: number) => mm / PT_TO_MM
+  const body = pt(TYPE_MM.bodyMin)
+  const okBody = body + 0.01 >= TYPE.bodyPt
+  const okSteps = pt(TYPE_MM.h3) / pt(TYPE_MM.bodyMax) >= TEXT.typeRatio - 0.01
+    && pt(TYPE_MM.sub) / pt(TYPE_MM.h3) >= TEXT.typeRatio - 0.01
+    && pt(TYPE_MM.title) / pt(TYPE_MM.sub) >= TEXT.typeRatio - 0.01
+  const title = pt(TYPE_MM.title)
+  const okTitle = title >= TYPE.titlePt.min - 0.5 && title <= TYPE.titlePt.max + 0.5
+  const okH5 = TYPE_SCALE.body >= TEXT.minBodyPx
+  return okBody && okSteps && okTitle && okH5
 }
 
 /* ────────────────────────────────────────────────

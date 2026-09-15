@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -117,6 +118,11 @@ func (h *AnnotationHandler) CreateVersion(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || body.ResourceType == "" || body.ResourceID == "" || body.Payload == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "resource_type/resource_id/payload 必填"})
+		return
+	}
+	// payload 落的是 jsonb 列：先验合法性，**把 500 变成 400**（否则非法 JSON 会以 DB 错误形式暴露）
+	if !json.Valid([]byte(body.Payload)) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payload 必须是合法 JSON"})
 		return
 	}
 	// 仅草稿期可存版本：发布(active)后禁止再存快照

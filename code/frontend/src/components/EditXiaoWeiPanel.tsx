@@ -2,6 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, ChevronDown } from 'lucide-react'
 import { aiAPI } from '../lib/api'
 import { useToast } from '../components/Toast'
+import {
+  detectTemplateIntent, requestStyleSwitch, styleFlowStep, styleAskText, styleConfirmText,
+  styleDoneText, STYLE_CANCEL_TEXT, STYLE_LIST_TEXT, STYLE_REVERT_DONE, type StyleFlowState,
+} from '../lib/styleIntent'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -28,6 +32,8 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  // 换风格多轮流程的待定状态（选好档、等确认）——面板内局部状态即可，不跨面板
+  const [pendingStyle, setPendingStyle] = useState<StyleFlowState | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -64,6 +70,54 @@ export default function EditXiaoWeiPanel({ contextType, subject, grade, knowledg
     const userMsg: Message = { role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setLoading(true)
+
+    // ── 换风格 / 换模板：确定性动作 + **多轮固定话术**（2026-09-15）──
+    // 编辑器里小微原先只有"应用到当前内容 → AI 重生成"一条路：换风格会连带重写内容、
+    // 花 1~3 分钟、还可能越改越差（实测返修 4→10→8 反弹）。现在改走确定性换模板：
+    //   ① 请选强度档（轻=只换风格语汇 / 重=重新套版，会重排位置）
+    //   ② 二次确认，并报出**预演出来的真实影响范围**与风险、开销
+    //   ③ 只有教师回「确认」才执行；执行后可"换回上一个风格"整页回退
+    const step = styleFlowStep(pendingStyle, text)
+    if (step) {
+      if (step.kind === 'cancelled') {
+        setMessages(prev => [...prev, { role: 'assistant', content: STYLE_CANCEL_TEXT }])
+        setPendingStyle(null); setLoading(false); return
+      }
+      if (step.kind === 'confirmAsk') {
+        // **预演**（dry-run，不落地）：重档要如实告诉教师"会重排几页 / 几个元素"
+        const r = await requestStyleSwitch({ styleTag: pendingStyle?.styleTag, level: step.level, dryRun: true })
+        setMessages(prev => [...prev, {
+          role: 'assistant', content: styleConfirmText(pendingStyle?.label || '', step.level, r),
+        }])
+        setPendingStyle(prev => ({ ...(prev || {}), level: step.level, stage: 'confirm' }))
+        setLoading(false); return
+      }
+      if (step.kind === 'execute') {
+        const r = await requestStyleSwitch({ styleTag: pendingStyle?.styleTag, level: step.level })
+        setMessages(prev => [...prev, {
+          role: 'assistant', content: styleDoneText(pendingStyle?.label || '', step.level, r),
+        }])
+        setPendingStyle(null)
+        setLoading(false); return
+      }
+    }
+    const styleIntent = detectTemplateIntent(text)
+    if (styleIntent.hit) {
+      if (styleIntent.revert) {      // 回退动作低风险 → 即刻执行，不套多轮确认
+        const r = await requestStyleSwitch({ revert: true })
+        setMessages(prev => [...prev, {
+          role: 'assistant', content: r.handled ? STYLE_REVERT_DONE : (r.error || '这里没有可恢复的风格。'),
+        }])
+        setPendingStyle(null); setLoading(false); return
+      }
+      if (!styleIntent.styleTag) {
+        setMessages(prev => [...prev, { role: 'assistant', content: STYLE_LIST_TEXT }])
+        setLoading(false); return
+      }
+      setPendingStyle({ styleTag: styleIntent.styleTag, label: styleIntent.label, stage: 'choose' })
+      setMessages(prev => [...prev, { role: 'assistant', content: styleAskText(styleIntent.label || '') }])
+      setLoading(false); return
+    }
 
     try {
       const history = [...messages, userMsg].slice(-20)

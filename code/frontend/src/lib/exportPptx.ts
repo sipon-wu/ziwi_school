@@ -36,6 +36,8 @@ function pptxFont(css?: string): string {
 }
 
 export interface CwOptions {
+  /** 任教班级展示名（如"四年级(2)班"）。**没有班级时必须留空，不要拿年级顶替**（2026-09-15 准确性修正） */
+  classLabel?: string
   subject: string
   grade: string
   title: string
@@ -65,7 +67,9 @@ export interface CwRichLine {
  */
 export interface CwElement {
   id: string
-  type: 'text' | 'image' | 'shape'
+  /** visual（2026-09-14）：知识结构组件也是**一种元素**（复合对象），与文本框/形状/图片同层同源。
+   *  这样编辑态与预览态才可能用同一份数据渲染 —— 此前组件只在预览的渲染分支里临时画，编辑态看不到。 */
+  type: 'text' | 'image' | 'shape' | 'visual'
   x: number
   y: number
   w: number
@@ -96,12 +100,45 @@ export interface CwElement {
   fill?: string
   // ── 图片 ──
   src?: string
+  // ── 知识结构组件（type === 'visual'，2026-09-14）──
+  /** 组件载荷（对比卡/时间轴/递进图/生字卡…）。依据上游做法：复合对象（图表/SmartArt）是**独立的元素类型**，
+   *  带自己的 rect；渲染由组件自身负责，元素层只负责"它在哪里、多大"。 */
+  visual?: VisualBlock
+  /** 组合标记（PPT 的 groupId 语义）：共享 groupId 的元素被视作**单个可选中/可移动单元**，
+   *  但在数组中仍是独立条目（为将来"取消组合/重设"留口子）。 */
+  groupId?: string
+  // ── 版式引用与覆盖语义（2026-09-14，对应 PPT 的「占位符 + 局部覆盖」）──
+  /** 来源槽位（骨架占位符 key）。**有它且未被 overridden 时，几何跟随当前版式 + 当前风格骨架**
+   *  （换风格/换版式即自动重解析，见 resolveElementRect）；教师改动过则固化。
+   *  多列 bullet 的槽位不打此标：一个占位符被切成多列，无法从单个矩形反推列宽。 */
+  slotKey?: string
+  /** 是否已被教师手工改动（拖动/缩放/改字号颜色等）。**缺省（undefined）视为已覆盖** ——
+   *  老数据没有这个字段，因此行为与引入前完全一致（冻结），保证零回归。 */
+  overridden?: boolean
+}
+
+/**
+ * 封面信息条的真实值（2026-09-15）
+ *
+ * 封面下方那条信息带此前是**写死的装饰占位**（标签"年级/学科/教师"，值恒为"—"），
+ * 教师看到三个空格子，观感像没做完。现在统一由这里给值：学科 / 年级 / 班级 / 教师署名，
+ * 空项直接不出现（不显示"—"占位）。班级用任教班级名，**取不到就不显示**（不拿年级顶替）。
+ */
+export function coverInfoFrom(opts: CwOptions): Array<{ label: string; value: string }> {
+  return [
+    { label: '学科', value: opts.subject || '' },
+    { label: '年级', value: opts.grade || '' },
+    { label: '班级', value: (opts.classLabel || '').trim() },
+    { label: '教师', value: (opts.teacherName || '').trim() },
+  ].filter(it => it.value !== '')
 }
 
 export interface CwSlide {
   kind: 'cover' | 'content'
   title: string
   subtitle?: string
+  /** 封面信息条（学科/年级/班级/教师）：只给有值的项，见 coverInfoFrom */
+  coverInfo?: Array<{ label: string; value: string }>
   footer?: string
   rich?: CwRichLine[]
   notes?: string
@@ -204,6 +241,7 @@ export function buildCoursewareSlides(content: string, opts: CwOptions): CwSlide
     kind: 'cover',
     title: opts.title,
     subtitle: `${opts.subject} · ${opts.grade}${opts.teacherName ? '  ·  ' + opts.teacherName : ''}`,
+    coverInfo: coverInfoFrom(opts),
     footer: '知微教学 · ziwi.cn',
   })
 
@@ -240,6 +278,7 @@ export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
         kind: 'cover',
         title: s.title,
         subtitle: `${opts.subject} · ${opts.grade}${opts.teacherName ? '  ·  ' + opts.teacherName : ''}`,
+        coverInfo: coverInfoFrom(opts),
         footer: '知微教学 · ziwi.cn',
       })
       return
@@ -414,6 +453,20 @@ export function markdownToOutline(md: string): OutlineSlide[] {
     if (elMatch && cur) {
       const els = b64dec(elMatch[1])
       if (els) cur.elements = els
+      // 往返保真（2026-09-14）：组件物化后住在元素层（元素 `type:'visual'`），落盘时不再另写
+      // VISUAL 注释（见 outlineToMarkdown 的去重说明）。此处把元素层里的组件**反推回 visuals**，
+      // 使"单一真源=元素层"下 visuals 仍有值（读取端多处以 normalizeVisuals(s.visuals) 为准）。
+      const fromEls = (Array.isArray(els) ? els : [])
+        .filter((e: any) => e && e.type === 'visual' && e.visual)
+        .map((e: any) => e.visual)
+      if (fromEls.length) {
+        const seen = new Set((Array.isArray(cur.visuals) ? cur.visuals : cur.visuals ? [cur.visuals as VisualBlock] : [])
+          .map((v: any) => JSON.stringify(v)))
+        for (const v of fromEls) {
+          const k = JSON.stringify(v)
+          if (!seen.has(k)) { seen.add(k); cur.visuals = Array.isArray(cur.visuals) ? [...cur.visuals, v] : (cur.visuals ? [cur.visuals as VisualBlock, v] : v) }
+        }
+      }
       continue
     }
     // H5 互动组件内嵌注释：<!-- CW-IT:base64 --> 还原到当前页 interactive（可多个，累积为数组）
@@ -528,6 +581,7 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
   const slides: CwSlide[] = [{
     kind: 'cover', title: opts.title,
     subtitle: `${opts.subject} · ${opts.grade}${opts.teacherName ? '  ·  ' + opts.teacherName : ''}`,
+    coverInfo: coverInfoFrom(opts),
     footer: '知微教学 · ziwi.cn',
   }]
   outline.forEach((s, i) => {
@@ -565,7 +619,15 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
     // 内嵌 H5 互动组件（base64，避免 -->/换行/引号截断注释）
     if (s.interactive && isValidComponent(s.interactive)) lines.push(`<!-- CW-IT:${b64enc(s.interactive)} -->`)
     // 内嵌可视化组件（递进图/对比表/时间轴/生字卡等，可多个各占一行）
-    for (const v of normalizeVisuals(s.visuals)) lines.push(`<!-- VISUAL:${b64enc(v)} -->`)
+    // 去重（2026-09-14）：组件一旦物化进元素层（元素 `type:'visual'`，已由上面的 CW-EL 落盘），
+    // 再写一份 VISUAL 注释就是**同一组件的两份副本**。前端渲染以元素层为准（注释被忽略），
+    // 但服务端检查器会读注释 —— 于是"注释里的过时副本"会持续报错
+    // （实测：兜底修好 marks 后仍报旧 marks 不在 text 中，就是这份副本造成的）。
+    // 故：元素层已承载组件时，不再写 VISUAL 注释（单一真源 = 元素层）。
+    const hasVisualEls = !!(s.elements && s.elements.some((e) => (e as any).type === 'visual'))
+    if (!hasVisualEls) {
+      for (const v of normalizeVisuals(s.visuals)) lines.push(`<!-- VISUAL:${b64enc(v)} -->`)
+    }
     lines.push('')
   })
   return lines.join('\n')
@@ -607,14 +669,43 @@ export function layoutElements(slide: OutlineSlide, layout?: string, styleKey?: 
     return [{ id: uid(), type: 'text', x: sc.x, y: sc.y, w: sc.w, h: sc.h, text: parts.join('\n'), fontSize: 18, bullet: true }]
   }
   // 内容与模板分离：有 slots 时按骨架几何生成元素（与预览/导出一致）；无 slots 但 layout 命中骨架时即时分发（兼容存量）
-  const effSlots = slide.slots ?? (layout && isStructuredLayout(layout) ? distributeToSlots(layout as SlideLayout, slide.bullets) : undefined)
+  // 知识结构组件：作为 visual 元素进入元素层（与文本元素同源 → 编辑态/预览态渲染同一份数据）
+  const vis = normalizeVisuals((slide as any).visuals)
+  const sk0 = layout && isStructuredLayout(layout) ? getSkeleton(layout as SlideLayout, { styleKey: styleKey ?? '' }) : undefined
+  // 组件要占用的槽位：优先专属组件槽（visual），否则图片/信息槽（info-block）。
+  // 这些槽位**不参与文本分发** —— 否则分发到该槽的那条文本会随组件一起消失（内容丢失，探针实测）。
+  const visSlotKeys: string[] = []
+  if (sk0 && vis.length) {
+    const k = sk0.placeholders.find((p) => p.kind === 'visual')?.key || sk0.placeholders.find((p) => p.kind === 'info-block')?.key
+    if (k) visSlotKeys.push(k)
+  }
+  // 有组件时不用历史 slots：那是在"没有组件"的前提下分发的；按当前版式重分发并避开组件槽。
+  const effSlots = (slide.slots && !vis.length)
+    ? slide.slots
+    : (layout && isStructuredLayout(layout) ? distributeToSlots(layout as SlideLayout, slide.bullets, { skipKeys: visSlotKeys }) : undefined)
   if (effSlots && layout && isStructuredLayout(layout)) {
-    const sk = getSkeleton(layout as SlideLayout, { styleKey: styleKey ?? '' })
+    const sk = sk0
     if (sk) {
       const els: CwElement[] = []
       for (const ph of sk.placeholders) {
         // 页标题由顶部标题色带统一渲染，骨架里的 title 占位不再生成元素（否则导出成品会出现“标题”二字）
         if (ph.key === 'title' && layout !== 'cover') continue
+        // ── 组件槽位：把知识结构组件物化为 visual 元素 ──
+        // ① 专属组件槽（kind='visual'，如 visual-top）；② 兼容图片槽（info-block，如 image-text）——
+        //    有组件时优先让组件占用它，避免出现"文字摆在图片位上"的错配。
+        if (ph.kind === 'visual' || (ph.kind === 'info-block' && vis.length)) {
+          const r = ph.rect!
+          if (!vis.length) continue
+          if (vis.length === 1) {
+            // 单组件：几何直接取自槽位 → 打「引用 + 未覆盖」标，可跟随版式/风格
+            els.push({ id: uid(), type: 'visual', visual: vis[0], x: r.x, y: r.y, w: r.w, h: r.h, slotKey: ph.key, overridden: false })
+          } else {
+            // 多组件共用一个槽位：纵向均分；几何不再等于槽位，故不打引用标（视为已固化）
+            const hh = r.h / vis.length
+            vis.forEach((b, i) => els.push({ id: uid(), type: 'visual', visual: b, x: r.x, y: r.y + i * hh, w: r.w, h: hh }))
+          }
+          continue
+        }
         const content = effSlots[ph.key] ?? []
         // 无内容的占位不生成元素：避免“思维导图占位”等未填充提示进入导出成品
         if (!content.length) continue
@@ -630,6 +721,8 @@ export function layoutElements(slide: OutlineSlide, layout?: string, styleKey?: 
             id: uid(), type: 'text', x: r.x, y: r.y, w: r.w, h: r.h,
             text: display, fontSize: ph.fontSize || (ph.kind === 'title' ? 32 : 16),
             bold: ph.bold ?? (ph.kind === 'title'), align: (ph.align as any) || 'left', bullet: ph.kind === 'bullet',
+            // 几何直接取自骨架占位符 → 打「引用 + 未覆盖」标，之后换版式/换风格可跟随
+            slotKey: ph.key, overridden: false,
           })
         }
       }
@@ -705,15 +798,70 @@ export function layoutElements(slide: OutlineSlide, layout?: string, styleKey?: 
   }
 }
 
+/** ── 元素几何解析：引用 + 覆盖（2026-09-14）──
+ * 背景（实测）：物化（layoutElements）把骨架占位符的 rect 变成写死的 x/y/w/h，元素与骨架/风格**彻底脱钩**；
+ * 而 applyTemplate 只改 layout/slots/decor，`lib/cwTemplate.ts` 里对 elements 零处理 → 换模板/换风格时
+ * **编辑态毫无变化，预览态却会变**（预览走 slots + getSkeleton(styleKey)），这是「编辑≠预览」的第二个独立成因。
+ *
+ * 本函数是两态共用的唯一几何出口：
+ *   未覆盖（有 slotKey 且 overridden!==true）→ 查当前 layout + 当前风格的骨架占位符（风格补丁在 getSkeleton 内打）
+ *   已覆盖（教师改过 / 无 slotKey 的老数据）→ 用元素自身固化的 x/y/w/h
+ * 于是「换风格」对未覆盖元素自动生效，且教师手工调过的位置不会被覆盖掉。
+ */
+export function resolveElementRect(
+  el: CwElement,
+  layout?: string,
+  styleKey?: StyleKey | '',
+): { x: number; y: number; w: number; h: number } {
+  const own = { x: el.x, y: el.y, w: el.w, h: el.h }
+  if (!el.slotKey || el.overridden === true || !layout) return own
+  if (!isStructuredLayout(layout)) return own
+  const sk = getSkeleton(layout as SlideLayout, { styleKey: styleKey ?? '' })
+  const ph = sk?.placeholders.find((p) => p.key === el.slotKey)
+  const r = ph?.rect
+  if (!r) return own
+  return { x: r.x, y: r.y, w: r.w, h: r.h }
+}
+
 /**
  * 进入自由编辑时调用：给尚无 elements 的页物化默认元素（保留 AI 提纲内容）。
  * 2026-09-11：新增 styleKey —— 物化出来的默认元素几何也须带风格，
  * 否则这些页（如 title-body）会绕开骨架、换风格完全不变。
  */
+/** 该版式能否承载知识结构组件：骨架里有专属组件槽（visual）或图片/信息槽（info-block）。 */
+function layoutCanHostVisual(layout: string, styleKey?: StyleKey | ''): boolean {
+  if (!isStructuredLayout(layout)) return false
+  const sk = getSkeleton(layout as SlideLayout, { styleKey: styleKey ?? '' })
+  return !!sk?.placeholders.some((p) => p.kind === 'visual' || p.kind === 'info-block')
+}
+
+/** 进入编辑/渲染前调用：保证**每一页都有一份完整的元素层**（文本 + 组件），它是唯一渲染源。
+ *  2026-09-14 补齐：此前只物化"尚无 elements"的页，于是老保存的 CW-EL 页里没有组件对象
+ *  → 收敛渲染路径后组件会消失。现在改为「缺什么补什么」。
+ *  同时做一次版式规范化：页面有组件而版式没有组件槽位 → 提升为 visual-top
+ *  （与既有 pickContentLayout 同属"生成器按内容选版式"，避免内容硬塞进不合适的版式而重叠）。 */
 export function materializeOutline(outline: OutlineSlide[], styleKey?: StyleKey | ''): OutlineSlide[] {
   return outline.map((s) => {
-    if (s.elements && s.elements.length) return s
-    return { ...s, elements: layoutElements(s, s.layout || 'title-body', styleKey) }
+    const want = (s.layout || 'title-body') as SlideLayout
+    const vis = normalizeVisuals((s as any).visuals)
+    const layout: SlideLayout = vis.length && !layoutCanHostVisual(want, styleKey) ? 'visual-top' : want
+    const changed = layout !== want
+    // 版式改了 → 旧 slots 的 key 属旧版式（如 content-2col 的 left/right），必须丢弃重分发，
+    // 否则新版式（visual-top 的 visual/body）取不到内容 → 文本整段消失（探针实测踩到）。
+    const base = { ...s, layout, ...(changed ? { slots: undefined } : {}) } as OutlineSlide
+    const els = s.elements || []
+    if (!els.length) {
+      return { ...base, elements: layoutElements(base, layout, styleKey) }
+    }
+    const hasVis = els.some((e) => e.type === 'visual')
+    if (!vis.length) return changed ? base : s
+    if (hasVis && !changed) return s
+    // 组件必须进元素层，而现有元素层没为它留位（旧保存的 CW-EL / 旧版式几何）→ **按版式重排元素层**：
+    // 直接追加会与文本重叠；只留旧几何又会与组件打架（两者探针实测）。文本从原元素回提（内容不丢），
+    // 形状/图片等非文本元素是教师手工添加的，原样保留。
+    const kept = els.filter((e) => e.type !== 'text' && e.type !== 'visual')
+    const rebuilt = layoutElements({ ...base, bullets: extractBullets(els) } as OutlineSlide, layout, styleKey)
+    return { ...base, elements: [...rebuilt, ...kept] }
   })
 }
 
@@ -903,12 +1051,16 @@ function renderVisualToPptx(
   }
 }
 
-function renderElement(slide: any, e: CwElement, CW_W: number, CW_H: number) {
+function renderElement(pres: any, slide: any, e: CwElement, CW_W: number, CW_H: number, theme: CwTheme, font: string) {
   const x = (e.x / 100) * CW_W
   const y = (e.y / 100) * CW_H
   const w = (e.w / 100) * CW_W
   const h = (e.h / 100) * CW_H
-  if (e.type === 'image' && e.src) {
+  if (e.type === 'visual' && e.visual) {
+    // 组件元素（2026-09-14）：与预览共用同一份组件数据、同一个绘制器，
+    // 导出为**原生形状/表格**（可编辑对象），而不是位图。
+    renderVisualToPptx(pres, slide, e.visual, { x, y, w, h }, theme, font)
+  } else if (e.type === 'image' && e.src) {
     slide.addImage({ data: e.src, x, y, w, h, rotation: e.rotation })
   } else if (e.type === 'shape') {
     const shapeMap: any = { rect: 'rect', ellipse: 'ellipse', line: 'line', triangle: 'triangle' }
@@ -1028,9 +1180,15 @@ export async function exportCoursewareToPptx(
       }
     }
 
-    // 可视化组件优先：用 PPTX 原生形状/表格绘制知识结构（递进图/对比表/时间轴/生字卡/金句）
+    // 内容层：**元素层优先**（与编辑态/预览态同源 → 四端一致）
+    // 2026-09-14 修正两处：
+    //   ① 此前"有组件就先只画组件并 return"→ 有组件的页**整页文本都进不了 pptx**；
+    //   ② renderElement 不认识 visual 元素 → 卡片被丢成空文本框。
     const visList = normalizeVisuals(s.visuals)
-    if (visList.length) {
+    if (s.elements && s.elements.length) {
+      s.elements.forEach((e) => renderElement(pres, slide, e, CW_W, CW_H, theme, font))
+    } else if (visList.length) {
+      // 旧数据（无元素层）：退回按组件渲染（PPTX 原生形状/表格）
       const top = bandH + 0.3
       const areaH = CW_H - top - 0.4
       const eachH = areaH / visList.length
@@ -1040,10 +1198,6 @@ export async function exportCoursewareToPptx(
       })
       if (s.notes) slide.addNotes(s.notes)
       return
-    }
-
-    if (s.elements && s.elements.length) {
-      s.elements.forEach((e) => renderElement(slide, e, CW_W, CW_H))
     } else if (isStructuredLayout(s.layout)) {
       // 内容与模板分离：按骨架几何把每个 slot 写成独立文本框（无 slots 时即时分发，兼容存量）
       const effSlots = s.slots ?? distributeToSlots(s.layout as SlideLayout, (s.rich || []).map(r => r.text))

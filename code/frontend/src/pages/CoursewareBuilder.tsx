@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
-import { api, aiAPI, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots, type FacetVocab } from '../lib/api'
+import { api, aiAPI, materialAPI, classAPI, decorAPI, facetAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots, type FacetVocab } from '../lib/api'
 import { loadDecorCatalog } from '../lib/decorCatalog'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
@@ -15,6 +15,9 @@ import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToO
 import { distributeToSlots } from '../lib/cwTemplate'
 // 口径统一（2026-09-11）：风格 key 由注册表单一提供（物化默认元素时也要带风格）
 import { styleKeyFromThemeId } from '../lib/styleRegistry'
+import { decideVersion, type VersionTrigger } from '../lib/versionPolicy'
+import { isDebugView } from '../lib/debugFlag'
+
 import { exportH5Courseware, buildH5FromOutline, buildH5Html, renderInteractive, type H5Slide } from '../lib/exportH5'
 import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import QRCode from 'qrcode'
@@ -28,14 +31,14 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { recommendTheme, resolveTheme } from '../lib/pptThemes'
-import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, renderTemplateThumb, renderFamilyThumb, renderSlideThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
+import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, reflowToSkeleton, renderTemplateThumb, renderFamilyThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
 // 触发模板资产域注册（子项目库模板经适配器并入 PPT_TEMPLATES，副作用导入即可，无需引用）
 import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
-import PptxPreview, { type DecorSelection } from '../components/PptxPreview'
+import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
@@ -382,6 +385,10 @@ export default function CoursewareBuilder() {
   const [polishing, setPolishing] = useState(false)
   const [genVideo, setGenVideo] = useState(false)
   const [docSlide, setDocSlide] = useState(0)
+  // **整本页序**（0 = 封面，2026-09-15）：docSlide 是 outline 下标（不含 outlineToSlides 自动插的封面），
+  // 而编辑器页列表、画布、预览/放映都要"含封面"的整本索引 → 用 deckIdx 表达，两者在切页时同步。
+  // 为什么不让 docSlide 直接含封面：批注/版本按页锚定的 page 号（docSlide+1）已存库，改语义会让旧批注错页。
+  const [deckIdx, setDeckIdx] = useState(0)
   // 当前页互动编辑：选择器 + 表单弹层（手动挂 H5 互动组件）
   const [interactivePickerOpen, setInteractivePickerOpen] = useState(false)
   // 当前页互动组件卡片的"展开编辑"索引（-1=全部收起）
@@ -400,6 +407,14 @@ export default function CoursewareBuilder() {
   const tplAppliedId = useRef<string | null>(null)
   const tplPrevTheme = useRef<string | null>(null)
   const tplPrevLayouts = useRef<(string | undefined)[] | null>(null)
+  // 元素几何快照（2026-09-15）：「重新套版」（重档）会重排元素位置 —— 只记 layout 不足以回退，
+  // 必须连 elements 一起记，否则"换回上一个风格"撤不掉位置变化。
+  const tplPrevElements = useRef<((OutlineSlide['elements']))[] | null>(null)
+  // 版本节奏（2026-09-15，产品规则）：**系统生成 → 自动成为一稿草稿**（不等教师点保存）、
+  // 保存草稿 → 形成版本、发布 → 后端写 release 版本。粒度规则见 lib/versionPolicy.ts。
+  // 为什么用"标记 + effect"而不是在生成函数里直接存：生成函数里刚 setState 的
+  // themeId/colorRoot 还没生效，直接调用会把**旧主题**存进草稿。
+  const pendingGenSave = useRef(false)
 
   // ── 装饰元件：选中画布装饰元素 → 工具条「替换/删除」→ 替换打开素材库装饰元件面板 ──
   const [decorElems, setDecorElems] = useState<MaterialItem[]>([])
@@ -564,19 +579,24 @@ export default function CoursewareBuilder() {
       // 配方回填（溯源，2026-09-13）：编辑页左栏「来源」区块据此显示"这份课件是按什么生成的"。
       // 此前这里什么都不回填 → 左栏退化成空表单 → 与画布上的成品"脱节"。
       try { setScopeResolved(m.gen_params ? JSON.parse(m.gen_params) : null) } catch { setScopeResolved(null) }
-      // H5 绘本态：优先用服务端已有的 h5_html，否则本地由 content 重新渲染
+      // H5 绘本态：**画布一律本地重渲染**（2026-09-15 改）
+      // 此前是"优先用服务端已有的 h5_html"—— 而 h5_html 是**派生缓存**（发布/扫码时服务端直接吐它）。
+      // 一旦有缓存，画布就永远显示**旧渲染器**的结果：渲染器升级（如这次 HD 固定比例、整页适配）
+      // 在画布上"看不见"，教师会以为没改（本次实测：画布里没有 scene-inner / fitToStage）。
+      // 规则：**源数据 = 提纲/正文；渲染器 = 唯一真源**；h5_html 只是给服务端吐页用的快照，
+      // 保存/发布时再落一次即可，画布不读它。
       // 修复（2026-09-12）：此前这里用**闭包里的旧 themeId** 渲染，而 setThemeId 在其之后才生效 →
       // 两份不同主题的 H5 草稿会渲染成一模一样（用户实测：国风/科技两版"完全一样"）。
       if (cwFormat === 'h5') {
-        if (m.h5_html) {
-          setCwH5Html(m.h5_html)
-        } else if (m.content) {
+        if (m.content) {
           // 拆静默（2026-09-13）：此前这里的异常被外层 `.catch(() => {})` 吞掉，
           // 结果是"H5 编辑页一片空白，且没有任何提示"（排查了整轮才定位）。现在显式暴露。
           try {
             const html = markdownToStorybookH5(m.content, {
               subject: m.subject || teaching.subject, grade: m.grade || gradeName,
-              title: m.name || '', teacherName: safeGetUser().name || '教师',
+              // 与课题名同口径剥掉存储后缀（2026-09-15）：素材名是 `课题名_课件`，
+              // `_课件` 是存储约定，不该出现在 H5 顶部标题/封面上。
+              title: (m.name || '').replace(/_课件$/, ''), teacherName: safeGetUser().name || '',
               themeId: effTheme, colorRoot: effColorRoot,
             })
             // 只在"渲染为空"时打印：这是"H5 编辑页空白"的直接判据（不抛错、只是没内容）
@@ -625,7 +645,32 @@ export default function CoursewareBuilder() {
   // 版心比例：16:9（默认，投影标准）或 4:3（传统屏），预览与导出同步
   const [cwAr, setCwAr] = useState<'16/9' | '4/3'>('16/9')
 
-  const cwOpts = () => ({ subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师', theme: resolveTheme(themeId, colorRoot), aspect: cwAr })
+  // ── 任教班级（班级切换联动）──
+  // 准确性修正（2026-09-15）：班级名 ≠ 年级。此前左栏信息卡与封面信息条都拿 gradeName 顶替"班级"，
+  // 于是显示成"班级：四年级"（教师看到的是年级值）。这里取教师本人任教班级里"当前选中"的那个，
+  // 取不到就留空（信息卡显示"—"、封面信息条不出现该格）。
+  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string }>>([])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
+  // 选中班级 → 主班级兜底（2026-09-15）：课件编辑器**不在 AppLayout 里**（那层有"首次进入自动选中主班级"），
+  // 所以这里必须自己兜底，否则班级永远是空的。规则与 AppLayout 一致：优先当前选中，其次主班级。
+  const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)
+    || myClasses.find(it => (it as { is_primary?: boolean }).is_primary)
+    || myClasses[0])?.class_name || ''
+
+  const cwOpts = () => ({
+    subject: teaching.subject, grade: gradeName,
+    // 课件标题（= 封面标题 / 每页页脚 / 保存进内容的 `#` 行）**不带 `_课件` 后缀**（2026-09-15）：
+    // 素材名带后缀是为了在课件库里区分类型，但它此前一路渗进封面——教师看到封面写着
+    // 「观潮 国风 09-15_课件」（H5 封面同样中招）。素材名仍在保存时另行拼接，故此处剥掉；
+    // 用 replace 而非只改生成路径，是为了把**已存库的旧课件**打开时也纠正。
+    title: genTitle.trim().replace(/_课件$/, ''),
+    // 署名只写姓名：空则整段省略（此前回退成字面量"教师"，封面会印出「语文 · 四年级 · 教师」）
+    teacherName: safeGetUser().name || '',
+    theme: resolveTheme(themeId, colorRoot), aspect: cwAr,
+    // 任教班级（2026-09-15 准确性修正）：班级名与年级是两回事，取不到就留空（封面上不出现该格），
+    // 绝不拿年级顶替。此前左栏"班级"直接传 gradeName，教师看到"班级：四年级"。
+    classLabel,
+  })
 
   // ── AI 生成课件 ──
   const handleGenCourseware = async (leftChatContext?: string) => {
@@ -709,7 +754,7 @@ export default function CoursewareBuilder() {
       // H5 频道：用本轮确定的 nextThemeId/nextColorRoot 渲染（预览/发布均直接使用）
       const nextH5Html = isH5 && md
         ? markdownToStorybookH5(md, {
-            subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+            subject: teaching.subject, grade: gradeName, title: genTitle.trim(),
             teacherName: safeGetUser().name || '教师', themeId: nextThemeId,
             colorRoot: nextColorRoot,
           })
@@ -725,6 +770,8 @@ export default function CoursewareBuilder() {
       setCwSimilar(res.similar_material || null)
       setValidateIssues(null)
       ctrl.setWorkMode('doc')
+      // 标记"本轮是系统生成" → effect 会**自动保存为一稿草稿**并形成 `AI 生成（一稿）` 版本
+      pendingGenSave.current = true
       toast('课件已生成并自动套用推荐模板，可在右侧编辑提纲', 'success')
     } catch (e: any) { toast('AI 生成失败: ' + (e.message || '未知错误'), 'error') }
     finally { setGenLoading(false); setGenStage(null) }
@@ -854,12 +901,12 @@ export default function CoursewareBuilder() {
   }
   const exportCwDocx = async () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    const blob = await exportLessonPlanToDocx(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacher: safeGetUser().name || '教师', model: 'qwen-plus' })
+    const blob = await exportLessonPlanToDocx(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: genTitle.trim().replace(/_课件$/, ''), teacher: safeGetUser().name || '', model: 'qwen-plus' })
     downloadBlob(blob, `${genTitle.trim()}_${teaching.subject}${gradeName}.docx`)
   }
   const exportCwPdf = () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`, teacherName: safeGetUser().name || '教师' })
+    printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: genTitle.trim().replace(/_课件$/, ''), teacherName: safeGetUser().name || '' })
   }
   // H5 互动课件：直接消费与 PPT 同源的提纲 OutlideSlide[]，首段作封面、其余为内容页。
   // 手动互动插槽优先：若某页有合法 interactive 用真互动；否则 notes 兜底 reveal；否则纯内容页。
@@ -918,13 +965,48 @@ export default function CoursewareBuilder() {
   }
 
   // ── footer：保存草稿(落库，与习题/教案一致) / 发布到课件库(红线校验闸) ──
-  const handleSaveDraft = async () => {
+  /** 键排序的稳定序列化：比较"内容有没有变"用（见 takeSaveVersion 的注释） */
+  const stableJson = (v: unknown): string => {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v)
+    if (Array.isArray(v)) return '[' + v.map(stableJson).join(',') + ']'
+    const o = v as Record<string, unknown>
+    return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stableJson(o[k])).join(',') + '}'
+  }
+
+  /**
+   * 保存草稿 → 形成版本（产品规则 2026-09-15：生成 / 保存草稿 / 发布 三个时机各形成版本）。
+   * · 生成后的第一次保存记作「AI 生成」（见 pendingGenVersion）
+   * · 其余记作「保存草稿」；发布由后端写 `kind=release`
+   * · **内容没变不重复建**（同 label 且 payload 相同 → 跳过）：连点保存不该堆出重复版本
+   * · **自动保存额外 3 分钟节流**：自动保存频繁，逐次建版本会把列表灌满；
+   *   教师**点击**保存则每次都形成版本（不受节流限制）
+   */
+  const takeSaveVersion = async (opts: { trigger: VersionTrigger; outline?: OutlineSlide[] }) => {
+    const outline = opts.outline || cwOutline
+    const label = opts.trigger === 'gen' ? 'AI 生成（一稿）' : '保存草稿'
+    // ⚠️ 不能直接比字符串：payload 落的是 **jsonb** 列，PG 会重排键、去空白，
+    // 读回来的字符串与写进去的必然不同（实测：字符串比较 → 每次判"变了" → 连点保存堆版本）。
+    // 故用**键排序的稳定序列化**语义比较。
+    const snap = stableJson(outline)
+    const last: any = cwVer.items[0]
+    let lastSnap = ''
+    try { lastSnap = last?.payload ? stableJson(JSON.parse(String(last.payload))) : '' } catch { lastSnap = '' }
+    const decision = decideVersion({
+      trigger: opts.trigger, last, contentSame: !!lastSnap && lastSnap === snap,
+    })
+    if (decision !== 'create') return     // 内容没变（skip-identical）或落在合并窗口内（skip-window）
+    await cwVer.take(label, outline)
+  }
+
+  const handleSaveDraft = async (opts?: { trigger?: VersionTrigger; outline?: OutlineSlide[] }) => {
+    // outline 可显式传入：刚生成完就调用时，state 里的 cwOutline 还是旧值（闭包），必须显式带过去
+    const outline = opts?.outline || cwOutline
     const payload = {
       name: `${genTitle.trim() || '未命名'}_课件`,
       type: 'courseware',
       format: cwFormat,
       tag: `${teaching.subject}${gradeName}`,
-      content: outlineToMarkdown(cwOutline, cwOpts()),
+      content: outlineToMarkdown(outline, cwOpts()),
       status: 'draft',
       grade: gradeName,
       subject: teaching.subject,
@@ -957,11 +1039,23 @@ export default function CoursewareBuilder() {
           })
         : undefined,
     }
+    // H5 草稿也落派生 HTML（2026-09-15）：课堂扫码 / 投屏打开的是 `/api/materials/:id/h5`，
+    // 该端点**优先返回 h5_html**，而草稿态此前从不写它 → 教师扫码看到的是后端兜底的"纯展示页"
+    // （不是绘本：没有翻页/点读/互动，也不是课堂用的 16:9 固定比例）。发布路径早已写入，这里补齐草稿路径。
+    if (cwFormat === 'h5') {
+      try {
+        const html = markdownToStorybookH5(outlineToMarkdown(outline, cwOpts()), {
+          subject: teaching.subject, grade: gradeName, title: genTitle.trim(),
+          teacherName: safeGetUser().name || '教师', themeId, colorRoot,
+        })
+        if (html) (payload as { h5_html?: string }).h5_html = html
+      } catch { /* 派生失败不阻塞保存（保存的是源数据，渲染随后可重算） */ }
+    }
     try {
       // 本地兜底暂存（未发布前可恢复）
       localStorage.setItem(getDraftKey(materialId), JSON.stringify({
         title: genTitle, extra: cwExtra, markdown: cwMarkdown,
-        outline: cwOutline, h5Html: cwH5Html, divergence: cwDivergence, divergenceLevel, themeId,
+        outline, h5Html: cwH5Html, divergence: cwDivergence, divergenceLevel, themeId,
         videoConfig,
       }))
       if (materialId) {
@@ -970,7 +1064,9 @@ export default function CoursewareBuilder() {
         const m: any = await materialAPI.createJSON(payload)
         if (m?.id) setMaterialId(m.id)
       }
-      toast('草稿已保存', 'success')
+      // 版本：按触发来源决定是否形成版本（生成=总是；点击=合并窗口；自动=节流）——见 lib/versionPolicy.ts
+      await takeSaveVersion({ trigger: opts?.trigger || 'click', outline })
+      toast(opts?.trigger === 'gen' ? '已自动保存为一稿草稿' : '草稿已保存', 'success')
     } catch (e: any) { toast('草稿保存失败: ' + (e.message || ''), 'error') }
   }
 
@@ -1038,7 +1134,12 @@ export default function CoursewareBuilder() {
     finally { setSavingCw(false) }
   }
 
-  ctrl = useEditorController({ onAutoSave: handleSaveDraft, onSaveDraft: handleSaveDraft, onPublish: handlePublish })
+  ctrl = useEditorController({
+    // 触发来源决定版本粒度：点击保存 → 1 分钟合并窗口；自动保存 → 3 分钟节流（见 lib/versionPolicy.ts）
+    onAutoSave: () => handleSaveDraft({ trigger: 'auto' }),
+    onSaveDraft: () => handleSaveDraft({ trigger: 'click' }),
+    onPublish: handlePublish,
+  })
 
   // 批注 / 版本快照：课件按页锚定（page:N，N=当前 docSlide+1）；发布定版后只读禁存/禁恢复
   const cwLocked = ctrl.status === 'active'
@@ -1071,7 +1172,136 @@ export default function CoursewareBuilder() {
   }, [exportMenuOpen])
   // 全屏编辑：隐藏左右栏与发散/校验，最大化画布
   const [cwFullscreen, setCwFullscreen] = useState(false)
-  const [cwFsThumb, setCwFsThumb] = useState(true)
+  // 全屏默认收起批注/版本栏（2026-09-14）：全屏的定位是"精修"，240px 边栏让位给画布
+  // （实测：收起后全屏画布由 1120×630 提升到约 1280×720）。退出全屏时还原进入前的状态。
+  // 不改共享状态语义 —— 既有的「批注 / 版本」按钮在全屏内照常可展开。
+  const histBeforeFs = useRef(true)
+  useEffect(() => {
+    if (cwFullscreen) { histBeforeFs.current = cwHistoryVisible; setCwHistoryVisible(false) }
+    else setCwHistoryVisible(histBeforeFs.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwFullscreen])
+  // 全屏默认**收起**缩略图栏（2026-09-14）：全屏的定位是"精修/审阅"，该让位给画布 ——
+  // 此前默认展开，170px 被缩略图吃掉，实测全屏画布反而比非全屏小（950 vs 960 宽）。
+  const [cwFsThumb, setCwFsThumb] = useState(false)
+  // 缩略图数据（2026-09-14）：真实缩略图必须与画布**同源**，否则又变成"缩略图≠画布"。
+  // outlineToSlides 会在最前插入封面页 → 索引 = 提纲页 +1。
+  const cwThumbSlides = cwOutline.length ? outlineToSlides(cwOutline, cwOpts()) : []
+
+  // 小微「换风格 / 恢复上一个风格」指令的接收端（2026-09-14）：
+  // 与模板库按钮走**同一条确定性路径**（`applyTemplate` / `revertTemplate`）—— 只换风格语汇
+  // （配色 / 标题形态 / 底纹 / 装饰），**绝不重新生成内容**（重生成会内容漂移、花 1~3 分钟，
+  // 且实测返修还会更差）。派发是**同步**的：小微在 dispatch 返回后立刻读 detail.handled，
+  // 因此能如实回报"已切换"还是"当前不在课件编辑器里"，而不是猜。
+  useEffect(() => {
+    const onSwitchStyle = async (ev: Event) => {
+      const d = (ev as CustomEvent).detail as
+        { styleTag?: StyleTag; revert?: boolean; level?: 'light' | 'heavy'; dryRun?: boolean
+          handled?: boolean; error?: string; impact?: { pages: number; elements: number }
+          snapshot?: boolean; resolve?: () => void } | undefined
+      if (!d) return
+      try {
+        // 发布定版（cwLocked）与既有"版本仅供查看、不可存/回退"语义保持一致：**拒绝执行并如实回报**。
+        // 不能装作换成功 —— 定版下既存不了快照，也回退不了（后端 403）。
+        if (cwLocked) {
+          d.error = '已发布定版：版本仅供查看、不可存/回退 —— 请先点「编辑」重新进入草稿，再换风格'
+          return
+        }
+        if (d.revert) {
+          if (!tplPrevTheme.current || !tplPrevLayouts.current) { d.error = '本次编辑内还没换过模板，没有可恢复的风格'; return }
+          // 带上 prevElements：重档改过元素几何，只回退 layout 等于撤不掉位置
+          const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current, tplPrevElements.current)
+          setCwOutline(r.outline); setThemeId(r.themeId)
+          tplAppliedId.current = null; tplPrevTheme.current = null; tplPrevLayouts.current = null
+          tplPrevElements.current = null
+          d.handled = true
+          toast('已恢复上一个风格', 'info')
+          return
+        }
+        if (!d.styleTag) return
+        const level = d.level === 'heavy' ? 'heavy' : 'light'
+        const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
+        const pool = cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES
+        const tpl = pool.filter((t) => templateStyleTags(t).includes(d.styleTag as StyleTag))[0]
+          || basicTemplateForFamily(
+            COLOR_FAMILIES.find((f) => f.themeId === defaultThemeForStyle(d.styleTag as StyleTag)) || COLOR_FAMILIES[0],
+            cwFormat === 'h5' ? 'h5' : 'ppt')
+        const r = applyTemplate(baseOutline, tpl, themeId, {
+          stage: gradeToStage(teaching.grade), subject: teaching.subject,
+        })
+        // 预演（二次确认用）：**只算不落地** —— 把重档"会重排多少页/多少元素"如实报给教师
+        if (d.dryRun) {
+          const rk = styleKeyFromThemeId(r.themeId)
+          const imp = level === 'heavy'
+            ? reflowToSkeleton(r.outline, rk)
+            : { pages: 0, elements: 0 }
+          d.impact = { pages: imp.pages, elements: imp.elements }
+          d.handled = true
+          return
+        }
+        let nextOutline = r.outline
+        // 版本配合（2026-09-15）：执行前**自动存一份版本快照** —— 让"可回退"成为跨刷新/跨会话的真承诺，
+        // 而不是只活在本次会话的 ref 里（详情见 lib/styleIntent.ts 的二次确认话术）。
+        // 预演（dryRun）不存快照 —— 教师还没确认，不该产生副作用。
+        const snapLabel = `换风格前（${level === 'heavy' ? '重档' : '轻档'} → ${STYLE_LABELS[d.styleTag as StyleTag] || d.styleTag}）`
+        d.snapshot = await cwVer.take(snapLabel, baseOutline)
+        if (level === 'heavy') {
+          nextOutline = reflowToSkeleton(nextOutline, styleKeyFromThemeId(r.themeId)).outline
+        }
+        setCwOutline(nextOutline); setThemeId(r.themeId)
+        tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
+        // 快照元素几何，供"换回上一个风格"整页回退（重档必需）
+        tplPrevElements.current = baseOutline.map((s) => s.elements)
+        d.handled = true
+        toast(level === 'heavy' ? `已重新套版：${tpl.name}` : `已套用模板：${tpl.name}`, 'success')
+      } catch (e: any) {
+        d.error = e?.message || '换风格失败'
+      } finally {
+        // 处理结束（含异步的「版本快照」）→ 结束小微的等待，它才读得到真实的 handled/snapshot
+        d.resolve?.()
+      }
+    }
+    window.addEventListener('zhiwei:switch-style', onSwitchStyle)
+    return () => window.removeEventListener('zhiwei:switch-style', onSwitchStyle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwOutline, themeId, cwFormat, teaching.grade, teaching.subject])
+
+  // 系统生成 → **自动成为一稿草稿**（产品规则 2026-09-15：生成并显示到屏幕上就该是一稿）。
+  // 用 effect 而不是在生成函数里直接存：生成函数里刚 setState 的 themeId/colorRoot 尚未生效，
+  // 直接调用会把**旧主题**写进草稿；effect 在状态提交后运行，拿到的是新值。
+  useEffect(() => {
+    if (!pendingGenSave.current || !cwOutline.length) return
+    pendingGenSave.current = false
+    void handleSaveDraft({ trigger: 'gen' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwOutline])
+
+  // H5 派生链补齐（2026-09-15）：H5 画布 = `iframe(srcDoc=cwH5Html)`，而这份 HTML 是**派生**的
+  // 标题用「课题名」而非素材名（2026-09-15 修）：此前传 `${genTitle}_课件`，`_课件` 是**存储命名约定**，
+  // 会印在 H5 顶部标题与封面上（教师看到"观潮 国风 09-15_课件"这种带后缀的标题）。
+  // （markdown → markdownToStorybookH5），此前只在「载入 / 生成 / 发布」三处计算 —— 于是
+  // **在 H5 模式改大纲 / 换风格 / 回退版本，画布都不刷新**（PPT 不受影响：它直接从 outline 渲染）。
+  // 发布侧其实早已知晓这一点（见 handlePublish 注释"不复用可能过期的 cwH5Html"），
+  // 这里把同一套重算补到**编辑预览**上，让"版本回退"在 H5 上同样立刻可见。
+  const h5DeriveSkippedFirst = useRef(false)
+  useEffect(() => {
+    if (cwFormat !== 'h5' || !cwOutline.length) return
+    // 首次（刚载入/刚生成）跳过：那两处已经算过，避免用 outline 往返覆盖载入路径的结果
+    if (!h5DeriveSkippedFirst.current) { h5DeriveSkippedFirst.current = true; return }
+    const id = setTimeout(() => {
+      try {
+        const md = outlineToMarkdown(cwOutline, cwOpts())
+        setCwH5Html(markdownToStorybookH5(md, {
+          subject: teaching.subject, grade: gradeName, title: genTitle.trim(),
+          teacherName: safeGetUser().name || '教师', themeId, colorRoot,
+        }) || '')
+      } catch (e: any) {
+        console.error('[H5] 重渲染失败（沿用上一版画面）', e)
+      }
+    }, 600)   // 防抖：连续编辑不必每键重算
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwOutline, cwFormat, themeId, colorRoot])
 // 全屏态下批注栏收展与编辑态共用 cwHistoryVisible，避免双状态不一致
   useEffect(() => {
     if (!cwFullscreen) return
@@ -1081,6 +1311,9 @@ export default function CoursewareBuilder() {
   }, [cwFullscreen])
   const addCwAnnotation = () => {
     if (!cwAnnText.trim() || !cwAnnTargetId) return
+    // 封面页不参与按页批注（2026-09-15）：批注按正文页号锚定（docSlide+1），而封面不属于 outline，
+    // 若允许在封面写批注会错锚到正文第 1 页 —— 这里直接拦掉，提示教师切到正文页。
+    if (deckIdx === 0) { toast('封面页不支持按页批注，请切到正文页', 'warning'); return }
     cwAnn.add('page', { page: docSlide + 1, pageTitle: cwOutline[docSlide]?.title || '' }, cwAnnText.trim())
     setCwAnnText('')
   }
@@ -1112,7 +1345,7 @@ export default function CoursewareBuilder() {
     <EditorInfoPanel
       showBasicInfo
       showGrade
-      classLabel={gradeName}
+      classLabel={classLabel || undefined}
       xiaowei={{
         contextType: 'courseware',
         subject: teaching.subject,
@@ -1130,11 +1363,13 @@ export default function CoursewareBuilder() {
           className="w-full px-3 py-2 text-[13px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
       </div>
 
-      {/* ── 来源（只读溯源，2026-09-13）──
-          回答"这份课件是按什么生成的"。**只有已记录配方的课件才显示**（新课件没有）。
-          为什么必须有它：此前编辑页左栏只能回填标题/主题，其余退化成空表单
-          → 与画布上的成品"脱节"（反馈实例：左栏写着"英语·对话·绘图"，而这份 PPT 并非按它生成）。 */}
-      {(() => {
+      {/* ── 来源（只读溯源，2026-09-13；2026-09-15 **默认隐藏**）──
+          它回答的是"这份课件是按什么生成的"：知识面来源 teacher|kg、前置来源 qian_zhi|parent_id、
+          发散边界 orbit/edge/beyond_band、生成模型 qwen-plus —— 全是研发/QA 语汇，
+          教师看不懂也帮不上忙（教师原话："这是啥，应该隐藏的吧"；PPT/H5 两处都有）。
+          故改为**诊断开关后才显示**（`?debug=1` 或 localStorage `zhiwei_debug=1`，见 lib/debugFlag.ts），
+          保留代码是为了复现缺陷时能一眼看到当时的生成配方。 */}
+      {isDebugView() && (() => {
         const sr = (scopeResolved as any)?.scope_resolved
         if (!sr) return null
         const srcLabel = sr.source === 'teacher' ? '教师锚定'
@@ -1232,12 +1467,28 @@ export default function CoursewareBuilder() {
             className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${genStyleTag === '' ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#555] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
             AI 智能推荐
           </button>
-          {(motifTags.length ? motifTags.map(t => t.value) : (Object.keys(STYLE_LABELS) as StyleTag[])).map(s => (
-            <button key={s} onClick={() => setGenStyleTag(s as StyleTag)}
-              className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${genStyleTag === s ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#555] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-              {motifTags.find(t => t.value === s)?.label || STYLE_LABELS[s as StyleTag] || s}
-            </button>
-          ))}
+          {/* 风格芯片（2026-09-15 修）：**值必须是风格 key**（china/tech/…），不能是中文标签。
+              实测：`/api/facets?type=motif` 的 `value` 是中文（"国风"/"科技"），此前直接当 style_tag 传给
+              后端与 `defaultThemeForStyle` → 后端风格语汇认不出、模板又用 key 匹配 → 皮肤一律回落
+              `min-classic-blue`：教师点"国风"却得到默认蓝，选风格等于没选（两份不同"风格"看起来一模一样）。
+              这里把词表值映射回 key（认不出就原样保留，兼容后续 AI 巡增的新标签），标签仍显示中文。 */}
+          {(() => {
+            const labelToKey = Object.fromEntries(
+              (Object.entries(STYLE_LABELS) as [StyleTag, string][]).map(([k, lb]) => [lb, k]))
+            const raw = motifTags.length ? motifTags.map(t => t.value) : (Object.keys(STYLE_LABELS) as StyleTag[])
+            const opts: Array<{ value: string; label: string }> = []
+            for (const s of raw) {
+              const value = labelToKey[s] || s
+              if (opts.some(o => o.value === value)) continue          // 词表里同一风格可能有多条（实测"国风"两条）
+              opts.push({ value, label: motifTags.find(t => t.value === s)?.label || STYLE_LABELS[s as StyleTag] || s })
+            }
+            return opts.map(o => (
+              <button key={o.value} onClick={() => setGenStyleTag(o.value as StyleTag)}
+                className={`px-2.5 py-1 text-[12px] rounded-full border transition-colors ${genStyleTag === o.value ? 'bg-[#02A7F0] text-white border-[#02A7F0]' : 'bg-white text-[#555] border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                {o.label}
+              </button>
+            ))
+          })()}
         </div>
         <input value={genStyleProfile} onChange={e => setGenStyleProfile(e.target.value)} placeholder="或描述想要的感觉，如：科技感强一点、活泼卡通"
           className="w-full mt-2 px-2.5 py-2 text-[12px] border border-[#E7E7EB] rounded-[4px] outline-none focus:border-[#02A7F0]" />
@@ -1357,6 +1608,13 @@ export default function CoursewareBuilder() {
   )
 
   // ── 右栏 文档模式：可拖拽编辑画布 + 缩略图页管理 + 发散地图 + 校验面板 ──
+  // H5 互动排序的传感器：**必须在组件顶层调用**（2026-09-15 修白屏）。
+  // 此前这两行写在 `{!ctrl.readOnly && cwFormat === 'h5' && (() => { ... })()}` 这个 JSX IIFE 里 ——
+  // 查看态不执行、切到编辑态才执行 ⇒ hook 数量在两次渲染间变化 ⇒ React #310
+  // （"Rendered more hooks than during the previous render"）→ **整页白屏**
+  // （用户实测：H5 列表点入预览，再点「编辑」就空白页）。
+  const h5Sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
   const rightPanelDoc = (
     <div className="flex-1 flex flex-col min-h-0 bg-[#FAFAFA] relative">
       {cwFormat === 'h5' && (
@@ -1368,7 +1626,7 @@ export default function CoursewareBuilder() {
       {!ctrl.readOnly && cwFormat === 'h5' && (() => {
         const curIdx = docSlide
         const comps = normalizeInteractive(cwOutline[curIdx]?.interactive)
-        const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+        const sensors = h5Sensors   // 顶层已调用（hook 不能在条件/IIFE 里）
         const onDragEnd = (e: DragEndEvent) => {
           const { active, over } = e
           if (over && active.id !== over.id) {
@@ -1446,20 +1704,30 @@ export default function CoursewareBuilder() {
         {/* 缩略图页管理（可收起，腾讯文档范式） */}
         {!thumbCollapsed && (
           <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-2">
-            {cwOutline.map((s, idx) => (
-              <div key={idx} onClick={() => setDocSlide(idx)}
-                className={`group cursor-pointer rounded-[4px] border overflow-hidden ${idx === docSlide ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                <div className="relative">
-                  <img src={renderSlideThumb(s, resolveTheme(themeId, colorRoot), idx)} alt={s.title || `P${idx + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
-                  <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, -1) }} disabled={idx === 0} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↑</button>
-                    <button onClick={(e) => { e.stopPropagation(); moveCwPage(idx, 1) }} disabled={idx === cwOutline.length - 1} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↓</button>
-                    <button onClick={(e) => { e.stopPropagation(); deleteCwPage(idx) }} className="px-1 py-0.5 text-[10px] text-[#F5222D] bg-white/90 rounded hover:bg-[#FFF1F0] shadow-sm">✕</button>
+            {/* 整本页列表（含封面，2026-09-15）：此前只列正文页 + 缩略图取 cwThumbSlides[idx+1]，
+                结果编辑器里**既看不到封面、也选不到它**（教师原话："编辑器里也需要加上封面"）。
+                规则：第 0 项 = 封面（内容由左栏「课题名称/学科/年级/班级/署名」驱动，故不给上移/删除按钮，
+                避免"删掉封面"这种无意义操作）；正文项按下标 -1 映射回 cwOutline，原有上移/下移/删除照旧。 */}
+            {cwThumbSlides.map((s, i) => {
+              const isCover = i === 0
+              const oi = i - 1                                  // 正文页在 cwOutline 中的下标
+              return (
+                <div key={i} onClick={() => { setDeckIdx(i); setDocSlide(Math.max(0, oi)) }}
+                  className={`group cursor-pointer rounded-[4px] border overflow-hidden ${i === deckIdx ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                  <div className="relative">
+                    <SlideThumb slide={s} theme={resolveTheme(themeId, colorRoot)} idx={i} ar={cwAr} />
+                    {!isCover && (
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={(e) => { e.stopPropagation(); moveCwPage(oi, -1) }} disabled={oi === 0} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↑</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveCwPage(oi, 1) }} disabled={oi === cwOutline.length - 1} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↓</button>
+                        <button onClick={(e) => { e.stopPropagation(); deleteCwPage(oi) }} className="px-1 py-0.5 text-[10px] text-[#F5222D] bg-white/90 rounded hover:bg-[#FFF1F0] shadow-sm">✕</button>
+                      </div>
+                    )}
                   </div>
+                  <p className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{isCover ? '封面' : (s.title || '（无标题）')}</p>
                 </div>
-                <p className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{s.title || '（无标题）'}</p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
         {thumbCollapsed && (
@@ -1500,9 +1768,11 @@ export default function CoursewareBuilder() {
           <PptxPreview
             slides={outlineToSlides(cwOutline, cwOpts())}
             theme={resolveTheme(themeId, colorRoot)}
-            editable
-            index={docSlide + 1}
-            onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))}
+            // 封面页（整本索引 0）**不可编辑元素**（2026-09-15）：封面文字由左栏字段驱动，
+            // 若允许在封面上加文本框/图片，会错落到正文第 1 页（索引映射），故封面只读查看。
+            editable={deckIdx !== 0}
+            index={deckIdx}
+            onIndexChange={(si) => { setDeckIdx(si); setDocSlide(Math.max(0, si - 1)) }}
             onSlideChange={handleDocSlideChange}
             aspectRatio={cwAr}
             embedFullscreen={true}
@@ -1595,7 +1865,7 @@ export default function CoursewareBuilder() {
             {cwAnnTab === 'annotations' && (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
-                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">对第 {docSlide + 1} 页写批注：</p>
+                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">{deckIdx === 0 ? '封面页：不支持按页批注（封面内容由左栏字段驱动）' : `对第 ${docSlide + 1} 页写批注：`}</p>
                   <textarea
                     value={cwAnnText}
                     onChange={e => setCwAnnText(e.target.value)}
@@ -1650,9 +1920,14 @@ export default function CoursewareBuilder() {
                 ) : (
                   cwVer.items.map((s: any) => (
                     <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[#353535]">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
-                        <span className="text-[9px] text-[#C0C0C0]">{s.label}</span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="flex items-center gap-1 min-w-0">
+                          <span className={`shrink-0 px-1 rounded text-[9px] ${s.kind === 'release' ? 'bg-[#EAF3FF] text-[#1A5FB4]' : 'bg-[#F2F3F5] text-[#8C8C8C]'}`}>
+                            {s.kind === 'release' ? '发布版' : '快照'}
+                          </span>
+                          <span className="text-[11px] text-[#353535] truncate">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
+                        </span>
+                        <span className="text-[9px] text-[#C0C0C0] truncate max-w-[96px]">{s.label}</span>
                       </div>
                       {!cwLocked && (
                         <div className="flex gap-2 mt-0.5">
@@ -1690,7 +1965,11 @@ export default function CoursewareBuilder() {
       console.error('previewSlides: outlineToSlides failed', e)
       return null
     }
-  }, [cwOutline])
+    // 依赖必须含 cwOpts() 的全部输入（2026-09-15 修）：此前只有 [cwOutline]，
+    // 而学科/年级/班级/署名/主题都是**异步随后**才到的（班级要等 /my-classes、姓名要等登录用户）
+    // → 封面页被**缓存成"当时还没值"的版本**，于是封面信息条永远空着、
+    // 副标题还留着"· 教师"占位（教师实测）。这类"输入变了、结果不重算"是同一族缺陷。
+  }, [cwOutline, teaching.subject, gradeName, genTitle, classLabel, themeId, colorRoot, cwAr])
   const previewSlideElems = (() => {
     if (cwFormat === 'h5' && cwH5Html) {
       return (
@@ -1700,13 +1979,21 @@ export default function CoursewareBuilder() {
             srcDoc={cwH5Html}
             className="w-full h-full border-0"
             sandbox="allow-scripts allow-same-origin"
+            // 画布 = 课堂投屏的等比例预览（2026-09-15）：HD 舞台在窄窗格里靠视口宽度判不出来
+            // （编辑器画布通常 <1024px），故由父级显式开启，保证"画布看到的比例 = 教室大屏的比例"。
+            onLoad={(e) => { try { e.currentTarget.contentWindow?.postMessage({ type: 'cw-h5-hd', on: true }, '*') } catch { /* noop */ } }}
           />
         </div>
       )
     }
     if (previewSlides && previewSlides.length > 0) {
-      // outlineToSlides 在 cwOutline 前自动插入了封面页，所以放映索引需要 +1
-      return <PptxPreview slides={previewSlides} theme={resolveTheme(themeId, colorRoot)} showPager={false} index={docSlide + 1} viewMode="single" autoPlay />
+      // 预览/放映按**整本**索引（2026-09-15 修）：outlineToSlides 会在这份课件前自动插入**封面页**（slides[0]）。
+      // 此前这里用 `index={docSlide + 1}`，而 docSlide 是 outline（不含封面）的下标 →
+      // 索引被顶到 slides[1]，**封面永远到不了**：教师进预览看到的第一页是"学习目标"，
+      // 于是反馈"为什么 PPT 没有封面"（导出的 PPTX 里却有 —— 所见 ≠ 所导出）。
+      // 改为独立的整本索引 deckIdx（0 = 封面），并同步回 docSlide 供批注/互动等按页逻辑使用。
+      return <PptxPreview slides={previewSlides} theme={resolveTheme(themeId, colorRoot)} showPager={false} index={deckIdx}
+        onIndexChange={(si) => { setDeckIdx(Math.max(0, si)); setDocSlide(Math.max(0, si - 1)) }} viewMode="single" autoPlay />
     }
     return <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   })()
@@ -1715,11 +2002,13 @@ export default function CoursewareBuilder() {
       {/* 左：只读缩略图页导航（H5 绘本态隐藏左侧目录，让整本绘本占据视口） */}
       {!(cwFormat === 'h5' && cwH5Html) && (
         <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
-          <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</div>
-          {cwOutline.map((s, idx) => (
-            <div key={idx} onClick={() => setDocSlide(idx)}
-              className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === docSlide ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
-              <span className="text-[10px] text-[#9A9A9A]">P{idx + 1}</span>
+          <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{(previewSlides || cwOutline).length}）</div>
+          {/* 目录也按整本列（含封面，2026-09-15）：此前只列 outline → 左栏没有"封面"这一项，
+              右侧放映却可能停在封面上，两边对不上。现在目录项 = 整本页序（封面 + 正文）。 */}
+          {(previewSlides || cwOutline).map((s, idx) => (
+            <div key={idx} onClick={() => { setDeckIdx(idx); setDocSlide(Math.max(0, idx - 1)) }}
+              className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === deckIdx ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
+              <span className="text-[10px] text-[#9A9A9A]">{idx === 0 ? '封面' : `P${idx}`}</span>
               <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
             </div>
           ))}
@@ -1729,10 +2018,11 @@ export default function CoursewareBuilder() {
       <div className={`${cwFormat === 'h5' && cwH5Html ? 'flex-1 h-full p-0' : 'flex-1 overflow-y-auto px-6 py-4'}`}>
         {!(cwFormat === 'h5' && cwH5Html) && (
           <>
-            <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {docSlide + 1}/{cwOutline.length} 页</div>
+            <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {deckIdx + 1}/{(previewSlides || cwOutline).length} 页{deckIdx === 0 ? '（封面）' : ''}</div>
             {(() => {
               // 只读放映：只渲染当页互动的只读组件，不显示任何编辑按钮
-              const roIt = buildH5Slides()[docSlide]?.interactive
+              // 注：deckIdx 含封面，而 buildH5Slides() 只有正文页 → 取 deckIdx-1（封面页无互动）
+              const roIt = buildH5Slides()[Math.max(0, deckIdx - 1)]?.interactive
               const roHtml = isValidComponent(roIt) ? renderInteractive(roIt) : ''
               return (
                 <div className="mb-4">
@@ -1748,8 +2038,11 @@ export default function CoursewareBuilder() {
         )}
         {previewSlideElems}
       </div>
-      {/* 右：H5 播放/预览态 → 扫码分享（通用 H5 分享样式）；其余 → 批注 / 版本 */}
-      {cwFormat === 'h5' ? (
+      {/* 右：H5 **预览/查看态** → 扫码分享；编辑态与 PPT 一致 → 批注 / 版本
+          （2026-09-15 修）：此前按 **格式** 分（`cwFormat === 'h5'` 一律扫码栏），而 H5 编辑态的
+          画布又复用 previewPane（见下方 secondaryRight），于是教师在**编辑**时右侧也一直是二维码 ——
+          二维码是"扫码到手机预览"的东西，编辑时要的是批注/版本。改为按 **状态** 分。 */}
+      {cwFormat === 'h5' && (effectivePreviewOpen || ctrl.readOnly) ? (
         <div className="w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col overflow-hidden z-20">
           <div className="px-3 py-2 text-[11px] font-medium text-[#353535] border-b border-[#F0F0F0] bg-white shrink-0 flex items-center gap-1">
             <Smartphone size={11} /> 手机扫码查看
@@ -1831,9 +2124,11 @@ export default function CoursewareBuilder() {
             {tplAppliedId.current && (
               <button onClick={() => {
                 if (tplPrevTheme.current != null && tplPrevLayouts.current) {
-                  const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current)
+                  // 带 prevElements：重档改过元素几何，只回退 layout 撤不掉位置
+                  const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current, tplPrevElements.current)
                   setCwOutline(r.outline); setThemeId(r.themeId)
                   tplAppliedId.current = null; tplPrevTheme.current = null; tplPrevLayouts.current = null
+                  tplPrevElements.current = null
                   toast('已撤销模板套用', 'info')
                 }
               }} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
@@ -1946,7 +2241,7 @@ export default function CoursewareBuilder() {
     return (<div className={`h-10 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white ${fullscreen ? 'flex-1 min-w-0' : 'w-full'}`}>
       {!fullscreen && (
         <>
-          <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
+          <span className="text-[11px] font-medium text-[#353535]">页面（{cwThumbSlides.length}）</span>
           <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">+ 页</button>
           <button onClick={() => setThumbCollapsed(true)} title="收起页列表" className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
           <div className="w-px h-4 bg-[#EEE]" />
@@ -2034,20 +2329,24 @@ export default function CoursewareBuilder() {
         <div className="flex-1 flex min-h-0">
           {cwFsThumb && cwOutline.length > 1 && (
             <div className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2 px-1.5 space-y-2">
-              {cwOutline.map((s, i) => (
-                <button key={i} onClick={() => setDocSlide(i)}
-                  className={`w-full text-left rounded-[4px] border overflow-hidden transition-colors ${i === docSlide ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                  <img src={renderSlideThumb(s, resolveTheme(themeId, colorRoot), i)} alt={s.title || `P${i + 1}`} className="w-full h-[84px] object-cover bg-[#F2F3F5]" />
-                  <div className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{(s.title || '未命名').slice(0, 16)}</div>
+              {/* 全屏页列表同样含封面（2026-09-15）：第 0 项 = 封面 */}
+              {cwThumbSlides.map((s, i) => (
+                <button key={i} onClick={() => { setDeckIdx(i); setDocSlide(Math.max(0, i - 1)) }}
+                  className={`w-full text-left rounded-[4px] border overflow-hidden transition-colors ${i === deckIdx ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                  <SlideThumb slide={s} theme={resolveTheme(themeId, colorRoot)} idx={i} ar={cwAr} />
+                  <div className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{i === 0 ? '封面' : (s.title || '未命名').slice(0, 16)}</div>
                 </button>
               ))}
             </div>
           )}
           <div className="flex-1 overflow-y-auto p-6 flex justify-center">
-            <div className="w-full max-w-[960px]">
+            {/* 全屏画布区（2026-09-14 修）：此前 `max-w-[960px]` 把全屏画布**又钉在 960 宽**
+                → "全屏编辑=最大化画布"落空（实测全屏 928×522 < 非全屏 960×540）。
+                宽度交还给容器，缩放由 PptxPreview 按可用宽高适配。 */}
+            <div className="w-full">
               {cwOutline.length > 0 && slides.length > 0 ? (
                 // outlineToSlides 在 cwOutline 前自动插入了封面页，编辑画布索引需 +1
-                <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} aspectRatio={cwAr} index={docSlide + 1} onIndexChange={(si) => setDocSlide(Math.max(0, si - 1))} onSlideChange={handleDocSlideChange} viewMode="scroll" editable embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
+                <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} aspectRatio={cwAr} index={deckIdx} onIndexChange={(si) => { setDeckIdx(si); setDocSlide(Math.max(0, si - 1)) }} onSlideChange={handleDocSlideChange} viewMode="scroll" editable={deckIdx !== 0} embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
               ) : (
                 <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
               )}
@@ -2072,7 +2371,7 @@ export default function CoursewareBuilder() {
               {cwAnnTab === 'annotations' && (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
-                    <p className="text-[10px] text-[#9A9A9A] mb-1.5">对第 {docSlide + 1} 页写批注：</p>
+                    <p className="text-[10px] text-[#9A9A9A] mb-1.5">{deckIdx === 0 ? '封面页：不支持按页批注（封面内容由左栏字段驱动）' : `对第 ${docSlide + 1} 页写批注：`}</p>
                     <textarea
                       value={cwAnnText}
                       onChange={e => setCwAnnText(e.target.value)}
@@ -2127,7 +2426,12 @@ export default function CoursewareBuilder() {
                     cwVer.items.map((s: any) => (
                       <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-[#353535] truncate">{s.label}</span>
+                          <span className="flex items-center gap-1 min-w-0">
+                            <span className={`shrink-0 px-1 rounded text-[9px] ${s.kind === 'release' ? 'bg-[#EAF3FF] text-[#1A5FB4]' : 'bg-[#F2F3F5] text-[#8C8C8C]'}`}>
+                              {s.kind === 'release' ? '发布版' : '快照'}
+                            </span>
+                            <span className="text-[11px] text-[#353535] truncate">{s.label}</span>
+                          </span>
                           {!cwLocked && (
                             <button onClick={() => restoreCwSnapshot(s.id)} title="恢复到此版本"
                               className="text-[#02A7F0] hover:text-[#0E7BC4] shrink-0 flex items-center gap-0.5 text-[10px]">

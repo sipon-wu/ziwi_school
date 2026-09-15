@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -63,6 +64,12 @@ func recordRelease(db *gorm.DB, c *gin.Context, meta ReleaseMeta, res *policy.Re
 		Count(&existCount)
 
 	now := time.Now()
+	// check_result 是 jsonb：空串/非法 JSON 会被 PG 拒绝（见 model.Version.CheckResult 的注释）→
+	// 只有确实是合法 JSON 才写入，否则留 NULL（"未审"）
+	var checkPtr *string
+	if strings.TrimSpace(checkJSON) != "" && json.Valid([]byte(checkJSON)) {
+		checkPtr = &checkJSON
+	}
 	v := &model.Version{
 		SchoolID:       schoolID,
 		UserID:         userID,
@@ -73,7 +80,7 @@ func recordRelease(db *gorm.DB, c *gin.Context, meta ReleaseMeta, res *policy.Re
 		Label:          meta.Label,
 		Payload:        meta.Payload,
 		ReviewStatus:   reviewStatus,
-		CheckResult:    checkJSON,
+		CheckResult:    checkPtr,
 		AIGenerated:    meta.AIGenerated,
 		AIModelVersion: meta.AIModelVersion,
 		HumanEdited:    meta.HumanEdited,

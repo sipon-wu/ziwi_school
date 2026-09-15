@@ -6,7 +6,7 @@ import AppLayout from '../components/AppLayout'
 import PresentationMode from '../components/PresentationMode'
 import PreviewOverlay from '../components/PreviewOverlay'
 import PptxPreview from '../components/PptxPreview'
-import { markdownToOutline, outlineToSlides } from '../lib/exportPptx'
+import { markdownToOutline, outlineToSlides, materializeOutline } from '../lib/exportPptx'
 import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import { resolveTheme } from '../lib/pptThemes'
 import { api, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem } from '../lib/api'
@@ -435,7 +435,9 @@ function CoursewarePreview({ content, title, format, themeId, colorRoot, onClose
   }
   if (format === 'ppt') {
     try {
-      const slides = outlineToSlides(markdownToOutline(content), { subject: '', grade: '', title })
+      // 与编辑器/生成路径同源（2026-09-14）：先物化元素层（含组件元素）再渲染。
+      // 否则素材库预览走的是另一条渲染路径 —— 那正是「同一份课件在编辑器与预览里长得不一样」的来源。
+      const slides = outlineToSlides(materializeOutline(markdownToOutline(content)), { subject: '', grade: '', title })
       if (slides.length) return <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} viewMode="single" />
     } catch {
       /* 解析失败回退文本预览 */

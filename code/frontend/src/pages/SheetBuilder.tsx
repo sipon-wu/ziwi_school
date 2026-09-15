@@ -11,7 +11,7 @@ import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
 import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
-import { api } from '../lib/api'
+import { api, classAPI } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import QuestionNav from '../components/QuestionNav'
 import ExamPreview from '../components/ExamPreview'
@@ -40,6 +40,13 @@ export default function SheetBuilder() {
   const teaching = useTeaching()
   const { toast } = useToast()
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
+  // 任教班级（2026-09-15 准确性修正）：班级名 ≠ 年级。此前信息卡"班级"直接传 gradeName，
+  // 显示成"四年级"（年级值）。取教师本人任教班级里当前选中的那个，取不到留空（卡上显示"—"）。
+  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string }>>([])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
+  const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)
+    || myClasses.find(it => (it as { is_primary?: boolean }).is_primary)
+    || myClasses[0])?.class_name || ''
   // eslint-disable-next-line prefer-const
   let ctrl: any
 
@@ -178,7 +185,7 @@ export default function SheetBuilder() {
     <EditorInfoPanel
       showBasicInfo
       showGrade
-      classLabel={gradeName}
+      classLabel={classLabel || undefined}
       xiaowei={{
         contextType: 'sheet',
         subject: teaching.subject,
@@ -276,7 +283,7 @@ export default function SheetBuilder() {
   const docLeftPanel = (
     <EditorInfoPanel
       showBasicInfo
-      classLabel={gradeName}
+      classLabel={classLabel || undefined}
       xiaowei={{
         contextType: 'sheet',
         subject: teaching.subject,

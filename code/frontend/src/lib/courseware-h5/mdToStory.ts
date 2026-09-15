@@ -1,3 +1,5 @@
+import { stripDecorMarkers } from '../textClean'
+
 /**
  * mdToStory —— 把"AI 课件 markdown"解析为绘本 Story
  *
@@ -329,7 +331,11 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
       if (state.cur && !nextIsHeading) { const m = state.cur.mood || 'warm'; newScene('', m) }
       continue
     }
-    if (line.startsWith('# ') && !ctx.title) { ctx.title = line.slice(2).trim(); continue }
+    // H1 是**标题行**，永不当旁白（2026-09-15 修）：
+    // 此前条件是 `&& !ctx.title` —— 调用方几乎总已带 title（如素材名），于是 H1 不被消费、
+    // 掉到下面的旁白分支，H5 封面就出现 `# 观潮 国风 09-15_课件` 这种"带井号与素材后缀"的裸文本。
+    // 现在无论外部是否给了标题，H1 一律消费掉（外部标题优先，仅缺省时用 H1 补）。
+    if (line.startsWith('# ')) { const h1 = line.slice(2).trim(); if (!ctx.title) ctx.title = h1; continue }
     if (line.startsWith('> ')) { parseMeta(line.slice(2), ctx); continue }
     if (line.startsWith('<!--')) {
       // 受控场景版式标注（v1）：`<!-- layout: scene-read -->` 显式指定场景类型；
@@ -397,7 +403,7 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     }
     // 关键句型框 下的列表项 → 点读单元
     if (ctx.block === 'sentences' && /^[-*]\s+/.test(line)) {
-      const word = line.replace(/^[-*]\s+/, '').replace(/\*\*/g, '').trim()
+      const word = stripDecorMarkers(line).replace(/\*\*/g, '').trim()
       if (word) {
         const sc = ensureScene()
         sc.interaction = sc.interaction || { type: 'read' }
@@ -408,7 +414,9 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     }
     // 对话原文块内的纯对话行（已被 parseColonDialog 覆盖，这里兜底）
     // 旁白：去 markdown 列表符号
-    const narration = line.replace(/^[-*]\s+/, '').replace(/\*\*/g, '')
+    // 展示层清理（2026-09-15）：`- > 文字` 这类"用引用符当装饰"的写法此前只剥了 `- `，
+    // 结果手机/投屏上旁白里留着 `>`（实测《琥珀》11 页里 6 页中招），见 lib/textClean.ts。
+    const narration = stripDecorMarkers(line).replace(/\*\*/g, '')
     ensureScene().narration = (ensureScene().narration ? ensureScene().narration + ' ' : '') + narration
   }
 

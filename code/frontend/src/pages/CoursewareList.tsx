@@ -140,16 +140,15 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
   const { page, totalPages, paginated, goTo } = usePagination(filtered, 8)
 
   const handleOpen = (i: CoursewareItem) => {
-    // 草稿态：进入编辑器修改（同一素材 ID，原地编辑，发布后才转正式）
-    if (i.status === 'draft') {
-      openWorkspace(ch.open(i.id)) // 草稿：新标签进入编辑器（与新建/放映一致）
+    // **点行 = 先看（预览）**，改内容走右侧笔尖（openEdit）—— 2026-09-15 修正。
+    // 原先草稿行也走 openEdit，于是"从课件库点进去"永远落在编辑器里（教师实测反馈：
+    // 应该先进预览态）。路由语义本就分得清：`/:id` = view（只读放映，view 态会自动开全屏预览，
+    // 且提供「编辑」按钮原地解锁到 `/:id/edit`），`/:id/edit` = edit。
+    if (ch.isVideo && i.status !== 'draft') {
+      setPlaying(i) // 视频（已发布）：内嵌放映
       return
     }
-    if (ch.isVideo) {
-      setPlaying(i) // 视频：内嵌放映（已发布）
-      return
-    }
-    openWorkspace(ch.open(i.id)) // ppt/h5：新标签打开放映态
+    openWorkspace(ch.open(i.id)) // ppt/h5：新标签打开预览态
   }
 
   const handleNew = () => {
@@ -295,7 +294,7 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {i.status === 'draft' ? (
-                            <button onClick={(e) => { e.stopPropagation(); openWorkspace(ch.open(i.id)) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑草稿">
+                            <button onClick={(e) => { e.stopPropagation(); openWorkspace(ch.openEdit(i.id)) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑草稿">
                               <Pencil size={14} />
                             </button>
                           ) : (

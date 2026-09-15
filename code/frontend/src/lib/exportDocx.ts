@@ -162,7 +162,8 @@ export async function exportLessonPlanToDocx(content: string, meta: LessonMeta):
     ['课题', meta.title],
     ...(meta.textbookUnit ? [['教材单元', meta.textbookUnit]] as [string, string][] : []),
     ...(meta.period ? [['课时', `第 ${meta.period} 课时`]] as [string, string][] : []),
-    ['生成模型', meta.model || 'qwen-plus'],
+    // 「生成模型」（qwen-plus 之类）**已移除**（2026-09-15）：教案 Word 会被打印/发给家长，
+    // 模型名与"知识面来源/发散边界"同级，属内部配方，不该出现在面向教师与家长的成品里。
     ['生成日期', meta.date || new Date().toLocaleDateString('zh-CN')],
   ]
 
