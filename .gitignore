@@ -121,3 +121,11 @@ qa/courseware_backup_*.sql
 # QA 验证截图产物（本地用，不入库）
 qa/shots_*/
 qa/batch_shots/
+
+# QA 本地产物（截图/日志/临时导出/对比产物，2026-09-16 补）
+qa/_shots/
+qa/_logs/
+qa/_chk/
+qa/_tmp_export/
+qa/e2e_ppt_compare/
+qa/e2e_h5_compare/
