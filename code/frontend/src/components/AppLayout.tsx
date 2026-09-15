@@ -1,3 +1,4 @@
+import type { MyClass } from "../lib/domain"
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import {
   LayoutGrid, BookOpen, FileText, PenTool, Files, Send, Image as ImgIcon,
@@ -61,7 +62,7 @@ export default function AppLayout({ children }: Props) {
   const user = safeGetUser()
   const teaching = useTeaching()
   const [collapsed, setCollapsed] = useState(false)
-  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  const [myClasses, setMyClasses] = useState<MyClass[]>([])
   const [openCC, setOpenCC] = useState(false)
   const ccRef = useRef<HTMLDivElement>(null)
   const path = window.location.pathname
@@ -96,10 +97,10 @@ export default function AppLayout({ children }: Props) {
   }, [])
 
   const currentCC = myClasses.find(i => i.class_id === teaching.selectedClassId)
-  const toClassInfo = (item: { class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }) => ({
+  const toClassInfo = (item: MyClass) => ({
     id: item.class_id, label: item.class_name, courseGroupId: '', subject: item.subject as '语文' | '数学' | '英语', grade: gradeToNum(item.grade), semester: '下' as const, textbook: '',
   })
-  const switchCC = (item: { class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }) => {
+  const switchCC = (item: MyClass) => {
     teaching.setSubject(item.subject)
     teaching.setGrade(gradeToNum(item.grade))
     teaching.selectClass(toClassInfo(item))

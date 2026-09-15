@@ -1,3 +1,4 @@
+import { safeGetUser } from "../lib/domain"
 import { useState, useMemo, useEffect } from 'react'
 import { Search, Upload, Image, FileText, Music, Video, Filter, Star, Download, Copy, Trash2, FolderOpen, Grid3X3, List, TrendingUp, BookOpen, Monitor, Sparkles } from 'lucide-react'
 import type { JSX } from 'react'
@@ -11,7 +12,7 @@ import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import { resolveTheme } from '../lib/pptThemes'
 import { api, materialAPI, decorAPI, facetAPI, notifyError, type MaterialItem } from '../lib/api'
 
-const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
+// safeGetUser 已收敛到 lib/domain.ts（此前与 CoursewareBuilder / LessonPlanEditor 各实现一遍）
 
 /* ── 类型 ── */
 type MaterialType = 'all' | 'image' | 'doc' | 'audio' | 'video' | 'other' | 'courseware'

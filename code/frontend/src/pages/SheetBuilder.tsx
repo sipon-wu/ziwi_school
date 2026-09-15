@@ -1,3 +1,4 @@
+import type { MyClass } from "../lib/domain"
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTeaching } from '../lib/TeachingContext'
@@ -42,7 +43,7 @@ export default function SheetBuilder() {
   const gradeName = GRADE_NAMES[teaching.grade - 1] || '四年级'
   // 任教班级（2026-09-15 准确性修正）：班级名 ≠ 年级。此前信息卡"班级"直接传 gradeName，
   // 显示成"四年级"（年级值）。取教师本人任教班级里当前选中的那个，取不到留空（卡上显示"—"）。
-  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string }>>([])
+  const [myClasses, setMyClasses] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
   const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)
     || myClasses.find(it => (it as { is_primary?: boolean }).is_primary)

@@ -1,3 +1,4 @@
+import { safeGetUser, type MyClass, type ScopeResolvedPayload } from '../lib/domain'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, FileText, MessageSquare, History, Plus, X, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Download, Maximize2, Undo2, Redo2, TextCursorInput, Shapes, Image as ImageIcon, ZoomIn, Smartphone } from 'lucide-react'
@@ -42,7 +43,7 @@ import PptxPreview, { SlideThumb, type DecorSelection } from '../components/Pptx
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
-const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
+// safeGetUser 已收敛到 lib/domain.ts（此前在 4 个文件各实现一遍，且返回 any）
 const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token') || ''; const p = JSON.parse(atob(t.split('.')[1])); return p.school_id || '' } catch { return '' } }
 
 // 教学课件频道：PPT / H5 / 视频 共用同一编辑器与同一份内容来源（一次创作、多格式交付）
@@ -368,7 +369,7 @@ export default function CoursewareBuilder() {
   // 生成配方（溯源）：服务端回传的"这次是按什么生成的"（知识面来源 teacher|kg、前置来源、
   // 发散边界 orbit/edge/beyond_band、教材版本、单元、模型）。生成后随草稿落库，
   // 编辑页才能回填「来源」——这是修"左栏与画布脱节"的关键数据。
-  const [scopeResolved, setScopeResolved] = useState<any>(null)
+  const [scopeResolved, setScopeResolved] = useState<ScopeResolvedPayload | null>(null)
   const [cwMarkdown, setCwMarkdown] = useState('')
   const [cwH5Html, setCwH5Html] = useState('')
   const [cwSimilar, setCwSimilar] = useState<any>(null)
@@ -649,7 +650,7 @@ export default function CoursewareBuilder() {
   // 准确性修正（2026-09-15）：班级名 ≠ 年级。此前左栏信息卡与封面信息条都拿 gradeName 顶替"班级"，
   // 于是显示成"班级：四年级"（教师看到的是年级值）。这里取教师本人任教班级里"当前选中"的那个，
   // 取不到就留空（信息卡显示"—"、封面信息条不出现该格）。
-  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string }>>([])
+  const [myClasses, setMyClasses] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
   // 选中班级 → 主班级兜底（2026-09-15）：课件编辑器**不在 AppLayout 里**（那层有"首次进入自动选中主班级"），
   // 所以这里必须自己兜底，否则班级永远是空的。规则与 AppLayout 一致：优先当前选中，其次主班级。
@@ -722,9 +723,9 @@ export default function CoursewareBuilder() {
       // 生成配方（溯源）：接住服务端回传的 scope_resolved，随草稿一起落库（见 handleSaveDraft）
       // 统一形状：state 存"整个配方对象"（与从 gen_params 反解析出来的形状一致），
       // 避免生成态与加载态两种结构互相嵌套错位。
-      setScopeResolved({ scope_resolved: (res as any).scope_resolved || null })
+      setScopeResolved({ scope_resolved: res.scope_resolved ?? null })
       // 实时生成配色快照：后端按 学科/年级/风格 派生 styleDNA，优先于 theme_id 还原专属配色
-      const nextColorRoot = (res as any).color_palette ? JSON.stringify((res as any).color_palette) : ''
+      const nextColorRoot = res.color_palette ? JSON.stringify(res.color_palette) : ''
       // 风格模板（P1）：AI 生成后自动套用"最匹配模板"（风格+学段+学科多维匹配），无需教师再手动挑
       const styleEcho = (res.style_tag as StyleTag) || genStyleTag
       // 修复：模板须套在"本轮新提纲"上（此前误用旧 state cwOutline，导致模板套错对象）
@@ -1370,7 +1371,7 @@ export default function CoursewareBuilder() {
           故改为**诊断开关后才显示**（`?debug=1` 或 localStorage `zhiwei_debug=1`，见 lib/debugFlag.ts），
           保留代码是为了复现缺陷时能一眼看到当时的生成配方。 */}
       {isDebugView() && (() => {
-        const sr = (scopeResolved as any)?.scope_resolved
+        const sr = scopeResolved?.scope_resolved
         if (!sr) return null
         const srcLabel = sr.source === 'teacher' ? '教师锚定'
           : sr.source === 'kg' ? '系统按知识图谱边界' : '未指定'
@@ -1379,7 +1380,7 @@ export default function CoursewareBuilder() {
             : sr.prereq_source === 'frontend' ? '前端直传' : '无'
         const dv = sr.divergence || {}
         const kps: string[] = sr.knowledge_points || []
-        const tbv = (scopeResolved as any)?.textbook_version_name || ''
+        const tbv = scopeResolved?.textbook_version_name || ''
         const row = 'flex gap-1 text-[11px] leading-relaxed'
         return (
           <div className="px-5 py-3 border-t border-[#F0F0F0] bg-[#FAFBFC]">

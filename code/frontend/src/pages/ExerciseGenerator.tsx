@@ -1,3 +1,4 @@
+import type { MyClass } from "../lib/domain"
 import { useToast } from "../components/Toast"
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
@@ -187,7 +188,7 @@ export default function ExerciseGenerator() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } })()
 
   // 任教班级
-  const [myClassesEG, setMyClassesEG] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  const [myClassesEG, setMyClassesEG] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClassesEG(r?.items || [])).catch(() => {}) }, [])
   const classLabelEG = myClassesEG.find(it => it.class_id === teaching.selectedClassId)?.class_name || GRADE_NAMES[teaching.grade - 1]
 

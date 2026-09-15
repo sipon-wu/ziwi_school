@@ -1,3 +1,4 @@
+import type { MyClass } from "../lib/domain"
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Plus, X, Sparkles, MessageCircle, Download, Printer, Pencil, FileText } from 'lucide-react'
@@ -38,7 +39,7 @@ export default function ExamBuilder() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || '{}') || { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } catch { return { name: '张真真', school_name: '成都市金牛区第一小学', grade_class: '四年级 (1)班' } } })()
 
   // 任教班级
-  const [myClassesEB, setMyClassesEB] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  const [myClassesEB, setMyClassesEB] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClassesEB(r?.items || [])).catch(() => {}) }, [])
   const classLabelEB = myClassesEB.find(it => it.class_id === teaching.selectedClassId)?.class_name || gradeName
 

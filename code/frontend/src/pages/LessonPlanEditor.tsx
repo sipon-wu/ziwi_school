@@ -1,3 +1,4 @@
+import { safeGetUser, type MyClass } from "../lib/domain"
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
@@ -22,7 +23,7 @@ import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
 import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
 import { marked } from 'marked'
-const safeGetUser = () => { try { return JSON.parse(localStorage.getItem('zhiwei_user') || localStorage.getItem('user') || '{}') || {} } catch { return {} } }
+// safeGetUser 已收敛到 lib/domain.ts（此前与 CoursewareBuilder / Materials 各实现一遍）
 
 // 把裸 LaTeX（$...$ / $$...$$）转成 TipTap 公式节点占位（由编辑器 FormulaView 运行时渲染 KaTeX）
 function latexToFormulaPlaceholders(html: string): string {
@@ -166,7 +167,7 @@ export default function LessonPlanEditor() {
   const [showFullscreenEditor, setShowFullscreenEditor] = useState(false)
 
   // ── 任教班级（班级切换联动）──
-  const [myClasses, setMyClasses] = useState<Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }>>([])
+  const [myClasses, setMyClasses] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
   // 班级取**任教班级名**；取不到就留空由信息卡显示"—"，**不能拿年级顶替**（2026-09-15 准确性修正：
   // 此前回退成 `grade`，于是信息卡"班级"栏一直显示"四年级"这类年级值，看着像班级名）
@@ -459,8 +460,10 @@ export default function LessonPlanEditor() {
       }, (_stage, message) => setCwStage(message))
       setCoursewareMarkdown(res.courseware_markdown || '')
       setCoursewareSimilar(res.similar_material || null)
-      if (Array.isArray(res.recommended_refs) && res.recommended_refs.length) {
-        setMaterialRefs(prev => Array.from(new Set([...prev, ...res.recommended_refs])))
+      // 先取局部量再判空：属性访问的 narrowing 在回调里会失效（此前靠 any 才通过）
+      const refs = res.recommended_refs
+      if (Array.isArray(refs) && refs.length) {
+        setMaterialRefs(prev => Array.from(new Set([...prev, ...refs])))
       }
       setShowCourseware(true)
     } catch (e: any) { toast('课件生成失败: ' + (e.message || '未知错误'), 'error') }

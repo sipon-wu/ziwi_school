@@ -1,3 +1,4 @@
+import type { AuthLoginResp, CoursewareGenerateResp, CoursewareMaterial, MyClassesResp } from "./domain"
 /** 知微AI教学助手 — 前端API工具类 */
 import { showToast } from '../components/Toast'
 
@@ -134,7 +135,7 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
 export const authAPI = {
   /** 密码登录（SaaS=phone，私有部署=username） */
   login: (phone: string, password: string, username?: string) =>
-    request<any>('/auth/login', {
+    request<AuthLoginResp>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(username ? { username, password } : { phone, password }),
     }),
@@ -203,7 +204,7 @@ export const classAPI = {
       body: JSON.stringify({ name, grade }),
     }),
   /** 当前教师本人任教的「班级-学科」列表（支持一课多班、一班多学科） */
-  myClasses: () => request<{ items: Array<{ class_id: string; class_name: string; grade: string; subject: string; is_primary: boolean }> }>('/my-classes'),
+  myClasses: () => request<MyClassesResp>('/my-classes'),
 }
 
 // ── AI 接口 ──
@@ -232,7 +233,7 @@ export const aiAPI = {
 
   /** 课件生成（锚点—轨道—边缘 三层，允许受控发散） */
   generateCourseware: (params: CoursewareGenParams) =>
-    request<any>('/ai/courseware/generate', {
+    request<CoursewareGenerateResp>('/ai/courseware/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -292,7 +293,7 @@ export const aiAPI = {
     })()
 
     try {
-      return await request<any>('/ai/courseware/generate', {
+      return await request<CoursewareGenerateResp>('/ai/courseware/generate', {
         method: 'POST',
         body: JSON.stringify({ ...params, job_id: jobId }),
       })
@@ -444,7 +445,9 @@ export const schoolReviewConfigAPI = {
 // ── 素材/课件接口 ──
 
 export const materialAPI = {
-  list: () => request<{ items: MaterialItem[] }>('/materials'),
+  // 课件字段（status/subject/grade/content/h5_html/…）此前不在 MaterialItem 里 →
+  // 各调用点只能 `as any` 强转（全仓 any 的一大来源）。改为返回 CoursewareMaterial（超集，向下兼容）。
+  list: () => request<{ items: CoursewareMaterial[] }>('/materials'),
   /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
   createJSON: (data: { name: string; type: string; format?: string; tag?: string; url?: string; content?: string; h5_html?: string; status?: string; grade?: string; subject?: string; theme_id?: string; color_root?: string }) =>
     request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
