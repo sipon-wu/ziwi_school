@@ -48,8 +48,10 @@ import { useCwPreview } from '../hooks/useCwPreview'
 import { InteractiveForm, interactiveSummary, defaultInteractive } from '../components/CwInteractiveForm'
 import { DecorPickerModal } from '../components/DecorPickerModal'
 import { CwAnnotationsPanel } from '../components/CwAnnotationsPanel'
+import { CwPageList } from '../components/CwPageList'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
-import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
+// SlideThumb 已随页列表抽出（现由 CwPageList 内部使用）
+import PptxPreview, { type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
 
 const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
@@ -1119,32 +1121,12 @@ export default function CoursewareBuilder() {
       <div className="flex-1 flex min-h-0 relative">
         {/* 缩略图页管理（可收起，腾讯文档范式） */}
         {!thumbCollapsed && (
-          <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-2">
-            {/* 整本页列表（含封面，2026-09-15）：此前只列正文页 + 缩略图取 cwThumbSlides[idx+1]，
-                结果编辑器里**既看不到封面、也选不到它**（教师原话："编辑器里也需要加上封面"）。
-                规则：第 0 项 = 封面（内容由左栏「课题名称/学科/年级/班级/署名」驱动，故不给上移/删除按钮，
-                避免"删掉封面"这种无意义操作）；正文项按下标 -1 映射回 cwOutline，原有上移/下移/删除照旧。 */}
-            {cwThumbSlides.map((s, i) => {
-              const isCover = i === 0
-              const oi = i - 1                                  // 正文页在 cwOutline 中的下标
-              return (
-                <div key={i} onClick={() => goToPage(i)}
-                  className={`group cursor-pointer rounded-[4px] border overflow-hidden ${i === deckIdx ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                  <div className="relative">
-                    <SlideThumb slide={s} theme={resolveTheme(themeId, colorRoot)} idx={i} ar={cwAr} />
-                    {!isCover && (
-                      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); moveCwPage(oi, -1) }} disabled={oi === 0} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↑</button>
-                        <button onClick={(e) => { e.stopPropagation(); moveCwPage(oi, 1) }} disabled={oi === cwOutline.length - 1} className="px-1 py-0.5 text-[10px] text-[#353535] bg-white/90 rounded hover:text-[#02A7F0] disabled:opacity-30 shadow-sm">↓</button>
-                        <button onClick={(e) => { e.stopPropagation(); deleteCwPage(oi) }} className="px-1 py-0.5 text-[10px] text-[#F5222D] bg-white/90 rounded hover:bg-[#FFF1F0] shadow-sm">✕</button>
-                      </div>
-                    )}
-                  </div>
-                  <p className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{isCover ? '封面' : (s.title || '（无标题）')}</p>
-                </div>
-              )
-            })}
-          </div>
+          <CwPageList
+            className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-2"
+            slides={cwThumbSlides} deckIdx={deckIdx} onSelect={goToPage}
+            theme={resolveTheme(themeId, colorRoot)} aspect={cwAr}
+            editable pageCount={cwOutline.length} onMove={moveCwPage} onDelete={deleteCwPage}
+          />
         )}
         {thumbCollapsed && (
           <button onClick={() => setThumbCollapsed(false)} title="展开页列表"
@@ -1585,16 +1567,12 @@ export default function CoursewareBuilder() {
         {/* 主体：缩略图 + 画布 */}
         <div className="flex-1 flex min-h-0">
           {cwFsThumb && cwOutline.length > 1 && (
-            <div className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2 px-1.5 space-y-2">
-              {/* 全屏页列表同样含封面（2026-09-15）：第 0 项 = 封面 */}
-              {cwThumbSlides.map((s, i) => (
-                <button key={i} onClick={() => goToPage(i)}
-                  className={`w-full text-left rounded-[4px] border overflow-hidden transition-colors ${i === deckIdx ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
-                  <SlideThumb slide={s} theme={resolveTheme(themeId, colorRoot)} idx={i} ar={cwAr} />
-                  <div className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{i === 0 ? '封面' : (s.title || '未命名').slice(0, 16)}</div>
-                </button>
-              ))}
-            </div>
+            <CwPageList
+              className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2 px-1.5 space-y-2"
+              slides={cwThumbSlides} deckIdx={deckIdx} onSelect={goToPage}
+              theme={resolveTheme(themeId, colorRoot)} aspect={cwAr}
+              emptyTitle="未命名" titleMax={16}
+            />
           )}
           <div className="flex-1 overflow-y-auto p-6 flex justify-center">
             {/* 全屏画布区（2026-09-14 修）：此前 `max-w-[960px]` 把全屏画布**又钉在 960 宽**
