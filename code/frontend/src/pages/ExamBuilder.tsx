@@ -2,7 +2,7 @@ import type { MyClass } from "../lib/domain"
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Plus, X, Sparkles, MessageCircle, Download, Printer, Pencil, FileText } from 'lucide-react'
-import { useTeaching, getQuestionTypes, gradeToNum } from '../lib/TeachingContext'
+import {useTeaching, getQuestionTypes, gradeToNum, GRADE_NAMES } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
@@ -21,8 +21,6 @@ import ExamPreview, { type ExamQuestion, type ExamMeta } from '../components/Exa
 import { exportExamPaper } from '../lib/exportExamDocx'
 import { printExamPaper } from '../lib/printPdf'
 import QuestionNav from '../components/QuestionNav'
-
-const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
 export default function ExamBuilder() {
   const { id: examId } = useParams()

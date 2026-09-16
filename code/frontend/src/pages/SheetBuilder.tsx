@@ -1,7 +1,7 @@
 import type { MyClass } from "../lib/domain"
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useTeaching } from '../lib/TeachingContext'
+import {useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 import { useEditorController } from '../hooks/useEditorController'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { FileText, Send, AlertTriangle } from 'lucide-react'
@@ -32,7 +32,6 @@ const QUESTION_TYPES = [
   { id: 'writing', label: '写作题' },
 ]
 const CLASSES = ['一年级1班', '一年级2班', '二年级1班', '二年级2班', '三年级1班']
-const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
 export default function SheetBuilder() {
   const navigate = useNavigate()

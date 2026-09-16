@@ -1,4 +1,5 @@
 import type { ChatResp } from "../lib/domain"
+import { GRADE_NAMES } from '../lib/TeachingContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -68,7 +69,6 @@ function parseCoursewareMeta(text: string, teaching: { subject: string; grade: s
   }
   if (!title) title = teaching.subject ? `${teaching.subject}互动课件` : '互动课件'
   const subject = /英语|english/.test(text.toLowerCase()) ? '英语' : (teaching.subject || '英语')
-  const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
   let grade = ''
   if (typeof teaching.grade === 'number') grade = GRADE_NAMES[teaching.grade - 1] || ''
   else grade = teaching.grade || ''

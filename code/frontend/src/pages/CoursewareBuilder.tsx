@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, FileText, MessageSquare, History, Plus, X, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Download, Maximize2, Undo2, Redo2, TextCursorInput, Shapes, Image as ImageIcon, ZoomIn, Smartphone } from 'lucide-react'
 import { useToast } from '../components/Toast'
-import { useTeaching } from '../lib/TeachingContext'
+import {useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { api, aiAPI, materialAPI, classAPI, decorAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots } from '../lib/api'
@@ -55,8 +55,6 @@ import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 // SlideThumb 已随页列表抽出（现由 CwPageList 内部使用）
 import PptxPreview, { type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
-
-const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 // safeGetUser 已收敛到 lib/domain.ts（此前在 4 个文件各实现一遍，且返回 any）
 const getSchoolId = () => { try { const t = localStorage.getItem('zhiwei_token') || ''; const p = JSON.parse(atob(t.split('.')[1])); return p.school_id || '' } catch { return '' } }
 

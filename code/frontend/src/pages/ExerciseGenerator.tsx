@@ -3,7 +3,7 @@ import { useToast } from "../components/Toast"
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { Sparkles, Send, X, Save, Check, AlertTriangle, Download, Printer, FileText, Mic, MicOff, Share2, Plus, Image, MessageCircle, ArrowLeft, Code2, Pencil } from 'lucide-react'
-import { useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LABELS, isTypeAllowed } from '../lib/TeachingContext'
+import {useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LABELS, isTypeAllowed, GRADE_NAMES } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
@@ -44,8 +44,6 @@ const SCHOOLS = [
   { id: 'szzx', name: '深圳中学', desc: '创新题型，跨学科融合' },
   { id: 'nsfz', name: '南京师大附中', desc: '传统文化融合，古文应用' },
 ]
-
-const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
 export default function ExerciseGenerator() {
   const navigate = useNavigate()

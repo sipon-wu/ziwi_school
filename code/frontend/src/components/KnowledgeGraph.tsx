@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { GRADE_NAMES } from '../lib/TeachingContext'
 import { Graph, treeToGraphData } from '@antv/g6'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 
@@ -32,7 +33,6 @@ interface Props {
 
 const DIFFICULTY_COLORS: Record<string, string> = { L1: '#52C41A', L2: '#1890FF', L3: '#FA8C16', L4: '#F5222D' }
 const COGNITIVE_COLORS: Record<string, string> = { '记忆': '#B37FEB', '理解': '#5CDBD3', '应用': '#1890FF', '分析': '#FA8C16', '评价': '#F5222D', '创造': '#EB2F96' }
-const GRADE_NAMES = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级']
 
 /** 构建纯知识点依赖树 */
 function buildKnowledgeTree(nodes: KnowledgeNode[]): any {

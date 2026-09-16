@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { useTeaching } from '../lib/TeachingContext'
+import {useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 import XiaoWeiLauncher from './XiaoWeiLauncher'
 
 /**
@@ -30,8 +30,6 @@ interface Props {
   /** 产品特定表单主体（标题/单元课时/模板/知识点/标签/关联课件/附加要求 等） */
   children: ReactNode
 }
-
-const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
 function BasicInfoCard({ classLabel, showGrade }: { classLabel?: string; showGrade?: boolean }) {
   const teaching = useTeaching()

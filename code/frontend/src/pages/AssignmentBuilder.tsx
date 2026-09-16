@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useTeaching } from '../lib/TeachingContext'
+import {useTeaching, GRADE_NAMES } from '../lib/TeachingContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
@@ -16,8 +16,6 @@ const CLASSES = [
   { id: 'c2', name: '四年级 (2)班', grade: '四年级' },
   { id: 'c3', name: '四年级 (3)班', grade: '四年级' },
 ]
-
-const GRADE_NAMES = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '七年级', '八年级', '九年级']
 
 export default function AssignmentBuilder() {
   const teaching = useTeaching()
