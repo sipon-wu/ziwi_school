@@ -50,6 +50,7 @@ import { DecorPickerModal } from '../components/DecorPickerModal'
 import { CwAnnotationsPanel } from '../components/CwAnnotationsPanel'
 import { CwPageList } from '../components/CwPageList'
 import { CwLeftPanel } from '../components/CwLeftPanel'
+import { CwPreviewPane } from '../components/CwPreviewPane'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 // SlideThumb 已随页列表抽出（现由 CwPageList 内部使用）
 import PptxPreview, { type DecorSelection } from '../components/PptxPreview'
@@ -1058,79 +1059,16 @@ export default function CoursewareBuilder() {
     return <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   })()
   const previewPane = (
-    <div className="flex-1 flex overflow-hidden bg-[#FAFAFA] h-full">
-      {/* 左：只读缩略图页导航（H5 绘本态隐藏左侧目录，让整本绘本占据视口） */}
-      {!(cwFormat === 'h5' && cwH5Html) && (
-        <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
-          <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{(previewSlides || cwOutline).length}）</div>
-          {/* 目录也按整本列（含封面，2026-09-15）：此前只列 outline → 左栏没有"封面"这一项，
-              右侧放映却可能停在封面上，两边对不上。现在目录项 = 整本页序（封面 + 正文）。 */}
-          {(previewSlides || cwOutline).map((s, idx) => (
-            <div key={idx} onClick={() => goToPage(idx)}
-              className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === deckIdx ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
-              <span className="text-[10px] text-[#9A9A9A]">{idx === 0 ? '封面' : `P${idx}`}</span>
-              <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      {/* 中：可滚动只读放映 + 当前页互动（预览态只只读渲染，编辑按钮统一在编辑态文档模式右栏） */}
-      <div className={`${cwFormat === 'h5' && cwH5Html ? 'flex-1 h-full p-0' : 'flex-1 overflow-y-auto px-6 py-4'}`}>
-        {!(cwFormat === 'h5' && cwH5Html) && (
-          <>
-            <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {deckIdx + 1}/{(previewSlides || cwOutline).length} 页{deckIdx === 0 ? '（封面）' : ''}</div>
-            {(() => {
-              // 只读放映：只渲染当页互动的只读组件，不显示任何编辑按钮
-              // 注：deckIdx 含封面，而 buildH5Slides() 只有正文页 → 取 deckIdx-1（封面页无互动）
-              const roIt = buildH5Slides()[Math.max(0, deckIdx - 1)]?.interactive
-              const roHtml = isValidComponent(roIt) ? renderInteractive(roIt) : ''
-              return (
-                <div className="mb-4">
-                  {roHtml ? (
-                    <div className="border border-[#E7E7EB] rounded bg-white p-3" dangerouslySetInnerHTML={{ __html: roHtml }} />
-                  ) : (
-                    <p className="text-[11px] text-[#C0C0C0] mb-3">本页无互动组件。互动课件需在「编辑」态挂接，发布后在此以只读形式呈现并可投屏/扫码交互。</p>
-                  )}
-                </div>
-              )
-            })()}
-          </>
-        )}
-        {previewSlideElems}
-      </div>
-      {/* 右：H5 **预览/查看态** → 扫码分享；编辑态与 PPT 一致 → 批注 / 版本
-          （2026-09-15 修）：此前按 **格式** 分（`cwFormat === 'h5'` 一律扫码栏），而 H5 编辑态的
-          画布又复用 previewPane（见下方 secondaryRight），于是教师在**编辑**时右侧也一直是二维码 ——
-          二维码是"扫码到手机预览"的东西，编辑时要的是批注/版本。改为按 **状态** 分。 */}
-      {cwFormat === 'h5' && (effectivePreviewOpen || ctrl.readOnly) ? (
-        <div className="w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col overflow-hidden z-20">
-          <div className="px-3 py-2 text-[11px] font-medium text-[#353535] border-b border-[#F0F0F0] bg-white shrink-0 flex items-center gap-1">
-            <Smartphone size={11} /> 手机扫码查看
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-5">
-            {h5ShareQr ? (
-              <>
-                <div className="bg-white rounded-xl p-3 shadow-sm border border-[#EEE]">
-                  <img src={h5ShareQr.dataUrl} alt="扫码查看" className="w-[180px] h-[180px] block" />
-                </div>
-                <p className="text-[11px] text-[#888] text-center mt-3 leading-relaxed">手机扫码在浏览器打开，可翻页 / 点读 / 互动，也可投屏上课。</p>
-                <button onClick={() => { try { navigator.clipboard?.writeText(h5ShareQr.url) } catch { /* noop */ } toast('链接已复制', 'success') }}
-                  className="mt-3 px-3 py-1.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">复制链接</button>
-              </>
-            ) : (
-              <p className="text-[11px] text-[#C0C0C0] text-center leading-relaxed">发布后生成扫码链接，<br />手机扫码即可查看互动课件。</p>
-            )}
-          </div>
-        </div>
-      ) : cwAnnTargetId && (
-        <CwAnnotationsPanel readOnly
-          className="relative w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden"
-          cwAnn={cwAnn} cwVer={cwVer} cwAnnTargetId={cwAnnTargetId} cwLocked={cwLocked}
-          materialId={materialId} cwOutline={cwOutline} setCwOutline={setCwOutline}
-          deckIdx={deckIdx} docSlide={docSlide}
-          />
-      )}
-    </div>
+    <CwPreviewPane
+      cwFormat={cwFormat} cwH5Html={cwH5Html}
+      previewSlides={previewSlides} cwOutline={cwOutline}
+      deckIdx={deckIdx} onSelect={goToPage}
+      buildH5Slides={buildH5Slides}
+      slideElems={previewSlideElems}
+      showShare={cwFormat === 'h5' && (effectivePreviewOpen || ctrl.readOnly)}
+      h5ShareQr={h5ShareQr}
+      ann={{ cwAnn, cwVer, cwAnnTargetId, cwLocked, materialId, cwOutline, setCwOutline, deckIdx, docSlide }}
+    />
   )
 
   // 模板库面板（PPT / H5 共用）：抽出为函数，非全屏态与全屏编辑态共用同一份逻辑与状态
