@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
-import { api, aiAPI, materialAPI, classAPI, decorAPI, facetAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots, type FacetVocab } from '../lib/api'
+import { api, aiAPI, materialAPI, classAPI, decorAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots } from '../lib/api'
 import { loadDecorCatalog } from '../lib/decorCatalog'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
@@ -40,6 +40,7 @@ import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import { useCwDecor } from '../hooks/useCwDecor'
 import { useCwExport } from '../hooks/useCwExport'
+import { useCwGenParams } from '../hooks/useCwGenParams'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -343,25 +344,14 @@ export default function CoursewareBuilder() {
   // 装饰素材库：进入编辑器即拉取，使模板装饰优先用素材库真实 URL（snapshot 内联 SVG 兜底）
   useEffect(() => { loadDecorCatalog() }, [])
 
-  // ── 表单状态 ──
-  const [genTitle, setGenTitle] = useState('')
-  const [genStyleTag, setGenStyleTag] = useState<StyleTag | ''>('')
-  const [genStyleProfile, setGenStyleProfile] = useState('')
-  // 风格标签云：从后端 facet 词表（motif）动态拉取，AI 巡增新标签后自动增多
-  const [motifTags, setMotifTags] = useState<FacetVocab[]>([])
-  useEffect(() => {
-    facetAPI.list('motif').then(r => setMotifTags(r.items || [])).catch(() => setMotifTags([]))
-  }, [])
-  const [cwExtra, setCwExtra] = useState('')
-  const [genBaseId, setGenBaseId] = useState('')
-  const [divergenceLevel, setDivergenceLevel] = useState<'conservative' | 'standard' | 'expansive'>('standard')
-  const [edgeEnabled, setEdgeEnabled] = useState(false)
-  const [edgeCats, setEdgeCats] = useState<Record<string, boolean>>({
-    '科学探究精神/价值观': false, '合作与倾听（行为准则）': false, '文化认同与家国情怀': false,
-  })
-  const [consultQuestions, setConsultQuestions] = useState<any[]>([])
-  const [consultAnswers, setConsultAnswers] = useState<Record<string, string>>({})
-  const [consultLoading, setConsultLoading] = useState(false)
+  // ── 生成参数（P0-1：已抽到 hooks/useCwGenParams.ts；返回值沿用原名，调用点零改动）──
+  // 课题名称 / 课件风格 / 补充要求 / 参照课件 / 发散边界 / 课前问诊，以及标签云与问诊的拉取动作。
+  const {
+    genTitle, setGenTitle, genStyleTag, setGenStyleTag, genStyleProfile, setGenStyleProfile,
+    motifTags, cwExtra, setCwExtra, genBaseId, setGenBaseId,
+    divergenceLevel, setDivergenceLevel, edgeEnabled, setEdgeEnabled, edgeCats, setEdgeCats,
+    consultQuestions, consultAnswers, setConsultAnswers,
+  } = useCwGenParams({ subject: teaching.subject, gradeName, picker })
 
   // ── 产物状态 ──
   const [genLoading, setGenLoading] = useState(false)
@@ -529,19 +519,7 @@ export default function CoursewareBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  // 课前问诊：进页拉一次
-  useEffect(() => {
-    if (consultQuestions.length > 0 || consultLoading) return
-    setConsultLoading(true)
-    const scope = buildKnowledgeScope(picker)
-    aiAPI.consultCourseware({
-      subject: teaching.subject, grade: gradeName, lesson_title: genTitle.trim(),
-      knowledge_points: scope.knowledge_points,
-    }).then((r: any) => setConsultQuestions(r.questions || []))
-      .catch(() => setConsultQuestions([]))
-      .finally(() => setConsultLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // （课前问诊的拉取 effect 已随生成参数簇搬到 hooks/useCwGenParams.ts）
 
   // 进入任一课件频道默认文档模式：视频频道需文档模式才显示配置面板，PPT/H5 也围绕提纲；用户仍可手动切 AI 选知识点。
   // ★ 依赖只留 [cwFormat]：ctrl 每次渲染都是新对象，若放进依赖会导致每次渲染都强制 setWorkMode('doc')，
