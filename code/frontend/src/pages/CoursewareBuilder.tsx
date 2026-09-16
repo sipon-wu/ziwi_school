@@ -41,6 +41,7 @@ import { useEditorController } from '../hooks/useEditorController'
 import { useCwDecor } from '../hooks/useCwDecor'
 import { useCwExport } from '../hooks/useCwExport'
 import { useCwGenParams } from '../hooks/useCwGenParams'
+import { useCwSave } from '../hooks/useCwSave'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -371,7 +372,6 @@ export default function CoursewareBuilder() {
   const [trimming, setTrimming] = useState(false)
   const [validateIssues, setValidateIssues] = useState<any[] | null>(null)
   const [validating, setValidating] = useState(false)
-  const [savingCw, setSavingCw] = useState(false)
   const [h5Qr, setH5Qr] = useState<{ url: string; dataUrl: string } | null>(null)
   // H5 播放/预览态右栏的「扫码分享」二维码（通用 H5 分享样式）
   const [h5ShareQr, setH5ShareQr] = useState<{ url: string; dataUrl: string } | null>(null)
@@ -403,11 +403,9 @@ export default function CoursewareBuilder() {
   // 元素几何快照（2026-09-15）：「重新套版」（重档）会重排元素位置 —— 只记 layout 不足以回退，
   // 必须连 elements 一起记，否则"换回上一个风格"撤不掉位置变化。
   const tplPrevElements = useRef<((OutlineSlide['elements']))[] | null>(null)
-  // 版本节奏（2026-09-15，产品规则）：**系统生成 → 自动成为一稿草稿**（不等教师点保存）、
-  // 保存草稿 → 形成版本、发布 → 后端写 release 版本。粒度规则见 lib/versionPolicy.ts。
-  // 为什么用"标记 + effect"而不是在生成函数里直接存：生成函数里刚 setState 的
-  // themeId/colorRoot 还没生效，直接调用会把**旧主题**存进草稿。
-  const pendingGenSave = useRef(false)
+  // （「系统生成 → 自动成为一稿草稿」的标记 pendingGenSave 已随保存簇搬到 hooks/useCwSave.ts；
+  //   版本粒度规则见 lib/versionPolicy.ts。之所以用"标记 + effect"而非生成函数里直接存：
+  //   生成函数里刚 setState 的 themeId/colorRoot 还没生效，会把旧主题写进草稿。）
 
   // ── 装饰元件（P0-1：已抽到 hooks/useCwDecor.ts；返回值沿用原名，调用点零改动）──
   const {
@@ -848,175 +846,19 @@ export default function CoursewareBuilder() {
     } catch { /* 各导出函数已各自 toast */ }
   }
 
-  // ── footer：保存草稿(落库，与习题/教案一致) / 发布到课件库(红线校验闸) ──
-  /** 键排序的稳定序列化：比较"内容有没有变"用（见 takeSaveVersion 的注释） */
-  const stableJson = (v: unknown): string => {
-    if (v === null || typeof v !== 'object') return JSON.stringify(v)
-    if (Array.isArray(v)) return '[' + v.map(stableJson).join(',') + ']'
-    const o = v as Record<string, unknown>
-    return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stableJson(o[k])).join(',') + '}'
-  }
-
-  /**
-   * 保存草稿 → 形成版本（产品规则 2026-09-15：生成 / 保存草稿 / 发布 三个时机各形成版本）。
-   * · 生成后的第一次保存记作「AI 生成」（见 pendingGenVersion）
-   * · 其余记作「保存草稿」；发布由后端写 `kind=release`
-   * · **内容没变不重复建**（同 label 且 payload 相同 → 跳过）：连点保存不该堆出重复版本
-   * · **自动保存额外 3 分钟节流**：自动保存频繁，逐次建版本会把列表灌满；
-   *   教师**点击**保存则每次都形成版本（不受节流限制）
-   */
-  const takeSaveVersion = async (opts: { trigger: VersionTrigger; outline?: OutlineSlide[] }) => {
-    const outline = opts.outline || cwOutline
-    const label = opts.trigger === 'gen' ? 'AI 生成（一稿）' : '保存草稿'
-    // ⚠️ 不能直接比字符串：payload 落的是 **jsonb** 列，PG 会重排键、去空白，
-    // 读回来的字符串与写进去的必然不同（实测：字符串比较 → 每次判"变了" → 连点保存堆版本）。
-    // 故用**键排序的稳定序列化**语义比较。
-    const snap = stableJson(outline)
-    const last: any = cwVer.items[0]
-    let lastSnap = ''
-    try { lastSnap = last?.payload ? stableJson(JSON.parse(String(last.payload))) : '' } catch { lastSnap = '' }
-    const decision = decideVersion({
-      trigger: opts.trigger, last, contentSame: !!lastSnap && lastSnap === snap,
-    })
-    if (decision !== 'create') return     // 内容没变（skip-identical）或落在合并窗口内（skip-window）
-    await cwVer.take(label, outline)
-  }
-
-  const handleSaveDraft = async (opts?: { trigger?: VersionTrigger; outline?: OutlineSlide[] }) => {
-    // outline 可显式传入：刚生成完就调用时，state 里的 cwOutline 还是旧值（闭包），必须显式带过去
-    const outline = opts?.outline || cwOutline
-    const payload = {
-      name: `${genTitle.trim() || '未命名'}_课件`,
-      type: 'courseware',
-      format: cwFormat,
-      tag: `${teaching.subject}${gradeName}`,
-      content: outlineToMarkdown(outline, cwOpts()),
-      status: 'draft',
-      grade: gradeName,
-      subject: teaching.subject,
-      theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
-      color_root: colorRoot, // 课件专属配色 DNA（Skill 当次生成）；随提纲落库，渲染优先于 theme_id
-      // 溯源（2026-09-13）：教材版本**实体引用** + 单元 —— 来自知识图谱实体（与后端同源），
-      // 不是自由文本。此前只落产物，编辑页因此回填不出"来源"（"左栏与画布脱节"的根因）。
-      textbook_version_id: ((picker.selectedNodes[0] as any)?.version_id
-        || (picker.knowledgeData.find((n: any) => n.version_id) as any)?.version_id || '') as string,
-      unit: (picker.selectedUnit || (picker.selectedNodes[0] as any)?.unit || '') as string,
-      // ── 生成配方 / 溯源（2026-09-13）──
-      // 目的：落"这份课件是按什么生成的"，修"从预览进编辑、左栏与画布脱节"。
-      // 素材表已由 migrations/0009 加列；Go 侧 DTO/handler 已接线（material_handler.go）。
-      // （2026-09-13 更新）textbook_version_id 不再留空：已由知识图谱节点自带的 version_id
-      // 填入（见上方），教材版本**实体引用**的链路已通。
-      gen_params: scopeResolved
-        ? JSON.stringify({
-            ...scopeResolved,                           // 含 scope_resolved（知识面来源/前置来源/发散边界）
-            textbook_version_name: teaching.currentTextbook(),  // 快照（解析口径：学校/班级/教师）
-            subject: teaching.subject,
-            grade: gradeName,
-            extra_requirements: cwExtra || '',
-            divergence_level: divergenceLevel,
-            edge_enabled: edgeEnabled,
-            edge_categories: Object.entries(edgeCats).filter(([, v]) => v).map(([k]) => k),
-            style_tag: genStyleTag || '',
-            style_profile: genStyleProfile || '',
-            style_mode: genStyleTag ? 'preset' : (genStyleProfile.trim() ? 'free' : 'auto'),
-            captured_at: new Date().toISOString(),
-          })
-        : undefined,
-    }
-    // H5 草稿也落派生 HTML（2026-09-15）：课堂扫码 / 投屏打开的是 `/api/materials/:id/h5`，
-    // 该端点**优先返回 h5_html**，而草稿态此前从不写它 → 教师扫码看到的是后端兜底的"纯展示页"
-    // （不是绘本：没有翻页/点读/互动，也不是课堂用的 16:9 固定比例）。发布路径早已写入，这里补齐草稿路径。
-    if (cwFormat === 'h5') {
-      try {
-        const html = markdownToStorybookH5(outlineToMarkdown(outline, cwOpts()), {
-          subject: teaching.subject, grade: gradeName, title: genTitle.trim(),
-          teacherName: safeGetUser().name || '教师', themeId, colorRoot,
-        })
-        if (html) (payload as { h5_html?: string }).h5_html = html
-      } catch { /* 派生失败不阻塞保存（保存的是源数据，渲染随后可重算） */ }
-    }
-    try {
-      // 本地兜底暂存（未发布前可恢复）
-      localStorage.setItem(getDraftKey(materialId), JSON.stringify({
-        title: genTitle, extra: cwExtra, markdown: cwMarkdown,
-        outline, h5Html: cwH5Html, divergence: cwDivergence, divergenceLevel, themeId,
-        videoConfig,
-      }))
-      if (materialId) {
-        await materialAPI.update(materialId, payload)
-      } else {
-        const m: any = await materialAPI.createJSON(payload)
-        if (m?.id) setMaterialId(m.id)
-      }
-      // 版本：按触发来源决定是否形成版本（生成=总是；点击=合并窗口；自动=节流）——见 lib/versionPolicy.ts
-      await takeSaveVersion({ trigger: opts?.trigger || 'click', outline })
-      toast(opts?.trigger === 'gen' ? '已自动保存为一稿草稿' : '草稿已保存', 'success')
-    } catch (e: any) { toast('草稿保存失败: ' + (e.message || ''), 'error') }
-  }
-
-  // 必须在 ctrl = useEditorController(...) 之前声明，避免 const 的 TDZ 类型报错
-  const handlePublish = async () => {
-    if (!genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
-    if (!cwOutline.length) { toast('课件内容为空，请先生成课件', 'warning'); return }
-    setValidating(true)
-    try {
-      const r: any = await aiAPI.validateCourseware({
-        markdown: cwMarkdown || outlineToMarkdown(cwOutline, cwOpts()), subject: teaching.subject, grade: gradeName,
-      })
-      if (!r.pass) {
-        setValidateIssues(r.issues || [])
-        ctrl.setWorkMode('doc')
-        toast('发布校验未通过，请按提示修改后再发布', 'warning')
-        return
-      }
-      setValidateIssues(null)
-    } catch (e: any) {
-      toast('校验失败: ' + (e.message || '未知错误'), 'error')
-      return
-    } finally { setValidating(false) }
-    setSavingCw(true)
-    try {
-      const payload: any = {
-        name: `${genTitle.trim()}_课件`,
-        type: 'courseware',
-        format: cwFormat,
-        tag: `${teaching.subject}${gradeName}`,
-        content: outlineToMarkdown(cwOutline, cwOpts()),
-        status: 'active',
-        grade: gradeName,
-        subject: teaching.subject,
-        theme_id: themeId, // 模板引用持久化：源数据=提纲(content)+模板引用(theme_id)，渲染随时由模板重算
-      color_root: colorRoot, // 课件专属配色 DNA（Skill 当次生成）；随提纲落库，渲染优先于 theme_id
-        // 互动插槽摘要快照（每页 interactive 序列化，支持数组）；留空数组=真清空（指针区分）
-        interactive_slots: JSON.stringify(cwOutline.map(s => normalizeInteractive(s.interactive))),
-      }
-      // H5 互动课件：发布时**一律按当前提纲 + 当前 themeId/colorRoot 重渲染**，
-      // 不复用可能过期的 cwH5Html——否则换风格/改内容后发布，扫码打开的仍是旧皮肤。
-      // 与上方「源数据=提纲(content) + 模板引用(theme_id)，渲染随时由模板重算」原则一致。
-      if (cwFormat === 'h5') {
-        payload.h5_html = markdownToStorybookH5(outlineToMarkdown(cwOutline, cwOpts()), {
-          subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
-          teacherName: safeGetUser().name || '教师', themeId: themeId,
-          colorRoot: colorRoot,
-        })
-      }
-      let newId = materialId
-      if (materialId) await materialAPI.update(materialId, payload)
-      else {
-        const m: any = await materialAPI.createJSON(payload)
-        if (m?.id) { setMaterialId(m.id); newId = m.id }
-      }
-      try { localStorage.removeItem(getDraftKey(materialId)) } catch { /* noop */ }
-      toast('课件已发布', 'success')
-      // H5：发布后弹出扫码查看二维码（手机扫码即可在浏览器打开投屏互动课件）
-      if (cwFormat === 'h5' && newId) {
-        const url = `${window.location.origin}/api/materials/${newId}/h5`
-        const dataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 })
-        setH5Qr({ url, dataUrl })
-      }
-    }     catch (e: any) { toast('发布失败: ' + (e.message || ''), 'error') }
-    finally { setSavingCw(false) }
-  }
+  // ── 保存 / 发布（P0-1：已抽到 hooks/useCwSave.ts；返回值沿用原名，调用点零改动）──
+  // 保存/发布操作的是"当前文档快照"，故用惰性 getDoc() 取数 —— 顺带打破
+  // handleSaveDraft → cwVer → ctrl → handleSaveDraft 的循环依赖（详见 hook 文件头注释）。
+  const { savingCw, pendingGenSave, handleSaveDraft, handlePublish } = useCwSave({
+    getDoc: () => ({
+      genTitle, cwExtra, genStyleTag, genStyleProfile, divergenceLevel, edgeEnabled, edgeCats,
+      cwOutline, cwMarkdown, cwH5Html, cwDivergence, scopeResolved, themeId, colorRoot, videoConfig,
+      cwFormat, subject: teaching.subject, gradeName, textbookName: teaching.currentTextbook(),
+      picker, materialId, draftKey: getDraftKey(materialId), cwOpts,
+      cwVer, ctrl,   // 二者声明在本调用点之后 → 靠惰性取值避开 TDZ（只在保存/发布发生时才读）
+    }),
+    setMaterialId, setValidating, setValidateIssues, setH5Qr,
+  })
 
   ctrl = useEditorController({
     // 触发来源决定版本粒度：点击保存 → 1 分钟合并窗口；自动保存 → 3 分钟节流（见 lib/versionPolicy.ts）
