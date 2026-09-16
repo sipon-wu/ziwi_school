@@ -1,4 +1,4 @@
-import type { AuthLoginResp, AuthUser, ChatResp, ClassItem, CoursewareConsultResp, CoursewareGenerateResp, CoursewareMaterial, CoursewareTrimResp, CoursewareValidateResp, ExamPaper, LessonPlanGenerateResp, LessonPlanItem, MyClassesResp, QuestionAudit, QuestionDuplicateResp, QuestionItem, QuestionsResp, QuestionStats, RenderResp, SchoolItem, VideoScriptResp } from "./domain"
+import type { AdminUserItem, AssignmentItem, AuthLoginResp, AuthUser, CampusItem, ChatResp, ClassItem, CoursewareConsultResp, CoursewareGenerateResp, CoursewareMaterial, CoursewareTrimResp, CoursewareValidateResp, ExamPaper, GradingResp, ImportHistoryItem, LessonPlanGenerateResp, LessonPlanItem, MyClassesResp, NoticeGenerateResp, NoticeItem, QuestionAudit, QuestionDuplicateResp, QuestionItem, QuestionsResp, QuestionStats, RenderResp, ReviewConfig, SchoolItem, SemesterItem, SignatureItem, StudentItem, TeacherQuotaItem, TextbookConfigItem, TextbookItem, TextbookPrefItem, VideoScriptResp } from "./domain"
 /** 知微AI教学助手 — 前端API工具类 */
 import { showToast } from '../components/Toast'
 
@@ -359,7 +359,7 @@ export const aiAPI = {
 
   /** 自动批阅 */
   autoGrading: (params: { answers: any[]; assignment_id: string; student_id: string }) =>
-    request<any>('/ai/grading/auto', {
+    request<GradingResp>('/ai/grading/auto', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -393,7 +393,7 @@ export const aiAPI = {
     teacher_name?: string
     extra?: string
   }) =>
-    request<any>('/ai/notice/generate', {
+    request<NoticeGenerateResp>('/ai/notice/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -434,9 +434,9 @@ export const reviewAPI = {
 
 // ── 教案互审开关（学校级，教师/IT 可配，默认关闭）──
 export const schoolReviewConfigAPI = {
-  get: () => request<any>('/me/school-review-config'),
+  get: () => request<ReviewConfig>('/me/school-review-config'),
   update: (enabled: boolean) =>
-    request<any>('/me/school-review-config', {
+    request<ReviewConfig>('/me/school-review-config', {
       method: 'PUT',
       body: JSON.stringify({ lesson_review_enabled: enabled }),
     }),
@@ -558,9 +558,9 @@ export const templateAPI = {
 // 且前端从未有任何页面调用过它，故一并移除。请勿重新添加。
 
 export const parentAPI = {
-  getSignature: (id: string) => request<any>(`/parent/signatures/${id}`),
+  getSignature: (id: string) => request<SignatureItem>(`/parent/signatures/${id}`),
   sign: (id: string, signatureImgUrl: string) =>
-    request<any>(`/parent-signatures/${id}/sign`, {
+    request<SignatureItem>(`/parent-signatures/${id}/sign`, {
       method: 'POST',
       body: JSON.stringify({ signature_img_url: signatureImgUrl }),
     }),
@@ -571,7 +571,7 @@ export const parentAPI = {
 export const schoolConfigAPI = {
   /** 教师申请开启知识图谱 */
   featureRequest: (feature: string) =>
-    request<any>('/schools/feature-request', {
+    request<{ ok?: boolean }>('/schools/feature-request', {
       method: 'POST',
       body: JSON.stringify({ feature }),
     }),
@@ -581,11 +581,11 @@ export const schoolConfigAPI = {
 
 export const tokenQuotaAPI = {
   /** 获取学校教师列表（含配额，管理员用） */
-  listTeachers: () => request<any>('/admin/teachers'),
+  listTeachers: () => request<{ items: TeacherQuotaItem[] }>('/admin/teachers'),
 
   /** 批量更新教师配额 */
   batchUpdateQuota: (teacherIDs: string[], quota: number, custom: boolean) =>
-    request<any>('/admin/teachers/quota', {
+    request<{ ok?: boolean }>('/admin/teachers/quota', {
       method: 'PUT',
       body: JSON.stringify({ teacher_ids: teacherIDs, quota, custom }),
     }),
@@ -695,26 +695,26 @@ export const questionBankAPI = {
 
 export const assignmentAPI = {
   /** 作业列表 */
-  list: () => request<any>('/assignments'),
+  list: () => request<{ items: AssignmentItem[] }>('/assignments'),
 
   /** 创建作业（支持旧版 questions JSONB 或新版 question_ids） */
   create: (data: {
     class_id: string; subject: string; title: string; type: string
     questions?: string; question_ids?: string[]; content?: string; tier?: string; estimated_duration?: number; difficulty_level?: string; knowledge_node_ids?: string
   }) =>
-    request<any>('/assignments', { method: 'POST', body: JSON.stringify(data) }),
+    request<AssignmentItem>('/assignments', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 // ── 家校/学校宣发 H5（notice，2026-09-03）──
 // 后端：GET /notices（teacher 组全校只读）；POST /notices、PUT /notices/:id
 // 仅 head_teacher / registrar / principal 可调（noticeMgr 路由组）。
 export const noticeAPI = {
-  list: () => request<any>('/notices'),
-  get: (id: string) => request<any>(`/materials/${id}`),
+  list: () => request<{ items: CoursewareMaterial[] }>('/notices'),
+  get: (id: string) => request<CoursewareMaterial>(`/materials/${id}`),
   create: (data: { name: string; tag?: string; content?: string; h5_html?: string; status?: string }) =>
-    request<any>('/notices', { method: 'POST', body: JSON.stringify(data) }),
+    request<CoursewareMaterial>('/notices', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: { name?: string; tag?: string; content?: string; h5_html?: string; status?: string }) =>
-    request<any>(`/notices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<CoursewareMaterial>(`/notices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 }
 
 export const api = request
@@ -770,31 +770,31 @@ export const importAPI = {
   /** 正式执行导入 */
   commit: (type: string, file: File) => uploadFile(`/admin/import/${type}`, file),
   /** 导入历史 */
-  history: () => request<any>('/admin/import/history'),
+  history: () => request<{ items: ImportHistoryItem[] }>('/admin/import/history'),
   /** 按批次回滚 */
-  rollback: (batchId: string) => request<any>(`/admin/import/rollback/${batchId}`, { method: 'POST' }),
+  rollback: (batchId: string) => request<{ ok?: boolean }>(`/admin/import/rollback/${batchId}`, { method: 'POST' }),
 }
 
 // ── IT 管理后台：角色 / 教材版本 / 学期（P1）──
 export const adminAPI = {
   /** 用户列表（角色管理） */
-  listUsers: () => request<any>('/admin/users'),
+  listUsers: () => request<{ items: AdminUserItem[] }>('/admin/users'),
   /** 单用户改角色 */
   updateUserRole: (id: string, role: string) =>
-    request<any>(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+    request<AdminUserItem>(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   /** 教材版本列表（平台默认 + 学校覆盖） */
-  listTextbooks: () => request<any>('/admin/textbooks'),
+  listTextbooks: () => request<{ items: TextbookItem[] }>('/admin/textbooks'),
   /** 批量 upsert 学校自用教材版本覆盖（仅本校生效，不影响公共库） */
   upsertTextbook: (rows: { subject: string; grade?: string; publisher: string; version_name: string }[]) =>
-    request<any>('/admin/textbooks', { method: 'PUT', body: JSON.stringify({ rows }) }),
+    request<TextbookItem>('/admin/textbooks', { method: 'PUT', body: JSON.stringify({ rows }) }),
   /** 学期列表 */
-  listSemesters: () => request<any>('/admin/semesters'),
+  listSemesters: () => request<{ items: SemesterItem[] }>('/admin/semesters'),
   /** 创建学期 */
   createSemester: (data: { name: string; start_date: string; end_date: string }) =>
-    request<any>('/admin/semesters', { method: 'POST', body: JSON.stringify(data) }),
+    request<SemesterItem>('/admin/semesters', { method: 'POST', body: JSON.stringify(data) }),
   // ── V2.5 教材版本三级配置（学校级/年级学科级/班级级）──
   /** 列出本校所有教材配置 */
-  listTextbookConfigs: () => request<any>('/admin/textbook-configs'),
+  listTextbookConfigs: () => request<{ items: TextbookConfigItem[] }>('/admin/textbook-configs'),
   /** 新增/更新一条教材配置（upsert） */
   upsertTextbookConfig: (data: {
     config_type: 'school' | 'grade_subject' | 'class_subject';
@@ -803,64 +803,64 @@ export const adminAPI = {
     class_id?: string;
     publisher: string;
     version_name: string;
-  }) => request<any>('/admin/textbook-configs', { method: 'POST', body: JSON.stringify(data) }),
+  }) => request<TextbookConfigItem>('/admin/textbook-configs', { method: 'POST', body: JSON.stringify(data) }),
   /** 删除一条教材配置 */
   deleteTextbookConfig: (id: string) =>
-    request<any>(`/admin/textbook-configs/${id}`, { method: 'DELETE' }),
+    request<TextbookConfigItem>(`/admin/textbook-configs/${id}`, { method: 'DELETE' }),
   /** 解析某学科在某班级的实际教材版本（含来源层级） */
   resolveTextbookConfig: (params: { subject: string; grade?: string; class_id?: string }) =>
-    request<any>(`/admin/textbook-configs/resolve?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
+    request<TextbookConfigItem>(`/admin/textbook-configs/resolve?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
   // ── V2.6 全学科教材版本库维护（IT 管理员，数据团队数据导入/维护）──
   /** 原始版本库列表（含 id / version_key） */
-  listTextbookLibrary: () => request<any>('/admin/textbook-versions'),
+  listTextbookLibrary: () => request<{ items: TextbookItem[] }>('/admin/textbook-versions'),
   /** 新增一条版本库记录 */
-  createTextbookVersion: (v: any) => request<any>('/admin/textbook-versions', { method: 'POST', body: JSON.stringify(v) }),
+  createTextbookVersion: (v: any) => request<TextbookItem>('/admin/textbook-versions', { method: 'POST', body: JSON.stringify(v) }),
   /** 更新一条版本库记录 */
   updateTextbookVersion: (id: number | string, v: any) =>
-    request<any>(`/admin/textbook-versions/${id}`, { method: 'PUT', body: JSON.stringify(v) }),
+    request<TextbookItem>(`/admin/textbook-versions/${id}`, { method: 'PUT', body: JSON.stringify(v) }),
   /** 删除一条版本库记录 */
   deleteTextbookVersion: (id: number | string) =>
-    request<any>(`/admin/textbook-versions/${id}`, { method: 'DELETE' }),
+    request<TextbookItem>(`/admin/textbook-versions/${id}`, { method: 'DELETE' }),
   /** 批量导入版本库（数据团队交付 JSON 数组） */
   importTextbookVersions: (rows: any[]) =>
-    request<any>('/admin/textbook-versions/import', { method: 'POST', body: JSON.stringify({ rows }) }),
+    request<{ ok?: boolean }>('/admin/textbook-versions/import', { method: 'POST', body: JSON.stringify({ rows }) }),
   // ── 校区管理（A1 一校多区，正式 campus 字典表，IT 管理员）──
   /** 本校校区列表（含用户/班级引用计数） */
-  listCampuses: () => request<any>('/admin/campuses'),
+  listCampuses: () => request<{ items: CampusItem[] }>('/admin/campuses'),
   /** 新建校区（id 可选，如 yixiao-main；为空自动生成） */
   createCampus: (data: { id?: string; name: string; address?: string; sort_order?: number }) =>
-    request<any>('/admin/campuses', { method: 'POST', body: JSON.stringify(data) }),
+    request<CampusItem>('/admin/campuses', { method: 'POST', body: JSON.stringify(data) }),
   /** 更新校区 */
   updateCampus: (id: string, data: { name: string; address?: string; sort_order?: number; status?: string }) =>
-    request<any>(`/admin/campuses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<CampusItem>(`/admin/campuses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   /** 删除校区（被引用时返回 409 CAMPUS_IN_USE） */
-  deleteCampus: (id: string) => request<any>(`/admin/campuses/${id}`, { method: 'DELETE' }),
+  deleteCampus: (id: string) => request<{ ok?: boolean }>(`/admin/campuses/${id}`, { method: 'DELETE' }),
   /** V2.6 用户贡献版本审核 */
-  listPendingSubmittedVersions: () => request<any>('/admin/textbook-versions/pending'),
+  listPendingSubmittedVersions: () => request<{ items: TextbookItem[] }>('/admin/textbook-versions/pending'),
   approveSubmittedVersion: (id: number) =>
-    request<any>(`/admin/textbook-versions/pending/${id}/approve`, { method: 'PUT' }),
+    request<{ ok?: boolean }>(`/admin/textbook-versions/pending/${id}/approve`, { method: 'PUT' }),
   rejectSubmittedVersion: (id: number, reason: string) =>
-    request<any>(`/admin/textbook-versions/pending/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
+    request<{ ok?: boolean }>(`/admin/textbook-versions/pending/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
 }
 
 // ── V2.5/2.6 个人教材偏好（per-user，跨设备同步，规格书 §5.1）──
 export const teacherPrefAPI = {
   /** 列出当前教师全部个人教材偏好 */
-  list: () => request<any>('/me/textbook-prefs'),
+  list: () => request<{ items: TextbookPrefItem[] }>('/me/textbook-prefs'),
   /** 新增/更新一条个人教材偏好（按 teacher_id+grade+class_id+subject upsert） */
   upsert: (data: { subject: string; grade?: string; class_id?: string; publisher: string; version_name: string }) =>
-    request<any>('/me/textbook-prefs', { method: 'POST', body: JSON.stringify(data) }),
+    request<TextbookPrefItem>('/me/textbook-prefs', { method: 'POST', body: JSON.stringify(data) }),
   /** 删除一条个人教材偏好 */
   remove: (subject: string, grade?: string, classID?: string) =>
-    request<any>(`/me/textbook-prefs?subject=${encodeURIComponent(subject)}&grade=${encodeURIComponent(grade || '')}&class_id=${encodeURIComponent(classID || '')}`, { method: 'DELETE' }),
+    request<TextbookPrefItem>(`/me/textbook-prefs?subject=${encodeURIComponent(subject)}&grade=${encodeURIComponent(grade || '')}&class_id=${encodeURIComponent(classID || '')}`, { method: 'DELETE' }),
   /** 解析当前 学科/年级/班级 的有效教材版本（个人偏好 > 学校配置 > 平台库） */
   effective: (params: { subject: string; grade?: string; class_id?: string }) =>
-    request<any>(`/me/textbook-effective?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
+    request<TextbookConfigItem>(`/me/textbook-effective?subject=${encodeURIComponent(params.subject)}&grade=${encodeURIComponent(params.grade || '')}&class_id=${encodeURIComponent(params.class_id || '')}`),
   /** V2.6 用户提交教材版本贡献 */
   submitTextbookVersion: (data: {
     xue_ke: string; jiao_cai_ming: string; chu_ban_she: string;
     ban_ben_biao_shi: string; nian_ji?: string; xue_duan?: string; ce_bie?: string;
-  }) => request<any>('/me/submit-textbook-version', { method: 'POST', body: JSON.stringify(data) }),
+  }) => request<{ ok?: boolean }>('/me/submit-textbook-version', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 // ── 覆盖度分析（有据引擎 Phase 0）──
@@ -889,32 +889,32 @@ export const careAPI = {
   list: () => request<{ items: any[] }>('/care/students'),
 
   /** 获取单个关怀学生详情 */
-  get: (id: string) => request<any>(`/care/students/${id}`),
+  get: (id: string) => request<StudentItem>(`/care/students/${id}`),
 
   /** 添加学生到关怀组 */
   add: (data: { student_id: string; focus_area?: string; observation?: string }) =>
-    request<any>('/care/students', {
+    request<{ items: StudentItem[] }>('/care/students', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   /** 更新关怀学生信息（关注点、观察记录等） */
   update: (id: string, data: { focus_area?: string; observation?: string; plan_status?: string }) =>
-    request<any>(`/care/students/${id}`, {
+    request<StudentItem>(`/care/students/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   /** 更新关怀方案（每周方案 JSON） */
   updatePlan: (id: string, data: { weekly_plan?: any; plan_status?: string }) =>
-    request<any>(`/care/students/${id}/plan`, {
+    request<{ ok?: boolean }>(`/care/students/${id}/plan`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   /** 从关怀组移除（软删除） */
   remove: (id: string) =>
-    request<any>(`/care/students/${id}`, { method: 'DELETE' }),
+    request<StudentItem>(`/care/students/${id}`, { method: 'DELETE' }),
 }
 
 // 注意：default 导出必须放在所有具名 const（含 careAPI/coverageAPI/coordinateAPI）之后，

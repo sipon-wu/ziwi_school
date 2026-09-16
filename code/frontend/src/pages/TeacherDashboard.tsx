@@ -1,3 +1,4 @@
+import type { AssignmentItem, CoursewareMaterial, ExamPaper } from "../lib/domain"
 import { useState, useEffect, useMemo } from 'react'
 import { Trash2, Copy, Eye, FileText, PenTool, Files, Send, Image as ImgIcon, Music, Video, X, Bell } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
@@ -67,9 +68,10 @@ export default function TeacherDashboard() {
       return m ? `${['一','二','三','四','五','六','七','八','九'][parseInt(m[1], 10) - 1] || ''}年级` : g
     }
     Promise.allSettled([
-      assignmentAPI.list().catch(() => ({ items: [] })),
-      api<{ items: any[] }>('/exams').catch(() => ({ items: [] })),
-      materialAPI.list().catch(() => ({ items: [] })),
+      // 兜底值显式标注元素类型（避免 allSettled 把联合类型退化成 {}，进而丢掉 filter）
+      assignmentAPI.list().catch(() => ({ items: [] as AssignmentItem[] })),
+      api<{ items: ExamPaper[] }>('/exams').catch(() => ({ items: [] as ExamPaper[] })),
+      materialAPI.list().catch(() => ({ items: [] as CoursewareMaterial[] })),
     ]).then(([aRes, eRes, mRes]) => {
       const aItems = (aRes.status === 'fulfilled' ? aRes.value?.items : []) || []
       const eItems = (eRes.status === 'fulfilled' ? eRes.value?.items : []) || []

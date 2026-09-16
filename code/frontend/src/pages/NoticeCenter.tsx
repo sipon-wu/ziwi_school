@@ -124,7 +124,8 @@ export default function NoticeCenter() {
         title: name.trim(), topic, school_name: schoolName, department: dept,
         teacher_name: teacherName, extra: '',
       })
-      if (res?.error) { toast(res.error, 'error'); return }
+      // error 是 unknown（契约用索引签名），此处显式收窄而不是断言
+      if (res?.error) { toast(typeof res.error === 'string' ? res.error : '生成失败', 'error'); return }
       if (res?.markdown) {
         setContent(res.markdown)
         setIssues(Array.isArray(res.issues) ? res.issues : [])

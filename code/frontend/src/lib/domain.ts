@@ -368,3 +368,136 @@ export interface SheetItem {
   status?: string
   [key: string]: unknown
 }
+
+/* ───────────────── 作业 / 通知 / 家长 / 管理（P0-3 第四轮：长尾端点） ───────────────── */
+/* 说明：以下类型按"代码实际读取的字段 + 通用字段"声明，索引用 unknown（非 any）：
+   取值处若用了未声明字段，tsc 会报错 → 届时把它补进契约，而不是退回 any。 */
+
+export interface AssignmentItem {
+  id?: string
+  title?: string
+  class_id?: string
+  subject?: string
+  status?: string
+  due_at?: string
+  question_ids?: unknown
+  [key: string]: unknown
+}
+
+export interface NoticeItem {
+  id?: string
+  title?: string
+  content?: string
+  status?: string
+  published_at?: string
+  [key: string]: unknown
+}
+
+export interface SignatureItem {
+  id?: string
+  student_id?: string
+  status?: string
+  signed_at?: string
+  [key: string]: unknown
+}
+
+export interface GradingResp {
+  results?: unknown[]
+  score?: number
+  feedback?: string
+  [key: string]: unknown
+}
+
+export interface NoticeGenerateResp {
+  markdown?: string
+  content?: string
+  title?: string
+  [key: string]: unknown
+}
+
+export interface ReviewConfig {
+  enabled?: boolean
+  mode?: string
+  reviewer_rule?: string
+  [key: string]: unknown
+}
+
+export interface TeacherQuotaItem {
+  id?: string
+  name?: string
+  quota?: number
+  used?: number
+  [key: string]: unknown
+}
+
+export interface ImportHistoryItem {
+  id?: string
+  file?: string
+  status?: string
+  created_at?: string
+  [key: string]: unknown
+}
+
+export interface AdminUserItem {
+  id?: string
+  name?: string
+  role?: string
+  phone?: string
+  status?: string
+  [key: string]: unknown
+}
+
+export interface TextbookItem {
+  id?: string
+  name?: string
+  publisher?: string
+  version_name?: string
+  [key: string]: unknown
+}
+
+export interface SemesterItem {
+  id?: string
+  name?: string
+  start_date?: string
+  end_date?: string
+  [key: string]: unknown
+}
+
+export interface TextbookConfigItem {
+  id?: string
+  config_type?: string
+  grade?: string
+  class_id?: string
+  subject?: string
+  publisher?: string
+  version_name?: string
+  [key: string]: unknown
+}
+
+/** 校区 */
+export interface CampusItem {
+  id?: string
+  name?: string
+  address?: string
+  sort_order?: number
+  [key: string]: unknown
+}
+
+/** 教材偏好（教师个人的教材版本偏好） */
+export interface TextbookPrefItem {
+  id?: string
+  subject?: string
+  grade?: string
+  publisher?: string
+  version_name?: string
+  [key: string]: unknown
+}
+
+/** 学生（花名册；不含任何标签字段 —— 0703 §5.2 严禁标签化） */
+export interface StudentItem {
+  id?: string
+  name?: string
+  student_no?: string
+  class_id?: string
+  [key: string]: unknown
+}
