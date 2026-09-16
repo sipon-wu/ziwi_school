@@ -32,7 +32,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { recommendTheme, resolveTheme } from '../lib/pptThemes'
-import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, revertTemplate, reflowToSkeleton, renderTemplateThumb, renderFamilyThumb, basicTemplateForFamily, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
+// 注：revertTemplate / reflowToSkeleton / basicTemplateForFamily 已随模板簇搬到 hooks/useCwTemplate.ts（2026-09-16）
+import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, renderTemplateThumb, renderFamilyThumb, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
 // 触发模板资产域注册（子项目库模板经适配器并入 PPT_TEMPLATES，副作用导入即可，无需引用）
 import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 import EditorLayout from '../components/EditorLayout'
@@ -42,6 +43,7 @@ import { useCwDecor } from '../hooks/useCwDecor'
 import { useCwExport } from '../hooks/useCwExport'
 import { useCwGenParams } from '../hooks/useCwGenParams'
 import { useCwSave } from '../hooks/useCwSave'
+import { useCwTemplate } from '../hooks/useCwTemplate'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -392,17 +394,18 @@ export default function CoursewareBuilder() {
   const [colorRoot, setColorRoot] = useState<string>('')
   // workMode 已收口到 useEditorController
 
-  // ── 模板套用（PPT 课件）：从模板库选 → 一键换肤套用、内容不变、可撤销 ──
-  const [tplPanelOpen, setTplPanelOpen] = useState(false)
-  // ★ 聚类标签：风格/色系多选（OR 语义），替代互斥分类导航
-  const [tplStyleTags, setTplStyleTags] = useState<StyleTag[]>([])
-  const [tplColorTags, setTplColorTags] = useState<string[]>([])
-  const tplAppliedId = useRef<string | null>(null)
-  const tplPrevTheme = useRef<string | null>(null)
-  const tplPrevLayouts = useRef<(string | undefined)[] | null>(null)
-  // 元素几何快照（2026-09-15）：「重新套版」（重档）会重排元素位置 —— 只记 layout 不足以回退，
-  // 必须连 elements 一起记，否则"换回上一个风格"撤不掉位置变化。
-  const tplPrevElements = useRef<((OutlineSlide['elements']))[] | null>(null)
+  // ── 模板套用（P0-1：已抽到 hooks/useCwTemplate.ts；返回值沿用原名，调用点零改动）──
+  // 模板库面板与小微「换风格」两条入口共用一份状态与"上次套用前"的存档（用于撤销/换回）。
+  // getLocked / getVer / getRefOutline 三者都声明在**本调用点之后**，故一律包成箭头函数惰性取值；
+  // 若直接传引用（如 `getRefOutline: loadRefOutline`）会在渲染期求值 → 踩 TDZ 崩溃。
+  const {
+    tplPanelOpen, setTplPanelOpen, tplStyleTags, setTplStyleTags, tplColorTags, setTplColorTags,
+    tplAppliedId, applyTemplateEntry, applyFamilyEntry, undoTemplateApply, noteTemplateApplied,
+  } = useCwTemplate({
+    cwOutline, setCwOutline, themeId, setThemeId, cwFormat,
+    grade: teaching.grade, subject: teaching.subject,
+    getLocked: () => cwLocked, getVer: () => cwVer, getRefOutline: () => loadRefOutline(),
+  })
   // （「系统生成 → 自动成为一稿草稿」的标记 pendingGenSave 已随保存簇搬到 hooks/useCwSave.ts；
   //   版本粒度规则见 lib/versionPolicy.ts。之所以用"标记 + effect"而非生成函数里直接存：
   //   生成函数里刚 setState 的 themeId/colorRoot 还没生效，会把旧主题写进草稿。）
@@ -628,9 +631,7 @@ export default function CoursewareBuilder() {
         const r = applyTemplate(nextOutlineBase, autoTpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
         nextOutline = r.outline
         nextThemeId = r.themeId
-        tplAppliedId.current = autoTpl.id
-        tplPrevTheme.current = r.prevThemeId
-        tplPrevLayouts.current = r.prevLayouts
+        noteTemplateApplied(autoTpl.id, r.prevThemeId, r.prevLayouts)
       }
       if (styleEcho) nextThemeId = defaultThemeForStyle(styleEcho) // 风格强制优先于模板 theme（保持一致）
       // H5 频道：用本轮确定的 nextThemeId/nextColorRoot 渲染（预览/发布均直接使用）
@@ -906,83 +907,8 @@ export default function CoursewareBuilder() {
   // outlineToSlides 会在最前插入封面页 → 索引 = 提纲页 +1。
   const cwThumbSlides = cwOutline.length ? outlineToSlides(cwOutline, cwOpts()) : []
 
-  // 小微「换风格 / 恢复上一个风格」指令的接收端（2026-09-14）：
-  // 与模板库按钮走**同一条确定性路径**（`applyTemplate` / `revertTemplate`）—— 只换风格语汇
-  // （配色 / 标题形态 / 底纹 / 装饰），**绝不重新生成内容**（重生成会内容漂移、花 1~3 分钟，
-  // 且实测返修还会更差）。派发是**同步**的：小微在 dispatch 返回后立刻读 detail.handled，
-  // 因此能如实回报"已切换"还是"当前不在课件编辑器里"，而不是猜。
-  useEffect(() => {
-    const onSwitchStyle = async (ev: Event) => {
-      const d = (ev as CustomEvent).detail as
-        { styleTag?: StyleTag; revert?: boolean; level?: 'light' | 'heavy'; dryRun?: boolean
-          handled?: boolean; error?: string; impact?: { pages: number; elements: number }
-          snapshot?: boolean; resolve?: () => void } | undefined
-      if (!d) return
-      try {
-        // 发布定版（cwLocked）与既有"版本仅供查看、不可存/回退"语义保持一致：**拒绝执行并如实回报**。
-        // 不能装作换成功 —— 定版下既存不了快照，也回退不了（后端 403）。
-        if (cwLocked) {
-          d.error = '已发布定版：版本仅供查看、不可存/回退 —— 请先点「编辑」重新进入草稿，再换风格'
-          return
-        }
-        if (d.revert) {
-          if (!tplPrevTheme.current || !tplPrevLayouts.current) { d.error = '本次编辑内还没换过模板，没有可恢复的风格'; return }
-          // 带上 prevElements：重档改过元素几何，只回退 layout 等于撤不掉位置
-          const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current, tplPrevElements.current)
-          setCwOutline(r.outline); setThemeId(r.themeId)
-          tplAppliedId.current = null; tplPrevTheme.current = null; tplPrevLayouts.current = null
-          tplPrevElements.current = null
-          d.handled = true
-          toast('已恢复上一个风格', 'info')
-          return
-        }
-        if (!d.styleTag) return
-        const level = d.level === 'heavy' ? 'heavy' : 'light'
-        const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-        const pool = cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES
-        const tpl = pool.filter((t) => templateStyleTags(t).includes(d.styleTag as StyleTag))[0]
-          || basicTemplateForFamily(
-            COLOR_FAMILIES.find((f) => f.themeId === defaultThemeForStyle(d.styleTag as StyleTag)) || COLOR_FAMILIES[0],
-            cwFormat === 'h5' ? 'h5' : 'ppt')
-        const r = applyTemplate(baseOutline, tpl, themeId, {
-          stage: gradeToStage(teaching.grade), subject: teaching.subject,
-        })
-        // 预演（二次确认用）：**只算不落地** —— 把重档"会重排多少页/多少元素"如实报给教师
-        if (d.dryRun) {
-          const rk = styleKeyFromThemeId(r.themeId)
-          const imp = level === 'heavy'
-            ? reflowToSkeleton(r.outline, rk)
-            : { pages: 0, elements: 0 }
-          d.impact = { pages: imp.pages, elements: imp.elements }
-          d.handled = true
-          return
-        }
-        let nextOutline = r.outline
-        // 版本配合（2026-09-15）：执行前**自动存一份版本快照** —— 让"可回退"成为跨刷新/跨会话的真承诺，
-        // 而不是只活在本次会话的 ref 里（详情见 lib/styleIntent.ts 的二次确认话术）。
-        // 预演（dryRun）不存快照 —— 教师还没确认，不该产生副作用。
-        const snapLabel = `换风格前（${level === 'heavy' ? '重档' : '轻档'} → ${STYLE_LABELS[d.styleTag as StyleTag] || d.styleTag}）`
-        d.snapshot = await cwVer.take(snapLabel, baseOutline)
-        if (level === 'heavy') {
-          nextOutline = reflowToSkeleton(nextOutline, styleKeyFromThemeId(r.themeId)).outline
-        }
-        setCwOutline(nextOutline); setThemeId(r.themeId)
-        tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-        // 快照元素几何，供"换回上一个风格"整页回退（重档必需）
-        tplPrevElements.current = baseOutline.map((s) => s.elements)
-        d.handled = true
-        toast(level === 'heavy' ? `已重新套版：${tpl.name}` : `已套用模板：${tpl.name}`, 'success')
-      } catch (e: any) {
-        d.error = e?.message || '换风格失败'
-      } finally {
-        // 处理结束（含异步的「版本快照」）→ 结束小微的等待，它才读得到真实的 handled/snapshot
-        d.resolve?.()
-      }
-    }
-    window.addEventListener('zhiwei:switch-style', onSwitchStyle)
-    return () => window.removeEventListener('zhiwei:switch-style', onSwitchStyle)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwOutline, themeId, cwFormat, teaching.grade, teaching.subject])
+  // （小微「换风格 / 恢复上一个风格」指令的接收端已随模板簇搬到 hooks/useCwTemplate.ts）
+
 
   // 系统生成 → **自动成为一稿草稿**（产品规则 2026-09-15：生成并显示到屏幕上就该是一稿）。
   // 用 effect 而不是在生成函数里直接存：生成函数里刚 setState 的 themeId/colorRoot 尚未生效，
@@ -1840,16 +1766,7 @@ export default function CoursewareBuilder() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-[13px] font-medium text-[#353535]">课件模板库</span>
             {tplAppliedId.current && (
-              <button onClick={() => {
-                if (tplPrevTheme.current != null && tplPrevLayouts.current) {
-                  // 带 prevElements：重档改过元素几何，只回退 layout 撤不掉位置
-                  const r = revertTemplate(cwOutline, tplPrevTheme.current, tplPrevLayouts.current, tplPrevElements.current)
-                  setCwOutline(r.outline); setThemeId(r.themeId)
-                  tplAppliedId.current = null; tplPrevTheme.current = null; tplPrevLayouts.current = null
-                  tplPrevElements.current = null
-                  toast('已撤销模板套用', 'info')
-                }
-              }} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
+              <button onClick={undoTemplateApply} className="text-[11px] text-[#F5222D] hover:underline">撤销套用</button>
             )}
           </div>
           {/* ★ 聚类标签：风格/色系可多选（OR 语义），替代互斥分类导航 */}
@@ -1902,15 +1819,7 @@ export default function CoursewareBuilder() {
                     : ''
                   const styleLabels = templateStyleTags(t).map(s => STYLE_LABELS[s]).join('·')
                   return (
-                    <button key={t.id} onClick={async () => {
-                      const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                      const r = applyTemplate(baseOutline, t, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                      setCwOutline(r.outline); setThemeId(r.themeId)
-                      tplAppliedId.current = t.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                      setTplPanelOpen(false)
-                      toast(`已套用模板：${t.name}`, 'success')
-                      // 装饰匹配改为手动：教师在替换装饰面板点「智能配饰」才按风格匹配（B 方案，不干扰套模板主流程）
-                    }} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                    <button key={t.id} onClick={() => applyTemplateEntry(t, `已套用模板：${t.name}`)} className={`text-left rounded border overflow-hidden ${tplAppliedId.current === t.id ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
                       <img src={renderTemplateThumb(t)} alt={t.name} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
                       <div className="p-1.5">
                         <div className="text-[12px] font-medium text-[#353535] truncate">{t.name}</div>
@@ -1926,15 +1835,7 @@ export default function CoursewareBuilder() {
                 {COLOR_FAMILIES.map(f => {
                   const applied = tplAppliedId.current === `basic-${f.id}`
                   return (
-                    <button key={`basic-${f.id}`} onClick={async () => {
-                      const baseOutline = cwOutline.length ? cwOutline : await loadRefOutline()
-                      const tpl = basicTemplateForFamily(f)
-                      const r = applyTemplate(baseOutline, tpl, themeId, { stage: gradeToStage(teaching.grade), subject: teaching.subject })
-                      setCwOutline(r.outline); setThemeId(r.themeId)
-                      tplAppliedId.current = tpl.id; tplPrevTheme.current = r.prevThemeId; tplPrevLayouts.current = r.prevLayouts
-                      setTplPanelOpen(false)
-                      toast(`已套用：通用结构 · ${f.label}`, 'success')
-                    }} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
+                    <button key={`basic-${f.id}`} onClick={() => applyFamilyEntry(f)} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
                       <img src={renderFamilyThumb(f)} alt={f.label} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
                       <div className="p-1.5">
                         <div className="text-[12px] font-medium text-[#353535] truncate">通用 · {f.label}</div>
