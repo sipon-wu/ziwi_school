@@ -47,6 +47,7 @@ import { useCwTemplate } from '../hooks/useCwTemplate'
 import { useCwPreview } from '../hooks/useCwPreview'
 import { InteractiveForm, interactiveSummary, defaultInteractive } from '../components/CwInteractiveForm'
 import { DecorPickerModal } from '../components/DecorPickerModal'
+import { CwAnnotationsPanel } from '../components/CwAnnotationsPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -676,9 +677,7 @@ export default function CoursewareBuilder() {
       .catch(() => { if (alive) setH5ShareQr(null) })
     return () => { alive = false }
   }, [cwFormat, materialId])
-  const [cwAnnText, setCwAnnText] = useState('')
   const [cwHistoryVisible, setCwHistoryVisible] = useState(true)
-  const [cwAnnTab, setCwAnnTab] = useState<'annotations' | 'history'>('annotations')
   // ── 导出下拉（P0-1：已抽到 hooks/useCwExport.ts；返回值沿用原名，调用点零改动）──
   const { exportMenuOpen, setExportMenuOpen, exportSel, setExportSel, exportMenuRef } = useCwExport()
   // 全屏编辑：隐藏左右栏与发散/校验，最大化画布
@@ -745,25 +744,6 @@ export default function CoursewareBuilder() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [cwFullscreen])
-  const addCwAnnotation = () => {
-    if (!cwAnnText.trim() || !cwAnnTargetId) return
-    // 封面页不参与按页批注（2026-09-15）：批注按正文页号锚定（docSlide+1），而封面不属于 outline，
-    // 若允许在封面写批注会错锚到正文第 1 页 —— 这里直接拦掉，提示教师切到正文页。
-    if (deckIdx === 0) { toast('封面页不支持按页批注，请切到正文页', 'warning'); return }
-    cwAnn.add('page', { page: docSlide + 1, pageTitle: cwOutline[docSlide]?.title || '' }, cwAnnText.trim())
-    setCwAnnText('')
-  }
-  const takeCwSnapshot = async () => {
-    if (!materialId) return
-    const ok = await cwVer.take('课件快照', cwOutline)
-    if (!ok) toast('已发布定版或保存失败', 'warning')
-  }
-  const restoreCwSnapshot = async (versionId: string) => {
-    const payload = await cwVer.restore(versionId)
-    if (payload == null) { toast('已发布定版，不可回退版本', 'warning'); return }
-    if (Array.isArray(payload) && payload.length) { setCwOutline(payload as OutlineSlide[]); toast('已恢复到该版本', 'success') }
-  }
-
   // 查看态：进入查看态即自动打开全屏预览（按 id 重算，兼容同标签内切换不同课件），与组卷一致
   // 直接用 cwOutline 非空判断，不依赖异步 effect，确保数据到位后立即开预览
   const autoPreviewOpen = ctrl?.readOnly && cwOutline.length > 0
@@ -1281,103 +1261,15 @@ export default function CoursewareBuilder() {
         )}
       </div>
 
-        {/* 批注 / 版本快照（按页锚定；右侧浮层，不挤压画布） */}
+        {/* 批注 / 版本（已抽为共用组件 CwAnnotationsPanel，编辑态浮层） */}
         {cwHistoryVisible && (
-          <div className="absolute right-0 top-0 bottom-0 w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden shadow-lg">
-            <div className="flex border-b border-[#F0F0F0] shrink-0">
-              <button onClick={() => setCwAnnTab('annotations')}
-                className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'annotations' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
-                <MessageSquare size={11} className="inline mr-1" />批注
-              </button>
-              <button onClick={() => setCwAnnTab('history')}
-                className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'history' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
-                <History size={11} className="inline mr-1" />版本
-              </button>
-              <button onClick={() => setCwHistoryVisible(false)} title="收起批注栏" className="px-2 text-[#C0C0C0] hover:text-[#9A9A9A]">
-                <ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} />
-              </button>
-            </div>
-
-            {cwAnnTab === 'annotations' && (
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
-                  <p className="text-[10px] text-[#9A9A9A] mb-1.5">{deckIdx === 0 ? '封面页：不支持按页批注（封面内容由左栏字段驱动）' : `对第 ${docSlide + 1} 页写批注：`}</p>
-                  <textarea
-                    value={cwAnnText}
-                    onChange={e => setCwAnnText(e.target.value)}
-                    rows={2}
-                    placeholder="输入批注..."
-                    className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#02A7F0] outline-none resize-none"
-                  />
-                  <button onClick={addCwAnnotation}
-                    disabled={!cwAnnText.trim()}
-                    className="w-full mt-1.5 py-1 text-[11px] text-white bg-[#02A7F0] rounded hover:bg-[#0398D8] disabled:opacity-40 flex items-center justify-center gap-1">
-                    <Plus size={10} /> 添加批注
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  {cwAnn.items.length === 0 ? (
-                    <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
-                  ) : (
-                    cwAnn.items.map((a: any) => {
-                      let pageLabel = ''
-                      try { pageLabel = 'P' + (JSON.parse(a.anchor || '{}').page || '?') } catch { /* noop */ }
-                      return (
-                        <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
-                          <div className="flex items-start justify-between gap-1">
-                            <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded">{pageLabel}</span>
-                            <button onClick={() => cwAnn.remove(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0"><X size={10} /></button>
-                          </div>
-                          <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
-                          <span className="text-[9px] text-[#C0C0C0]">{a.created_at?.slice(0, 16).replace('T', ' ')}</span>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-            {cwAnnTab === 'history' && (
-              <div className="flex-1 overflow-y-auto py-1">
-                {cwLocked ? (
-                  <p className="text-[10px] text-[#9A9A9A] px-3 py-2">已发布定版，版本仅供查看，不可存/回退</p>
-                ) : (
-                  <>
-                    <button onClick={() => takeCwSnapshot()}
-                      className="w-full text-left px-3 py-1.5 text-[11px] text-[#02A7F0] hover:bg-[#F0F2F5] flex items-center gap-1">
-                      <Plus size={10} /> 保存当前版本
-                    </button>
-                    <div className="border-t border-[#F0F0F0] my-1" />
-                  </>
-                )}
-                {cwVer.items.length === 0 ? (
-                  <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
-                ) : (
-                  cwVer.items.map((s: any) => (
-                    <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="flex items-center gap-1 min-w-0">
-                          <span className={`shrink-0 px-1 rounded text-[9px] ${s.kind === 'release' ? 'bg-[#EAF3FF] text-[#1A5FB4]' : 'bg-[#F2F3F5] text-[#8C8C8C]'}`}>
-                            {s.kind === 'release' ? '发布版' : '快照'}
-                          </span>
-                          <span className="text-[11px] text-[#353535] truncate">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
-                        </span>
-                        <span className="text-[9px] text-[#C0C0C0] truncate max-w-[96px]">{s.label}</span>
-                      </div>
-                      {!cwLocked && (
-                        <div className="flex gap-2 mt-0.5">
-                          <button onClick={() => restoreCwSnapshot(s.id)} className="text-[10px] text-[#02A7F0] hover:underline flex items-center gap-0.5">
-                            <RotateCcw size={9} />恢复
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          <CwAnnotationsPanel
+            className="absolute right-0 top-0 bottom-0 w-[220px] border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden shadow-lg"
+            onCollapse={() => setCwHistoryVisible(false)}
+            cwAnn={cwAnn} cwVer={cwVer} cwAnnTargetId={cwAnnTargetId} cwLocked={cwLocked}
+            materialId={materialId} cwOutline={cwOutline} setCwOutline={setCwOutline}
+            deckIdx={deckIdx} docSlide={docSlide}
+            />
         )}
 
         {/* 批注栏收起后悬浮展开按钮（与教案完全一致：右侧垂直居中 w-7 h-12 rounded-l 灰底 ChevronLeft） */}
@@ -1487,46 +1379,12 @@ export default function CoursewareBuilder() {
           </div>
         </div>
       ) : cwAnnTargetId && (
-        <div className="relative w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden">
-          <div className="flex border-b border-[#F0F0F0] shrink-0">
-            <button onClick={() => setCwAnnTab('annotations')}
-              className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'annotations' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
-              <MessageSquare size={11} className="inline mr-1" />批注
-            </button>
-            <button onClick={() => setCwAnnTab('history')}
-              className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'history' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
-              <History size={11} className="inline mr-1" />版本
-            </button>
-          </div>
-          {cwAnnTab === 'annotations' && (
-            <div className="flex-1 overflow-y-auto">
-              {cwAnn.items.length === 0 ? (
-                <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
-              ) : (
-                cwAnn.items.map((a: any) => {
-                  let pageLabel = ''
-                  try { pageLabel = 'P' + (JSON.parse(a.anchor || '{}').page || '?') } catch { /* noop */ }
-                  return (
-                    <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded">{pageLabel}</span>
-                      </div>
-                      <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
-                      <span className="text-[9px] text-[#C0C0C0]">{a.created_at?.slice(0, 16).replace('T', ' ')}</span>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          )}
-          {cwAnnTab === 'history' && (
-            <div className="flex-1 overflow-y-auto py-1">
-              {cwLocked ? (
-                <p className="text-[10px] text-[#9A9A9A] px-3 py-2">已发布定版，版本仅供查看</p>
-              ) : null}
-            </div>
-          )}
-        </div>
+        <CwAnnotationsPanel readOnly
+          className="relative w-[260px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden"
+          cwAnn={cwAnn} cwVer={cwVer} cwAnnTargetId={cwAnnTargetId} cwLocked={cwLocked}
+          materialId={materialId} cwOutline={cwOutline} setCwOutline={setCwOutline}
+          deckIdx={deckIdx} docSlide={docSlide}
+          />
       )}
     </div>
   )
@@ -1753,98 +1611,13 @@ export default function CoursewareBuilder() {
           </div>
           {/* 全屏内批注 / 版本浮层 */}
           {cwHistoryVisible && (
-            <div className="relative w-[240px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden shadow-lg">
-              <div className="flex border-b border-[#F0F0F0] shrink-0">
-                <button onClick={() => setCwAnnTab('annotations')}
-                  className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'annotations' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
-                  <MessageSquare size={11} className="inline mr-1" />批注
-                </button>
-                <button onClick={() => setCwAnnTab('history')}
-                  className={`flex-1 py-2 text-[11px] font-medium text-center border-b-2 transition-colors ${cwAnnTab === 'history' ? 'border-[#02A7F0] text-[#02A7F0] bg-white' : 'border-transparent text-[#9A9A9A] hover:text-[#595959]'}`}>
-                  <History size={11} className="inline mr-1" />版本
-                </button>
-                <button onClick={() => setCwHistoryVisible(false)} title="收起批注栏" className="px-2 text-[#C0C0C0] hover:text-[#9A9A9A]">
-                  <ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} />
-                </button>
-              </div>
-              {cwAnnTab === 'annotations' && (
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="p-2 border-b border-[#F0F0F0] bg-white shrink-0">
-                    <p className="text-[10px] text-[#9A9A9A] mb-1.5">{deckIdx === 0 ? '封面页：不支持按页批注（封面内容由左栏字段驱动）' : `对第 ${docSlide + 1} 页写批注：`}</p>
-                    <textarea
-                      value={cwAnnText}
-                      onChange={e => setCwAnnText(e.target.value)}
-                      rows={2}
-                      placeholder="输入批注..."
-                      className="w-full px-2 py-1 text-[11px] border border-[#E7E7EB] rounded focus:border-[#02A7F0] outline-none resize-none"
-                    />
-                    <button onClick={addCwAnnotation}
-                      disabled={!cwAnnText.trim()}
-                      className="w-full mt-1.5 py-1 text-[11px] text-white bg-[#02A7F0] rounded hover:bg-[#0398D8] disabled:opacity-40 flex items-center justify-center gap-1">
-                      <Plus size={10} /> 添加批注
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto">
-                    {cwAnn.items.length === 0 ? (
-                      <p className="text-[11px] text-[#C0C0C0] text-center py-4">暂无批注</p>
-                    ) : (
-                      cwAnn.items.map((a: any) => {
-                        let pageLabel = ''
-                        try { pageLabel = 'P' + (JSON.parse(a.anchor || '{}').page || '?') } catch { /* noop */ }
-                        return (
-                          <div key={a.id} className="p-2 border-b border-[#F5F5F5] hover:bg-[#F0F2F5]">
-                            <div className="flex items-start justify-between gap-1">
-                              <span className="text-[11px] text-[#1A3A6B] bg-[#E3ECFA] px-1.5 py-0.5 rounded">{pageLabel}</span>
-                              <button onClick={() => cwAnn.remove(a.id)} className="text-[#C0C0C0] hover:text-red-400 shrink-0"><X size={10} /></button>
-                            </div>
-                            <p className="text-[11px] text-[#595959] mt-1 leading-relaxed">{a.comment}</p>
-                            <span className="text-[9px] text-[#C0C0C0]">{a.created_at?.slice(0, 16).replace('T', ' ')}</span>
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-              {cwAnnTab === 'history' && (
-                <div className="flex-1 overflow-y-auto py-1">
-                  {cwLocked ? (
-                    <p className="text-[10px] text-[#9A9A9A] px-3 py-2">已发布定版，版本仅供查看，不可存/回退</p>
-                  ) : (
-                    <>
-                      <button onClick={() => takeCwSnapshot()}
-                        className="w-full text-left px-3 py-1.5 text-[11px] text-[#02A7F0] hover:bg-[#F0F2F5] flex items-center gap-1">
-                        <Plus size={10} /> 保存当前版本
-                      </button>
-                      <div className="border-t border-[#F0F0F0] my-1" />
-                    </>
-                  )}
-                  {cwVer.items.length === 0 ? (
-                    <p className="text-[11px] text-[#C0C0C0] px-3 py-2">暂无版本记录</p>
-                  ) : (
-                    cwVer.items.map((s: any) => (
-                      <div key={s.id} className="px-3 py-1.5 hover:bg-[#F0F2F5] border-b border-[#F5F5F5]">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-1 min-w-0">
-                            <span className={`shrink-0 px-1 rounded text-[9px] ${s.kind === 'release' ? 'bg-[#EAF3FF] text-[#1A5FB4]' : 'bg-[#F2F3F5] text-[#8C8C8C]'}`}>
-                              {s.kind === 'release' ? '发布版' : '快照'}
-                            </span>
-                            <span className="text-[11px] text-[#353535] truncate">{s.label}</span>
-                          </span>
-                          {!cwLocked && (
-                            <button onClick={() => restoreCwSnapshot(s.id)} title="恢复到此版本"
-                              className="text-[#02A7F0] hover:text-[#0E7BC4] shrink-0 flex items-center gap-0.5 text-[10px]">
-                              <RotateCcw size={10} /> 回退
-                            </button>
-                          )}
-                        </div>
-                        <span className="text-[9px] text-[#C0C0C0]">{s.created_at?.slice(0, 16).replace('T', ' ')}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            <CwAnnotationsPanel
+              className="relative w-[240px] shrink-0 border-l border-[#E7E7EB] bg-[#FAFBFC] flex flex-col z-20 overflow-hidden shadow-lg"
+              onCollapse={() => setCwHistoryVisible(false)}
+              cwAnn={cwAnn} cwVer={cwVer} cwAnnTargetId={cwAnnTargetId} cwLocked={cwLocked}
+              materialId={materialId} cwOutline={cwOutline} setCwOutline={setCwOutline}
+              deckIdx={deckIdx} docSlide={docSlide}
+              />
           )}
           {/* 批注栏收起后：悬浮展开按钮（与教案完全一致：右侧垂直居中 w-7 h-12 rounded-l 灰底 ChevronLeft） */}
           {!cwHistoryVisible && (
