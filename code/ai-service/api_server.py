@@ -1480,14 +1480,14 @@ def _norm_style_tag(style_tag: str) -> str:
     return _STYLE_LABEL_TO_KEY.get(s, s)
 
 
-def _load_style_layout_language(style_tag: str) -> str:
-    """读取风格卡的『骨架形态语言』段并注入生成 prompt。
+def _load_style_section(style_tag: str, section: str) -> str:
+    """读取风格卡 markdown 的指定小节（`## <section>` 起，至下一个 `## ` 或文末）。
 
-    历史缺陷（2026-09-03）：风格卡语义层从未进入生成提示词，模型只拿到 style_tag 名字 +
-    一句泛泛引导 + color_seed 决定的配色 → 风格只能换色、骨架不变。
-    此函数让风格真正驱动分栏/留白/卡片形态/图形语言（风格的一维），而非仅换色。
+    合并自原先的 `_load_style_layout_language` / `_load_style_structure_order`
+    （体检 P1-2）：两者除"取哪个小节"外**逐行相同**，改由本函数统一实现。
+    以后再要按小节取风格语义，传不同的 section 即可，不必再复制整个函数。
     """
-    if not style_tag:
+    if not style_tag or not section:
         return ""
     path = os.path.join(_STYLES_DIR, f"{style_tag}.md")
     if not os.path.isfile(path):
@@ -1497,8 +1497,18 @@ def _load_style_layout_language(style_tag: str) -> str:
             text = f.read()
     except Exception:
         return ""
-    m = re.search(r"##\s*骨架形态语言[\s\S]*?(?=\n##\s|\Z)", text)
+    m = re.search(r"##\s*" + re.escape(section) + r"[\s\S]*?(?=\n##\s|\Z)", text)
     return m.group(0).strip() if m else ""
+
+
+def _load_style_layout_language(style_tag: str) -> str:
+    """读取风格卡的『骨架形态语言』段并注入生成 prompt。
+
+    历史缺陷（2026-09-03）：风格卡语义层从未进入生成提示词，模型只拿到 style_tag 名字 +
+    一句泛泛引导 + color_seed 决定的配色 → 风格只能换色、骨架不变。
+    此函数让风格真正驱动分栏/留白/卡片形态/图形语言（风格的一维），而非仅换色。
+    """
+    return _load_style_section(style_tag, "骨架形态语言")
 
 
 def _load_style_structure_order(style_tag: str) -> str:
@@ -1508,18 +1518,7 @@ def _load_style_structure_order(style_tag: str) -> str:
     内容的结构序（起承转合 / 问题→证据→结论 / 定义→例题→归纳…）本身就是风格的一维。
     此前生成端只注入版式骨架、不改内容顺序 → 所有风格产出同一套结构序（"一个头面"的更深根因）。
     """
-    if not style_tag:
-        return ""
-    path = os.path.join(_STYLES_DIR, f"{style_tag}.md")
-    if not os.path.isfile(path):
-        return ""
-    try:
-        with open(path, encoding="utf-8") as f:
-            text = f.read()
-    except Exception:
-        return ""
-    m = re.search(r"##\s*结构序[\s\S]*?(?=\n##\s|\Z)", text)
-    return m.group(0).strip() if m else ""
+    return _load_style_section(style_tag, "结构序")
 
 
 # 风格结构化片段（asset_scope + 母题禁忌）：与前端 visualAsset 共用同一份，放此处保证容器内可达
