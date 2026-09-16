@@ -327,3 +327,44 @@ export interface ChatResp {
   suggestions?: string[]
   data?: { reply?: string; [key: string]: unknown }
 }
+
+/* ───────────────── 题库 / 习题（P0-3 第二轮：长尾端点） ───────────────── */
+
+export interface QuestionsResp {
+  items: QuestionItem[]
+  total?: number
+}
+
+/** 排重检查（`has_duplicate` + 按原题分组的重复项）—— 字段由 `ExerciseGenerator:412` 反推 */
+export interface QuestionDuplicateResp {
+  has_duplicate?: boolean
+  duplicates?: Record<string, unknown[]>
+}
+
+/** 题库统计（字段随后端演进，索引用 unknown 以便消费方显式收窄） */
+export interface QuestionStats {
+  total?: number
+  by_level?: Record<string, number>
+  by_type?: Record<string, number>
+  [key: string]: unknown
+}
+
+/** 题目审核项（0703 §3.4 互审） */
+export interface QuestionAudit {
+  id?: string
+  question_id?: string
+  status?: string
+  reviewer_id?: string
+  comment?: string
+  [key: string]: unknown
+}
+
+/** 题单（作业载体） */
+export interface SheetItem {
+  id?: string
+  title?: string
+  class_id?: string
+  subject?: string
+  status?: string
+  [key: string]: unknown
+}

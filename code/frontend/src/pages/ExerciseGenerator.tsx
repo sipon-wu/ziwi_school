@@ -410,7 +410,7 @@ export default function ExerciseGenerator() {
     try {
       const dupRes = await questionBankAPI.checkDuplicate(selectedClass, savedIds)
       if (dupRes.has_duplicate) {
-        setDuplicates(Object.values(dupRes.duplicates).flat())
+        setDuplicates(Object.values(dupRes.duplicates || {}).flat())
         setPublishing(false)
         return
       }

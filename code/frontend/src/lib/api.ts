@@ -1,4 +1,4 @@
-import type { AuthLoginResp, AuthUser, ChatResp, ClassItem, CoursewareConsultResp, CoursewareGenerateResp, CoursewareMaterial, CoursewareTrimResp, CoursewareValidateResp, ExamPaper, LessonPlanGenerateResp, LessonPlanItem, MyClassesResp, RenderResp, SchoolItem, VideoScriptResp } from "./domain"
+import type { AuthLoginResp, AuthUser, ChatResp, ClassItem, CoursewareConsultResp, CoursewareGenerateResp, CoursewareMaterial, CoursewareTrimResp, CoursewareValidateResp, ExamPaper, LessonPlanGenerateResp, LessonPlanItem, MyClassesResp, QuestionAudit, QuestionDuplicateResp, QuestionItem, QuestionsResp, QuestionStats, RenderResp, SchoolItem, VideoScriptResp } from "./domain"
 /** 知微AI教学助手 — 前端API工具类 */
 import { showToast } from '../components/Toast'
 
@@ -608,7 +608,7 @@ export const questionBankAPI = {
     const ids: string[] = []
     for (const q of (data.questions || [])) {
       try {
-        const r = await request<any>('/exercises', {
+        const r = await request<QuestionItem>('/exercises', {
           method: 'POST',
           body: JSON.stringify({
             stem: q.content || q.stem || q.question || '',
@@ -633,37 +633,37 @@ export const questionBankAPI = {
   listPersonal: (params: { subject?: string; grade?: string; type?: string; difficulty?: string; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams()
     Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, String(v)) })
-    return request<any>(`/questions/personal?${qs}`)
+    return request<QuestionsResp>(`/questions/personal?${qs}`)
   },
 
   /** 校本题库列表 */
   listSchool: (params: { subject?: string; grade?: string; type?: string; difficulty?: string; min_rating?: number; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams()
     Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, String(v)) })
-    return request<any>(`/questions/school?${qs}`)
+    return request<QuestionsResp>(`/questions/school?${qs}`)
   },
 
   /** 搜索题目 */
   search: (keyword: string, scope: 'all' | 'personal' = 'all') =>
-    request<any>(`/questions/search?keyword=${encodeURIComponent(keyword)}&scope=${scope}`),
+    request<QuestionsResp>(`/questions/search?keyword=${encodeURIComponent(keyword)}&scope=${scope}`),
 
   /** 题目详情 */
-  get: (id: string) => request<any>(`/questions/${id}`),
+  get: (id: string) => request<QuestionItem>(`/questions/${id}`),
 
   /** 更新题目 */
   update: (id: string, data: any) =>
-    request<any>(`/questions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<QuestionItem>(`/questions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   /** 删除题目 */
   delete: (id: string) =>
-    request<any>(`/questions/${id}`, { method: 'DELETE' }),
+    request<QuestionItem>(`/questions/${id}`, { method: 'DELETE' }),
 
   /** 贡献到校本题库 */
   contribute: (questionIDs: string[]) => {
     if (!questionIDs || questionIDs.length === 0) {
       throw new Error('请选择至少一道题目')
     }
-    return request<any>(`/questions/${questionIDs[0]}/contribute`, {
+    return request<QuestionItem>(`/questions/${questionIDs[0]}/contribute`, {
       method: 'POST',
       body: JSON.stringify({ question_ids: questionIDs }),
     })
@@ -671,24 +671,24 @@ export const questionBankAPI = {
 
   /** 评分 */
   rate: (questionId: string, data: { score: number; tags?: string[]; comment?: string; assignment_id: string }) =>
-    request<any>(`/questions/${questionId}/rate`, { method: 'POST', body: JSON.stringify(data) }),
+    request<QuestionItem>(`/questions/${questionId}/rate`, { method: 'POST', body: JSON.stringify(data) }),
 
   /** 查重 */
   checkDuplicate: (classId: string, questionIds: string[]) =>
-    request<any>(`/questions/check-duplicate?class_id=${classId}`, {
+    request<QuestionDuplicateResp>(`/questions/check-duplicate?class_id=${classId}`, {
       method: 'POST',
       body: JSON.stringify({ question_ids: questionIds }),
     }),
 
   /** 题库统计 */
-  stats: () => request<any>('/questions/stats'),
+  stats: () => request<QuestionStats>('/questions/stats'),
 
   /** 待审核列表（教研组长） */
-  pendingAudits: () => request<any>('/questions/audits/pending'),
+  pendingAudits: () => request<{ items: QuestionAudit[] }>('/questions/audits/pending'),
 
   /** 审核 */
   audit: (id: string, approved: boolean) =>
-    request<any>(`/questions/${id}/audit`, { method: 'POST', body: JSON.stringify({ approved }) }),
+    request<{ ok?: boolean }>(`/questions/${id}/audit`, { method: 'POST', body: JSON.stringify({ approved }) }),
 }
 
 // ── 作业接口 ──
