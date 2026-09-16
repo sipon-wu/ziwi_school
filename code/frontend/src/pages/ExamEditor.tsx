@@ -1,3 +1,4 @@
+import type { ExamPaper } from "../lib/domain"
 import { useState, useMemo, useEffect } from 'react'
 import { useToast } from '../components/Toast'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
@@ -23,7 +24,7 @@ export default function ExamEditor() {
   const isPreview = searchParams.get('preview') === '1'
   const { toast } = useToast()
 
-  const [exam, setExam] = useState<any>(null)
+  const [exam, setExam] = useState<ExamPaper | null>(null)
   const [loading, setLoading] = useState(true)
   const [editTitle, setEditTitle] = useState('')
   const [saving, setSaving] = useState(false)
@@ -34,8 +35,8 @@ export default function ExamEditor() {
     if (!id) { setLoading(false); return }
     setLoading(true)
     api<any>(`/exams/${id}`)
-      .then(res => { setExam(res); setEditTitle(res?.title || '') })
-      .catch(() => { setExam(undefined) })
+      .then(res => { setExam(res || null); setEditTitle(res?.title || '') })
+      .catch(() => { setExam(null) })
       .finally(() => setLoading(false))
   }, [id])
 

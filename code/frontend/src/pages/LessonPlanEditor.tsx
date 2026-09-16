@@ -1,4 +1,4 @@
-import { safeGetUser, type MyClass } from "../lib/domain"
+import { safeGetUser, type MyClass, type SimilarMaterial } from "../lib/domain"
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
@@ -161,7 +161,7 @@ export default function LessonPlanEditor() {
   const [generatingCourseware, setGeneratingCourseware] = useState(false)
   // 课件生成进度（来自 SSE）：本页暂无展示位，先持有以避免"静默长等待"（后续可在按钮旁显示）
   const [cwStage, setCwStage] = useState('')
-  const [coursewareSimilar, setCoursewareSimilar] = useState<any>(null)
+  const [coursewareSimilar, setCoursewareSimilar] = useState<SimilarMaterial | null>(null)
   const [savingCourseware, setSavingCourseware] = useState(false)
   // 富媒体编辑器全屏
   const [showFullscreenEditor, setShowFullscreenEditor] = useState(false)
@@ -214,7 +214,7 @@ export default function LessonPlanEditor() {
           knowledge_node_ids: JSON.stringify(kIds),
           ai_generated: true, ai_model_version: modelVersion || 'qwen-plus', generation_time_ms: genTime,
         })
-        setPlanId(saved.id); setSavedKnowledgeIds(kIds); setAutoSaveTip('已自动保存')
+        setPlanId(saved.id || null); setSavedKnowledgeIds(kIds); setAutoSaveTip('已自动保存')
         setTimeout(() => setAutoSaveTip(''), 2000)
       } catch { /* 自动保存失败静默 */ }
     }, 30000)
@@ -269,11 +269,12 @@ export default function LessonPlanEditor() {
       setGrade(data.grade || '四年级')
       setLessonTitle(data.title || data.lesson_title || '')
       setTextbookUnit(data.textbook_unit || '')
-      setPeriod(data.period || 1)
+      // period 后端可能返回字符串（"2"）——此前靠 any 掩盖，这里显式收敛为数字
+      setPeriod(Number(data.period) || 1)
       setTemplate(data.format_template || 'core_literacy')
       const c = data.content || ''
       setContent(c === '{}' || c === '""' ? '' : c)
-      setPlanId(data.id)
+      setPlanId(data.id || null)
       // 定稿锁定判定：已通过(approved)或互审关闭直接发布(active+none)才只读；
       // 被退回(returned)按方案A保留发布壳但允许重新编辑再送审 → 不锁
       const lockedByStatus = (data.status === 'active' && data.review_status !== 'returned') ||
@@ -294,7 +295,9 @@ export default function LessonPlanEditor() {
       // 回显已保存的知识点
       if (data.knowledge_node_ids) {
         try {
-          const ids = JSON.parse(data.knowledge_node_ids)
+          // 后端可能给 JSON 字符串，也可能直接给数组（此前靠 any 掩盖，会直接抛错）
+          const raw = data.knowledge_node_ids
+          const ids = typeof raw === 'string' ? JSON.parse(raw) : raw
           if (Array.isArray(ids)) {
             setSavedKnowledgeIds(ids)
             picker.setSelectedIds(ids)
@@ -329,7 +332,11 @@ export default function LessonPlanEditor() {
       })
       // AI ↔ DOC 反复切换：保留既有内容，AI 新生成追加到末尾
       const hasExisting = content && content.trim().length > 0
-      setContent(hasExisting ? content + '\n\n---\n\n' + res.content : res.content); setCurriculum(res.curriculum_alignments||[]); setModelVersion(res.model||'qwen-plus'); setGenTime(res.generation_time_ms||0)
+      const generated = res.content || ''
+      setContent(hasExisting ? content + '\n\n---\n\n' + generated : generated)
+      // curriculum_alignments 是 **JSON 字符串**（此前直接塞给数组 state，靠 any 掩盖 —— 真 bug）
+      try { setCurriculum(res.curriculum_alignments ? JSON.parse(res.curriculum_alignments) : []) } catch { setCurriculum([]) }
+      setModelVersion(res.model || 'qwen-plus'); setGenTime(res.generation_time_ms || 0)
       // 自动命名标题：用户未填时，根据知识点/单元/日期自动生成
       if (!lessonTitle.trim()) {
         const names = picker.selectedNodes.map(n => n.name).filter(Boolean)
@@ -342,10 +349,12 @@ export default function LessonPlanEditor() {
       setAiPreview(true)
       setAiConfirmed(false)
       // AI 决定挂载：生成时一并推荐适宜课件
-      if (Array.isArray(res.material_refs) && res.material_refs.length) {
-        setMaterialRefs(prev => Array.from(new Set([...prev, ...res.material_refs])))
+      // 先取局部量再判空：属性访问 narrowing 在 setState 回调里失效（同 464 行）
+      const materialRefs = res.material_refs
+      if (Array.isArray(materialRefs) && materialRefs.length) {
+        setMaterialRefs(prev => Array.from(new Set([...prev, ...materialRefs])))
         setRecommendedMaterials(Array.isArray(res.recommended_materials) ? res.recommended_materials : [])
-        toast(`AI 已推荐 ${res.material_refs.length} 个课件，可在左侧「关联课件」中增删`, 'success')
+        toast(`AI 已推荐 ${materialRefs.length} 个课件，可在左侧「关联课件」中增删`, 'success')
       }
     } catch(e:any) { toast('AI 生成失败: '+(e.message||'未知错误'), 'error') }
     setGenerating(false)
@@ -363,7 +372,7 @@ export default function LessonPlanEditor() {
           knowledge_node_ids: JSON.stringify(kIds),
           ai_generated: true, ai_model_version: modelVersion || 'qwen-plus', generation_time_ms: genTime,
         })
-        setPlanId(saved.id); setSavedKnowledgeIds(kIds); setAutoSaveTip('已自动保存')
+        setPlanId(saved.id || null); setSavedKnowledgeIds(kIds); setAutoSaveTip('已自动保存')
         setTimeout(() => setAutoSaveTip(''), 2000)
       } catch { /* 切换时保存失败静默，文档模式内仍可手动保存 */ }
     }
@@ -396,9 +405,9 @@ export default function LessonPlanEditor() {
           material_refs: JSON.stringify(materialRefs),
           ai_generated: false,
         })
-        setPlanId(saved.id)
+        setPlanId(saved.id || null)
         setSavedKnowledgeIds(kIds)
-        pid = saved.id
+        pid = saved.id || ''
       } else {
         await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds, material_refs: JSON.stringify(materialRefs) })
       }
@@ -527,7 +536,7 @@ export default function LessonPlanEditor() {
         material_refs: JSON.stringify(materialRefs),
         ai_generated: false,
       })
-      setPlanId(saved.id); setSavedKnowledgeIds(kIds)
+      setPlanId(saved.id || null); setSavedKnowledgeIds(kIds)
     } else {
       await lessonPlanAPI.update(planId, { content, knowledge_node_ids: knowledgeNodeIds, material_refs: JSON.stringify(materialRefs) })
     }

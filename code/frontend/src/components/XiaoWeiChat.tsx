@@ -1,3 +1,4 @@
+import type { ChatResp } from "../lib/domain"
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -391,7 +392,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       if (imageUrl) {
         fullMessage = `[图片消息] ${text || '请看这张图片'}`
       }
-      let data: { reply: string; suggestions: string[] }
+      let data: ChatResp
       try {
         data = await aiAPI.chat({ message: fullMessage, context: ctx })
       } catch {
@@ -404,7 +405,7 @@ export default function XiaoWeiChat({ embedded }: { embedded?: boolean }) {
       }
       setMessages(prev => [
         ...prev,
-        { role: 'xiaowei', content: data.reply, suggestions: data.suggestions, time: getTimeString() },
+        { role: 'xiaowei', content: data.reply || '', suggestions: data.suggestions || [], time: getTimeString() },
       ])
     } catch {
       setMessages(prev => [

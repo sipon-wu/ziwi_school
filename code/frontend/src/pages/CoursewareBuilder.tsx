@@ -1,4 +1,4 @@
-import { safeGetUser, type MyClass, type ScopeResolvedPayload } from '../lib/domain'
+import { safeGetUser, type MyClass, type ScopeResolvedPayload, type SimilarMaterial } from '../lib/domain'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Sparkles, Loader2, FileText, MessageSquare, History, Plus, X, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Download, Maximize2, Undo2, Redo2, TextCursorInput, Shapes, Image as ImageIcon, ZoomIn, Smartphone } from 'lucide-react'
@@ -372,7 +372,7 @@ export default function CoursewareBuilder() {
   const [scopeResolved, setScopeResolved] = useState<ScopeResolvedPayload | null>(null)
   const [cwMarkdown, setCwMarkdown] = useState('')
   const [cwH5Html, setCwH5Html] = useState('')
-  const [cwSimilar, setCwSimilar] = useState<any>(null)
+  const [cwSimilar, setCwSimilar] = useState<SimilarMaterial | null>(null)
   const [cwOutline, setCwOutline] = useState<OutlineSlide[]>([])
   const [cwDivergence, setCwDivergence] = useState<any[]>([])
   const [removedDivergence, setRemovedDivergence] = useState<Record<string, boolean>>({})

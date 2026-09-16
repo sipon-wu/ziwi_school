@@ -1,4 +1,4 @@
-import type { AuthLoginResp, CoursewareGenerateResp, CoursewareMaterial, MyClassesResp } from "./domain"
+import type { AuthLoginResp, AuthUser, ChatResp, ClassItem, CoursewareConsultResp, CoursewareGenerateResp, CoursewareMaterial, CoursewareTrimResp, CoursewareValidateResp, ExamPaper, LessonPlanGenerateResp, LessonPlanItem, MyClassesResp, RenderResp, SchoolItem, VideoScriptResp } from "./domain"
 /** 知微AI教学助手 — 前端API工具类 */
 import { showToast } from '../components/Toast'
 
@@ -142,27 +142,27 @@ export const authAPI = {
 
   /** 验证码登录 */
   codeLogin: (phone: string, code: string) =>
-    request<any>('/auth/code-login', {
+    request<AuthLoginResp>('/auth/code-login', {
       method: 'POST',
       body: JSON.stringify({ phone, code }),
     }),
 
   /** 发送验证码 */
   sendCode: (phone: string) =>
-    request<any>('/auth/send-code', {
+    request<{ ok?: boolean }>('/auth/send-code', {
       method: 'POST',
       body: JSON.stringify({ phone }),
     }),
 
   /** 注册 */
   register: (phone: string, password: string, name: string, role: string) =>
-    request<any>('/auth/register', {
+    request<AuthLoginResp>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ phone, password, name, role }),
     }),
 
   /** 获取当前用户信息 */
-  me: () => request<any>('/auth/me'),
+  me: () => request<AuthUser>('/auth/me'),
 
   /** 知微云登录（统一登录 P1）：用 cloud 邮箱+密码验证并绑定 school 账号。
    *  不经过全局 request（避免 401 被当作"登录已过期"跳转）。 */
@@ -186,9 +186,9 @@ export const authAPI = {
 // ── 学校接口 ──
 
 export const schoolAPI = {
-  list: () => request<any>('/schools'),
+  list: () => request<{ items: SchoolItem[] }>('/schools'),
   create: (name: string, region: string, contact: string, phone: string) =>
-    request<any>('/schools', {
+    request<SchoolItem>('/schools', {
       method: 'POST',
       body: JSON.stringify({ name, region, contact, phone }),
     }),
@@ -197,9 +197,9 @@ export const schoolAPI = {
 // ── 班级接口 ──
 
 export const classAPI = {
-  list: () => request<any>('/classes'),
+  list: () => request<{ items: ClassItem[] }>('/classes'),
   create: (name: string, grade: string) =>
-    request<any>('/classes', {
+    request<ClassItem>('/classes', {
       method: 'POST',
       body: JSON.stringify({ name, grade }),
     }),
@@ -226,7 +226,7 @@ export const aiAPI = {
     /** AI ↔ DOC 反复切换：当前文档全文（含用户编辑），AI 将其作为输入上下文 */
     current_content?: string
   }) =>
-    request<any>('/ai/lesson-plan/generate', {
+    request<LessonPlanGenerateResp>('/ai/lesson-plan/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -310,7 +310,7 @@ export const aiAPI = {
     lesson_title: string
     knowledge_points?: string[]
   }) =>
-    request<any>('/ai/courseware/consult', {
+    request<CoursewareConsultResp>('/ai/courseware/consult', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -321,7 +321,7 @@ export const aiAPI = {
     subject: string
     grade: string
   }) =>
-    request<any>('/ai/courseware/validate', {
+    request<CoursewareValidateResp>('/ai/courseware/validate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -331,7 +331,7 @@ export const aiAPI = {
     markdown: string
     remove_items: Array<{ content: string; anchor?: string; zone?: string }>
   }) =>
-    request<any>('/ai/courseware/trim', {
+    request<CoursewareTrimResp>('/ai/courseware/trim', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -345,14 +345,14 @@ export const aiAPI = {
     style_tag?: string
     theme_id?: string
   }) =>
-    request<any>('/ai/courseware/render-ppt', {
+    request<RenderResp>('/ai/courseware/render-ppt', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
 
   /** 出题 / 智能组卷（共用端点，返回结构化 JSON） */
   generateExam: (params: Record<string, any>) =>
-    request<any>('/ai/exam/generate', {
+    request<ExamPaper>('/ai/exam/generate', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -366,7 +366,7 @@ export const aiAPI = {
 
   /** 小微AI助手对话 */
   chat: (params: { message: string; context: { teacher_name: string; subject: string; grade: string } }) =>
-    request<any>('/ai/chat', {
+    request<ChatResp>('/ai/chat', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -379,7 +379,7 @@ export const aiAPI = {
     grade: string
     duration_s?: number
   }) =>
-    request<any>('/ai/courseware/generate-video-script', {
+    request<VideoScriptResp>('/ai/courseware/generate-video-script', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
@@ -400,7 +400,7 @@ export const aiAPI = {
 
   /** 家校宣发发布预检（kind=notice：官方安全口径校验，不阻断草稿保存） */
   validateNotice: (params: { markdown: string }) =>
-    request<any>('/ai/courseware/validate', {
+    request<CoursewareValidateResp>('/ai/courseware/validate', {
       method: 'POST',
       body: JSON.stringify({ ...params, kind: 'notice' }),
     }),
@@ -409,24 +409,24 @@ export const aiAPI = {
 // ── 教案接口 ──
 
 export const lessonPlanAPI = {
-  list: () => request<any>('/lesson-plans'),
+  list: () => request<{ items: LessonPlanItem[] }>('/lesson-plans'),
   create: (data: any) =>
-    request<any>('/lesson-plans', { method: 'POST', body: JSON.stringify(data) }),
-  get: (id: string) => request<any>(`/lesson-plans/${id}`),
+    request<LessonPlanItem>('/lesson-plans', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request<LessonPlanItem>(`/lesson-plans/${id}`),
   update: (id: string, data: any) =>
-    request<any>(`/lesson-plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<LessonPlanItem>(`/lesson-plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   finalize: (id: string) =>
-    request<any>(`/lesson-plans/${id}/finalize`, { method: 'POST' }),
+    request<{ ok?: boolean }>(`/lesson-plans/${id}/finalize`, { method: 'POST' }),
   delete: (id: string) =>
-    request<any>(`/lesson-plans/${id}`, { method: 'DELETE' }),
+    request<{ ok?: boolean }>(`/lesson-plans/${id}`, { method: 'DELETE' }),
 }
 
 // ── 教案互审评审（正文查看 / 待审列表 / 评审结论）──
 export const reviewAPI = {
-  pending: () => request<any>('/review/pending'),
-  get: (id: string) => request<any>(`/lesson-plans/${id}/review`),
+  pending: () => request<{ items: LessonPlanItem[] }>('/review/pending'),
+  get: (id: string) => request<LessonPlanItem>(`/lesson-plans/${id}/review`),
   decide: (id: string, decision: 'approve' | 'reject', comment?: string) =>
-    request<any>(`/lesson-plans/${id}/review-decision`, {
+    request<{ ok?: boolean }>(`/lesson-plans/${id}/review-decision`, {
       method: 'POST',
       body: JSON.stringify({ decision, comment: comment || '' }),
     }),
@@ -450,7 +450,7 @@ export const materialAPI = {
   list: () => request<{ items: CoursewareMaterial[] }>('/materials'),
   /** 以 JSON 方式创建素材（保存 AI 生成的课件） */
   createJSON: (data: { name: string; type: string; format?: string; tag?: string; url?: string; content?: string; h5_html?: string; status?: string; grade?: string; subject?: string; theme_id?: string; color_root?: string }) =>
-    request<any>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
+    request<CoursewareMaterial>('/materials/json', { method: 'POST', body: JSON.stringify(data) }),
   /** 上传文件素材（视频课件等） */
   upload: async (file: File, extra?: { name?: string; type?: string; format?: string; tag?: string }) => {
     const fd = new FormData()
@@ -470,8 +470,8 @@ export const materialAPI = {
   },
   /** 更新素材（课件草稿/发布落库复用） */
   update: (id: string, data: { name?: string; type?: string; format?: string; tag?: string; url?: string; content?: string; status?: string; grade?: string; subject?: string; theme_id?: string; color_root?: string }) =>
-    request<any>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  get: (id: string) => request<any>(`/materials/${id}`),
+    request<CoursewareMaterial>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  get: (id: string) => request<CoursewareMaterial>(`/materials/${id}`),
 }
 
 // ── 装饰元件（素材库图片，facet 自动匹配）──

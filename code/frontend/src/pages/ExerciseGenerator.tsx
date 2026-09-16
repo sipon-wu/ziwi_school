@@ -1,4 +1,4 @@
-import type { MyClass } from "../lib/domain"
+import type { MyClass, QuestionItem } from "../lib/domain"
 import { useToast } from "../components/Toast"
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
@@ -66,7 +66,7 @@ export default function ExerciseGenerator() {
   // 编辑模式：已有题目 id（合并 ExerciseEditor）
   const { id } = useParams()
   const isEditing = !!id
-  const [editQuestion, setEditQuestion] = useState<any>(null)
+  const [editQuestion, setEditQuestion] = useState<QuestionItem | null>(null)
   const [editLoading, setEditLoading] = useState(isEditing)
   const [editStem, setEditStem] = useState('')
   const [editAnswer, setEditAnswer] = useState('')

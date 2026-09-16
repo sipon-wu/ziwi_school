@@ -1,3 +1,4 @@
+import type { SchoolLookupResult, SettingsEditTarget } from "../lib/domain"
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { Pencil, Plus, Trash2, Copy, Check, X, Upload } from 'lucide-react'
 import { api, adminAPI, classAPI, teacherPrefAPI, schoolReviewConfigAPI, notifyError } from '../lib/api'
@@ -814,9 +815,9 @@ function CampusAdmin() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [editTarget, setEditTarget] = useState<any>(null)
+  const [editTarget, setEditTarget] = useState<SettingsEditTarget | null>(null)
   const [form, setForm] = useState({ id: '', name: '', address: '', sort_order: 0 })
-  const [confirmDel, setConfirmDel] = useState<any>(null)
+  const [confirmDel, setConfirmDel] = useState<SettingsEditTarget | null>(null)
   const [err, setErr] = useState('')
 
   const load = useCallback(async () => {
@@ -1080,7 +1081,7 @@ function SchoolClassTab() {
   const [modalMode, setModalMode] = useState<'addSchool' | 'editSchool' | 'addClass'>('addSchool')
   const [modalSchoolId, setModalSchoolId] = useState<string | null>(null)
   const [formF, setFormF] = useState({ fullName: '', shortName: '' })
-  const [lookupResult, setLookupResult] = useState<any>(null)
+  const [lookupResult, setLookupResult] = useState<SchoolLookupResult | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const lookupTimer = useRef<any>(null)
   const [formC, setFormC] = useState({ grade: '四年级', name: '', subjects: '语文' })
@@ -1157,12 +1158,12 @@ function SchoolClassTab() {
   const doSaveSchool = () => {
     if (modalMode === 'addSchool') {
       // 抢答原则：已存在则认领，否则创建
-      const existingId = lookupResult?.found ? lookupResult.school.id : null
+      const existingId = lookupResult?.found ? lookupResult.school?.id : null
       const sid = existingId || `s${Date.now()}`
       if (existingId) {
         // 认领：将已存在的学校加入本地列表
         if (!schools.find(s => s.id === existingId)) {
-          setSchools(prev => [...prev, { id: existingId, fullName: formF.fullName, shortName: lookupResult.school.short_name || formF.shortName, status: 'active', classes: [] }])
+          setSchools(prev => [...prev, { id: existingId, fullName: formF.fullName, shortName: lookupResult?.school?.short_name || formF.shortName, status: 'active', classes: [] }])
         }
         setModalSchoolId(existingId)
       } else {
@@ -1323,7 +1324,7 @@ function SchoolClassTab() {
                 )}
                 {lookupResult?.found && modalMode === 'addSchool' && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-[4px] px-3 py-2 text-[12px]">
-                    ⚠️ 已存在「{lookupResult.school.full_name}」，保存后将认领该校
+                    ⚠️ 已存在「{lookupResult.school?.full_name}」，保存后将认领该校
                   </div>
                 )}
                 {lookupResult && !lookupResult.found && formF.fullName.length >= 2 && modalMode === 'addSchool' && (

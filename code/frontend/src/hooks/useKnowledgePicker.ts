@@ -1,3 +1,4 @@
+import type { TextbookStaticData, TextbookUnit } from "../lib/domain"
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTeaching, type TeachingCtxValue } from '../lib/TeachingContext'
 import type { KnowledgeNode } from '../components/KnowledgeGraph'
@@ -19,7 +20,7 @@ export interface UseKnowledgePickerReturn {
 
   // 教材单元映射
   textbookData: any | null
-  currentUnits: { unit: string; kps: string[] }[]
+  currentUnits: TextbookUnit[]
   selectedUnit: string
   handleUnitChange: (unitName: string) => void
 
@@ -72,7 +73,7 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   // ── 数据加载 ──
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeNode[]>([])
   const [loading, setLoading] = useState(true)
-  const [textbookData, setTextbookData] = useState<any>(null)
+  const [textbookData, setTextbookData] = useState<TextbookStaticData>(null)
 
   useEffect(() => {
     const load = async () => {
