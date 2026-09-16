@@ -39,6 +39,7 @@ import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
 import { useCwDecor } from '../hooks/useCwDecor'
+import { useCwExport } from '../hooks/useCwExport'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -1065,16 +1066,8 @@ export default function CoursewareBuilder() {
   const [cwAnnText, setCwAnnText] = useState('')
   const [cwHistoryVisible, setCwHistoryVisible] = useState(true)
   const [cwAnnTab, setCwAnnTab] = useState<'annotations' | 'history'>('annotations')
-  // 导出下拉：非全屏顶栏用单一「导出 ▾」下拉，多选格式一键导出（节约版面）
-  const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  const [exportSel, setExportSel] = useState<Record<'ppt' | 'docx' | 'pdf' | 'h5', boolean>>({ ppt: true, docx: false, pdf: false, h5: false })
-  const exportMenuRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!exportMenuOpen) return
-    const onDown = (e: MouseEvent) => { if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [exportMenuOpen])
+  // ── 导出下拉（P0-1：已抽到 hooks/useCwExport.ts；返回值沿用原名，调用点零改动）──
+  const { exportMenuOpen, setExportMenuOpen, exportSel, setExportSel, exportMenuRef } = useCwExport()
   // 全屏编辑：隐藏左右栏与发散/校验，最大化画布
   const [cwFullscreen, setCwFullscreen] = useState(false)
   // 全屏默认收起批注/版本栏（2026-09-14）：全屏的定位是"精修"，240px 边栏让位给画布
