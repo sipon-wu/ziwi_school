@@ -233,7 +233,10 @@ export function useCwSave({
       // 与上方「源数据=提纲(content) + 模板引用(theme_id)，渲染随时由模板重算」原则一致。
       if (d.cwFormat === 'h5') {
         payload.h5_html = markdownToStorybookH5(outlineToMarkdown(d.cwOutline, d.cwOpts()), {
-          subject: d.subject, grade: d.gradeName, title: `${d.genTitle.trim()}_课件`,
+          // 标题**不带 `_课件` 后缀**（2026-09-16 修）：`_课件` 只是素材库的存储命名约定，
+          // 此前发布路径把它印进了 H5 顶部标题与封面 —— 于是同一份课件草稿态扫码是
+          // 「天窗 09-15」、发布后变成「天窗 09-15_课件」（草稿保存路径早已不带后缀，两处不一致）。
+          subject: d.subject, grade: d.gradeName, title: d.genTitle.trim(),
           teacherName: safeGetUser().name || '教师', themeId: d.themeId,
           colorRoot: d.colorRoot,
         })
