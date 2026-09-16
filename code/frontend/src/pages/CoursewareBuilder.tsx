@@ -38,6 +38,7 @@ import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 import EditorLayout from '../components/EditorLayout'
 import EditorInfoPanel from '../components/EditorInfoPanel'
 import { useEditorController } from '../hooks/useEditorController'
+import { useCwDecor } from '../hooks/useCwDecor'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -417,113 +418,16 @@ export default function CoursewareBuilder() {
   // themeId/colorRoot 还没生效，直接调用会把**旧主题**存进草稿。
   const pendingGenSave = useRef(false)
 
-  // ── 装饰元件：选中画布装饰元素 → 工具条「替换/删除」→ 替换打开素材库装饰元件面板 ──
-  const [decorElems, setDecorElems] = useState<MaterialItem[]>([])
-  const [decorScope, setDecorScope] = useState<'public' | 'mine'>('public')
-  const [decorMedium, setDecorMedium] = useState('')
-  // 画布上当前选中的装饰（由 PptxPreview 冒泡）
-  const [selDecor, setSelDecor] = useState<DecorSelection | null>(null)
-  // 替换面板开关
-  const [decorPickerOpen, setDecorPickerOpen] = useState(false)
-  const loadDecorElems = (sc: 'public' | 'mine', medium = '') => {
-    setDecorScope(sc)
-    setDecorMedium(medium)
-    decorAPI.list({ scope: sc, medium: medium || undefined, motif: undefined, color: undefined, pageType: undefined })
-      .then(res => setDecorElems(res.items || []))
-      .catch(e => notifyError('装饰元件加载失败', e))
-  }
-  // 替换当前选中的装饰：把素材库选中的元件写入选中装饰所在的槽位/索引
-  const replaceDecorAt = (it: MaterialItem) => {
-    if (!selDecor) return
-    const idx = docSlide
-    const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
-    setCwOutline(arr => arr.map((s, i) => {
-      if (i !== idx) return s
-      const cur: DecorSlots = s.decor || {}
-      if (selDecor.slot === 'background') {
-        return { ...s, decor: { ...cur, background: it.url || '' } }
-      }
-      const key = selDecor.slot === 'corner' ? 'corners' : selDecor.slot
-      const list = (cur as any)[key] || []
-      const nextList = list.map((x: DecorItem, j: number) => j === selDecor.index ? item : x)
-      return { ...s, decor: { ...cur, [key]: nextList } }
-    }))
-    toast(`已替换装饰为「${it.name}」`, 'success')
-    setDecorPickerOpen(false)
-  }
+  // ── 装饰元件（P0-1：已抽到 hooks/useCwDecor.ts；返回值沿用原名，调用点零改动）──
+  const {
+    decorElems, decorScope, decorMedium, selDecor, setSelDecor, decorPickerOpen, setDecorPickerOpen,
+    loadDecorElems, replaceDecorAt, aiDecorating, aiDecorSuggestions, fetchAiDecorSuggestions,
+    smartMatchDecor, applyDecorSuggestion, applyAllDecorSuggestions,
+  } = useCwDecor({
+    docSlide, setCwOutline, contentLen: cwOutline.length, cwFormat, genStyleTag, tplAppliedIdRef: tplAppliedId,
+  })
 
-  // ── AI 装饰推荐（AI 辅助平台差异化）：套模板后按模板风格/色系 facet 自动匹配装饰元件 ──
-  // 推荐结果先存 state，在「替换装饰」面板顶部展示，用户确认后应用（不静默写页面）。
-  const [aiDecorating, setAiDecorating] = useState(false)
-  const [aiDecorSuggestions, setAiDecorSuggestions] = useState<MaterialItem[]>([])
-  // 套模板后按 facet 匹配装饰元件。outline 由调用方传入（避免闭包陷阱）。
-  // motif/color 字段值与后端 materials.motif_root / color_root 一致（中文 label，如"国风"/"红金系"）。
-  // excludeNames：排除模板已内置的装饰（避免推荐与内置重复）。
-  const fetchAiDecorSuggestions = async (styleLabels?: string[], colorIds?: string[], excludeNames?: string[], medium?: string) => {
-    const motif = (styleLabels && styleLabels.length ? styleLabels.join(',') : undefined)
-    const color = (colorIds && colorIds.length ? colorIds.join(',') : undefined)
-    if (!motif && !color) return
-    setAiDecorating(true)
-    try {
-      const res = await decorAPI.list({ scope: 'public', motif, color, medium: medium || undefined })
-      const items = (res.items || []).filter(it => !(excludeNames || []).includes(it.name))
-      if (!items.length) { toast('暂无更多匹配该风格的装饰元件', 'info'); return }
-      setAiDecorSuggestions(items.slice(0, 4))
-      toast(`已生成 ${items.slice(0, 4).length} 个 AI 装饰推荐（在装饰面板中查看）`, 'success')
-    } catch (e) {
-      notifyError('AI 装饰推荐失败', e)
-    } finally {
-      setAiDecorating(false)
-    }
-  }
-  // 手动「智能配饰」：按当前已套用模板的风格/色系 + 媒介匹配装饰（B 方案，不自动弹）。
-  // PPT/H5 同理：medium 由 cwFormat 决定，避免把 PPT 装饰推给 H5 课件。
-  const smartMatchDecor = () => {
-    const pool = cwFormat === 'h5' ? H5_TEMPLATES : PPT_TEMPLATES
-    const tpl = pool.find(t => t.id === tplAppliedId.current) || null
-    const styleTags = tpl ? templateStyleTags(tpl) : (genStyleTag ? [genStyleTag] : [])
-    if (!styleTags.length && !(tpl && templateColorTags(tpl).length)) {
-      toast('请先套用模板或选择课件风格', 'info'); return
-    }
-    fetchAiDecorSuggestions(
-      styleTags.map(s => STYLE_LABELS[s] || s),
-      tpl ? templateColorTags(tpl) : undefined,
-      tpl ? (tpl.globalDecor || []).map(d => d.name).filter(Boolean) as string[] : undefined,
-      cwFormat === 'h5' ? 'h5' : 'ppt',
-    )
-  }
-  // 应用单个 AI 推荐装饰到当前页的浮动区（若当前页已有浮动装饰则追加）
-  const applyDecorSuggestion = (it: MaterialItem) => {
-    const idx = docSlide
-    const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
-    setCwOutline(arr => arr.map((s, i) => {
-      if (i !== idx) return s
-      const cur: DecorSlots = s.decor || {}
-      const list = cur.floating || []
-      return { ...s, decor: { ...cur, floating: [...list, item] } }
-    }))
-    toast(`已应用装饰「${it.name}」到当前页`, 'success')
-  }
-  // 一键应用全部推荐：给所有内容页（封面除外）的浮动区追加推荐装饰（轮转）。
-  // 作为模板内置装饰的"增强点缀"——浮动区可叠加多个装饰，避免重复追加同名元件。
-  const applyAllDecorSuggestions = () => {
-    const picks = aiDecorSuggestions
-    if (!picks.length) { toast('暂无 AI 推荐', 'info'); return }
-    // ★ 先同步计算应用页数（不能在 setCwOutline 回调里累加，回调异步执行会导致 applied 恒为 0）
-    const contentLen = Math.max(0, cwOutline.length - 1)
-    if (contentLen === 0) { toast('请先生成课件内容', 'info'); return }
-    setCwOutline(arr => arr.map((s, i) => {
-      if (i === 0) return s // 封面保持干净
-      const it = picks[i % picks.length]
-      const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
-      const cur: DecorSlots = s.decor || {}
-      const floating = cur.floating || []
-      // 仅避免同名重复（同页已有该推荐元件则跳过），其余页一律追加（即使已有模板内置装饰）
-      if (floating.some(f => f.name === item.name)) return s
-      return { ...s, decor: { ...cur, floating: [...floating, item] } }
-    }))
-    toast(`已应用 AI 推荐装饰到 ${contentLen} 个内容页（每页按风格轮转）`, 'success')
-  }
+  // （AI 装饰推荐 部分已随装饰簇一并抽到 hooks/useCwDecor.ts）
 
   // 加载「参照课件」提纲：文档模式套用模板时，若当前为空课件且已选参照，则先把参照内容载入，再套新模板版式
   const loadRefOutline = async (): Promise<OutlineSlide[]> => {
