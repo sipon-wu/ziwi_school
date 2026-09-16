@@ -44,6 +44,7 @@ import { useCwExport } from '../hooks/useCwExport'
 import { useCwGenParams } from '../hooks/useCwGenParams'
 import { useCwSave } from '../hooks/useCwSave'
 import { useCwTemplate } from '../hooks/useCwTemplate'
+import { useCwPreview } from '../hooks/useCwPreview'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import PptxPreview, { SlideThumb, type DecorSelection } from '../components/PptxPreview'
 import { useAnnotations, useVersions } from '../hooks/useAnnotations'
@@ -379,11 +380,7 @@ export default function CoursewareBuilder() {
   const [h5ShareQr, setH5ShareQr] = useState<{ url: string; dataUrl: string } | null>(null)
   const [polishing, setPolishing] = useState(false)
   const [genVideo, setGenVideo] = useState(false)
-  const [docSlide, setDocSlide] = useState(0)
-  // **整本页序**（0 = 封面，2026-09-15）：docSlide 是 outline 下标（不含 outlineToSlides 自动插的封面），
-  // 而编辑器页列表、画布、预览/放映都要"含封面"的整本索引 → 用 deckIdx 表达，两者在切页时同步。
-  // 为什么不让 docSlide 直接含封面：批注/版本按页锚定的 page 号（docSlide+1）已存库，改语义会让旧批注错页。
-  const [deckIdx, setDeckIdx] = useState(0)
+  // （docSlide / deckIdx / goToPage 已随预览簇搬到 hooks/useCwPreview.ts）
   // 当前页互动编辑：选择器 + 表单弹层（手动挂 H5 互动组件）
   const [interactivePickerOpen, setInteractivePickerOpen] = useState(false)
   // 当前页互动组件卡片的"展开编辑"索引（-1=全部收起）
@@ -410,14 +407,7 @@ export default function CoursewareBuilder() {
   //   版本粒度规则见 lib/versionPolicy.ts。之所以用"标记 + effect"而非生成函数里直接存：
   //   生成函数里刚 setState 的 themeId/colorRoot 还没生效，会把旧主题写进草稿。）
 
-  // ── 装饰元件（P0-1：已抽到 hooks/useCwDecor.ts；返回值沿用原名，调用点零改动）──
-  const {
-    decorElems, decorScope, decorMedium, selDecor, setSelDecor, decorPickerOpen, setDecorPickerOpen,
-    loadDecorElems, replaceDecorAt, aiDecorating, aiDecorSuggestions, fetchAiDecorSuggestions,
-    smartMatchDecor, applyDecorSuggestion, applyAllDecorSuggestions,
-  } = useCwDecor({
-    docSlide, setCwOutline, contentLen: cwOutline.length, cwFormat, genStyleTag, tplAppliedIdRef: tplAppliedId,
-  })
+  // （装饰元件 hook 的调用点已下移到 useCwPreview 之后 —— 它要读 docSlide）
 
   // （AI 装饰推荐 部分已随装饰簇一并抽到 hooks/useCwDecor.ts）
 
@@ -530,6 +520,8 @@ export default function CoursewareBuilder() {
   // 版心比例：16:9（默认，投影标准）或 4:3（传统屏），预览与导出同步
   const [cwAr, setCwAr] = useState<'16/9' | '4/3'>('16/9')
 
+
+
   // ── 任教班级（班级切换联动）──
   // 准确性修正（2026-09-15）：班级名 ≠ 年级。此前左栏信息卡与封面信息条都拿 gradeName 顶替"班级"，
   // 于是显示成"班级：四年级"（教师看到的是年级值）。这里取教师本人任教班级里"当前选中"的那个，
@@ -555,6 +547,21 @@ export default function CoursewareBuilder() {
     // 任教班级（2026-09-15 准确性修正）：班级名与年级是两回事，取不到就留空（封面上不出现该格），
     // 绝不拿年级顶替。此前左栏"班级"直接传 gradeName，教师看到"班级：四年级"。
     classLabel,
+  })
+  // ── 预览 / 放映（P0-1：已抽到 hooks/useCwPreview.ts；返回值沿用原名，调用点零改动）──
+  // 必须放在 cwAr / cwOpts **之后**：hook 内的 useMemo 要在渲染期调用 cwOpts()，而 cwOpts() 读 cwAr。
+  const { docSlide, deckIdx, goToPage, cwThumbSlides, previewSlides } = useCwPreview({
+    cwOutline, cwOpts,
+    subject: teaching.subject, gradeName, title: genTitle, classLabel, themeId, colorRoot, aspect: cwAr,
+  })
+
+  // ── 装饰元件（P0-1：已抽到 hooks/useCwDecor.ts；返回值沿用原名，调用点零改动）──
+  const {
+    decorElems, decorScope, decorMedium, selDecor, setSelDecor, decorPickerOpen, setDecorPickerOpen,
+    loadDecorElems, replaceDecorAt, aiDecorating, aiDecorSuggestions, fetchAiDecorSuggestions,
+    smartMatchDecor, applyDecorSuggestion, applyAllDecorSuggestions,
+  } = useCwDecor({
+    docSlide, setCwOutline, contentLen: cwOutline.length, cwFormat, genStyleTag, tplAppliedIdRef: tplAppliedId,
   })
 
   // ── AI 生成课件 ──
@@ -905,7 +912,7 @@ export default function CoursewareBuilder() {
   const [cwFsThumb, setCwFsThumb] = useState(false)
   // 缩略图数据（2026-09-14）：真实缩略图必须与画布**同源**，否则又变成"缩略图≠画布"。
   // outlineToSlides 会在最前插入封面页 → 索引 = 提纲页 +1。
-  const cwThumbSlides = cwOutline.length ? outlineToSlides(cwOutline, cwOpts()) : []
+  // （cwThumbSlides 已随预览簇搬到 hooks/useCwPreview.ts）
 
   // （小微「换风格 / 恢复上一个风格」指令的接收端已随模板簇搬到 hooks/useCwTemplate.ts）
 
@@ -1356,7 +1363,7 @@ export default function CoursewareBuilder() {
               const isCover = i === 0
               const oi = i - 1                                  // 正文页在 cwOutline 中的下标
               return (
-                <div key={i} onClick={() => { setDeckIdx(i); setDocSlide(Math.max(0, oi)) }}
+                <div key={i} onClick={() => goToPage(i)}
                   className={`group cursor-pointer rounded-[4px] border overflow-hidden ${i === deckIdx ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
                   <div className="relative">
                     <SlideThumb slide={s} theme={resolveTheme(themeId, colorRoot)} idx={i} ar={cwAr} />
@@ -1416,7 +1423,7 @@ export default function CoursewareBuilder() {
             // 若允许在封面上加文本框/图片，会错落到正文第 1 页（索引映射），故封面只读查看。
             editable={deckIdx !== 0}
             index={deckIdx}
-            onIndexChange={(si) => { setDeckIdx(si); setDocSlide(Math.max(0, si - 1)) }}
+            onIndexChange={(si) => goToPage(si)}
             onSlideChange={handleDocSlideChange}
             aspectRatio={cwAr}
             embedFullscreen={true}
@@ -1601,19 +1608,7 @@ export default function CoursewareBuilder() {
   )
 
   // ── 查看态只读放映内容（左缩略图导航 + 右可滚动放映），view 态 secondaryRight 与全屏 previewSlot 共用 ──
-  const previewSlides = useMemo(() => {
-    if (cwOutline.length === 0) return null
-    try {
-      return outlineToSlides(cwOutline, cwOpts())
-    } catch (e) {
-      console.error('previewSlides: outlineToSlides failed', e)
-      return null
-    }
-    // 依赖必须含 cwOpts() 的全部输入（2026-09-15 修）：此前只有 [cwOutline]，
-    // 而学科/年级/班级/署名/主题都是**异步随后**才到的（班级要等 /my-classes、姓名要等登录用户）
-    // → 封面页被**缓存成"当时还没值"的版本**，于是封面信息条永远空着、
-    // 副标题还留着"· 教师"占位（教师实测）。这类"输入变了、结果不重算"是同一族缺陷。
-  }, [cwOutline, teaching.subject, gradeName, genTitle, classLabel, themeId, colorRoot, cwAr])
+  // （previewSlides 已随预览簇搬到 hooks/useCwPreview.ts）
   const previewSlideElems = (() => {
     if (cwFormat === 'h5' && cwH5Html) {
       return (
@@ -1637,7 +1632,7 @@ export default function CoursewareBuilder() {
       // 于是反馈"为什么 PPT 没有封面"（导出的 PPTX 里却有 —— 所见 ≠ 所导出）。
       // 改为独立的整本索引 deckIdx（0 = 封面），并同步回 docSlide 供批注/互动等按页逻辑使用。
       return <PptxPreview slides={previewSlides} theme={resolveTheme(themeId, colorRoot)} showPager={false} index={deckIdx}
-        onIndexChange={(si) => { setDeckIdx(Math.max(0, si)); setDocSlide(Math.max(0, si - 1)) }} viewMode="single" autoPlay />
+        onIndexChange={(si) => goToPage(si)} viewMode="single" autoPlay />
     }
     return <div className="text-center py-16 text-[13px] text-[#9A9A9A]">课件内容为空</div>
   })()
@@ -1650,7 +1645,7 @@ export default function CoursewareBuilder() {
           {/* 目录也按整本列（含封面，2026-09-15）：此前只列 outline → 左栏没有"封面"这一项，
               右侧放映却可能停在封面上，两边对不上。现在目录项 = 整本页序（封面 + 正文）。 */}
           {(previewSlides || cwOutline).map((s, idx) => (
-            <div key={idx} onClick={() => { setDeckIdx(idx); setDocSlide(Math.max(0, idx - 1)) }}
+            <div key={idx} onClick={() => goToPage(idx)}
               className={`cursor-pointer rounded-[4px] border p-1.5 ${idx === deckIdx ? 'border-[#02A7F0] bg-[#E8F7FF]' : 'border-[#E7E7EB] hover:bg-[#F6F7F8]'}`}>
               <span className="text-[10px] text-[#9A9A9A]">{idx === 0 ? '封面' : `P${idx}`}</span>
               <p className="text-[11px] text-[#353535] truncate mt-0.5">{s.title || '（无标题）'}</p>
@@ -1950,7 +1945,7 @@ export default function CoursewareBuilder() {
             <div className="w-[170px] shrink-0 border-r border-[#EFEFEF] bg-[#F7F7F8] overflow-y-auto py-2 px-1.5 space-y-2">
               {/* 全屏页列表同样含封面（2026-09-15）：第 0 项 = 封面 */}
               {cwThumbSlides.map((s, i) => (
-                <button key={i} onClick={() => { setDeckIdx(i); setDocSlide(Math.max(0, i - 1)) }}
+                <button key={i} onClick={() => goToPage(i)}
                   className={`w-full text-left rounded-[4px] border overflow-hidden transition-colors ${i === deckIdx ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
                   <SlideThumb slide={s} theme={resolveTheme(themeId, colorRoot)} idx={i} ar={cwAr} />
                   <div className="px-1.5 py-1 text-[11px] text-[#353535] truncate">{i === 0 ? '封面' : (s.title || '未命名').slice(0, 16)}</div>
@@ -1965,7 +1960,7 @@ export default function CoursewareBuilder() {
             <div className="w-full">
               {cwOutline.length > 0 && slides.length > 0 ? (
                 // outlineToSlides 在 cwOutline 前自动插入了封面页，编辑画布索引需 +1
-                <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} aspectRatio={cwAr} index={deckIdx} onIndexChange={(si) => { setDeckIdx(si); setDocSlide(Math.max(0, si - 1)) }} onSlideChange={handleDocSlideChange} viewMode="scroll" editable={deckIdx !== 0} embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
+                <PptxPreview slides={slides} theme={resolveTheme(themeId, colorRoot)} aspectRatio={cwAr} index={deckIdx} onIndexChange={(si) => goToPage(si)} onSlideChange={handleDocSlideChange} viewMode="scroll" editable={deckIdx !== 0} embedFullscreen={true} onSelectDecor={(sel) => setSelDecor(sel)} onReplaceDecor={(sel) => { setSelDecor(sel); if (!decorElems.length) loadDecorElems('public'); setDecorPickerOpen(true) }} />
               ) : (
                 <div className="h-full flex items-center justify-center text-[13px] text-[#9A9A9A]">课件内容为空，请先生成课件</div>
               )}
