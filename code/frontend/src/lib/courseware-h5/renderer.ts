@@ -1215,7 +1215,8 @@ const RUNTIME_CSS = `
 .cover-deco.band.bottom{bottom:6px;}
 /* 封面衬底（2026-09-17）：底图半透明衬在「主题底色之上、内容之下」（z 0 < 元素 1 < 内容 2）。
    必须单独一层 —— 给 section 设 opacity 会把课题文字一起淡掉。 */
-.cover-underlay{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;pointer-events:none;}
+.cover-underlay{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;pointer-events:none;
+  filter:blur(16px);transform:scale(1.08);}
 /* 词卡页：点读词放大成卡片网格（不再是"气泡列里塞词"） */
 .sk-read .interact{background:transparent;border:0;padding:0;box-shadow:none;}
 .sk-read .read-list{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}
