@@ -156,10 +156,46 @@ let br
 
   must(errs === 0, '全程 pageerror = 0', { errs })
 
-  /* ── 回滚 ── */
+  /* ── ⑦ 发布流程（结果必须明确；库中 status 必须与之一致）── */
+  const pubBtn = p.locator('button', { hasText: /发布/ }).first()
+  const nPub = await pubBtn.count()
+  must(nPub > 0, '找到发布入口按钮', { nPub })
+  let pubResult = ''
+  if (nPub) {
+    await pubBtn.click()
+    const t2 = Date.now()
+    while (Date.now() - t2 < 45000) {
+      const txt = await p.evaluate(() => document.body.innerText)
+      if (/课件已发布/.test(txt)) { pubResult = '已发布'; break }
+      if (/校验|请填写|未通过|发布失败/.test(txt)) { pubResult = '被校验拦下'; break }
+      await p.waitForTimeout(500)
+    }
+  }
+  must(!!pubResult, '发布给出明确结果（不静默）', { pubResult })
+  const st = (await get(`/api/materials/${ppt.id}`)).status
+  must(pubResult === '已发布' ? st === 'active' : st !== 'active', '库中 status 与发布结果一致', { pubResult, status: st })
+
+  /* ── ⑧ 内容页装饰往返（库层断言，对应 CW-DECOR 修复）── */
+  execFileSync('npx', ['esbuild', 'src/lib/exportPptx.ts', '--bundle', '--format=cjs', '--platform=node',
+    '--alias:@shared=../shared', '--alias:@styles=../ai-service/skills/shared/styles',
+    '--define:import.meta.env={}', '--outfile=/tmp/epreg.cjs', '--log-level=error'], { cwd: FE, stdio: 'inherit' })
+  globalThis.localStorage = { getItem: () => null, setItem() { }, removeItem() { } }
+  globalThis.window = globalThis.window || {}
+  const EP = require('/tmp/epreg.cjs')
+  const dOpts = { subject: '物理', grade: '八年级', title: '往返自证' }
+  const dDecor = { background: 'https://x/bg.png', corners: [{ id: 'c', url: 'https://x/c.png', name: '云' }] }
+  const dOutline = [{ title: '甲', bullets: ['a'], layout: 'edu-goal', decor: dDecor }, { title: '乙', bullets: ['b'] }]
+  const dBack = EP.markdownToOutline(EP.outlineToMarkdown(dOutline, dOpts))
+  must(JSON.stringify(dBack[0].decor) === JSON.stringify(dDecor), '内容页装饰随 markdown 往返（CW-DECOR）')
+  must(!dBack[1].decor, '无装饰页不产生装饰')
+  must(dBack.length === 2 && dBack[0].title === '甲', '往返未污染页数与标题', { pages: dBack.length })
+  must(!/CW-DECOR/.test(EP.outlineToMarkdown([{ title: '甲', bullets: ['a'] }], dOpts)), '无装饰文档不写 CW-DECOR（旧文档零变化）')
+
+  /* ── 回滚（含发布测试的 status 还原）── */
   const cur = await get(`/api/materials/${ppt.id}`)
-  await fetch(`${B}/api/materials/${ppt.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...cur, content: stripCW(cur.content) }) })
+  await fetch(`${B}/api/materials/${ppt.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...cur, content: stripCW(cur.content), ...(cur.status !== 'draft' ? { status: 'draft' } : {}) }) })
   must(!/CW-COVER/.test(String((await get(`/api/materials/${ppt.id}`)).content)), 'PPT 测试注入已回滚')
+  must((await get(`/api/materials/${ppt.id}`)).status === 'draft', '发布测试已把 status 还原为 draft')
   const h5Back = markdownToStorybookH5(h5Clean, {
     subject: h5Orig.subject || '英语', grade: h5Orig.grade || '四年级',
     title: String(h5Orig.name || '').replace(/_课件$/, ''),
