@@ -429,6 +429,10 @@ export default function PptxPreview({
   useEffect(() => { if (typeof index === 'number') setI(clamp(index, 0, slides.length - 1)) }, [index, slides.length])
   const current = clamp(index ?? i, 0, slides.length - 1)
   const wheelLock = useRef(false)
+  // 封面装饰的局部选中态（① 2026-09-17）：封面走**非可编辑**的静态渲染 —— 不能直接放开
+  // editable，那会连"自由元素编辑"一起开，而封面是合成的（title/信息条不在 outline 内），
+  // 教师拖出来的元素无处落盘、保存即丢。故只把**装饰槽**做成可交互。
+  const [coverSel, setCoverSel] = useState<DecorSelection | null>(null)
 
   const setIndex = (n: number) => {
     const c = clamp(n, 0, slides.length - 1)
@@ -486,7 +490,16 @@ export default function PptxPreview({
           <div className="space-y-6">
             {slides.map((s, idx) => (
               <div key={idx} className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black/5">
-                <ScaledSlide cw={CW} ch={CH} fitHeight={false}>{renderStaticSlide(s, theme, idx, ar)}</ScaledSlide>
+                <ScaledSlide cw={CW} ch={CH} fitHeight={false}>{renderStaticSlide(s, theme, idx, ar,
+                  // ① 封面装饰可交互：仅封面页、且非编辑态时挂上（编辑态走 EditableCanvas 那条路）
+                  s.kind === 'cover' && !editable
+                    ? {
+                      selected: coverSel,
+                      onSelect: (sel) => { setCoverSel(sel); onSelectDecor?.(sel) },
+                      onRequestReplace: (sel) => { setCoverSel(sel); onSelectDecor?.(sel); onReplaceDecor?.(sel) },
+                      placeholder: true,
+                    }
+                    : undefined)}</ScaledSlide>
               </div>
             ))}
           </div>
@@ -762,7 +775,15 @@ function TitleBlock({ title, theme, lay }: { title: string; theme: CwTheme; lay:
   return stack
 }
 
-function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio: '16/9' | '4/3') {
+/** 封面装饰的交互上下文（① 2026-09-17）：静态渲染路径下只让封面的装饰槽可交互 */
+interface CoverDecorCtx {
+  selected: DecorSelection | null
+  onSelect: (sel: DecorSelection | null) => void
+  onRequestReplace: (sel: DecorSelection) => void
+  placeholder?: boolean
+}
+
+function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio: '16/9' | '4/3', decorCtx?: CoverDecorCtx) {
   const lay = s.layout || (s.kind === 'cover' ? 'edu-cover' : 'title-body')
   // 根因修复（2026-09-11）：`edu-cover` 是"封面版式"，但此前只有 kind==='cover' 才走封面分支。
   // AI 生成把"一、封面"作为一页并标了 edu-cover 时，会落到普通白底分支 →
@@ -773,7 +794,12 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
       <div className="relative h-full w-full" style={{ background: c(theme.coverBg), fontFamily: theme.font }}>
         <SlideFrame theme={theme} layout={lay} info={s.coverInfo} />
         <SlideDecor theme={theme} layout={lay} />
-        <DecorLayer decor={s.decor} />
+        {/* 封面装饰：给了 decorCtx 才可交互（静态渲染路径下由父组件按"是否封面"决定），
+            否则与以往完全一致（只读）。素材从素材库换，就在页面内完成。 */}
+        <DecorLayer decor={s.decor}
+          selectable={!!decorCtx} selected={decorCtx?.selected ?? null}
+          onSelect={decorCtx?.onSelect} onRequestReplace={decorCtx?.onRequestReplace}
+          placeholder={decorCtx?.placeholder} />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8" style={{ fontFamily: theme.font }}>
           <h2 className="text-4xl font-bold" style={{ color: c(theme.onPrimary) }}>{s.title}</h2>
           {s.subtitle && <p className="mt-4 text-lg" style={{ color: c(theme.lightText) }}>{s.subtitle}</p>}
