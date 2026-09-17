@@ -33,7 +33,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { OutlineSlide, CwSlide } from '../lib/exportPptx'
 import { recommendTheme, resolveTheme } from '../lib/pptThemes'
 // 注：revertTemplate / reflowToSkeleton / basicTemplateForFamily 已随模板簇搬到 hooks/useCwTemplate.ts（2026-09-16）
-import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, renderTemplateThumb, renderFamilyThumb, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, type StyleTag } from '../lib/cwTemplate'
+import { PPT_TEMPLATES, H5_TEMPLATES, applyTemplate, renderTemplateThumb, renderFamilyThumb, BASIC_TEMPLATE, COLOR_FAMILIES, STYLE_LABELS, defaultThemeForStyle, gradeToStage, getTemplates, gradeToStageTag, subjectToTag, templateStyleTags, templateColorTags, basicTemplateForFamily, type StyleTag } from '../lib/cwTemplate'
 // 触发模板资产域注册（子项目库模板经适配器并入 PPT_TEMPLATES，副作用导入即可，无需引用）
 import { getLibraryCostMeta } from '../lib/templateRegistryAdapter'
 import EditorLayout from '../components/EditorLayout'
@@ -1171,7 +1171,7 @@ export default function CoursewareBuilder() {
                 )}
                 {/* 通用结构（结构 × 色系自由组合）始终可见 */}
                 {COLOR_FAMILIES.map(f => {
-                  const applied = tplAppliedId.current === `basic-${f.id}`
+                  const applied = tplAppliedId.current === basicTemplateForFamily(f).id
                   return (
                     <button key={`basic-${f.id}`} onClick={() => applyFamilyEntry(f)} className={`text-left rounded border overflow-hidden ${applied ? 'border-[#02A7F0] ring-1 ring-[#02A7F0]' : 'border-[#E7E7EB] hover:border-[#02A7F0]'}`}>
                       <img src={renderFamilyThumb(f)} alt={f.label} className="w-full h-[72px] object-cover bg-[#F2F3F5]" />
