@@ -496,6 +496,11 @@ export function markdownToOutline(md: string): OutlineSlide[] {
     // 文档级元信息行（如 "> 学科 · 年级"，由 outlineToMarkdown 写出）不属于任何一页，
     // 在 cur 为 null 时跳过，避免被误当成一页"课件"幽灵页
     if (!cur && line.startsWith('>')) continue
+    // 封面装饰内嵌注释（<!-- CW-COVER:base64 -->，2026-09-17）：**文档级**，不属于任何一页。
+    // 必须在此显式跳过：下方注释分支要求 `cur` 非空（见 `if (cm && cur)`），而封面注释写在
+    // 文档前沿、此时 cur 为 null —— 漏跳会落到兜底逻辑被当成一页内容，产生幽灵页。
+    // 读取走 parseCoverDecor()（封面不在 outline 内，不进本函数的返回值）。
+    if (!cur && /^<!--\s*CW-COVER:/.test(line)) continue
     // 版式标注注释：<!-- layout: edu-xxx --> 写入当前页 layout（AI 生成时自动带上教学版式）
     // 明文注释：layout / quiz / readalong / reveal / draw（技能直接输出，非 base64 编码）
     // 解析进结构化字段，避免被当 bullet 文本原样显示；quiz/readalong 用转义 \| 分隔多选项。
@@ -603,8 +608,14 @@ export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSli
 }
 
 /** 将可编辑提纲转回 Markdown（供 Word / PDF 导出与素材库保存，与 PPT 同步） */
-export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): string {
+export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions, coverDecor?: DecorSlots | null): string {
   const lines: string[] = [`# ${opts.title}`, '', `> ${opts.subject} · ${opts.grade}`, '']
+  // ── 封面装饰（2026-09-17）──
+  // 封面是**渲染时合成**的（不在 outline 里，PPT / H5 两端皆然）→ 它的素材（底图、角落元素…）
+  // 也需要一个能往返的落点。沿用既有内嵌 base64 注释惯例（CW-EL / CW-IT / VISUAL），
+  // 写在**文档级前沿**（第一页 `## ` 之前），读取端用 parseCoverDecor() 取回。
+  // 空值完全不写 → 旧文档 markdown 逐字节不变（零行为变更）。
+  if (hasCoverDecor(coverDecor)) lines.splice(3, 0, `<!-- CW-COVER:${b64enc(coverDecor)} -->`)
   outline.forEach(s => {
     lines.push(`## ${s.title}`)
     // 版式保真（2026-09-03）：layout 注释随往返写回——否则骨架在"打开→保存"后丢失
@@ -631,6 +642,23 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions): str
     lines.push('')
   })
   return lines.join('\n')
+}
+
+/** 封面装饰是否"有内容"（全空视为没有 → 不写空注释，保证旧文档零变化） */
+export function hasCoverDecor(d?: DecorSlots | null): boolean {
+  if (!d) return false
+  return Object.keys(d).some(k => {
+    const v = (d as Record<string, unknown>)[k]
+    return Array.isArray(v) ? v.length > 0 : !!v
+  })
+}
+
+/** 从课件 markdown 读回封面装饰（对应 outlineToMarkdown 写出的 CW-COVER）；无 / 解析失败返回 null */
+export function parseCoverDecor(md: string): DecorSlots | null {
+  const m = (md || '').match(/^<!--\s*CW-COVER:([A-Za-z0-9+/=]+)\s*-->\s*$/m)
+  if (!m) return null
+  const d = b64dec<DecorSlots>(m[1])
+  return d && typeof d === 'object' ? d : null
 }
 
 /** 将任意对象 base64 化（UTF-8 安全），用于内嵌注释，规避特殊字符截断 */
