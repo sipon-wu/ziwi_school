@@ -7,7 +7,7 @@ import {useTeaching, getRecommendedDefaults, getQuestionTypes, QUESTION_TYPE_LAB
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
 import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
-import { questionBankAPI, assignmentAPI, classAPI } from '../lib/api'
+import { questionBankAPI, assignmentAPI, classAPI, notifyError } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import AiPreviewBadge from '../components/AiPreviewBadge'
@@ -187,7 +187,7 @@ export default function ExerciseGenerator() {
 
   // 任教班级
   const [myClassesEG, setMyClassesEG] = useState<MyClass[]>([])
-  useEffect(() => { classAPI.myClasses().then(r => setMyClassesEG(r?.items || [])).catch(() => {}) }, [])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClassesEG(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
   const classLabelEG = myClassesEG.find(it => it.class_id === teaching.selectedClassId)?.class_name || GRADE_NAMES[teaching.grade - 1]
 
   // 从已选图谱节点派生知识点标签

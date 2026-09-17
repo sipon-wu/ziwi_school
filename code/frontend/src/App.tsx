@@ -39,6 +39,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* 根路径（2026-09-17 修）：此前 App 未定义 "/" → 命中 catch-all → **已登录教师**
+            在地址栏输入或收藏根域名时会被弹回登录页（实测）。此处按登录态分流，
+            与 /login、/teacher 的既有行为一致（未登录 → 登录页，已登录 → 工作台）。 */}
+        <Route path="/" element={localStorage.getItem('zhiwei_token') ? <Navigate to="/teacher" replace /> : <Navigate to="/login" replace />} />
         <Route path="/teacher" element={<TeacherDashboard />} />
         <Route path="/lesson-plans" element={<Suspense fallback={<Loading />}><LessonPlanList /></Suspense>} />
         <Route path="/lesson-plans/new" element={<Suspense fallback={<Loading />}><LessonPlanEditor /></Suspense>} />

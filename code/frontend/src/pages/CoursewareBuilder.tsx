@@ -316,7 +316,7 @@ export default function CoursewareBuilder() {
   // 于是显示成"班级：四年级"（教师看到的是年级值）。这里取教师本人任教班级里"当前选中"的那个，
   // 取不到就留空（信息卡显示"—"、封面信息条不出现该格）。
   const [myClasses, setMyClasses] = useState<MyClass[]>([])
-  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
   // 选中班级 → 主班级兜底（2026-09-15）：课件编辑器**不在 AppLayout 里**（那层有"首次进入自动选中主班级"），
   // 所以这里必须自己兜底，否则班级永远是空的。规则与 AppLayout 一致：优先当前选中，其次主班级。
   const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)
@@ -738,8 +738,11 @@ export default function CoursewareBuilder() {
       }
     }, 600)   // 防抖：连续编辑不必每键重算
     return () => clearTimeout(id)
+    // 依赖必须含 cwOpts() 的全部输入（2026-09-17 修）：此前漏了学科/年级/课题名/班级/版心，
+    // 于是**改课题名或班级后 H5 画布与草稿里的 h5_html 不会重算** —— 手机扫码仍是旧标题/旧署名。
+    // 这与 2026-09-15 修 previewSlides 是同一个病：派生点分散在 4 处，当初只补齐了其中几处。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwOutline, cwFormat, themeId, colorRoot])
+  }, [cwOutline, cwFormat, themeId, colorRoot, teaching.subject, gradeName, genTitle, classLabel, cwAr])
 // 全屏态下批注栏收展与编辑态共用 cwHistoryVisible，避免双状态不一致
   useEffect(() => {
     if (!cwFullscreen) return

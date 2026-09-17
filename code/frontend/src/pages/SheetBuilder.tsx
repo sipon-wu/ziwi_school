@@ -12,7 +12,7 @@ import EditorInfoPanel from '../components/EditorInfoPanel'
 import KnowledgeGraphTool from '../components/KnowledgeGraphTool'
 import TipTapEditor from '../components/TipTapEditor'
 import DocEditorPanel, { renderFullscreenEditor } from '../components/DocEditorPanel'
-import { api, classAPI } from '../lib/api'
+import { api, classAPI, notifyError } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import QuestionNav from '../components/QuestionNav'
 import ExamPreview from '../components/ExamPreview'
@@ -43,7 +43,7 @@ export default function SheetBuilder() {
   // 任教班级（2026-09-15 准确性修正）：班级名 ≠ 年级。此前信息卡"班级"直接传 gradeName，
   // 显示成"四年级"（年级值）。取教师本人任教班级里当前选中的那个，取不到留空（卡上显示"—"）。
   const [myClasses, setMyClasses] = useState<MyClass[]>([])
-  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
   const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)
     || myClasses.find(it => (it as { is_primary?: boolean }).is_primary)
     || myClasses[0])?.class_name || ''

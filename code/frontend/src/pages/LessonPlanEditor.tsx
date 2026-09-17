@@ -2,7 +2,7 @@ import { safeGetUser, type MyClass, type SimilarMaterial } from "../lib/domain"
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Save, BookOpen, Send, X, Target, Download, ChevronDown, ChevronRight, FileText, Search, Plus, Bell, ZoomIn, ZoomOut, Maximize2, Pencil, MessageCircle, CheckCircle2, XCircle } from 'lucide-react'
-import { aiAPI, lessonPlanAPI, materialAPI, classAPI, reviewAPI } from '../lib/api'
+import { aiAPI, lessonPlanAPI, materialAPI, classAPI, reviewAPI, notifyError } from '../lib/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useTeaching } from '../lib/TeachingContext'
 import { useKnowledgePicker } from '../hooks/useKnowledgePicker'
@@ -168,7 +168,7 @@ export default function LessonPlanEditor() {
 
   // ── 任教班级（班级切换联动）──
   const [myClasses, setMyClasses] = useState<MyClass[]>([])
-  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(() => {}) }, [])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClasses(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
   // 班级取**任教班级名**；取不到就留空由信息卡显示"—"，**不能拿年级顶替**（2026-09-15 准确性修正：
   // 此前回退成 `grade`，于是信息卡"班级"栏一直显示"四年级"这类年级值，看着像班级名）
   const classLabel = (myClasses.find(it => it.class_id === teaching.selectedClassId)

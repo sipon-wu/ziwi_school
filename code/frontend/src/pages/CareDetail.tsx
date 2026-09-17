@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Heart, TrendingUp, TrendingDown, Minus, FileText, MessageCircle, AlertCircle, Clock, CheckCircle2, Brain, Eye, ChevronDown, ChevronUp, ArrowLeft, Send, Sparkles, Pencil, Check, X, Plus } from 'lucide-react'
 import { useTeaching } from '../lib/TeachingContext'
-import { careAPI } from '../lib/api'
+import { careAPI, notifyError } from '../lib/api'
 import { useToast } from '../components/Toast'
 import AppLayout from '../components/AppLayout'
 import MOCK_STUDENT_DATA from './CareDetail_mock'
@@ -251,11 +251,11 @@ export default function CareDetail() {
     if (hasBlocked) { toast('⚠️ 请避免绝对化或比较性表述，使用建设性建议', 'warning'); return }
     toast('关注点已更新', 'success')
     // 异步同步后端
-    if (id) { careAPI.update(id, { focus_area: editFocusText }).catch(() => {}) }
+    if (id) { careAPI.update(id, { focus_area: editFocusText }).catch(e => notifyError('关爱记录保存失败', e)) }
   }
   const startEditNote = () => { if (!s) return; setEditNoteText((s as any).plan.teacherNote || ''); setEditNote(true) }
   const saveNote = () => { if (!s) return; setDetail({ ...s, plan: { ...(s as any).plan, teacherNote: editNoteText } } as any); setEditNote(false); toast('备注已更新', 'success')
-    if (id) { careAPI.update(id, { observation: editNoteText }).catch(() => {}) }
+    if (id) { careAPI.update(id, { observation: editNoteText }).catch(e => notifyError('关爱记录保存失败', e)) }
   }
   const addAssessment = () => {
     if (!s || !newAssess.text.trim()) return

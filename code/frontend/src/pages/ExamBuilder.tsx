@@ -8,7 +8,7 @@ import { useKGContext } from '../lib/KnowledgeGraphContext'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useEditorController } from '../hooks/useEditorController'
 import { useToast } from '../components/Toast'
-import { classAPI, api } from '../lib/api'
+import { classAPI, api, notifyError } from '../lib/api'
 import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import EditorLayout from '../components/EditorLayout'
@@ -38,7 +38,7 @@ export default function ExamBuilder() {
 
   // 任教班级
   const [myClassesEB, setMyClassesEB] = useState<MyClass[]>([])
-  useEffect(() => { classAPI.myClasses().then(r => setMyClassesEB(r?.items || [])).catch(() => {}) }, [])
+  useEffect(() => { classAPI.myClasses().then(r => setMyClassesEB(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
   const classLabelEB = myClassesEB.find(it => it.class_id === teaching.selectedClassId)?.class_name || gradeName
 
   // 加载已有试卷（编辑模式）

@@ -1245,7 +1245,7 @@ function SchoolClassTab() {
     }
     // 保存后重新拉取偏好以便下次编辑回显
     Promise.allSettled(saves).finally(() => {
-      teacherPrefAPI.list().then(r => setMyPrefs(r.items || [])).catch(() => {})
+      teacherPrefAPI.list().then(r => setMyPrefs(r.items || [])).catch(e => notifyError('教师偏好加载失败', e))
     })
     setEditClassTarget(null)
     setConfirmSave(false)
