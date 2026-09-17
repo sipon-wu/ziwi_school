@@ -266,7 +266,7 @@ export function buildCoursewareSlides(content: string, opts: CwOptions): CwSlide
 }
 
 /** 将 AI 渲染的 PptSlide[] 转为与导出/预览一致的 CwSlide[]（支持教师备注） */
-export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
+export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions, coverDecor?: DecorSlots | null): CwSlide[] {
   const theme = opts.theme || DEFAULT_THEME
   const slides: CwSlide[] = []
   const content = ppt.filter(s => (s.kind || 'content') !== 'cover')
@@ -280,6 +280,7 @@ export function slidesFromPpt(ppt: PptSlide[], opts: CwOptions): CwSlide[] {
         subtitle: `${opts.subject} · ${opts.grade}${opts.teacherName ? '  ·  ' + opts.teacherName : ''}`,
         coverInfo: coverInfoFrom(opts),
         footer: '知微教学 · ziwi.cn',
+        decor: coverDecor || null,   // 封面装饰：同上（见 outlineToSlides 的说明）
       })
       return
     }
@@ -580,14 +581,19 @@ export function pptToOutline(ppt: PptSlide[]): OutlineSlide[] {
 }
 
 /** 将可编辑提纲转为与导出/预览一致的 CwSlide[] */
-export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions): CwSlide[] {
+export function outlineToSlides(outline: OutlineSlide[], opts: CwOptions, coverDecor?: DecorSlots | null): CwSlide[] {
   const theme = opts.theme || DEFAULT_THEME
   const total = outline.length || 1
+  // ── 封面装饰（2026-09-17）──
+  // 封面在本函数里合成、不在 outline 内，所以教师给封面换的底图/元素只能由第三个参数带进来
+  // （来源：存档 markdown 的 CW-COVER 注释，读法见 parseCoverDecor）。
+  // 渲染端无需改动：PptxPreview 的封面分支本来就会画 <DecorLayer decor={s.decor} />（见其 750-772 行）。
   const slides: CwSlide[] = [{
     kind: 'cover', title: opts.title,
     subtitle: `${opts.subject} · ${opts.grade}${opts.teacherName ? '  ·  ' + opts.teacherName : ''}`,
     coverInfo: coverInfoFrom(opts),
     footer: '知微教学 · ziwi.cn',
+    decor: coverDecor || null,
   }]
   outline.forEach((s, i) => {
     slides.push({
