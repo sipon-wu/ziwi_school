@@ -364,6 +364,8 @@ export default function CoursewareBuilder() {
     smartMatchDecor, applyDecorSuggestion, applyAllDecorSuggestions,
   } = useCwDecor({
     docSlide, setCwOutline, contentLen: cwOutline.length, cwFormat, genStyleTag, tplAppliedIdRef: tplAppliedId,
+    // ③ 封面素材替换：deckIdx===0 即封面（封面不在 outline 内，故替换要写 coverDecor 而非提纲）
+    deckIsCover: deckIdx === 0, setCoverDecor,
   })
 
   // ── AI 生成课件 ──

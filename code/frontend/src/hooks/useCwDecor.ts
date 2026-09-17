@@ -20,6 +20,10 @@ import { useToast } from '../components/Toast'
 export interface UseCwDecorOpts {
   /** 当前正在编辑的正文页下标（封面为整本索引 0，不在 outline 内） */
   docSlide: number
+  /** 当前是否停在**封面**页（`deckIdx === 0`）。封面不在 outline 内 → 替换要写到封面装饰里（③） */
+  deckIsCover: boolean
+  /** 封面装饰写入口（③）：封面素材的真源在 CoursewareBuilder 的 coverDecor 状态 */
+  setCoverDecor: React.Dispatch<React.SetStateAction<DecorSlots | null>>
   /** 写提纲（唯一写入口；函数式更新） */
   setCwOutline: React.Dispatch<React.SetStateAction<OutlineSlide[]>>
   /** 提纲长度（`cwOutline.length`） */
@@ -32,6 +36,7 @@ export interface UseCwDecorOpts {
 
 export function useCwDecor({
   docSlide, setCwOutline, contentLen, cwFormat, genStyleTag, tplAppliedIdRef,
+  deckIsCover, setCoverDecor,
 }: UseCwDecorOpts) {
   // toast 走 Context（与组件内原来的 `useToast()` 一致），保证提示位置/样式统一
   const { toast } = useToast()
@@ -51,22 +56,30 @@ export function useCwDecor({
       .catch(e => notifyError('装饰元件加载失败', e))
   }
 
+  /** 纯函数：把「选中槽位/索引」替换为 it —— 封面与内容页共用同一套槽位语义，故抽出复用 */
+  const applySlotReplace = (cur: DecorSlots, it: DecorItem, sel: DecorSelection): DecorSlots => {
+    if (sel.slot === 'background') return { ...cur, background: it.url || '' }
+    const key = sel.slot === 'corner' ? 'corners' : sel.slot
+    const list = (cur as Record<string, unknown>)[key] as DecorItem[] || []
+    return { ...cur, [key]: list.map((x: DecorItem, j: number) => (j === sel.index ? it : x)) }
+  }
+
   /** 替换当前选中的装饰：把素材库选中的元件写入选中装饰所在的槽位/索引 */
   const replaceDecorAt = (it: MaterialItem) => {
     if (!selDecor) return
-    const idx = docSlide
     const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
-    setCwOutline(arr => arr.map((s, i) => {
-      if (i !== idx) return s
-      const cur: DecorSlots = s.decor || {}
-      if (selDecor.slot === 'background') {
-        return { ...s, decor: { ...cur, background: it.url || '' } }
-      }
-      const key = selDecor.slot === 'corner' ? 'corners' : selDecor.slot
-      const list = (cur as Record<string, unknown>)[key] as DecorItem[] || []
-      const nextList = list.map((x: DecorItem, j: number) => j === selDecor.index ? item : x)
-      return { ...s, decor: { ...cur, [key]: nextList } }
-    }))
+    // 封面分支（③，2026-09-17）：封面是渲染时合成的、**不在 outline 内** → 写封面装饰状态，
+    // 由 CoursewareBuilder 在保存时写回 markdown 的 CW-COVER 注释。内容页仍走原路不变。
+    // 判据用「当前是否停在封面页」而非选中项本身：DecorSelection 只有 {slot,index}，
+    // 本就没有"哪一页"的标记（也无需扩展）。
+    if (deckIsCover) {
+      setCoverDecor(cur => applySlotReplace(cur || {}, item, selDecor))
+      toast(`已替换封面装饰为「${it.name}」`, 'success')
+      setDecorPickerOpen(false)
+      return
+    }
+    const idx = docSlide
+    setCwOutline(arr => arr.map((s, i) => (i !== idx ? s : { ...s, decor: applySlotReplace(s.decor || {}, item, selDecor) })))
     toast(`已替换装饰为「${it.name}」`, 'success')
     setDecorPickerOpen(false)
   }
@@ -115,14 +128,16 @@ export function useCwDecor({
 
   /** 应用单个 AI 推荐装饰到当前页的浮动区（若当前页已有浮动装饰则追加） */
   const applyDecorSuggestion = (it: MaterialItem) => {
-    const idx = docSlide
     const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
-    setCwOutline(arr => arr.map((s, i) => {
-      if (i !== idx) return s
-      const cur: DecorSlots = s.decor || {}
-      const list = cur.floating || []
-      return { ...s, decor: { ...cur, floating: [...list, item] } }
-    }))
+    const appendFloating = (cur: DecorSlots): DecorSlots => ({ ...cur, floating: [...(cur.floating || []), item] })
+    // 封面分支（③）：同 replaceDecorAt，封面不在 outline 内
+    if (deckIsCover) {
+      setCoverDecor(cur => appendFloating(cur || {}))
+      toast(`已应用装饰「${it.name}」到封面`, 'success')
+      return
+    }
+    const idx = docSlide
+    setCwOutline(arr => arr.map((s, i) => (i !== idx ? s : { ...s, decor: appendFloating(s.decor || {}) })))
     toast(`已应用装饰「${it.name}」到当前页`, 'success')
   }
 
