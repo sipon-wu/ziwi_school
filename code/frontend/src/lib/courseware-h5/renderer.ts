@@ -446,6 +446,16 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
     body = narr + `<div class="sk sk-draw">${interactionHtml}</div>`
   } else if (stype === 'phenomenon') {
     body = narr + `<div class="sk sk-phenomenon">${interactionHtml}</div>`
+  } else if (stype === 'cover') {
+    // 封面骨架（2026-09-17 · A1）：封面页没有旁白/气泡/互动，故不套内容页骨架。
+    // 课题由 sceneTitleHtml 居中放大（见 .scene-cover .scene-title），这里补齐
+    // PPT 封面版式的另两要素：学科/年级 + 授课教师。（元信息不再常驻页头，见 buildStoryH5）
+    const metaLine = [story.subject, story.grade].filter(Boolean).join(' · ')
+    body = `<div class="sk sk-cover">
+      <div class="cover-sub">互动绘本课件</div>
+      ${metaLine ? `<div class="cover-meta">📚 ${esc(metaLine)}</div>` : ''}
+      ${story.teacherName ? `<div class="cover-teacher">授课教师 · ${esc(story.teacherName)}</div>` : ''}
+    </div>`
   } else {
     // dialog（及 transition/focus/reveal 轻量版式）：气泡流 + 互动区
     body = narr + `<div class="stage">${bubblesHtml}</div>${interactionHtml}`
@@ -470,12 +480,19 @@ const RUNTIME_JS = `
   if(!root) return;
   var scenes = Array.prototype.slice.call(root.querySelectorAll('.scene'));
   var idx = 0, total = scenes.length;
+  // 封面不计入页数（2026-09-17 · A1）：与 PPT 端同规则 —— 封面屏显示「封面」，
+  // 内容屏从 1 计，总页数只数内容页。（.pg-info 每次重建 innerHTML，故下面需重新查询取用）
+  var hasCover = total > 0 && scenes[0].getAttribute('data-type') === 'cover';
+  var contentTotal = total - (hasCover ? 1 : 0);
   function show(i){
     idx = Math.max(0, Math.min(total-1, i));
     scenes.forEach(function(s,k){ s.classList.toggle('active', k===idx); });
-    root.querySelector('.pg-cur').textContent = idx+1;
-    root.querySelector('.pg-total').textContent = total;
-    root.querySelector('.progress-bar').style.width = ((idx+1)/total*100)+'%';
+    var pg = root.querySelector('.pg-info');
+    if(pg){
+      if(hasCover && idx === 0){ pg.innerHTML = '封面'; }
+      else { pg.innerHTML = '<span class="pg-cur">'+(idx+1-(hasCover?1:0))+'</span>/<span class="pg-total">'+contentTotal+'</span>'; }
+    }
+    if(contentTotal > 0) root.querySelector('.progress-bar').style.width = ((idx+1-(hasCover?1:0))/contentTotal*100)+'%';
     root.querySelector('.prev').classList.toggle('disabled', idx===0);
     root.querySelector('.next').classList.toggle('disabled', idx===total-1);
     autofit(scenes[idx]);
@@ -1133,6 +1150,13 @@ const RUNTIME_CSS = `
 /* motion 节奏由 --deco-dur 控制（buildStoryH5 注入 mv-* 变量） */
 /* ── 版式骨架差异化（2026-09-03）：不同教学动作的页面真的长不同 ── */
 .sk{position:relative;z-index:2;margin-top:16px;}
+/* ── 封面页（2026-09-17 · A1）── 与内容页区分：课题居中放大，无气泡/互动/重点条 */
+.scene-cover .scene-inner{align-items:center;text-align:center;}
+.scene-cover .scene-title{font-size:calc(var(--fs-title) * 1.45);justify-content:center;margin-bottom:20px;}
+.sk-cover{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:0;}
+.sk-cover .cover-sub{font-size:14px;letter-spacing:5px;font-weight:700;color:var(--accent2);opacity:.9;}
+.sk-cover .cover-meta{font-size:18px;font-weight:800;color:var(--ink);background:rgba(255,255,255,.66);border-radius:999px;padding:9px 24px;}
+.sk-cover .cover-teacher{font-size:15px;color:var(--text);opacity:.85;}
 /* 词卡页：点读词放大成卡片网格（不再是"气泡列里塞词"） */
 .sk-read .interact{background:transparent;border:0;padding:0;box-shadow:none;}
 .sk-read .read-list{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}
@@ -1288,7 +1312,11 @@ export function buildStoryH5(story: Story): string {
   // 风格骨架语言（layout 生效点：body 类驱动版面结构——留白/分栏/边框/卡片几何）
   const layout = resolveStoryLayout(story.themeId)
   const scenesHtml = story.scenes.map((s, i) => renderScene(s, i, story)).join('')
-  const meta = [story.subject, story.grade].filter(Boolean).join(' · ')
+  // 封面口径（2026-09-17 · A1）：合成封面是 scenes[0]，但**不计入页数**（与 PPT 端同规则）。
+  // 元信息已收进封面页 → 常驻页头不再重复渲染学科/年级/署名，只留 📖 课题。
+  const hasCover = story.scenes[0]?.sceneType === 'cover'
+  const contentTotal = story.scenes.length - (hasCover ? 1 : 0)
+  const meta = hasCover ? '' : [story.subject, story.grade].filter(Boolean).join(' · ')
   const themeId = story.themeId || 'storybook'
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -1310,7 +1338,7 @@ ${HD_STAGE_CSS}</style>
   <div class="progress"><div class="progress-bar"></div></div>
   <div class="nav-bar">
     <button class="prev">▲</button>
-    <span class="pg-info"><span class="pg-cur">1</span>/<span class="pg-total">${story.scenes.length}</span></span>
+    <span class="pg-info">${hasCover ? '封面' : `<span class="pg-cur">1</span>/<span class="pg-total">${contentTotal}</span>`}</span>
     <button class="next">▼</button>
   </div>
 </div>

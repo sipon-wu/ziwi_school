@@ -117,7 +117,7 @@ export interface StoryInteraction {
  * 解析优先级：正文 `<!-- layout: scene-xxx -->` 显式标注 > 按互动/气泡推断。
  * 向后兼容：旧内容只写 `<!-- layout: scene -->`，推断后等价于 dialog。
  */
-export type SceneType = 'dialog' | 'read' | 'quiz' | 'reveal' | 'draw' | 'focus' | 'transition' | 'phenomenon'
+export type SceneType = 'cover' | 'dialog' | 'read' | 'quiz' | 'reveal' | 'draw' | 'focus' | 'transition' | 'phenomenon'
 
 /** 一个绘本场景（=一页） */
 export interface StoryScene {

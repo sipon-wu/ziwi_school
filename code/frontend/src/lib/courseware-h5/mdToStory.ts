@@ -424,6 +424,20 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     scenes.push({ title: ctx.title || '课件', narration: '（暂无内容）', bubbles: [], mood: 'warm' })
   }
 
+  // ── 首页封面场景（2026-09-17 · 方案 A1）──
+  // 历史口径分叉：PPT 端有独立封面版式（`cwTemplate` 的 cover / edu-cover），且**封面不计入页数**；
+  // H5 端却压根没有封面页 —— 课题/学科/年级/署名只以「常驻页头」(`story-header`) 形式出现在
+  // **每一屏**上。结果是同一份课件两端页数对不上，且翻到任意内容页也顶着一行课件元信息。
+  // 现合成一页封面置于首位：内容即 PPT 封面版式的三要素（课题 + 学科/年级 + 授课教师），
+  // 渲染端按「封面不计入页数」单独编号（见 renderer.ts 的 RUNTIME_JS 与 buildStoryH5）。
+  scenes.unshift({
+    sceneType: 'cover',
+    title: ctx.title || opts?.title || '互动课件',
+    narration: [ctx.subject, ctx.grade].filter(Boolean).join(' · '),
+    bubbles: [],
+    mood: 'warm',
+  })
+
   const roles = Array.from(ctx.roles.values())
   // 场景版式定稿（v1）：显式标注优先；缺失时按"该页主要教学动作"推断（兼容历史 scene 内容）
   for (const sc of scenes) {
