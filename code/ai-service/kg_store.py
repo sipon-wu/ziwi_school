@@ -151,8 +151,11 @@ def list_kg_nodes(version_id=None, dan_yuan=None, q=None, level=None, limit=300)
         # 排序修正（2026-09-17）：原为 `ORDER BY n.dan_yuan NULLS FIRST`，而默认 limit=300，
         # 库里恰好有 388 条无单元的行 → **任何不带过滤的调用，前 300 条全是空单元**，
         # 界面看起来像"知识图谱没有单元/单元功能坏了"（实测 5552 行里 5164 行其实有单元）。
-        # 改为 NULLS LAST：有单元的排在前面，空单元沉底，不再霸占默认页。
-        f"{where} ORDER BY n.dan_yuan NULLS LAST, n.id LIMIT %s"
+        # 但只改 NULLS LAST 还不够：紧接着冒出来的是**纯数字编码**行（如 '100000'）——
+        # 那是既有的数据质量瑕疵，`list_kg_units` 早已把它们过滤掉（2026-09-13）。
+        # 故此处与那个接口**统一口径**：把"不可用单元"（空 / 纯数字）整体沉到最后，
+        # 可读单元名排前。只调本接口的呈现顺序，不删数据、不改表。
+        f"{where} ORDER BY (n.dan_yuan IS NULL OR n.dan_yuan = '' OR n.dan_yuan ~ '^[0-9]+$') ASC, n.dan_yuan, n.id LIMIT %s"
     )
     params.append(max(1, min(2000, int(limit or 300))))
     out = []
