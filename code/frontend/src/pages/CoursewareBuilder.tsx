@@ -1181,7 +1181,7 @@ export default function CoursewareBuilder() {
     return (<div className={`h-10 shrink-0 flex items-center gap-2 px-3 border-b border-[#EFEFEF] bg-white ${fullscreen ? 'flex-1 min-w-0' : 'w-full'}`}>
       {!fullscreen && (
         <>
-          <span className="text-[11px] font-medium text-[#353535]">页面（{cwThumbSlides.length}）</span>
+          <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
           <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">+ 页</button>
           <button onClick={() => setThumbCollapsed(true)} title="收起页列表" className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
           <div className="w-px h-4 bg-[#EEE]" />

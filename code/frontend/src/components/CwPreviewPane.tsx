@@ -55,6 +55,10 @@ export function CwPreviewPane({
 }: CwPreviewPaneProps) {
   const { toast } = useToast()
   const deck = previewSlides || cwOutline
+  // 封面**不计入页数**（2026-09-17 产品定）：previewSlides 含系统合成的封面（slides[0]，不在 cwOutline 内），
+  // 故正文页数 = previewSlides.length - 1；回退用的 cwOutline 本身就不含封面。
+  // 与质量报告 check_markdown(markdown).pages 的口径一致（markdown 里没有合成封面）。
+  const contentCount = previewSlides ? Math.max(0, previewSlides.length - 1) : cwOutline.length
   const isH5Story = cwFormat === 'h5' && !!cwH5Html
 
   return (
@@ -62,7 +66,7 @@ export function CwPreviewPane({
       {/* 左：只读缩略图页导航（H5 绘本态隐藏左侧目录，让整本绘本占据视口） */}
       {!isH5Story && (
         <div className="w-44 shrink-0 overflow-y-auto border-r border-[#E7E7EB] bg-white p-2 space-y-1.5">
-          <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{deck.length}）</div>
+          <div className="px-1 pb-1 text-[11px] font-medium text-[#353535]">页面（{contentCount}）</div>
           {/* 目录也按整本列（含封面，2026-09-15）：此前只列 outline → 左栏没有"封面"这一项，
               右侧放映却可能停在封面上，两边对不上。现在目录项 = 整本页序（封面 + 正文）。 */}
           {deck.map((s, idx) => (
@@ -78,7 +82,7 @@ export function CwPreviewPane({
       <div className={isH5Story ? 'flex-1 h-full p-0' : 'flex-1 overflow-y-auto px-6 py-4'}>
         {!isH5Story && (
           <>
-            <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· 第 {deckIdx + 1}/{deck.length} 页{deckIdx === 0 ? '（封面）' : ''}</div>
+            <div className="mb-3 text-[12px] text-[#9A9A9A]">预览模式（只读）· {deckIdx === 0 ? '封面' : `第 ${deckIdx}/${contentCount} 页`}</div>
             {(() => {
               // 只读放映：只渲染当页互动的只读组件，不显示任何编辑按钮
               // 注：deckIdx 含封面，而 buildH5Slides() 只有正文页 → 取 deckIdx-1（封面页无互动）
