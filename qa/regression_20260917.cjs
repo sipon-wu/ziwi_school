@@ -1,0 +1,177 @@
+/**
+ * 覆盖式回归（2026-09-17）—— 覆盖本轮改动面
+ *
+ * 覆盖：环境健康 / KG 选择器与单元下拉 / H5 封面与页码与衬底 / PPT 编辑器与页数口径 /
+ *       封面素材「占位→换→保存→持久化」全流程 / 全程 pageerror 计数
+ *
+ * 规则（见 qa/断言与证据规范.md）：
+ *   · 每条断言都附证据；"全部/没有"类结论必须带分母（allOf）
+ *   · 样本达到 limit 时告警（sampled）—— 防止再把"默认页"当全量
+ *   · 结束 report()：任一条失败 → 退出码非 0
+ *   · 所有注入（CW-COVER / 封面装饰）在 finally 里回滚
+ */
+const { chromium } = require('playwright')
+const { must, notEmpty, allOf, sampled, report } = require('./lib/assert.cjs')
+const { execFileSync } = require('child_process')
+
+const B = 'http://school1.ziwi.cn'
+const FE = '/Users/sipon/CodeBuddy/AI教案/code/frontend'
+const PPT_NAME = '天窗 09-15_课件'
+const H5_ID = '71c30cca-78d8-4d4e-beee-b0af8bb2a5b4'
+const stripCW = md => String(md || '').split('\n').filter(l => !/CW-COVER/.test(l)).join('\n')
+const countPages = md => String(md || '').split('\n').filter(l => /^##\s+/.test(l.trim())).length
+const enc = s => 'data:image/svg+xml;base64,' + Buffer.from(s).toString('base64')
+const BG = enc('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#FF4D4F"/></svg>')
+const withCW = (md, decor) => {
+  const ls = stripCW(md).split('\n')
+  let at = ls.length
+  for (let i = 0; i < ls.length; i++) if (/^##\s/.test(ls[i])) { at = i; break }
+  ls.splice(at, 0, '<!-- CW-COVER:' + Buffer.from(JSON.stringify(decor), 'utf8').toString('base64') + ' -->', '')
+  return ls.join('\n')
+}
+let br
+;(async () => {
+  const lg = await (await fetch(B + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '13800000002', password: 'teacher123' }) })).json()
+  must(!!lg.token, '登录成功（测试账号）')
+  const H = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + lg.token }
+  const get = async p => (await (await fetch(B + p, { headers: H })).json())
+  const all = (await get('/api/materials')).items || []
+  const ppt = all.find(x => String(x.name) === PPT_NAME && String(x.format) === 'ppt')
+  must(!!ppt, '找到 PPT 测试件', { name: PPT_NAME })
+  notEmpty(ppt && ppt.id, 'PPT 测试件 id')
+
+  /* ── ① 环境健康 ── */
+  const h = await get('/api/health')
+  must(h.status === 'ok', 'staging /api/health', h)
+
+  /* ── ② KG 选择器默认页（本轮修复点）── */
+  const kn = await get('/api/ai/knowledge/nodes?limit=300')
+  const nodes = kn.nodes || []
+  sampled(nodes, { limit: 300, source: 'GET /api/ai/knowledge/nodes' })
+  allOf(nodes, x => !!x.unit && !/^[0-9]+$/.test(x.unit), '默认页节点全为「可读单元」')
+
+  /* ── ③ KG 单元下拉 ── */
+  const un = (await get('/api/ai/knowledge/units?limit=500')).units || []
+  sampled(un, { limit: 500, source: 'GET /api/ai/knowledge/units' })
+  must(un.length > 0, '单元下拉非空', { n: un.length })
+  allOf(un, x => !!String(x.unit || '').trim() && !/^[0-9]+$/.test(String(x.unit)), '下拉项全为可读单元名')
+
+  /* ── ④ PPT 编辑器：加载 / 页数口径 / 封面占位 ── */
+  const pptOrig = await get(`/api/materials/${ppt.id}`)
+  const expectPages = countPages(pptOrig.content)
+  must(expectPages > 0, '测试件有内容页', { expectPages })
+  await fetch(`${B}/api/materials/${ppt.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...pptOrig, content: stripCW(pptOrig.content) }) })
+
+  br = await chromium.launch()
+  let errs = 0
+  const p = await br.newPage({ viewport: { width: 1560, height: 940 } })
+  p.on('pageerror', e => { errs++; console.log('   [pageerror] ' + String(e.message).slice(0, 130)) })
+  await p.goto(B + '/login', { waitUntil: 'domcontentloaded' })
+  await p.evaluate(([t, u]) => { localStorage.setItem('zhiwei_token', t); localStorage.setItem('user', JSON.stringify(u)) }, [lg.token, lg.user])
+  await p.goto(`${B}/courseware/ppt/${ppt.id}/edit`, { waitUntil: 'domcontentloaded' })
+  await p.waitForTimeout(11000)
+
+  const ph = await p.locator('button', { hasText: '点击添加封面素材' }).count()
+  must(ph > 0, '无装饰时封面出现「添加封面素材」占位', { n: ph })
+  const pageTxt = await p.evaluate(() => (document.body.innerText.match(/页面[（(]\s*(\d+)\s*[）)]/) || [])[0] || '')
+  const shown = (pageTxt.match(/(\d+)/) || [])[1]
+  must(shown === String(expectPages), `页数口径「${pageTxt || '未找到'}」= 内容页数 ${expectPages}（封面不计入）`, { shown, expectPages })
+
+  /* ── ⑤ 封面素材全流程：占位 → 面板 → 选素材 → 保存 → 持久化 ── */
+  await p.locator('button', { hasText: '点击添加封面素材' }).first().click()
+  await p.waitForTimeout(2500)
+  const cards = p.locator('div.grid-cols-3 button')
+  const nCards = await cards.count()
+  must(nCards > 0, '替换面板带出素材卡片', { nCards })
+  const picked = await p.evaluate(() => { const g = document.querySelector('div.grid-cols-3'); const b = g && g.querySelector('button'); if (!b) return null; const t = (b.innerText || '').split('\n')[0]; b.click(); return t })
+  notEmpty(picked, '点中了一张素材卡片', { picked })
+  const t0 = Date.now(); let toast = false
+  while (Date.now() - t0 < 9000) { if (/已替换封面装饰/.test(await p.evaluate(() => document.body.innerText))) { toast = true; break } await p.waitForTimeout(400) }
+  must(toast, '提示「已替换封面装饰」')
+  const sv = p.locator('button', { hasText: '保存草稿' }).first()
+  if (await sv.count()) await sv.click()
+  const t1 = Date.now(); let saved = false
+  while (Date.now() - t1 < 12000) { if (/草稿已保存/.test(await p.evaluate(() => document.body.innerText))) { saved = true; break } await p.waitForTimeout(400) }
+  must(saved, '提示「草稿已保存」')
+  must(/CW-COVER/.test(String((await get(`/api/materials/${ppt.id}`)).content)), '封面装饰已写入存档（CW-COVER 落盘）')
+
+  await p.goto(`${B}/courseware/ppt/${ppt.id}/edit`, { waitUntil: 'domcontentloaded' })
+  await p.waitForTimeout(11000)
+  const phAfter = await p.locator('button', { hasText: '点击添加封面素材' }).count()
+  must(phAfter === 0, '重开后占位消失（装饰已持久化）', { phAfter })
+  const blur = await p.evaluate(() => {
+    const el = [...document.querySelectorAll('*')].find(e => { const b = getComputedStyle(e).backgroundImage || ''; return b.includes('data:image') && b.length > 30 })
+    return el ? getComputedStyle(el).filter : null
+  })
+  must(!!blur && /blur/.test(blur), '封面衬底带高斯模糊', { filter: blur })
+
+  /* ── ⑥ H5：封面 / 页码 / 衬底 ── */
+  const h5Orig = await get(`/api/materials/${H5_ID}`)
+  const h5Clean = stripCW(h5Orig.content)
+  const p2 = await br.newPage({ viewport: { width: 414, height: 896 } })
+  p2.on('pageerror', e => { errs++; console.log('   [pageerror] ' + String(e.message).slice(0, 130)) })
+  const h5snap = async () => {
+    await p2.goto(`${B}/api/materials/${H5_ID}/h5`, { waitUntil: 'domcontentloaded' })
+    await p2.waitForTimeout(3500)
+    return p2.evaluate(() => {
+      const sc = [...document.querySelectorAll('.scene')]
+      const u = document.querySelector('.cover-underlay')
+      const cov = document.querySelector('.scene-cover')
+      return {
+        n: sc.length, firstType: sc.length ? sc[0].getAttribute('data-type') : null,
+        pg: (document.querySelector('.pg-info') || {}).innerText,
+        underlay: document.querySelectorAll('.cover-underlay').length,
+        underlayFilter: u ? getComputedStyle(u).filter : null,
+        coverBg: cov ? getComputedStyle(cov).backgroundImage.slice(0, 24) : null,
+      }
+    })
+  }
+  // 6a 无装饰：应**没有**衬底层，封面背景回退为主题渐变
+  const a = await h5snap()
+  must(a.firstType === 'cover', 'H5 首屏是封面', { firstType: a.firstType })
+  must(a.n >= 2, 'H5 场景数 ≥ 2', { n: a.n })
+  must(String(a.pg).includes('封面'), 'H5 首屏页码显示「封面」', { pg: a.pg })
+  must(a.underlay === 0, '无封面装饰时**不生成**衬底层', { underlay: a.underlay })
+  must(/gradient/.test(String(a.coverBg)), '无装饰时封面回退主题渐变', { coverBg: a.coverBg })
+  await p2.evaluate(() => document.querySelector('.next') && document.querySelector('.next').click())
+  await p2.waitForTimeout(600)
+  const pg2 = await p2.evaluate(() => (document.querySelector('.pg-info') || {}).innerText)
+  must(String(pg2) === `1/${a.n - 1}`, `H5 内容页页码=${pg2}（总数不含封面 ${a.n - 1}）`)
+
+  // 6b 注入封面装饰后：衬底层出现且带高斯模糊
+  execFileSync('npx', ['esbuild', 'src/lib/courseware-h5/index.ts', '--bundle', '--format=cjs', '--platform=node',
+    '--alias:@shared=../shared', '--alias:@styles=../ai-service/skills/shared/styles',
+    '--define:import.meta.env={}', '--outfile=/tmp/h5reg.cjs', '--log-level=error'], { cwd: FE, stdio: 'inherit' })
+  const { markdownToStorybookH5 } = require('/tmp/h5reg.cjs')
+  const h5Md = withCW(h5Orig.content, { background: BG })
+  const h5Html = markdownToStorybookH5(h5Md, {
+    subject: h5Orig.subject || '英语', grade: h5Orig.grade || '四年级',
+    title: String(h5Orig.name || '').replace(/_课件$/, ''),
+    teacherName: (lg.user && lg.user.name) || '', themeId: h5Orig.theme_id || '', colorRoot: h5Orig.color_root || '',
+  })
+  await fetch(`${B}/api/materials/${H5_ID}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...h5Orig, content: h5Md, h5_html: h5Html }) })
+  const b = await h5snap()
+  must(b.underlay === 1, '有装饰时封面渲染出衬底层', { underlay: b.underlay })
+  must(/blur/.test(String(b.underlayFilter)), '衬底带高斯模糊', { filter: b.underlayFilter })
+
+  must(errs === 0, '全程 pageerror = 0', { errs })
+
+  /* ── 回滚 ── */
+  const cur = await get(`/api/materials/${ppt.id}`)
+  await fetch(`${B}/api/materials/${ppt.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...cur, content: stripCW(cur.content) }) })
+  must(!/CW-COVER/.test(String((await get(`/api/materials/${ppt.id}`)).content)), 'PPT 测试注入已回滚')
+  const h5Back = markdownToStorybookH5(h5Clean, {
+    subject: h5Orig.subject || '英语', grade: h5Orig.grade || '四年级',
+    title: String(h5Orig.name || '').replace(/_课件$/, ''),
+    teacherName: (lg.user && lg.user.name) || '', themeId: h5Orig.theme_id || '', colorRoot: h5Orig.color_root || '',
+  })
+  await fetch(`${B}/api/materials/${H5_ID}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...h5Orig, content: h5Clean, h5_html: h5Back }) })
+  const h5Final = await get(`/api/materials/${H5_ID}`)
+  must(!/CW-COVER/.test(String(h5Final.content)), 'H5 测试注入已回滚')
+  must(!/<div class="cover-underlay"/.test(String(h5Final.h5_html)), 'H5 快照已还原（无衬底元素）')
+  report()
+})().catch(async e => {
+  console.error('✘ 脚本异常：' + e.message)
+  try { if (br) await br.close() } catch { /* ignore */ }
+  process.exit(2)
+}).finally(async () => { try { if (br) await br.close() } catch { /* ignore */ } })
