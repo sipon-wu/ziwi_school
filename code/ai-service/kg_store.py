@@ -148,7 +148,11 @@ def list_kg_nodes(version_id=None, dan_yuan=None, q=None, level=None, limit=300)
         "SELECT n.id, n.ming_cheng, n.dan_yuan, n.version_id, n.level, n.qian_zhi, n.parent_id, "
         "       p.ming_cheng AS parent_name "
         "FROM tb_kg_node n LEFT JOIN tb_kg_node p ON p.id = n.parent_id "
-        f"{where} ORDER BY n.dan_yuan NULLS FIRST, n.id LIMIT %s"
+        # 排序修正（2026-09-17）：原为 `ORDER BY n.dan_yuan NULLS FIRST`，而默认 limit=300，
+        # 库里恰好有 388 条无单元的行 → **任何不带过滤的调用，前 300 条全是空单元**，
+        # 界面看起来像"知识图谱没有单元/单元功能坏了"（实测 5552 行里 5164 行其实有单元）。
+        # 改为 NULLS LAST：有单元的排在前面，空单元沉底，不再霸占默认页。
+        f"{where} ORDER BY n.dan_yuan NULLS LAST, n.id LIMIT %s"
     )
     params.append(max(1, min(2000, int(limit or 300))))
     out = []
