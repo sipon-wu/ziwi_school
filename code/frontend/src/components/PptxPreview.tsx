@@ -210,14 +210,31 @@ function SlideDecor({ theme, layout }: { theme: CwTheme; layout: string }) {
  */
 export interface DecorSelection { slot: 'header' | 'footer' | 'corner' | 'floating' | 'background'; index: number }
 
-function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu }: {
+function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, placeholder }: {
   decor: DecorSlots | null | undefined
   selectable?: boolean
   selected?: DecorSelection | null
   onSelect?: (sel: DecorSelection | null) => void
   onContextMenu?: (e: React.MouseEvent, sel: DecorSelection) => void
+  /** 空槽位占位（③，2026-09-17）：本层在 decor 为空时返回 null → 画布上没有可点选目标，
+   *  教师**无法首次添加**素材。故给封面这类"天生没有装饰"的页面一个可点的入口。 */
+  placeholder?: boolean
 }) {
-  if (!decor) return null
+  if (!decor) {
+    if (!selectable || !placeholder) return null
+    return (
+      <div className="absolute inset-0 z-[5] flex items-center justify-center" style={{ pointerEvents: 'none' }}>
+        <button
+          type="button"
+          onClick={() => onSelect?.({ slot: 'background', index: 0 })}
+          className="pointer-events-auto rounded-xl border-2 border-dashed px-4 py-2 text-sm font-medium"
+          style={{ borderColor: 'rgba(2,167,240,.6)', color: '#02A7F0', background: 'rgba(255,255,255,.78)' }}
+        >
+          ＋ 点击添加封面素材（底图 / 元素）
+        </button>
+      </div>
+    )
+  }
   const items = (arr: DecorItem[] | undefined) => arr || []
   const isSel = (slot: DecorSelection['slot'], index: number) => !!selected && selected.slot === slot && selected.index === index
   const stop = (e: React.MouseEvent) => { e.stopPropagation() }
@@ -2193,6 +2210,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
               <SlideDecor theme={theme} layout={layout} />
               {/* 装饰元件层（模板内置装饰 / 用户替换装饰的真实图片资产；编辑态可点选 + 右键替换/删除） */}
               <DecorLayer decor={slide.decor} selectable selected={selDecor}
+                placeholder={slide.kind === 'cover'}
                 onSelect={(sel) => {
                   setSelDecor(sel)
                   if (sel) setSelIds([]) // 选中装饰时取消元素选中
