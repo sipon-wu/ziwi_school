@@ -35,10 +35,12 @@ export interface UseCwPreviewOpts {
   themeId: string
   colorRoot: string
   aspect: string
+  /** 封面装饰（2026-09-17）：封面不在 outline 内，其素材需单独传入；来源见 CoursewareBuilder 的 parseCoverDecor */
+  coverDecor?: OutlineSlide['decor']
 }
 
 export function useCwPreview({
-  cwOutline, cwOpts, subject, gradeName, title, classLabel, themeId, colorRoot, aspect,
+  cwOutline, cwOpts, subject, gradeName, title, classLabel, themeId, colorRoot, aspect, coverDecor,
 }: UseCwPreviewOpts) {
   // 正文页下标（不含封面）—— 批注/版本/互动按页逻辑都用它
   const [docSlide, setDocSlide] = useState(0)
@@ -53,13 +55,13 @@ export function useCwPreview({
 
   // 缩略图数据（2026-09-14）：真实缩略图必须与画布**同源**，否则又变成"缩略图≠画布"。
   // outlineToSlides 会在最前插入封面页 → 索引 = 提纲页 +1。
-  const cwThumbSlides = cwOutline.length ? outlineToSlides(cwOutline, cwOpts()) : []
+  const cwThumbSlides = cwOutline.length ? outlineToSlides(cwOutline, cwOpts(), coverDecor) : []
 
   // ── 查看态只读放映内容（左缩略图导航 + 右可滚动放映），view 态 secondaryRight 与全屏 previewSlot 共用 ──
   const previewSlides = useMemo(() => {
     if (cwOutline.length === 0) return null
     try {
-      return outlineToSlides(cwOutline, cwOpts())
+      return outlineToSlides(cwOutline, cwOpts(), coverDecor)
     } catch (e) {
       console.error('previewSlides: outlineToSlides failed', e)
       return null
@@ -68,7 +70,7 @@ export function useCwPreview({
     // 而学科/年级/班级/署名/主题都是**异步随后**才到的（班级要等 /my-classes、姓名要等登录用户）
     // → 封面页被**缓存成"当时还没值"的版本**，于是封面信息条永远空着、
     // 副标题还留着"· 教师"占位（教师实测）。这类"输入变了、结果不重算"是同一族缺陷。
-  }, [cwOutline, subject, gradeName, title, classLabel, themeId, colorRoot, aspect])
+  }, [cwOutline, subject, gradeName, title, classLabel, themeId, colorRoot, aspect, coverDecor])
 
   return { docSlide, deckIdx, goToPage, cwThumbSlides, previewSlides }
 }

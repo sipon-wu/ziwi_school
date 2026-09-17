@@ -12,7 +12,7 @@ import { getXiaoweiContext } from '../lib/xiaoweiContext'
 import { buildKnowledgeScope } from '../lib/knowledgeScope'
 import { exportLessonPlanToDocx, downloadBlob } from '../lib/exportDocx'
 import { printLessonPlan } from '../lib/printPdf'
-import { exportCoursewareToPptx, outlineToSlides, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets, isValidComponent, normalizeInteractive, type H5Component } from '../lib/exportPptx'
+import { exportCoursewareToPptx, outlineToSlides, parseCoverDecor, outlineToMarkdown, markdownToOutline, pptToOutline, materializeOutline, extractBullets, isValidComponent, normalizeInteractive, type H5Component } from '../lib/exportPptx'
 import { distributeToSlots } from '../lib/cwTemplate'
 // 口径统一（2026-09-11）：风格 key 由注册表单一提供（物化默认元素时也要带风格）
 import { styleKeyFromThemeId } from '../lib/styleRegistry'
@@ -339,9 +339,15 @@ export default function CoursewareBuilder() {
   })
   // ── 预览 / 放映（P0-1：已抽到 hooks/useCwPreview.ts；返回值沿用原名，调用点零改动）──
   // 必须放在 cwAr / cwOpts **之后**：hook 内的 useMemo 要在渲染期调用 cwOpts()，而 cwOpts() 读 cwAr。
+  // 封面装饰（2026-09-17）：封面是渲染时合成的、不在 outline 内，教师给它换的素材存在存档
+  // markdown 的 CW-COVER 注释里 → 这里是**唯一取值点**，画布/缩略图/放映/导出都从它取，
+  // 避免多处各解析一遍导致口径分叉。（教师手动更换的入口见 ③：画布选中封面替换素材，随后接上。）
+  const coverDecor = parseCoverDecor(cwMarkdown)
+
   const { docSlide, deckIdx, goToPage, cwThumbSlides, previewSlides } = useCwPreview({
     cwOutline, cwOpts,
     subject: teaching.subject, gradeName, title: genTitle, classLabel, themeId, colorRoot, aspect: cwAr,
+    coverDecor,
   })
 
   // ── 装饰元件（P0-1：已抽到 hooks/useCwDecor.ts；返回值沿用原名，调用点零改动）──
@@ -575,7 +581,7 @@ export default function CoursewareBuilder() {
 
   const exportCwPptx = async () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    try { await exportCoursewareToPptx(outlineToSlides(cwOutline, cwOpts()), cwOpts()) }
+    try { await exportCoursewareToPptx(outlineToSlides(cwOutline, cwOpts(), coverDecor), cwOpts()) }
     catch (e: any) { toast('PPT 导出失败: ' + (e.message || '未知错误'), 'error') }
   }
   const exportCwDocx = async () => {
@@ -928,7 +934,7 @@ export default function CoursewareBuilder() {
 
         {cwOutline.length > 0 ? (
           <PptxPreview
-            slides={outlineToSlides(cwOutline, cwOpts())}
+            slides={outlineToSlides(cwOutline, cwOpts(), coverDecor)}
             theme={resolveTheme(themeId, colorRoot)}
             // 封面页（整本索引 0）**不可编辑元素**（2026-09-15）：封面文字由左栏字段驱动，
             // 若允许在封面上加文本框/图片，会错落到正文第 1 页（索引映射），故封面只读查看。
@@ -1243,7 +1249,7 @@ export default function CoursewareBuilder() {
 
   // 全屏编辑：最大化画布，隐藏左右栏与发散/校验面板，但顶栏整合左栏关键信息与编辑控件（优先级最高，覆盖查看态/编辑态）
   if (cwFullscreen) {
-    const slides = outlineToSlides(cwOutline, cwOpts())
+    const slides = outlineToSlides(cwOutline, cwOpts(), coverDecor)
     return (
       <div className="fixed inset-0 z-50 bg-[#FAFAFA] flex flex-col">
         {/* 顶栏：课题信息（左栏关键信息）+ 统一工具栏（右端：导出/润色/比例/批注/退出全屏/模板库），
