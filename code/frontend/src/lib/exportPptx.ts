@@ -449,6 +449,13 @@ export function markdownToOutline(md: string): OutlineSlide[] {
   for (const raw of md.split('\n')) {
     const line = raw.trim()
     if (!line) continue
+    // 内容页装饰内嵌注释：<!-- CW-DECOR:base64 --> 还原到当前页 decor（封面装饰走 CW-COVER）
+    const dcMatch = line.match(/^<!--\s*CW-DECOR:([A-Za-z0-9+/=]+)\s*-->$/)
+    if (dcMatch && cur) {
+      const d = b64dec<DecorSlots>(dcMatch[1])
+      if (d && typeof d === 'object') cur.decor = d
+      continue
+    }
     // 自由元素层内嵌注释：<!-- CW-EL:base64 --> 还原到当前页 elements
     const elMatch = line.match(/^<!--\s*CW-EL:([A-Za-z0-9+/=]+)\s*-->$/)
     if (elMatch && cur) {
@@ -626,6 +633,11 @@ export function outlineToMarkdown(outline: OutlineSlide[], opts: CwOptions, cove
     lines.push(`## ${s.title}`)
     // 版式保真（2026-09-03）：layout 注释随往返写回——否则骨架在"打开→保存"后丢失
     if (s.layout) lines.push(`<!-- layout: ${s.layout} -->`)
+    // 内容页装饰往返（2026-09-17）：decor 此前**完全不落盘** —— 实测 outlineToMarkdown 只写
+    // layout/bullets/CW-EL/CW-IT/VISUAL，markdownToOutline 也只读这些，于是教师给内容页
+    // 换/加的装饰，一旦走素材库（保存/发布后由 markdown 重建）就丢。沿用封面同一套做法。
+    // 空值不写 → 旧文档 markdown 逐字节不变。
+    if (hasCoverDecor(s.decor)) lines.push(`<!-- CW-DECOR:${b64enc(s.decor)} -->`)
     // 透明保真行：scene 结构/未知注释等编辑器不理解的内容按原顺序写回，不做任何改写
     if (s.keepRaw && s.keepRaw.length) lines.push(...s.keepRaw)
     const bs = s.elements && s.elements.length ? extractBullets(s.elements) : s.bullets
