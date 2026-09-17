@@ -210,7 +210,7 @@ function SlideDecor({ theme, layout }: { theme: CwTheme; layout: string }) {
  */
 export interface DecorSelection { slot: 'header' | 'footer' | 'corner' | 'floating' | 'background'; index: number }
 
-function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, placeholder, onRequestReplace }: {
+function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, placeholder, onRequestReplace, underlayBlur }: {
   decor: DecorSlots | null | undefined
   selectable?: boolean
   selected?: DecorSelection | null
@@ -222,6 +222,9 @@ function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, plac
   /** 请求打开「替换装饰」面板（③）：占位按钮必须同时**置选中**并**开面板** ——
    *  此前开面板的唯一入口是右键已有装饰（onReplaceDecor），空封面永远没有可右键的东西。 */
   onRequestReplace?: (sel: DecorSelection) => void
+  /** 衬底模糊（2026-09-17）：封面底图按「衬底」策略渲染 —— 半透明 + 高斯模糊（与 H5 的
+   *  .cover-underlay 同套效果、同值）。**只给封面传**：内容页的底图是功能性底纹，不模糊。 */
+  underlayBlur?: boolean
 }) {
   if (!decor) {
     if (!selectable || !placeholder) return null
@@ -259,7 +262,11 @@ function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, plac
           onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('background', 0) ? null : { slot: 'background', index: 0 }) } : undefined}
           onContextMenu={onCtx('background', 0)}
           className={`absolute inset-0 ${selectable ? 'pointer-events-auto cursor-pointer' : ''} ${isSel('background', 0) ? 'ring-2 ring-inset ring-[#02A7F0]' : ''}`}
-          style={{ backgroundImage: `url(${decor.background})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.18 }}
+          style={{
+            backgroundImage: `url(${decor.background})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.18,
+            // 衬底模糊：只给封面（underlayBlur）。scale 防模糊后边缘透出底下的空白 —— 与 H5 同值。
+            ...(underlayBlur ? { filter: 'blur(16px)', transform: 'scale(1.08)' } : {}),
+          }}
         />
       )}
       {/* 页眉 */}
@@ -796,7 +803,7 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
         <SlideDecor theme={theme} layout={lay} />
         {/* 封面装饰：给了 decorCtx 才可交互（静态渲染路径下由父组件按"是否封面"决定），
             否则与以往完全一致（只读）。素材从素材库换，就在页面内完成。 */}
-        <DecorLayer decor={s.decor}
+        <DecorLayer decor={s.decor} underlayBlur
           selectable={!!decorCtx} selected={decorCtx?.selected ?? null}
           onSelect={decorCtx?.onSelect} onRequestReplace={decorCtx?.onRequestReplace}
           placeholder={decorCtx?.placeholder} />
