@@ -119,6 +119,23 @@ export interface StoryInteraction {
  */
 export type SceneType = 'cover' | 'dialog' | 'read' | 'quiz' | 'reveal' | 'draw' | 'focus' | 'transition' | 'phenomenon'
 
+/** 装饰元件引用（H5 侧；形状与 PPT 的 DecorItem 一致，便于两端共用一份存档） */
+export interface SceneDecorEl { id?: string; url: string; name?: string }
+
+/**
+ * 场景级装饰槽位（2026-09-17 · 封面素材可替换）
+ *
+ * 目前只有**封面**用得上：封面是渲染时合成的，素材（底图 + 角落/浮动元素）此前无处存放。
+ * 形状对齐 PPT 的 `DecorSlots` 子集 —— 换图走 `background`，换元素走 `corners/floating`。
+ */
+export interface SceneDecor {
+  background?: string
+  header?: SceneDecorEl[]
+  footer?: SceneDecorEl[]
+  corners?: SceneDecorEl[]
+  floating?: SceneDecorEl[]
+}
+
 /** 一个绘本场景（=一页） */
 export interface StoryScene {
   /** 场景标题（分镜标题，如"热身：去超市购物"） */
@@ -135,6 +152,8 @@ export interface StoryScene {
   mood?: 'warm' | 'playful' | 'calm' | 'energetic'
   /** 场景版式类型（缺省由渲染端按 dialog 处理；解析时优先取显式标注，否则推断） */
   sceneType?: SceneType
+  /** 场景装饰槽位（封面可用；来自存档 CW-COVER 注释，见 mdToStory 与 exportPptx） */
+  decor?: SceneDecor | null
 }
 
 /** 整个绘本课件 */

@@ -31,7 +31,7 @@ import { stripDecorMarkers } from '../textClean'
  * `---` 与 `## ` 都切分场景。即使 AI 不遵循 A 套标记，也能产出可读绘本。
  */
 
-import type { Story, StoryScene, StoryRole, StoryInteraction, ReadUnit, ReadAlongUnit, QuizUnit, CycleStep, SceneType } from './types'
+import type { Story, StoryScene, StoryRole, StoryInteraction, ReadUnit, ReadAlongUnit, QuizUnit, CycleStep, SceneType, SceneDecor } from './types'
 import { ROLE_COLORS } from './types'
 
 // 受控场景版式集合（v1/v2，与 types.ts SceneType 同源；AI 只能在此范围内显式标注）
@@ -73,12 +73,22 @@ interface ParseCtx {
   roles: Map<string, StoryRole>
   /** 角色别名映射：A→顾客, B→水果摊主（来自 **角色**：A（顾客）） */
   roleAlias: Map<string, string>
+  /** 封面装饰（2026-09-17）：来自存档的 CW-COVER 注释，最后挂到合成封面场景上 */
+  coverDecor?: SceneDecor | null
   title: string
   subject: string
   grade: string
   teacherName: string
   /** 当前块类型：dialog(对话原文/示例对话) / sentences(关键句型框) / readalong(跟读提示句) / none */
   block: 'dialog' | 'sentences' | 'readalong' | 'none'
+}
+
+/** 解码存档里的封面装饰注释（对应 exportPptx.outlineToMarkdown 写出的 CW-COVER）；失败返回 null */
+function decodeCoverDecor(b64: string): SceneDecor | null {
+  try {
+    const o = JSON.parse(decodeURIComponent(escape(atob(b64))))
+    return o && typeof o === 'object' ? o as SceneDecor : null
+  } catch { return null }
 }
 
 function parseMeta(line: string, ctx: ParseCtx) {
@@ -338,6 +348,11 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     if (line.startsWith('# ')) { const h1 = line.slice(2).trim(); if (!ctx.title) ctx.title = h1; continue }
     if (line.startsWith('> ')) { parseMeta(line.slice(2), ctx); continue }
     if (line.startsWith('<!--')) {
+      // 封面装饰（2026-09-17）：**文档级**注释，必须在此先消费掉 —— 否则会落进 pendingComments，
+      // 交给 applyInteraction 去猜（它不认识该关键字）。格式与 exportPptx 的 CW-COVER 同源，
+      // 此处就地解码（不 import exportPptx，避免把 pptxgenjs 拖进 H5 产物包）。
+      const cv = line.match(/^<!--\s*CW-COVER:([A-Za-z0-9+/=]+)\s*-->$/)
+      if (cv) { ctx.coverDecor = decodeCoverDecor(cv[1]); continue }
       // 受控场景版式标注（v1）：`<!-- layout: scene-read -->` 显式指定场景类型；
       // 裸 `<!-- layout: scene -->` 是旧格式，视为"不锁定、交推断"，保证历史内容向后兼容。
       const lay = line.match(/<!--\s*layout:\s*(scene(?:-[a-z]+)?|[a-z]+)\s*-->/i)
@@ -436,6 +451,8 @@ export function mdToStory(md: string, opts?: { title?: string; subject?: string;
     narration: [ctx.subject, ctx.grade].filter(Boolean).join(' · '),
     bubbles: [],
     mood: 'warm',
+    // 封面素材（2026-09-17）：换图走 background，换元素走 corners/floating（见 renderer 的封面装饰槽）
+    decor: ctx.coverDecor || null,
   })
 
   const roles = Array.from(ctx.roles.values())

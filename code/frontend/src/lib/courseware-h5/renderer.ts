@@ -350,6 +350,34 @@ function renderCycle(it: StoryInteraction): string {
 }
 
 /** 单场景 → HTML 片段 */
+/**
+ * 装饰图 URL 净化（2026-09-17）：只放行 http(s) / data:image / 站内相对路径，并剔除引号、
+ * 括号、反斜杠与空白 —— 封面素材是**教师可替换的外部输入**，一个引号就能截断 style 属性。
+ */
+function cssSafeUrl(u?: string): string {
+  const s = String(u || '').trim()
+  if (!/^(https?:|data:image\/|\/)/i.test(s)) return ''
+  return s.replace(/["'()\\\s]/g, '')
+}
+
+/**
+ * 封面装饰元素（2026-09-17 · 封面素材可替换）：角落 4 位 + 浮动 4 位 + 上下条带，
+ * 绝对定位渲染，z-index 在内容之下（作背景层）。教师换素材即换这几处。
+ */
+function renderCoverDecor(d: StoryScene['decor']): string {
+  if (!d) return ''
+  const el = (x: { url?: string; name?: string }, cls: string) => {
+    const u = cssSafeUrl(x && x.url)
+    return u ? `<img class="${cls}" src="${u}" alt="${esc(x.name || '')}" loading="lazy">` : ''
+  }
+  return [
+    ...(d.corners || []).slice(0, 4).map((c, i) => el(c, `cover-deco corner c${i + 1}`)),
+    ...(d.floating || []).slice(0, 4).map((f, i) => el(f, `cover-deco float f${i + 1}`)),
+    ...(d.header || []).slice(0, 2).map(h => el(h, 'cover-deco band top')),
+    ...(d.footer || []).slice(0, 2).map(f => el(f, 'cover-deco band bottom')),
+  ].join('')
+}
+
 function renderScene(s: StoryScene, index: number, story: Story): string {
   const theme = resolveStoryTheme(story.colorRoot, story.themeId)
   const decoHtml = renderDeco(story)
@@ -436,6 +464,10 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
   // 收敛原则（避免过度设计）：只让内容页的这 5 种主角版式骨架分明；
   // transition / focus / reveal 沿用原轻量骨架 + CSS 微调，保持页面节奏不杂乱。
   const stype = s.sceneType || 'dialog'
+  // ── 封面装饰槽（2026-09-17）：封面素材教师可替换 —— 底图走 background，元素位走 corners/floating ──
+  const coverBgImg = stype === 'cover' ? cssSafeUrl(s.decor?.background) : ''
+  const coverBg = coverBgImg ? `url('${coverBgImg}') center/cover no-repeat` : ''
+  const coverDecorHtml = stype === 'cover' ? renderCoverDecor(s.decor) : ''
   const narr = s.narration ? `<div class="narration">${esc(s.narration)}</div>` : ''
   let body = ''
   if (stype === 'read') {
@@ -461,10 +493,11 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
     body = narr + `<div class="stage">${bubblesHtml}</div>${interactionHtml}`
   }
   return `
-  <section class="scene scene-${stype}" data-index="${index}" data-type="${stype}" style="background:${bg}">
+  <section class="scene scene-${stype}" data-index="${index}" data-type="${stype}" style="background:${coverBg || bg}">
     <!-- 内容壳（2026-09-15）：HD 固定舞台下，若整页内容高于舞台可用高度，缩放的只能是**内容**（卡片底色/圆角/阴影
          仍铺满舞台，视觉更像课堂投屏的一页）；没有这层壳，缩放就没有可施加的对象。 -->
     <div class="scene-inner">
+      ${coverDecorHtml}
       ${decoHtml}
       ${sceneTitleHtml(s.title)}
       ${body}
@@ -1157,6 +1190,22 @@ const RUNTIME_CSS = `
 .sk-cover .cover-sub{font-size:14px;letter-spacing:5px;font-weight:700;color:var(--accent2);opacity:.9;}
 .sk-cover .cover-meta{font-size:18px;font-weight:800;color:var(--ink);background:rgba(255,255,255,.66);border-radius:999px;padding:9px 24px;}
 .sk-cover .cover-teacher{font-size:15px;color:var(--text);opacity:.85;}
+/* ── 封面装饰槽位（2026-09-17 · ② 封面素材可替换）── 底图由 section 内联 style 铺满；
+   元素位绝对定位、层级在内容之下（z-index:1 < 内容 2），教师换素材即换这几处 */
+.cover-deco{position:absolute;z-index:1;pointer-events:none;object-fit:contain;}
+.cover-deco.corner{width:88px;height:88px;}
+.cover-deco.corner.c1{top:10px;left:10px;}
+.cover-deco.corner.c2{top:10px;right:10px;}
+.cover-deco.corner.c3{bottom:10px;left:10px;}
+.cover-deco.corner.c4{bottom:10px;right:10px;}
+.cover-deco.float{width:64px;height:64px;opacity:.92;}
+.cover-deco.float.f1{top:15%;right:7%;}
+.cover-deco.float.f2{bottom:17%;left:6%;}
+.cover-deco.float.f3{top:7%;left:21%;}
+.cover-deco.float.f4{bottom:8%;right:19%;}
+.cover-deco.band{left:50%;transform:translateX(-50%);height:52px;width:auto;max-width:70%;}
+.cover-deco.band.top{top:6px;}
+.cover-deco.band.bottom{bottom:6px;}
 /* 词卡页：点读词放大成卡片网格（不再是"气泡列里塞词"） */
 .sk-read .interact{background:transparent;border:0;padding:0;box-shadow:none;}
 .sk-read .read-list{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}
