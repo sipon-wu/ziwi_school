@@ -210,7 +210,7 @@ function SlideDecor({ theme, layout }: { theme: CwTheme; layout: string }) {
  */
 export interface DecorSelection { slot: 'header' | 'footer' | 'corner' | 'floating' | 'background'; index: number }
 
-function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, placeholder }: {
+function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, placeholder, onRequestReplace }: {
   decor: DecorSlots | null | undefined
   selectable?: boolean
   selected?: DecorSelection | null
