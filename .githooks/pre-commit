@@ -1,0 +1,24 @@
+#!/bin/sh
+# 提交前硬门禁（2026-09-17）—— 见 qa/断言与证据规范.md 规则 C1
+#
+# 为什么需要它：当天曾把 `tsc` 与 `git commit` 串在同一条命令里、**没按退出码设门禁**，
+# 结果提交了一个编译不过的版本（2972c11：只加了类型声明、漏了解构形参）。
+# 靠自觉不可靠，所以做成 hook。
+#
+# 启用（一次性，由你执行）：
+#   git config core.hooksPath .githooks
+#
+# 只跑 tsc：快、且能挡住"编译不过还提交"这一类硬错。lint 交由 CI/人工。
+
+set -e
+ROOT=$(git rev-parse --show-toplevel)
+FE="$ROOT/code/frontend"
+[ -d "$FE" ] || exit 0
+
+echo "[pre-commit] tsc --noEmit …"
+cd "$FE"
+if ! npx tsc -p tsconfig.app.json --noEmit; then
+  echo "✘ tsc 未通过 → 拒绝提交（规范 C1：编译与提交之间必须有硬门禁）"
+  exit 1
+fi
+echo "[pre-commit] tsc OK"
