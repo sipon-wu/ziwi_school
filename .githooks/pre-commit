@@ -1,19 +1,36 @@
 #!/bin/sh
 # 提交前硬门禁（2026-09-17）—— 见 qa/断言与证据规范.md 规则 C1
 #
-# 为什么需要它：当天曾把 `tsc` 与 `git commit` 串在同一条命令里、**没按退出码设门禁**，
+# 为什么需要它：当天曾把 `tsc` 与 `git commit` 串在同一条命令、**没按退出码设门禁**，
 # 结果提交了一个编译不过的版本（2972c11：只加了类型声明、漏了解构形参）。
-# 靠自觉不可靠，所以做成 hook。
 #
-# 启用（一次性，由你执行）：
-#   git config core.hooksPath .githooks
+# 启用（一次性；只影响本仓库，写在 .git/config，不影响他人）：
+#     git config core.hooksPath .githooks
+# 核对是否已启用：
+#     git config core.hooksPath        # 应输出 .githooks
+# 需要临时绕过（**不建议**，绕过即等于门禁失效）：
+#     git commit --no-verify
 #
-# 只跑 tsc：快、且能挡住"编译不过还提交"这一类硬错。lint 交由 CI/人工。
+# 设计取舍：
+#   · 只校验**触及 code/frontend 的暂存改动** —— 纯文档 / qa 提交不必付 tsc 的时间
+#   · `npx` 缺失时**拒绝提交**而不是放行 —— 门禁"无法验证"应当拦住，而不是假装通过
+#     （若你的图形化 git 客户端 PATH 里没有 npx，请用终端提交，或在该客户端里补 PATH）
 
 set -e
 ROOT=$(git rev-parse --show-toplevel)
 FE="$ROOT/code/frontend"
+
+if ! git diff --cached --name-only --diff-filter=ACMR | grep -q '^code/frontend/'; then
+  echo "[pre-commit] 未触及 code/frontend → 跳过 tsc"
+  exit 0
+fi
+
 [ -d "$FE" ] || exit 0
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "✘ [pre-commit] 找不到 npx，无法校验编译 → 拒绝提交（门禁宁可拦，不放行未验证的提交）"
+  exit 1
+fi
 
 echo "[pre-commit] tsc --noEmit …"
 cd "$FE"
