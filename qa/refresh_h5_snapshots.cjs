@@ -7,6 +7,9 @@ const { execFileSync } = require('child_process')
 const B = 'http://school1.ziwi.cn'
 const FE = '/Users/sipon/CodeBuddy/AI教案/code/frontend'
 const log = (...a) => console.log(...a)
+// 断言与证据工具（2026-09-17 · 迁移示范）：本脚本此前只打印布尔值、**永不失败** ——
+// 快照没刷成功也照样输出 DONE，等于"改了却看不到"缺少报警。见 qa/断言与证据规范.md
+const { must, notEmpty, sampled, report } = require('./lib/assert.cjs')
 
 ;(async () => {
   execFileSync('npx', ['esbuild', 'src/lib/courseware-h5/index.ts', '--bundle', '--format=cjs', '--platform=node',
@@ -26,6 +29,8 @@ const log = (...a) => console.log(...a)
   const all = (await (await fetch(B + '/api/materials', { headers: H })).json()).items || []
   const h5s = all.filter(x => String(x.format) === 'h5' && !/（旧/.test(String(x.name)))
   log(`H5 课件 ${h5s.length} 份（已排除作废件）`)
+  sampled(h5s, { source: 'GET /api/materials（过滤 format=h5、排除作废件）' })
+  must(h5s.length > 0, '找到待刷新的 H5 课件', { n: h5s.length })
 
   for (const it of h5s) {
     const m = await (await fetch(`${B}/api/materials/${it.id}`, { headers: H })).json()
@@ -42,7 +47,12 @@ const log = (...a) => console.log(...a)
     const h = String(back.h5_html || '')
     const hasMarker = /scene-inner/.test(h) && /flex:0 0 auto/.test(h)
     const dirtyQuote = /> [\u4e00-\u9fa5]/.test(h.replace(/<[^>]*>/g, ''))
-    log(`  ${String(back.name).padEnd(30)} HTTP ${r.status} 快照 ${before.length}→${h.length} 字 · 新渲染器标记=${hasMarker} · 残留"> 文本"=${dirtyQuote}`)
+    log(`  ${String(back.name).padEnd(30)} HTTP ${r.status} 快照 ${before.length}→${h.length} 字`)
+    // 逐份断言（迁移前这里只打印布尔值，看的人得自己判断；现在失败会让退出码非 0）
+    must(r.status === 200, `${back.name}·HTTP 200`, { status: r.status })
+    must(hasMarker, `${back.name}·含新渲染器标记`)
+    must(!dirtyQuote, `${back.name}·无 "> 文本" 残留`)
+    notEmpty(h, `${back.name}·快照非空`, { len: h.length })
   }
-  log('DONE')
+  report()
 })().catch(e => { console.error('FAIL:', e.message); process.exit(2) })

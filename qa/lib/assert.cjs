@@ -26,10 +26,12 @@ function must(cond, label, evidence) {
   return ok
 }
 
-/** 非空断言：挡掉 `includes('')` / `startsWith('')` 这类**恒真**写法 */
-function notEmpty(v, label) {
+/** 非空断言：挡掉 `includes('')` / `startsWith('')` 这类**恒真**写法。
+ *  evidence 可传入更贴切的证据（如 { len }），默认给值的摘要。 */
+function notEmpty(v, label, evidence) {
   const isEmpty = v === null || v === undefined || String(v).trim() === '' || (Array.isArray(v) && v.length === 0)
-  must(!isEmpty, label || '值非空', { got: Array.isArray(v) ? `array(${v.length})` : String(v).slice(0, 60) })
+  const fallback = { got: Array.isArray(v) ? `array(${v.length})` : String(v).slice(0, 60) }
+  must(!isEmpty, label || '值非空', evidence === undefined ? fallback : evidence)
   return !isEmpty
 }
 
