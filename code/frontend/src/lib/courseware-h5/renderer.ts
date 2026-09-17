@@ -464,9 +464,15 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
   // 收敛原则（避免过度设计）：只让内容页的这 5 种主角版式骨架分明；
   // transition / focus / reveal 沿用原轻量骨架 + CSS 微调，保持页面节奏不杂乱。
   const stype = s.sceneType || 'dialog'
-  // ── 封面装饰槽（2026-09-17）：封面素材教师可替换 —— 底图走 background，元素位走 corners/floating ──
+  // ── 封面装饰槽（2026-09-17）：封面素材教师可替换 —— 底图作**衬底**，元素位走 corners/floating ──
+  // 衬底策略（定于 2026-09-17）：底图以半透明衬在「主题底色之上、内容之下」，不压课题文字。
+  // 透明度必须与 PPT 的 DecorLayer 同值（PptxPreview.tsx 里 decor.background 那一层）——
+  // 两处要一起改，勿单边调整。**单独开一层**：给 section 设 opacity 会把文字一起淡掉。
+  const COVER_UNDERLAY_OPACITY = 0.18
   const coverBgImg = stype === 'cover' ? cssSafeUrl(s.decor?.background) : ''
-  const coverBg = coverBgImg ? `url('${coverBgImg}') center/cover no-repeat` : ''
+  const coverUnderlayHtml = coverBgImg
+    ? `<div class="cover-underlay" style="background-image:url('${coverBgImg}');opacity:${COVER_UNDERLAY_OPACITY}"></div>`
+    : ''
   const coverDecorHtml = stype === 'cover' ? renderCoverDecor(s.decor) : ''
   const narr = s.narration ? `<div class="narration">${esc(s.narration)}</div>` : ''
   let body = ''
@@ -493,9 +499,10 @@ function renderScene(s: StoryScene, index: number, story: Story): string {
     body = narr + `<div class="stage">${bubblesHtml}</div>${interactionHtml}`
   }
   return `
-  <section class="scene scene-${stype}" data-index="${index}" data-type="${stype}" style="background:${coverBg || bg}">
+  <section class="scene scene-${stype}" data-index="${index}" data-type="${stype}" style="background:${bg}">
     <!-- 内容壳（2026-09-15）：HD 固定舞台下，若整页内容高于舞台可用高度，缩放的只能是**内容**（卡片底色/圆角/阴影
          仍铺满舞台，视觉更像课堂投屏的一页）；没有这层壳，缩放就没有可施加的对象。 -->
+    ${coverUnderlayHtml}
     <div class="scene-inner">
       ${coverDecorHtml}
       ${decoHtml}
@@ -1206,6 +1213,9 @@ const RUNTIME_CSS = `
 .cover-deco.band{left:50%;transform:translateX(-50%);height:52px;width:auto;max-width:70%;}
 .cover-deco.band.top{top:6px;}
 .cover-deco.band.bottom{bottom:6px;}
+/* 封面衬底（2026-09-17）：底图半透明衬在「主题底色之上、内容之下」（z 0 < 元素 1 < 内容 2）。
+   必须单独一层 —— 给 section 设 opacity 会把课题文字一起淡掉。 */
+.cover-underlay{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;pointer-events:none;}
 /* 词卡页：点读词放大成卡片网格（不再是"气泡列里塞词"） */
 .sk-read .interact{background:transparent;border:0;padding:0;box-shadow:none;}
 .sk-read .read-list{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;}
