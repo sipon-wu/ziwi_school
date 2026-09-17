@@ -226,6 +226,7 @@ export default function CoursewareBuilder() {
         setGenTitle(d.title || '')
         setCwExtra(d.extra || '')
         setCwMarkdown(d.markdown || '')
+        setCoverDecor(parseCoverDecor(d.markdown || ''))
         setCwOutline(materializeOutline(Array.isArray(d.outline) ? d.outline : [], styleKeyFromThemeId(d.themeId || themeId)))
         setCwH5Html(d.h5Html || '')
         setCwDivergence(Array.isArray(d.divergence) ? d.divergence : [])
@@ -252,6 +253,9 @@ export default function CoursewareBuilder() {
       setGenTitle((m.name || '').replace(/_课件$/, ''))
       setCwOutline(materializeOutline(markdownToOutline(m.content || ''), styleKeyFromThemeId(effTheme)))
       setCwMarkdown(m.content || '')
+      // 封面装饰（2026-09-17）：封面素材随存档走（CW-COVER），打开时水合；
+      // 此后由状态持有 → 保存时写回，教师换的图不会被下一次保存丢掉。
+      setCoverDecor(parseCoverDecor(m.content || ''))
       // 配方回填（溯源，2026-09-13）：编辑页左栏「来源」区块据此显示"这份课件是按什么生成的"。
       // 此前这里什么都不回填 → 左栏退化成空表单 → 与画布上的成品"脱节"。
       try { setScopeResolved(m.gen_params ? JSON.parse(m.gen_params) : null) } catch { setScopeResolved(null) }
@@ -342,7 +346,10 @@ export default function CoursewareBuilder() {
   // 封面装饰（2026-09-17）：封面是渲染时合成的、不在 outline 内，教师给它换的素材存在存档
   // markdown 的 CW-COVER 注释里 → 这里是**唯一取值点**，画布/缩略图/放映/导出都从它取，
   // 避免多处各解析一遍导致口径分叉。（教师手动更换的入口见 ③：画布选中封面替换素材，随后接上。）
-  const coverDecor = parseCoverDecor(cwMarkdown)
+  // 封面装饰（2026-09-17）：封面是渲染时合成的、不在 outline 内，教师给它换的素材存在存档
+  // markdown 的 CW-COVER 注释里。**单一真源**：打开课件时从 markdown 水合，之后由本状态持有
+  // （③ 的编辑器入口直接改它），保存时写回 markdown；画布/缩略图/放映/导出都从这里取。
+  const [coverDecor, setCoverDecor] = useState<DecorSlots | null>(null)
 
   const { docSlide, deckIdx, goToPage, cwThumbSlides, previewSlides } = useCwPreview({
     cwOutline, cwOpts,
@@ -446,6 +453,8 @@ export default function CoursewareBuilder() {
         : ''
       // 统一落地状态（一次性提交本轮产物）
       setCwMarkdown(md)
+      // 新生成的课件按本轮 md 取封面装饰（正常为空 → 清掉上一份的图，不跨课件继承）
+      setCoverDecor(parseCoverDecor(md))
       setCwOutline(nextOutline)
       setColorRoot(nextColorRoot)
       setThemeId(nextThemeId)
@@ -655,7 +664,7 @@ export default function CoursewareBuilder() {
   const { savingCw, pendingGenSave, handleSaveDraft, handlePublish } = useCwSave({
     getDoc: () => ({
       genTitle, cwExtra, genStyleTag, genStyleProfile, divergenceLevel, edgeEnabled, edgeCats,
-      cwOutline, cwMarkdown, cwH5Html, cwDivergence, scopeResolved, themeId, colorRoot, videoConfig,
+      cwOutline, cwMarkdown, cwH5Html, cwDivergence, scopeResolved, themeId, colorRoot, videoConfig, coverDecor,
       cwFormat, subject: teaching.subject, gradeName, textbookName: teaching.currentTextbook(),
       picker, materialId, draftKey: getDraftKey(materialId), cwOpts,
       cwVer, ctrl,   // 二者声明在本调用点之后 → 靠惰性取值避开 TDZ（只在保存/发布发生时才读）

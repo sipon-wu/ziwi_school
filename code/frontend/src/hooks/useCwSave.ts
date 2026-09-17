@@ -19,7 +19,7 @@
  *     放进 hook 就得在依赖里调用 getDoc()，反而更绕。
  */
 import { useRef, useState } from 'react'
-import { aiAPI, materialAPI } from '../lib/api'
+import { aiAPI, materialAPI, type DecorSlots } from '../lib/api'
 import { outlineToMarkdown, normalizeInteractive, type CwOptions, type OutlineSlide } from '../lib/exportPptx'
 import { markdownToStorybookH5 } from '../lib/courseware-h5'
 import QRCode from 'qrcode'
@@ -49,6 +49,9 @@ export interface CwSaveDoc {
   themeId: string
   colorRoot: string
   videoConfig: unknown
+  /** 封面装饰（2026-09-17）：封面不在 outline 内，其素材随 markdown 的 CW-COVER 注释落盘；
+   *  保存时必须回写，否则打开带封面素材的课件再保存会**静默丢掉**它。 */
+  coverDecor: DecorSlots | null
   // ── 上下文 ──
   cwFormat: 'ppt' | 'h5' | 'video'
   subject: string
@@ -126,7 +129,7 @@ export function useCwSave({
       type: 'courseware',
       format: d.cwFormat,
       tag: `${d.subject}${d.gradeName}`,
-      content: outlineToMarkdown(outline, d.cwOpts()),
+      content: outlineToMarkdown(outline, d.cwOpts(), d.coverDecor),
       status: 'draft',
       grade: d.gradeName,
       subject: d.subject,
@@ -164,7 +167,7 @@ export function useCwSave({
     // （不是绘本：没有翻页/点读/互动，也不是课堂用的 16:9 固定比例）。发布路径早已写入，这里补齐草稿路径。
     if (d.cwFormat === 'h5') {
       try {
-        const html = markdownToStorybookH5(outlineToMarkdown(outline, d.cwOpts()), {
+        const html = markdownToStorybookH5(outlineToMarkdown(outline, d.cwOpts(), d.coverDecor), {
           subject: d.subject, grade: d.gradeName, title: d.genTitle.trim(),
           teacherName: safeGetUser().name || '教师', themeId: d.themeId, colorRoot: d.colorRoot,
         })
@@ -199,7 +202,7 @@ export function useCwSave({
     setValidating(true)
     try {
       const r: any = await aiAPI.validateCourseware({
-        markdown: d.cwMarkdown || outlineToMarkdown(d.cwOutline, d.cwOpts()), subject: d.subject, grade: d.gradeName,
+        markdown: d.cwMarkdown || outlineToMarkdown(d.cwOutline, d.cwOpts(), d.coverDecor), subject: d.subject, grade: d.gradeName,
       })
       if (!r.pass) {
         setValidateIssues(r.issues || [])
@@ -219,7 +222,7 @@ export function useCwSave({
         type: 'courseware',
         format: d.cwFormat,
         tag: `${d.subject}${d.gradeName}`,
-        content: outlineToMarkdown(d.cwOutline, d.cwOpts()),
+        content: outlineToMarkdown(d.cwOutline, d.cwOpts(), d.coverDecor),
         status: 'active',
         grade: d.gradeName,
         subject: d.subject,
@@ -232,7 +235,7 @@ export function useCwSave({
       // 不复用可能过期的 cwH5Html——否则换风格/改内容后发布，扫码打开的仍是旧皮肤。
       // 与上方「源数据=提纲(content) + 模板引用(theme_id)，渲染随时由模板重算」原则一致。
       if (d.cwFormat === 'h5') {
-        payload.h5_html = markdownToStorybookH5(outlineToMarkdown(d.cwOutline, d.cwOpts()), {
+        payload.h5_html = markdownToStorybookH5(outlineToMarkdown(d.cwOutline, d.cwOpts(), d.coverDecor), {
           // 标题**不带 `_课件` 后缀**（2026-09-16 修）：`_课件` 只是素材库的存储命名约定，
           // 此前发布路径把它印进了 H5 顶部标题与封面 —— 于是同一份课件草稿态扫码是
           // 「天窗 09-15」、发布后变成「天窗 09-15_课件」（草稿保存路径早已不带后缀，两处不一致）。
