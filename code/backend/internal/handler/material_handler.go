@@ -319,6 +319,20 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "素材不存在"})
 		return
 	}
+	// 归属校验（2026-09-18 补，此前**完全没有**）：GetByID 不带任何范围过滤，于是任何登录用户
+	// 只要知道 id 就能改**任意**素材（含跨校、含平台公共装饰元件库）——写入面比读取面宽是安全漏洞。
+	//
+	// 判据两条（缺一不可）：
+	//   ① **同校**：口径取"同校"而非"仅本人"——素材库本身是校内共享的（repository.List 按 school_id
+	//      返回全校素材，同事的课件在库里可见），收紧成仅本人可改会打断"同事共享课件被复用后保存"的正常流。
+	//   ② **非平台公共资产**：`user_id` 为空的行（如装饰元件库）由平台运维维护/打标，教师端不得改写。
+	//      注意：实测这些行的 `school_id` 是**真实学校**（如 sch-0001），所以只查 school_id 拦不住它们。
+	schoolID, _ := c.Get("school_id")
+	schoolIDStr, _ := schoolID.(string)
+	if schoolIDStr == "" || existing.SchoolID != schoolIDStr || existing.UserID == "" {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "无权修改该素材（仅限本校、非平台公共资产）"})
+		return
+	}
 	originalContent := existing.Content // 用于判断是否真发生内容变更（决定是否记新版本）
 
 	var body struct {

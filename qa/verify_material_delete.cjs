@@ -1,14 +1,20 @@
 /**
- * 素材删除接口守卫（2026-09-18 立）
+ * 素材写权限守卫（2026-09-18 立；原「删除接口守卫」，同日扩到 PUT）
  *
- * 背景：后端此前**没有** `DELETE /api/materials/:id` → 清库只能靠 SQL、e2e 基线件无法自清理
- *      （跑一次守卫就在库里留一条）。本轮新增该端点（只允许删**自己名下**、级联清批注/版本）。
+ * 背景：
+ *   · 后端此前**没有** `DELETE /api/materials/:id` → 清库只能靠 SQL、e2e 基线件无法自清理
+ *     （跑一次守卫就在库里留一条）。本轮新增该端点（只允许删**自己名下**、级联清批注/版本）。
+ *   · `PUT /api/materials/:id` 此前**没有任何归属校验**（GetByID 不带范围过滤）→ 任何登录用户
+ *     知道 id 即可改任意素材（含跨校、含平台公共装饰元件库）。本轮补：同校 **且** 非平台公共资产
+ *     （`user_id` 为空）。注意实测公共装饰元件的 `school_id` 是真实学校，只查 school_id 拦不住。
  *
  * 本脚本守：
  *   ① 建临时件 → 删除 → 200 deleted=1 → 再查 404（真删掉了）
  *   ② 不存在的 id → 404（不泄露存在性）
  *   ③ 公共装饰元件（user_id 为空）不可被教师删除 → 404
- *   ④ 基线件可清零（cleanupFixtures）→ 库内 `__E2E基线_` 归零（"跑完不留残留"）
+ *   ④ 同校素材 PUT → 200（校内共享编辑不被误伤）
+ *   ⑤ 平台公共资产（装饰元件，user_id 为空）PUT → 403（此前放行 = 安全漏洞）
+ *   ⑥ 基线件可清零（cleanupFixtures）→ 库内 `__E2E基线_` 归零（"跑完不留残留"）
  */
 const { must, report } = require('./lib/assert.cjs')
 const { session, ensurePptFixture, cleanupFixtures, PPT_NAME } = require('./lib/cwFixture.cjs')
@@ -45,7 +51,27 @@ const { B } = require('./lib/cwFixture.cjs')
     must(true, '跳过公共装饰元件用例（本次无公共元件可取样）')
   }
 
-  /* ④ 基线件可清零（跑完不留残留） */
+  /* ④ 同校素材 PUT → 200（校内共享编辑不被误伤） */
+  const tmp2 = await (await fetch(B + '/api/materials/json', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({ name: '__E2E临时更新件', type: 'courseware', format: 'ppt', content: '# 临时\n\n## 页一\n- a\n', status: 'draft', subject: '语文', grade: '四年级' }),
+  })).json()
+  must(!!tmp2.id, '建出临时件（PUT 用）', { id: tmp2.id })
+  const detail = await (await fetch(`${B}/api/materials/${tmp2.id}`, { headers: H })).json()
+  const putRes = await fetch(`${B}/api/materials/${tmp2.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...detail, name: '__E2E临时更新件', content: '# 临时\n\n## 页一\n- a\n\n## 页二\n- b\n' }) })
+  must(putRes.status === 200, '同校自有/共享素材 PUT → 200', { status: putRes.status })
+
+  /* ⑤ 平台公共资产（装饰元件）PUT → 403 */
+  if (firstDecor && firstDecor.id) {
+    const dDetail = await (await fetch(`${B}/api/materials/${firstDecor.id}`, { headers: H })).json()
+    const dPut = await fetch(`${B}/api/materials/${firstDecor.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...dDetail, name: dDetail.name }) })
+    must(dPut.status === 403, '平台公共资产（装饰元件）PUT → 403（此前放行的安全漏洞）', { status: dPut.status, id: firstDecor.id })
+  } else {
+    must(true, '跳过公共资产 PUT 用例（本次无公共元件可取样）')
+  }
+  await del(tmp2.id) // 清掉 PUT 用例的临时件
+
+  /* ⑥ 基线件可清零（跑完不留残留） */
   const fx = await ensurePptFixture()
   must(!!fx.id, '基线件已就绪（用于验证可清理）', { id: fx.id })
   const cleaned = await cleanupFixtures()
