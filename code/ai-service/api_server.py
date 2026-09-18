@@ -251,7 +251,9 @@ def _recommend_materials(lesson_title, subject, grade, school_id, top_k=3):
         if not chosen:
             chosen = ranked[:top_k]  # LLM 返回的 id 与候选不匹配时回退启发式
         return [c["id"] for c in chosen], [c["name"] for c in chosen]
-    except Exception:
+    except Exception as e:
+        # 拆静默：LLM 挑选失败会回退启发式（行为可接受），但必须留痕，否则"为什么挂的是这几个"无法追溯
+        logger.warning("素材挑选（LLM）失败，回退启发式 top%d：%s", top_k, e)
         return [r["id"] for r in ranked[:top_k]], [r["name"] for r in ranked[:top_k]]
 
 
@@ -749,7 +751,8 @@ def _skill_max_retry(fmt: str) -> int:
         return 2
     try:
         return max(0, min(5, int(m.group(1))))
-    except Exception:
+    except Exception as e:
+        logger.warning("SKILL frontmatter max_retry 解析失败，回落默认 2：%s", e)
         return 2
 
 
@@ -1522,7 +1525,8 @@ def _load_style_section(style_tag: str, section: str) -> str:
     try:
         with open(path, encoding="utf-8") as f:
             text = f.read()
-    except Exception:
+    except Exception as e:
+        logger.warning("风格文件读取失败 %s：%s", path, e)
         return ""
     m = re.search(r"##\s*" + re.escape(section) + r"[\s\S]*?(?=\n##\s|\Z)", text)
     return m.group(0).strip() if m else ""
@@ -1564,7 +1568,8 @@ def _load_style_asset_scope(style_tag: str) -> str:
     try:
         with open(_STYLE_RULES_JSON, encoding="utf-8") as fh:
             rules = json.load(fh)
-    except Exception:
+    except Exception as e:
+        logger.warning("风格规则 JSON 读取失败（本次无风格版式语言）：%s", e)
         return ""
     s = (rules.get("styles") or {}).get(style_tag)
     if not s:
@@ -1874,7 +1879,8 @@ async def courseware_trim(req: Request):
     )
     try:
         trimmed = await call_llm([{"role": "user", "content": prompt}], None, 6000)
-    except Exception:
+    except Exception as e:
+        logger.warning("发散剔除（LLM）失败，原文返回：%s", e)
         trimmed = markdown
     dm = await _extract_divergence(trimmed)
     return {"trimmed_markdown": trimmed, "divergence_map": dm}
@@ -1923,8 +1929,9 @@ async def courseware_render_ppt(req: Request):
             slides = json.loads(m.group(0))
             if isinstance(slides, list) and slides:
                 return {"ppt_slides": slides, "style_tag": style_tag, "theme_id": theme_id}
-    except Exception:
-        pass
+    except Exception as e:
+        # 拆静默：AI 渲染失败会退回"按章节拆"的兜底（产物明显更粗），此前无痕 → 无法解释"为什么这版很平"
+        logger.warning("render-ppt 的 AI 渲染解析失败，退回按章节拆分兜底：%s", e)
     # 兜底：直接按章节拆分（保证至少有可用 PPT）
     return {"ppt_slides": _fallback_ppt(markdown, title), "style_tag": style_tag, "theme_id": theme_id,
             "color_palette": _courseware_palette(subject, grade, style_tag)}

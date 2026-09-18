@@ -15,7 +15,7 @@
 const { chromium } = require('playwright')
 const { must, report } = require('./lib/assert.cjs')
 const { execFileSync } = require('child_process')
-const { ensurePptFixture, ensureH5Fixture } = require('./lib/cwFixture.cjs')
+const { ensurePptFixture, ensureH5Fixture, cleanupFixtures } = require('./lib/cwFixture.cjs')
 
 const B = process.env.BASE || 'http://school1.ziwi.cn'
 const FE = process.env.FE || '/Users/sipon/CodeBuddy/AI教案/code/frontend'
@@ -144,4 +144,8 @@ let br
   console.error('✘ 脚本异常：' + e.message)
   try { if (br) await br.close() } catch { /* ignore */ }
   process.exit(2)
-}).finally(async () => { try { if (br) await br.close() } catch { /* ignore */ } })
+}).finally(async () => {
+  try { if (br) await br.close() } catch { /* ignore */ }
+  // 跑完清残留（2026-09-18）：删掉自建的 __E2E基线_* 件（后端已提供 DELETE 接口）
+  try { const r = await cleanupFixtures(); if (r && r.length) console.log('   [cleanup] ' + JSON.stringify(r)) } catch { /* ignore */ }
+})

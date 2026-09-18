@@ -343,6 +343,8 @@ func main() {
 		teacher.POST("/materials", materialHandler.UploadMaterial)
 		teacher.POST("/materials/json", materialHandler.CreateMaterialJSON)
 		teacher.PUT("/materials/:id", materialHandler.UpdateMaterial)
+		// 删除素材/课件（2026-09-18）：只允许删**自己名下**的；级联清其批注与版本（见 repository.Delete）
+		teacher.DELETE("/materials/:id", materialHandler.DeleteMaterial)
 		// 家校/学校宣发 H5（notice）：全校共用资产，校内所有角色只读
 		teacher.GET("/notices", materialHandler.ListNotices)
 		// 装饰元件查询（素材库装饰元件，facet 自动匹配）

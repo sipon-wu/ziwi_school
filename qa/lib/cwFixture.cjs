@@ -108,8 +108,30 @@ const ensurePptFixture = () => ensureCourseware({ name: PPT_NAME, format: 'ppt',
 /** H5 基线件（正文 markdown；h5_html 由调用方用 markdownToStorybookH5 生成后回写，保证快照与内容同源） */
 const ensureH5Fixture = () => ensureCourseware({ name: H5_NAME, format: 'h5', content: h5Content() })
 
+/**
+ * 清理所有 e2e 基线件（2026-09-18 起可用：后端新增 `DELETE /api/materials/:id`）。
+ * 守卫在 finally 里调用它 → **跑完不留残留**（此前无删除接口，跑一次测试就在库里留一条）。
+ * 只删 `__E2E基线_` 前缀的；后端本身只允许删自己名下的。
+ * 返回 [{name, status}] 便于断言。
+ */
+async function cleanupFixtures() {
+  try {
+    const { H, get } = await session()
+    const all = (await get('/api/materials')).items || []
+    const targets = all.filter((m) => String(m.name || '').startsWith('__E2E基线_'))
+    const out = []
+    for (const m of targets) {
+      const r = await fetch(B + `/api/materials/${m.id}`, { method: 'DELETE', headers: H })
+      out.push({ name: m.name, status: r.status })
+    }
+    return out
+  } catch (e) {
+    return [{ error: String(e && e.message ? e.message : e) }]
+  }
+}
+
 module.exports = {
   B, PPT_NAME, H5_NAME, COVER_MARK,
   pptContent, h5Content, session,
-  ensureCourseware, ensurePptFixture, ensureH5Fixture,
+  ensureCourseware, ensurePptFixture, ensureH5Fixture, cleanupFixtures,
 }

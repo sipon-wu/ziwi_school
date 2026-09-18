@@ -15,7 +15,7 @@
  */
 const { chromium } = require('playwright')
 const { must, report } = require('./lib/assert.cjs')
-const { ensurePptFixture } = require('./lib/cwFixture.cjs')
+const { ensurePptFixture, cleanupFixtures } = require('./lib/cwFixture.cjs')
 
 const B = process.env.BASE || 'http://school1.ziwi.cn'
 const PAGE_TITLE = '课堂练习'
@@ -131,4 +131,8 @@ let br
   console.error('✘ 脚本异常：' + e.message)
   try { if (br) await br.close() } catch { /* ignore */ }
   process.exit(2)
-}).finally(async () => { try { if (br) await br.close() } catch { /* ignore */ } })
+}).finally(async () => {
+  try { if (br) await br.close() } catch { /* ignore */ }
+  // 跑完清残留（2026-09-18）：删掉自建的 __E2E基线_* 件（后端已提供 DELETE 接口）
+  try { const r = await cleanupFixtures(); if (r && r.length) console.log('   [cleanup] ' + JSON.stringify(r)) } catch { /* ignore */ }
+})

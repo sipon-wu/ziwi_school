@@ -129,3 +129,7 @@ qa/_chk/
 qa/_tmp_export/
 qa/e2e_ppt_compare/
 qa/e2e_h5_compare/
+
+# 清库备份（删除操作的可逆备份，本地保留、不入库；2026-09-18）
+# 含教师课件内容 CSV，体积与隐私考虑都不入库；需要恢复时按报告 §二十/§二十四 的路径使用。
+backups/staging_courseware_wipe_*/

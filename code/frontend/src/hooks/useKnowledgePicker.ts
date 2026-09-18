@@ -1,4 +1,4 @@
-import type { TextbookStaticData, TextbookUnit } from "../lib/domain"
+import type { TextbookUnit } from "../lib/domain"
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTeaching, GRADE_NAMES, type TeachingCtxValue } from '../lib/TeachingContext'
 import type { KnowledgeNode } from '../components/KnowledgeGraph'
@@ -18,8 +18,7 @@ export interface UseKnowledgePickerReturn {
   knowledgeData: KnowledgeNode[]
   loading: boolean
 
-  // 教材单元映射
-  textbookData: any | null
+  // 教材单元（后端来源，按当前教材收口）
   currentUnits: TextbookUnit[]
   selectedUnit: string
   handleUnitChange: (unitName: string) => void
@@ -73,8 +72,7 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   // ── 数据加载 ──
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeNode[]>([])
   const [loading, setLoading] = useState(true)
-  const [textbookData, setTextbookData] = useState<TextbookStaticData>(null)
-  // 后端单元列表（2026-09-18，C3）：与 knowledge/nodes 同源、按当前教材收口
+  // 后端单元列表（2026-09-18，C3）：与 knowledge/nodes 同源、按当前教材收口（唯一来源）
   const [backendUnits, setBackendUnits] = useState<TextbookUnit[]>([])
 
   useEffect(() => {
@@ -124,9 +122,9 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
           }
         } catch { /* 静默降级 */ }
       }
-      // ── 单元列表：优先后端（与 nodes 同源、按当前教材收口）──
-      // 静态 textbook-math.json 实际**不存在于源码与部署产物**（2026-09-18 核实）→ 旧路径恒空，
-      // 单元下拉一直是死的。现读后端；静态仅作降级。
+      // ── 单元列表：读后端（与 nodes 同源、按当前教材收口）──
+      // 清理（2026-09-18）：旧路径读静态 `/textbook-math.json`，而该文件**源码与部署产物都不存在**（实测 404）
+      // → `textbookData` 恒为 null、单元下拉一直是死的。现彻底改为后端来源并**移除该死引用**（不再每次挂载打 404）。
       try {
         const uRes = await fetch(`/api/ai/knowledge/units?limit=200&${ctx}`)
         if (uRes.ok) {
@@ -136,14 +134,7 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
             .map((u: any) => ({ unit: String(u.unit), kps: [] as string[] }))
           setBackendUnits(us as TextbookUnit[])
         }
-      } catch { /* 降级静态 JSON */ }
-      try {
-        const tbRes = await fetch('/textbook-math.json')
-        if (tbRes.ok) {
-          const tb = await tbRes.json()
-          setTextbookData(tb)
-        }
-      } catch { /* 静默降级 */ }
+      } catch { /* 无单元可展示 */ }
       setLoading(false)
     }
     load()
@@ -157,13 +148,8 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   )
 
   // ── 当前教材单元列表 ──
-  // 后端优先（按当前教材收口）；静态 JSON 仅降级（其文件实际不存在 → 恒空）
-  const currentUnits = useMemo(() => {
-    if (backendUnits.length) return backendUnits
-    if (!textbookData) return []
-    const version = textbookData[teaching.currentTextbook()] || {}
-    return version[String(teaching.grade)]?.[teaching.semester] || []
-  }, [backendUnits, textbookData, teaching.currentTextbook(), teaching.grade, teaching.semester])
+  // 唯一来源 = 后端（按当前教材收口）。静态 textbook-math.json 路径已移除（其文件不存在、从未部署）。
+  const currentUnits = useMemo(() => backendUnits, [backendUnits])
 
   // ── 当前选中单元 ──
   const [selectedUnit, setSelectedUnit] = useState('')
@@ -215,7 +201,7 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
     const pool = sameVer.length ? sameVer : knowledgeData
     const pick = pool.slice(0, 6).map((n) => n.id)
     if (pick.length > 0) setSelectedIds(pick)
-  }, [textbookData, knowledgeData, teaching.currentTextbook(), teaching.grade, teaching.semester, currentUnits, autoSelect, preSelectedNodes])
+  }, [knowledgeData, teaching.grade, teaching.semester, currentUnits, autoSelect, preSelectedNodes])
 
   // ── 单元切换 ──
   const handleUnitChange = useCallback((unitName: string) => {
@@ -236,7 +222,6 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   return useMemo(() => ({
     knowledgeData,
     loading,
-    textbookData,
     currentUnits,
     selectedUnit,
     handleUnitChange,
@@ -255,7 +240,7 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
     setDiffRange,
     teaching: teachingRef.current,
   }), [
-    knowledgeData, loading, textbookData, currentUnits, selectedUnit, handleUnitChange,
+    knowledgeData, loading, currentUnits, selectedUnit, handleUnitChange,
     selectedIds, setSelectedIds, selectedNodes, showGraph, setShowGraph,
     showGraphModal, setShowGraphModal, graphLayout, setGraphLayout,
     graphDimension, setGraphDimension, diffRange, setDiffRange,

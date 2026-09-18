@@ -425,6 +425,30 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	c.JSON(http.StatusOK, existing)
 }
 
+// DeleteMaterial 删除素材/课件（硬删，无回收站）。
+// DELETE /api/materials/:id
+//
+// 语义与边界（2026-09-18 新增）：
+//   - **只允许删自己名下的**（`user_id = 本人`）；公共素材（user_id 为空，如装饰元件库）与同事的素材不删。
+//     （注：UpdateMaterial 目前未做属主校验，这是历史遗留；删除是破坏性操作，故此处**从严**，不跟它对齐。）
+//   - 不存在 / 非本人 → 统一 404「素材不存在或无权删除」（不泄露存在性）。
+//   - 级联清理其批注与版本（见 repository.Delete），避免留下孤儿行。
+func (h *MaterialHandler) DeleteMaterial(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	userIDStr, _ := userID.(string)
+	id := c.Param("id")
+	n, err := h.repo.Delete(id, userIDStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DELETE_FAILED", "message": "删除失败：" + err.Error()})
+		return
+	}
+	if n == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "素材不存在或无权删除"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": n})
+}
+
 // ── 家校/学校宣发 H5（notice，2026-09-03）──────────────────────────────────
 // notice 与课件共用 materials 表：type=notice / category=notice / format=h5。
 // Content=宣发 markdown；H5HTML=滚动图文 H5（前端渲染，扫码经 GET /api/materials/:id/h5 公开访问）。
