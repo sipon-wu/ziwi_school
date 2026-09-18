@@ -112,6 +112,44 @@ def resolve_knowledge_scope(node_ids):
                 "prerequisite_ids": [], "prereq_source": "error"}
 
 
+def lookup_version_id(subject=None, grade=None, volume=None):
+    """按 学科/年级/册别 解析教材版本实体 ID（tb_textbook_version.id，即 tb_kg_node.version_id 同源）。
+
+    为什么需要（2026-09-18，DECISIONS 待办 C3）：
+      `/api/ai/knowledge/{nodes,units}` 只按 version_id 过滤，而前端只有 学科/年级/册别
+      → 此前只能**不传** version_id，于是接口返回**混合 N 个教材版本**的节点（实测 28 个版本混在一起，
+      且节点没有 subject/grade 字段），前端预选只能"取前 6 个"（与学科/年级无关，真缺陷）；
+      单元下拉也因此无法收口（前端静态 textbook-math.json 又缺失 → 下拉恒空）。
+      现由后端把 学科/年级/册别 解析成 version_id，前端只传自己有的维度即可。
+    返回 int 或 None（解析不到时返回 None，调用方应**回退旧行为**而不是返回空，避免把编辑器"预选"打断）。
+    """
+    if not subject:
+        return None
+    sql = "SELECT id FROM tb_textbook_version WHERE xue_ke = %s"
+    params = [subject]
+    if grade:
+        sql += " AND nian_ji = %s"
+        params.append(grade)
+    if volume:
+        sql += " AND ce_bie = %s"
+        params.append(volume)
+    sql += " ORDER BY id LIMIT 1"
+    try:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            rows = _fetchall(cur, sql, tuple(params))
+        finally:
+            conn.close()
+        if rows and rows[0].get("id") is not None:
+            return int(rows[0]["id"])
+    except Exception as e:
+        import sys
+        sys.stderr.write(f"[kg_store] lookup_version_id ERROR: {e}\n")
+        sys.stderr.flush()
+    return None
+
+
 def list_kg_nodes(version_id=None, dan_yuan=None, q=None, level=None, limit=300):
     """按「教材版本 / 单元 / 关键词 / 层级」列出知识点节点（供前端选择器**直接读 DB**）。
 

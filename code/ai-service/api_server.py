@@ -146,6 +146,7 @@ from materials_store import list_materials, rank_materials  # noqa: E402
 from kg_store import (  # noqa: E402
     resolve_knowledge_scope, map_curriculum, list_bank_questions,
     list_kg_nodes, list_kg_units,   # 统一数据源：前端选择器改为读 DB（2026-09-13）
+    lookup_version_id,              # 学科/年级/册别 → version_id（2026-09-18，C3 收口）
 )
 # 课件红线策略（发布校验 / 课前问诊 / 发散预算）
 from policy import policy_gate_publish, policy_gate_notice, policy_consult, divergence_budget, ETHIC_PRINCIPLE, subject_orbit_hint  # noqa: E402
@@ -217,7 +218,10 @@ def _recommend_materials(lesson_title, subject, grade, school_id, top_k=3):
     """
     try:
         mats = list_materials(school_id)
-    except Exception:
+    except Exception as e:
+        # 拆静默（2026-09-18，C4-V3）：素材库读取失败会让"AI 决定挂载"整段失效，
+        # 此前无任何记录 → 产物少了素材挂载也查不出原因。
+        logger.warning("素材库读取失败，本次跳过素材挂载：%s", e)
         return [], []
     if not mats:
         return [], []
@@ -380,7 +384,9 @@ async def _boundary_block(subject, grade, version, unit, query_text, top_k=5):
             "设计须贴合这些底料，可适度参考但不偏离其范围）：\n"
             + "\n".join(items)
         )
-    except Exception:
+    except Exception as e:
+        # 拆静默：边界块是"知识面约束"的底料，检索失败会让生成**悄悄失去约束**（质量下降但无提示）
+        logger.warning("教材知识边界检索失败（本次生成不含边界块）：%s", e)
         return ""
 
 
@@ -533,8 +539,9 @@ def _resolve_scope_meta(body: dict):
                 prereq_source = sc.get("prereq_source") or "none"
             resolved_ids = sc.get("selected_ids") or []
             parent_ids = sc.get("parent_ids") or []
-        except Exception:
-            pass
+        except Exception as e:
+            # 拆静默：锚点解析失败会让 anchor_coverage 失真（"命中/缺失"无从解释）
+            logger.warning("小微对话锚点解析失败（本次不带锚点对）：%s", e)
     # 锚点对（ID ↔ 权威名称）：
     # **ID 是身份，名称是匹配依据** —— 修复（2026-09-13）：anchor_coverage 此前只用
     # "前端传进来的名称"做字符串匹配，一旦知识点在图谱里改名就**静默失配**，
@@ -591,7 +598,9 @@ async def gen_lesson_plan(req: Request):
     kp_names, prereq_names = _resolve_scope(body)
     try:
         curriculum = map_curriculum(body.get("curriculum_codes") or [], subject, grade)
-    except Exception:
+    except Exception as e:
+        # 拆静默：课标映射失败会让教案"课标对齐"整块为空
+        logger.warning("课标映射失败（本次课标对齐为空）：%s", e)
         curriculum = []
 
     scope_hint = ""
@@ -643,8 +652,9 @@ async def gen_lesson_plan(req: Request):
         material_refs, recommended = await run_in_threadpool(
             _recommend_materials, title, subject, grade, school_id, 3
         )
-    except Exception:
-        pass
+    except Exception as e:
+        # 拆静默：教案生成的"关联素材"整段失败此前无痕
+        logger.warning("教案关联素材挂载失败（本次不挂素材）：%s", e)
     return {
         "content": content,
         "curriculum_alignments": curriculum,
@@ -800,8 +810,13 @@ async def _content_review(md: str, subject: str, grade: str, title: str) -> dict
 
 @app.get("/api/ai/knowledge/nodes")
 async def knowledge_nodes(version_id: int = 0, dan_yuan: str = "", q: str = "",
-                          level: int = -1, limit: int = 300):
+                          level: int = -1, limit: int = 300,
+                          subject: str = "", grade: str = "", volume: str = ""):
     """知识点节点列表 —— 前端**选择器的统一数据源**（2026-09-13）。
+
+    version_id 维度（2026-09-18 补，DECISIONS C3）：前端只有 学科/年级/册别 时，
+    由后端解析成 version_id（`lookup_version_id`）→ 节点**按当前教材收口**，不再返回混合多版本。
+    解析不到则回退旧行为（不加过滤），避免把编辑器的默认预选打断。
 
     为什么要加它（链路验收查实）：前端选择器此前读**前端静态 JSON**
     （`public/knowledge-graph.json`：168 节点、字符串 ID 如 `m-1-1-1`），
@@ -810,6 +825,9 @@ async def knowledge_nodes(version_id: int = 0, dan_yuan: str = "", q: str = "",
     统一后：选择器给出的 ID 与后端同源 → 前置链、课标、单元归属、溯源配方全部成立。
     另外返回值自带 `version_id` / `unit` —— 即"教材版本 + 单元"两层实体引用，直接可入配方。
     """
+    if not version_id and subject:
+        # 学科/年级/册别 → version_id（解析不到则保持 0 = 旧行为，不返回空以免打断前端预选）
+        version_id = await run_in_threadpool(lookup_version_id, subject, grade or None, volume or None) or 0
     try:
         nodes = await run_in_threadpool(
             list_kg_nodes, version_id or None, dan_yuan or None,
@@ -817,18 +835,25 @@ async def knowledge_nodes(version_id: int = 0, dan_yuan: str = "", q: str = "",
     except Exception as e:
         logger.warning("knowledge/nodes 失败：%s", e)
         return {"nodes": [], "count": 0, "error": str(e)}
-    return {"nodes": nodes, "count": len(nodes)}
+    return {"nodes": nodes, "count": len(nodes), "version_id": version_id}
 
 
 @app.get("/api/ai/knowledge/units")
-async def knowledge_units(version_id: int = 0, limit: int = 200):
-    """单元列表（前端单元下拉用；数据源与 knowledge/nodes 同源）。"""
+async def knowledge_units(version_id: int = 0, limit: int = 200,
+                          subject: str = "", grade: str = "", volume: str = ""):
+    """单元列表（前端单元下拉用；数据源与 knowledge/nodes 同源）。
+
+    同上（2026-09-18）：支持 学科/年级/册别 → version_id 解析，使单元下拉能按**当前教材**收口
+    （此前 units 只有 version_id 维度、前端拿不到 id，且静态 textbook-math.json 缺失 → 下拉恒空）。
+    """
+    if not version_id and subject:
+        version_id = await run_in_threadpool(lookup_version_id, subject, grade or None, volume or None) or 0
     try:
         units = await run_in_threadpool(list_kg_units, version_id or None, limit)
     except Exception as e:
         logger.warning("knowledge/units 失败：%s", e)
         return {"units": [], "error": str(e)}
-    return {"units": units, "count": len(units)}
+    return {"units": units, "count": len(units), "version_id": version_id}
 
 
 # ── 生成进度事件表（SSE 进度反馈，2026-09-12）──
@@ -960,8 +985,9 @@ async def gen_courseware(req: Request):
         if ranked:
             similar = {"id": ranked[0]["id"], "name": ranked[0]["name"], "type": ranked[0]["type"]}
             recommended_refs = [r["id"] for r in ranked[:3]]
-    except Exception:
-        pass
+    except Exception as e:
+        # 拆静默：课件生成的"相似课件推荐"失败此前无痕
+        logger.warning("相似课件检索失败（本次无推荐）：%s", e)
 
     # 2) 渲染 + AI 润色：生成针对本课的课件
     similar_hint = ""
@@ -1375,8 +1401,9 @@ async def _extract_divergence(courseware: str) -> list:
             divergence_map = json.loads(m.group(0))
             if isinstance(divergence_map, list):
                 return divergence_map
-    except Exception:
-        pass
+    except Exception as e:
+        # 拆静默：发散地图解析失败 → 返回空地图（"轨道/边缘"整块消失，此前无痕）
+        logger.warning("发散地图解析失败（本次返回空地图）：%s", e)
     return []
 
 

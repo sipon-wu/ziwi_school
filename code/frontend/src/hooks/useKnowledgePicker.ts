@@ -1,6 +1,6 @@
 import type { TextbookStaticData, TextbookUnit } from "../lib/domain"
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useTeaching, type TeachingCtxValue } from '../lib/TeachingContext'
+import { useTeaching, GRADE_NAMES, type TeachingCtxValue } from '../lib/TeachingContext'
 import type { KnowledgeNode } from '../components/KnowledgeGraph'
 
 type LayoutMode = 'tree' | 'spiral' | 'mesh'
@@ -74,8 +74,15 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [textbookData, setTextbookData] = useState<TextbookStaticData>(null)
+  // 后端单元列表（2026-09-18，C3）：与 knowledge/nodes 同源、按当前教材收口
+  const [backendUnits, setBackendUnits] = useState<TextbookUnit[]>([])
 
   useEffect(() => {
+    // 当前教材上下文（2026-09-18，C3 收口）：把 学科/年级/册别 传给后端，由其解析 kg version_id。
+    // 此前不带这些参数 → 接口返回**混合 28 个教材版本**的节点（实测），预选只能"取前 6 个"（与学科/年级无关）。
+    const gradeName = GRADE_NAMES[teaching.grade - 1] || ''
+    const volume = teaching.semester === '上' ? '上册' : teaching.semester === '下' ? '下册' : ''
+    const ctx = `subject=${encodeURIComponent(teaching.subject || '')}&grade=${encodeURIComponent(gradeName)}&volume=${encodeURIComponent(volume)}`
     const load = async () => {
       // ── 知识点数据源：**优先读后端 DB**（2026-09-13 统一数据源）──
       // 此前读前端静态 JSON（`/knowledge-graph.json`：168 节点、字符串 ID 如 "m-1-1-1"），
@@ -84,14 +91,16 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
       // 现在选择器与后端同源；静态 JSON 仅作**接口不可用时的降级**（避免白屏）。
       let dbNodes: KnowledgeNode[] = []
       try {
-        const res = await fetch('/api/ai/knowledge/nodes?limit=2000')
+        const res = await fetch(`/api/ai/knowledge/nodes?limit=2000&${ctx}`)
         if (res.ok) {
           const j = await res.json()
           dbNodes = (j.nodes || []).map((n: any) => ({
             id: String(n.id),                 // ← DB 的 int64（字符串化），与后端同源
             name: n.name || '',
-            subject: '',                      // tb_kg_node 无 subject/grade 列（归属由 version_id 决定）
-            grade: 0,
+            // 节点本身没有 subject/grade 列，但**本次请求是按当前教材收口的** → 用上下文回填，
+            // 使下游按学科/年级的消费方（着色、筛选）拿到真实值而不是空串/0。
+            subject: teaching.subject || '',
+            grade: teaching.grade || 0,
             unit: n.unit || '',
             version_id: n.version_id || '',   // ← 教材版本**实体 ID**（溯源用，见 CoursewareBuilder）
             prerequisites: n.prerequisites || [],
@@ -115,6 +124,19 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
           }
         } catch { /* 静默降级 */ }
       }
+      // ── 单元列表：优先后端（与 nodes 同源、按当前教材收口）──
+      // 静态 textbook-math.json 实际**不存在于源码与部署产物**（2026-09-18 核实）→ 旧路径恒空，
+      // 单元下拉一直是死的。现读后端；静态仅作降级。
+      try {
+        const uRes = await fetch(`/api/ai/knowledge/units?limit=200&${ctx}`)
+        if (uRes.ok) {
+          const uj = await uRes.json()
+          const us = (uj.units || [])
+            .filter((u: any) => u && String(u.unit || '').trim())
+            .map((u: any) => ({ unit: String(u.unit), kps: [] as string[] }))
+          setBackendUnits(us as TextbookUnit[])
+        }
+      } catch { /* 降级静态 JSON */ }
       try {
         const tbRes = await fetch('/textbook-math.json')
         if (tbRes.ok) {
@@ -125,14 +147,23 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
       setLoading(false)
     }
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teaching.subject, teaching.grade, teaching.semester])
+
+  // 某单元的全部节点 ID（后端单元只给 unit 名、不含 kps → 从已加载节点反查）
+  const unitNodeIds = useCallback(
+    (unit: string) => knowledgeData.filter((n) => n.unit === unit).map((n) => n.id),
+    [knowledgeData],
+  )
 
   // ── 当前教材单元列表 ──
+  // 后端优先（按当前教材收口）；静态 JSON 仅降级（其文件实际不存在 → 恒空）
   const currentUnits = useMemo(() => {
+    if (backendUnits.length) return backendUnits
     if (!textbookData) return []
     const version = textbookData[teaching.currentTextbook()] || {}
     return version[String(teaching.grade)]?.[teaching.semester] || []
-  }, [textbookData, teaching.currentTextbook(), teaching.grade, teaching.semester])
+  }, [backendUnits, textbookData, teaching.currentTextbook(), teaching.grade, teaching.semester])
 
   // ── 当前选中单元 ──
   const [selectedUnit, setSelectedUnit] = useState('')
@@ -162,11 +193,13 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
       return
     }
     if (!autoSelect) return
-    // 1) 教材版本映射路径（textbook-math.json 存在且含当前 版本/年级/学期 组合）
-    if (textbookData && currentUnits.length > 0) {
-      const firstUnit = currentUnits[0]
+    // 1) 单元路径：**后端单元**（按当前教材收口）优先；静态 textbook-math.json 仅降级（文件实际不存在）
+    if (currentUnits.length > 0) {
+      const firstUnit = currentUnits[0] as { unit: string; kps?: string[] }
       setSelectedUnit(firstUnit.unit)
-      setSelectedIds(firstUnit.kps || [])
+      // 后端单元只给 unit 名（无 kps）→ 从已加载节点反查该单元节点，取前 6 个（与旧静态口径的粒度一致）
+      const ids = firstUnit.kps?.length ? firstUnit.kps : unitNodeIds(firstUnit.unit)
+      setSelectedIds(ids.slice(0, 6))
       return
     }
     // 2) 回退：教材映射缺失时，从知识图谱预选若干节点（保证「AI生成」按钮不因无预选而恒灰）。
@@ -187,9 +220,10 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
   // ── 单元切换 ──
   const handleUnitChange = useCallback((unitName: string) => {
     setSelectedUnit(unitName)
-    const unit = currentUnits.find((u: any) => u.unit === unitName)
-    if (unit?.kps) setSelectedIds(unit.kps)
-  }, [currentUnits])
+    const unit = currentUnits.find((u: any) => u.unit === unitName) as { kps?: string[] } | undefined
+    const ids = unit?.kps?.length ? unit.kps : unitNodeIds(unitName)
+    setSelectedIds(ids.slice(0, 6))
+  }, [currentUnits, unitNodeIds])
 
   // ── 选中节点详情 ──
   const selectedNodes = useMemo(
