@@ -14,16 +14,22 @@ interface Props {
   onEdit?: () => void
   /** 已定版不可编辑时禁用"编辑"按钮 */
   editDisabled?: boolean
+  /**
+   * 沉浸放映（2026-09-18，课件放映用）：纯净放映中鼠标静止时**标题栏自动淡出**（让位画布），
+   * 鼠标移动即浮现 —— 对齐飞书/Google Slides/腾讯文档"放映零 chrome、控制条按需浮现"。
+   * 默认 false，其他编辑器行为不变。
+   */
+  dimChrome?: boolean
   children: ReactNode
 }
 
-export default function PreviewOverlay({ open, title, onClose, onEdit, editDisabled, children }: Props) {
+export default function PreviewOverlay({ open, title, onClose, onEdit, editDisabled, dimChrome = false, children }: Props) {
   if (!open) return null
   const handleEdit = onEdit || onClose
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
-      {/* 标题栏 */}
-      <div className="h-12 flex items-center justify-between px-5 border-b border-[#E7E7EB] shrink-0">
+      {/* 标题栏（dimChrome 时随鼠标静止淡出；pointer-events-none 避免淡出后误点） */}
+      <div className={`h-12 flex items-center justify-between px-5 border-b border-[#E7E7EB] shrink-0 transition-opacity duration-300 ${dimChrome ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <span className="text-[14px] font-medium text-[#353535]">{title || '预览'}</span>
         <button
           onClick={handleEdit}

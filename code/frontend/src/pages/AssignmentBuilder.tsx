@@ -86,7 +86,10 @@ export default function AssignmentBuilder() {
   const leftPanel = (
     <EditorInfoPanel
       showBasicInfo
-      classLabel={`${gradeName}${selectedClassName ? ' · ' + selectedClassName : ''}`}
+      // 班级 ≠ 年级（2026-09-18 收口 DECISIONS 待办）：信息卡的"班级"此前拼的是 gradeName 前缀
+      // （显示成"班级：四年级 · X班"）。规则与课件/教案/题单一致：班级字段只放**班级名**，未选则留空。
+      // （作业卷面头部仍用"年级 · 班级"，那是对外卷面格式，不属于本次口径。）
+      classLabel={selectedClassName || ''}
       xiaowei={{
         contextType: 'assignment',
         subject: teaching.subject,

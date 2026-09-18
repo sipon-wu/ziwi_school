@@ -124,6 +124,8 @@ export default function CoursewareBuilder() {
   const [thumbCollapsed, setThumbCollapsed] = useState(false)
   // 全屏预览（放映态）开关：view 态由框架受控自动开
   const [previewOpen, setPreviewOpen] = useState(false)
+  /** 放映沉浸态（由 CwPreviewPane 上报）：pure=纯净放映中；hud=控制条/标题栏可见 */
+  const [cwImmersive, setCwImmersive] = useState<{ pure: boolean; hud: boolean }>({ pure: false, hud: true })
   const [cwLoading, setCwLoading] = useState<boolean>(isEditing)
   const [videoConfig, setVideoConfig] = useState<CwVideoConfig>({ presenter: 'none', style: 'knowledge' })
 
@@ -201,21 +203,29 @@ export default function CoursewareBuilder() {
   // （AI 装饰推荐 部分已随装饰簇一并抽到 hooks/useCwDecor.ts）
 
   // 加载「参照课件」提纲：文档模式套用模板时，若当前为空课件且已选参照，则先把参照内容载入，再套新模板版式
+  // 拆静默（2026-09-18，DECISIONS 高优先项）：此前 `.catch { return [] }` —— 参照课件拉取失败会**静默丢基线**，
+  // 用户以为"套模板把参照内容带过来了"，实际拿到空课件且没有任何提示。现在显式报错并说明已跳过基线。
   const loadRefOutline = async (): Promise<OutlineSlide[]> => {
     if (!genBaseId) return []
     try {
       const base: any = await materialAPI.get(genBaseId)
       const md: string = base?.content || ''
       return materializeOutline(markdownToOutline(md), styleKeyFromThemeId(themeId))
-    } catch { return [] }
+    } catch (e) {
+      toast('参照课件加载失败，已跳过基线内容（模板版式照常套用）', 'error')
+      console.warn('[courseware] 参照课件加载失败', genBaseId, e)
+      return []
+    }
   }
 
   // 参照课件下拉数据
+  // 拆静默（2026-09-18）：此前失败静默 → 下拉恒空、用户不知道是"没有课件"还是"加载失败"。
   const [materials, setMaterials] = useState<Array<{ id: string; name: string }>>([])
   useEffect(() => {
     api<{ items: MaterialItem[] }>('/materials')
       .then(res => setMaterials((res.items || []).map(m => ({ id: m.id, name: m.name }))))
-      .catch(() => {})
+      .catch((e) => { toast('参照课件列表加载失败', 'error'); console.warn('[courseware] 参照课件列表加载失败', e) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 本地草稿恢复（保存草稿 = 本地暂存；只有「发布进素材库」才过红线闸）
@@ -914,8 +924,9 @@ export default function CoursewareBuilder() {
             className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-6 h-14 rounded-r-md bg-[#212529]/85 text-white flex items-center justify-center hover:bg-[#212529] text-[14px] shadow-md">›</button>
         )}
 
-        {/* 中：可编辑画布 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex justify-center">
+        {/* 中：可编辑画布（2026-09-18 修：补 min-w-0 —— 此前 flex 项被画布内容宽度撑住缩不回去，
+            画布按"假想可用宽"算出 scale 后仍溢出视口，右侧（如 x=95% 的元件）被裁且无法滚动 = "非全屏下元件不见了"） */}
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-4 flex justify-center">
         {cwFormat === 'video' && (
           <div className="mb-3 rounded-[6px] border border-[#B7EB8F] bg-[#F6FFED] p-3">
             <div className="text-[12px] font-medium text-[#389E0D] mb-2">🎬 视频课件配置（参数预留；点「AI 生成视频分镜」产出语义分镜脚本）</div>
@@ -1078,6 +1089,8 @@ export default function CoursewareBuilder() {
   })()
   const previewPane = (
     <CwPreviewPane
+      // 放映沉浸态：pane 内纯净+鼠标静止时，由外层淡出 PreviewOverlay 标题栏（主流"放映零 chrome"）
+      onImmersive={setCwImmersive}
       cwFormat={cwFormat} cwH5Html={cwH5Html}
       previewSlides={previewSlides} cwOutline={cwOutline}
       deckIdx={deckIdx} onSelect={goToPage}
@@ -1085,6 +1098,9 @@ export default function CoursewareBuilder() {
       slideElems={previewSlideElems}
       showShare={cwFormat === 'h5' && (effectivePreviewOpen || ctrl.readOnly)}
       h5ShareQr={h5ShareQr}
+      // 放映态（查看态）给「一键纯净」：左右侧同时隐藏 + 悬浮控制条 + ←→/Esc。
+      // 编辑态复用同一块 pane（H5 主画布）时不给，避免与非全屏编辑布局冲突。
+      puri={!!ctrl.readOnly}
       ann={{ cwAnn, cwVer, cwAnnTargetId, cwLocked, materialId, cwOutline, setCwOutline, deckIdx, docSlide }}
     />
   )
@@ -1200,7 +1216,21 @@ export default function CoursewareBuilder() {
         <>
           <span className="text-[11px] font-medium text-[#353535]">页面（{cwOutline.length}）</span>
           <button onClick={addCwPage} className="px-1.5 py-0.5 text-[11px] text-[#02A7F0] border border-[#02A7F0] rounded hover:bg-[#E8F7FF]">+ 页</button>
-          <button onClick={() => setThumbCollapsed(true)} title="收起页列表" className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
+          {/* 页列表收起：左端 ‹ 图标（用户 2026-09-18 定稿 = 图标版）。
+              左控件必须在左；收起后由画布区左缘浮出的 › tab 再展开（贴边闭环）。 */}
+          <button onClick={() => setThumbCollapsed(true)} title="收起页列表"
+            className="px-1 py-0.5 text-[11px] text-[#9A9A9A] hover:text-[#353535]">‹</button>
+          <div className="w-px h-4 bg-[#EEE]" />
+        </>
+      )}
+      {fullscreen && cwOutline.length > 1 && (
+        <>
+          {/* 全屏页列表显隐：与非全屏**同侧同位**（都放左端）——控左栏的按钮必须在左。
+              沿革：376e853 原本就在工具栏内（紧跟比例），后被挪成最右角游离、被指"位置不对"。 */}
+          <button onClick={() => setCwFsThumb(v => !v)} title="显示/隐藏页列表"
+            className="px-2.5 py-1 text-[12px] text-[#353535] border border-[#E7E7EB] rounded-[4px] hover:bg-[#F5F5F5]">
+            {cwFsThumb ? '隐藏页' : '显示页'}
+          </button>
           <div className="w-px h-4 bg-[#EEE]" />
         </>
       )}
@@ -1271,16 +1301,9 @@ export default function CoursewareBuilder() {
             <span className="text-[10px] text-[#9A9A9A] truncate">{teaching.subject} · {gradeName} · {teaching.semester || '学期'}</span>
           </div>
           <div className="w-px h-5 bg-[#EEE]" />
-          {/* 统一工具栏：与非全屏态完全相同的按钮（含模板库入口），fullscreen=true 时「全屏」按钮变为「退出全屏」 */}
+          {/* 统一工具栏：与非全屏态完全相同的按钮（含模板库入口），fullscreen=true 时「全屏」按钮变为「退出全屏」。
+              页列表显隐按钮在工具栏左端（与非全屏同侧同位；原先游离在最右角 = 位置不对） */}
           {renderToolbar(true)}
-          <div className="flex-1" />
-          {/* 全屏特有：显示/隐藏缩略图栏（非全屏态无此概念，其页列表在左栏），与右端工具栏视觉分离、单独置右 */}
-          {cwOutline.length > 1 && (
-            <button onClick={() => setCwFsThumb(v => !v)} title="显示/隐藏缩略图栏"
-              className="px-2.5 py-1.5 text-[12px] text-[#595959] border border-[#E0E0E0] rounded hover:bg-[#F5F5F5]">
-              {cwFsThumb ? '隐藏页' : '显示页'}
-            </button>
-          )}
         </div>
         {/* 主体：缩略图 + 画布 */}
         <div className="flex-1 flex min-h-0">
@@ -1292,7 +1315,7 @@ export default function CoursewareBuilder() {
               emptyTitle="未命名" titleMax={16}
             />
           )}
-          <div className="flex-1 overflow-y-auto p-6 flex justify-center">
+          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 flex justify-center">
             {/* 全屏画布区（2026-09-14 修）：此前 `max-w-[960px]` 把全屏画布**又钉在 960 宽**
                 → "全屏编辑=最大化画布"落空（实测全屏 928×522 < 非全屏 960×540）。
                 宽度交还给容器，缩放由 PptxPreview 按可用宽高适配。 */}
@@ -1367,6 +1390,8 @@ export default function CoursewareBuilder() {
         previewOpen={effectivePreviewOpen}
         onPreviewChange={setPreviewOpen}
         onPreviewEdit={editNow}
+        // 放映中（纯净 + 鼠标静止）淡出外壳标题栏，鼠标移动即浮现
+        previewDimChrome={!!ctrl.readOnly && cwImmersive.pure && !cwImmersive.hud}
       />
     )
   }

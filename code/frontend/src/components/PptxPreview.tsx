@@ -334,6 +334,15 @@ interface PptxPreviewProps {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
+/** 画布边界钳制（2026-09-18 修）：所有几何写路径（属性面板输入 / 对齐·分布 / 创建副本 / 存档载入）
+ *  统一收口到这里，保证 x∈[0,100-w]、y∈[0,100-h]。此前各写路径只独立钳 0~100（或不钳），
+ *  实测「课堂练习」页 4 元件 x=5/35/65/95、w=30 → 末位 x+w=125% 越界落盘，画布上溢出不可见。 */
+const clampBox = (el: CwElement): CwElement => {
+  const w = clamp(el.w || 1, 1, 100)
+  const h = clamp(el.h || 1, 1, 100)
+  return { ...el, w, h, x: clamp(el.x, 0, 100 - w), y: clamp(el.y, 0, 100 - h) }
+}
+
 /** 按版心比例取画布基准尺寸（4:3 高度更高） */
 const canvasSizeOf = (ar: '16/9' | '4/3') => ar === '4/3' ? { w: 960, h: 720 } : { w: 960, h: 540 }
 
@@ -462,8 +471,11 @@ export default function PptxPreview({
 
   // 高度链（2026-09-14）：此前根节点没有 h-full/min-h-0 → 画布 pane 的高度不受视口约束，
   // 内容（486px）把 pane 撑住且不收缩，窗口一矮画布就被顶到屏幕外（实测 1000×520 被裁 119px）。
+  // 宽度链（2026-09-18）：同理补 w-full/min-w-0 —— 根节点此前 min-width:auto，作为 pane(flex justify-center)
+  // 的子项被画布内容宽度（如 960px）撑住、缩不下去，pane 虽已 min-w-0 也没用（实测 1440 视口下画布
+  // 右缘到 1521px 被裁且无法滚动，x=95% 的元件在非全屏完全不可见）。
   return (
-    <div className={`flex h-full min-h-0 flex-col ${className || ''}`}>
+    <div className={`flex h-full min-h-0 w-full min-w-0 flex-col ${className || ''}`}>
       {/* 画布外层（2026-09-14 修）：此前 `max-w-4xl` + `min(896px,100%)` 把画布**钉死在 896px**
           → 全屏编辑/大屏都不放大（实测 1440 与 1920 下都是 864；全屏前后也是 864），
           "全屏编辑=最大化画布"的意图落空。现改为跟随容器宽度，尺寸由缩放层按可用宽高适配。 */}
@@ -807,6 +819,13 @@ function renderStaticSlide(s: CwSlide, theme: CwTheme, idx: number, aspectRatio:
         {s.footer && (
           <div className="absolute bottom-5 w-full text-center text-xs" style={{ color: c(theme.footer), fontFamily: theme.font }}>{s.footer}</div>
         )}
+        {/* 元素层（2026-09-18 方案 A）：**封面版式页也叠加元素层** —— 此前封面分支完全不画 elements，
+            于是「编辑器里看得见、预览/放映里看不见」（老师以为自己加的元素丢了）。
+            跳过 slotKey==='title' 的元素：标题已由上方 <h2> 渲染，避免重复（与 layoutElements 的跳过规则呼应）。 */}
+        {(() => {
+          const coverEls = (s.elements || []).filter((e) => (e as { slotKey?: string }).slotKey !== 'title')
+          return coverEls.length ? renderElementsStatic(coverEls, lay, styleKeyFromThemeId(theme.id), theme) : null
+        })()}
       </div>
     )
   }
@@ -1339,7 +1358,10 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
 
   // 仅切页（slideKey 变化）时重置画布；同页编辑 slide 引用变化不重置（避免覆盖画布内编辑态）
   useEffect(() => {
-    const els = slide.elements || []
+    // 载入即钳界（2026-09-18）：历史存档里可能已有越界几何（如 x+w>100），进画布先修正；
+    // 若确有变化则回写外层，让存档在下次保存时自愈。
+    const raw = slide.elements || []
+    const els = raw.map(clampBox)
     const lay = slide.layout || 'title-body'
     setElements(els)
     setTitle(slide.title)
@@ -1350,6 +1372,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     setGuide({})
     setHistory([{ elements: els, title: slide.title, layout: lay }])
     setHIndex(0)
+    if (JSON.stringify(els) !== JSON.stringify(raw)) emit(els, slide.title, lay)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slideKey])
 
@@ -1489,7 +1512,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
   }, [selId])
   const patchSel = (p: Partial<CwElement>) => {
     if (!selId) return
-    commit(elements.map(e => (e.id === selId ? { ...e, ...p } : e)))
+    // 几何字段经 clampBox 收口：x/y 不再允许独立写到 100（此前 x=95+w=30 可越界 125%）
+    commit(elements.map(e => (e.id === selId ? clampBox({ ...e, ...p }) : e)))
   }
 
   const addElement = (type: 'text' | 'image' | 'shape', extra?: Partial<CwElement>) => {
@@ -1515,7 +1539,7 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     if (!selIdsRef.current.length) return
     const copies = elementsRef.current
       .filter(e => selIdsRef.current.includes(e.id))
-      .map(e => ({ ...e, id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, x: Math.min(95, e.x + 2), y: Math.min(95, e.y + 2) }))
+      .map(e => clampBox({ ...e, id: `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, x: e.x + 2, y: e.y + 2 }))
     commit([...elementsRef.current, ...copies])
     setSelIds(copies.map(c => c.id))
   }
@@ -1568,7 +1592,8 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
       const span = horiz ? (last.x - first.x) : (last.y - first.y)
       const step = span / (sorted.length - 1)
       const posMap = new Map(sorted.map((e, i) => [e.id, first[horiz ? 'x' : 'y'] + step * i]))
-      commit(elementsRef.current.map(e => posMap.has(e.id) ? { ...e, [horiz ? 'x' : 'y']: px(posMap.get(e.id)!) } : e))
+      // 分布后同样钳界（2026-09-18）：首/末元素贴边时不得把彼此推出画布（实测曾产出 x=95+w=30）
+      commit(elementsRef.current.map(e => posMap.has(e.id) ? clampBox({ ...e, [horiz ? 'x' : 'y']: px(posMap.get(e.id)!) }) : e))
       return
     }
     const edges = selEls.map(e => ({ l: e.x, r: e.x + e.w, t: e.y, b: e.y + e.h, cx: e.x + e.w / 2, cy: e.y + e.h / 2 }))
@@ -1581,12 +1606,12 @@ function EditableCanvas({ slide, slideKey, theme, onChange, cw, ch, ar, onArChan
     if (mode === 'vcenter') target = edges.reduce((s, e) => s + e.cy, 0) / edges.length
     commit(elementsRef.current.map(e => {
       if (!selIdsRef.current.includes(e.id)) return e
-      if (mode === 'left') return { ...e, x: target }
-      if (mode === 'right') return { ...e, x: target - e.w }
-      if (mode === 'hcenter') return { ...e, x: target - e.w / 2 }
-      if (mode === 'top') return { ...e, y: target }
-      if (mode === 'bottom') return { ...e, y: target - e.h }
-      return { ...e, y: target - e.h / 2 }
+      if (mode === 'left') return clampBox({ ...e, x: target })
+      if (mode === 'right') return clampBox({ ...e, x: target - e.w })
+      if (mode === 'hcenter') return clampBox({ ...e, x: target - e.w / 2 })
+      if (mode === 'top') return clampBox({ ...e, y: target })
+      if (mode === 'bottom') return clampBox({ ...e, y: target - e.h })
+      return clampBox({ ...e, y: target - e.h / 2 })
     }))
   }
 

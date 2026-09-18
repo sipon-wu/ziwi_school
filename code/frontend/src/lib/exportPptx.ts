@@ -35,6 +35,110 @@ function pptxFont(css?: string): string {
   return first || FONT
 }
 
+/**
+ * 把装饰元件 URL（同源 SVG / PNG / 或 data-url）转成 pptxgenjs 可用的图片 data 串。
+ * pptxgenjs 的 addImage 要求 `data: "image/png;base64,...."`（无 `data:` 前缀）。
+ *
+ * 屏幕端（PPT 预览 / H5）封面衬底已统一为「opacity:0.18、无模糊」（commit 708df77「为导出保真让路」），
+ * 故导出端只对背景以 transparency:82（≈0.18）平铺，**不做模糊**——这样导出件与屏幕所见即所得。
+ *
+ * 光栅化实现注意：此前用 `createImageBitmap(blob)`，但本环境 Chromium 对 data-url SVG 会抛
+ * `InvalidStateError: The source image could not be decoded`，导致整张图加载失败、装饰全丢。
+ * 改用 `new Image()` + `drawImage`（对 SVG/PNG/data-url 均可靠）规避该坑。
+ */
+async function toPptxImage(url: string): Promise<string | null> {
+  try {
+    const img = new Image()
+    img.decoding = 'sync'
+    img.src = url
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('image load failed: ' + url.slice(0, 40)))
+    })
+    const w = img.naturalWidth || 600
+    const h = img.naturalHeight || 400
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(img, 0, 0)
+    const out = canvas.toDataURL('image/png')
+    const i = out.indexOf(',')
+    return i >= 0 ? `image/png;base64,${out.slice(i + 1)}` : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 预加载一页装饰涉及的全部图片，返回 url → pptx 图片串。
+ * 注意：屏幕端（PPT 预览 / H5）封面衬底已是「opacity:0.18、无模糊」（commit 708df77「为导出保真让路」），
+ * 故导出端**不再对背景做 canvas 预模糊**，只以 transparency:82（≈0.18）平铺，保证导出件与屏幕所见即所得。
+ */
+async function preloadDecorImages(slides: CwSlide[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  const urls = new Set<string>()
+  for (const s of slides) {
+    const d = s.decor
+    if (!d) continue
+    if (d.background) urls.add(d.background)
+    for (const it of [...(d.header || []), ...(d.footer || []), ...(d.corners || []), ...(d.floating || [])]) {
+      if (it.url) urls.add(it.url)
+    }
+  }
+  await Promise.all([...urls].map(async (u) => {
+    const data = await toPptxImage(u)
+    if (data) map.set(u, data)
+  }))
+  return map
+}
+
+/** 一排装饰（页眉/页脚）：居中、等宽分布。返回每个元件的几何。 */
+function rowGeoms(n: number, yFrac: number, hFrac: number, CW_W: number, CW_H: number) {
+  if (!n) return []
+  const bandH = hFrac * CW_H
+  const imgW = Math.min(CW_W * 0.4, (CW_W * 0.9) / n)
+  const imgH = bandH * 0.8
+  const gap = (CW_W - imgW * n) / (n + 1)
+  const out: Array<{ x: number; y: number; w: number; h: number }> = []
+  for (let i = 0; i < n; i++) {
+    out.push({ x: gap + i * (imgW + gap), y: yFrac * CW_H + (bandH - imgH) / 2, w: imgW, h: imgH })
+  }
+  return out
+}
+
+const CORNER_GEOMS = [
+  { x: 0.04, y: 0.04 }, { x: 0.82, y: 0.04 }, { x: 0.04, y: 0.82 }, { x: 0.82, y: 0.82 },
+]
+const FLOAT_GEOMS = [
+  { x: 0.08, y: 0.42 }, { x: 0.76, y: 0.58 }, { x: 0.10, y: 0.30 },
+]
+
+/**
+ * 把装饰层画进 PPTX 幻灯片，与 PptxPreview 的 DecorLayer 同口径（位置/比例一致）。
+ * `bgOnly=true` 只画背景衬底（须画在标题文字之下）；否则画页眉/页脚/角标/浮动（画在内容之上作点缀框）。
+ */
+function drawDecor(
+  pres: any, slide: any, decor: DecorSlots | null | undefined,
+  imgMap: Map<string, string>, CW_W: number, CW_H: number, bgOnly: boolean,
+) {
+  if (!decor) return
+  if (bgOnly) {
+    if (decor.background && imgMap.has(decor.background)) {
+      slide.addImage({ data: imgMap.get(decor.background), x: 0, y: 0, w: CW_W, h: CW_H, transparency: 82 })
+    }
+    return
+  }
+  const items = (a?: DecorItem[]) => a || []
+  const draw = (url: string | undefined, g: { x: number; y: number; w: number; h: number }) => {
+    if (url && imgMap.has(url)) slide.addImage({ data: imgMap.get(url), x: g.x * CW_W, y: g.y * CW_H, w: g.w * CW_W, h: g.h * CW_H })
+  }
+  const hdr = items(decor.header); rowGeoms(hdr.length, 0, 0.18, CW_W, CW_H).forEach((g, i) => draw(hdr[i].url, g))
+  const ftr = items(decor.footer); rowGeoms(ftr.length, 0.82, 0.18, CW_W, CW_H).forEach((g, i) => draw(ftr[i].url, g))
+  items(decor.corners).slice(0, 4).forEach((it, i) => draw(it.url, { x: CORNER_GEOMS[i].x, y: CORNER_GEOMS[i].y, w: 0.14, h: 0.14 }))
+  items(decor.floating).slice(0, 3).forEach((it, i) => draw(it.url, { x: FLOAT_GEOMS[i].x, y: FLOAT_GEOMS[i].y, w: 0.16, h: 0.16 }))
+}
+
 export interface CwOptions {
   /** 任教班级展示名（如"四年级(2)班"）。**没有班级时必须留空，不要拿年级顶替**（2026-09-15 准确性修正） */
   classLabel?: string
@@ -243,6 +347,7 @@ export function buildCoursewareSlides(content: string, opts: CwOptions): CwSlide
     subtitle: `${opts.subject} · ${opts.grade}${opts.teacherName ? '  ·  ' + opts.teacherName : ''}`,
     coverInfo: coverInfoFrom(opts),
     footer: '知微教学 · ziwi.cn',
+    decor: parseCoverDecor(content) || null,
   })
 
   if (sections.length === 0) {
@@ -1142,10 +1247,16 @@ export async function exportCoursewareToPptx(
   // 标题带高度：与预览共用同一常量（此前预览 15.3%、导出 (1.15/7.5)*CW_H，两处各自推导）
   const bandH = TITLE_BAND_RATIO * CW_H
   const titleW = CW_W - 1.4
+  // 装饰层预加载：背景以 transparency:82 平铺（与屏幕端 opacity:0.18 无模糊一致），元件原样嵌入。
+  const decorImg = await preloadDecorImages(slides)
   slides.forEach((s) => {
-    if (s.kind === 'cover') {
+    // 封面皮肤判定与预览对齐（2026-09-18 方案 A）：预览端 `kind==='cover' || layout==='edu-cover'` 走封面，
+    // 导出端此前**只认 kind==='cover'**，于是 outline 里标了 edu-cover 的页在导出件里被画成普通白底内容页
+    // （皮肤与预览不一致）。现两端同判据。
+    if (s.kind === 'cover' || s.layout === 'edu-cover') {
       const cover = pres.addSlide()
       cover.background = { color: theme.coverBg }
+      drawDecor(pres, cover, s.decor, decorImg, CW_W, CW_H, true)
       cover.addText(s.title, {
         x: 0.9, y: 2.5, w: CW_W - 1.8, h: 1.5, fontFace: font, fontSize: 40, bold: true, color: theme.onPrimary, align: 'center',
       })
@@ -1155,11 +1266,17 @@ export async function exportCoursewareToPptx(
       cover.addText(s.footer || '', {
         x: 0.9, y: 6.7, w: CW_W - 1.8, h: 0.4, fontFace: font, fontSize: 12, color: theme.footer, align: 'center',
       })
+      drawDecor(pres, cover, s.decor, decorImg, CW_W, CW_H, false)
+      // 元素层（2026-09-18 方案 A）：封面版式页与内容页同源叠加元素层 —— 此前封面分支完全不画 elements，
+      // 老师加的元素"编辑器里看得到、导出的 pptx 里没有"。跳过 title 槽元素（标题已由上方 addText 渲染）。
+      const coverEls = (s.elements || []).filter((e) => (e as { slotKey?: string }).slotKey !== 'title')
+      coverEls.forEach((e) => renderElement(pres, cover, e, CW_W, CW_H, theme, font))
       if (s.notes) cover.addNotes(s.notes)
       return
     }
 
     const slide = pres.addSlide()
+    drawDecor(pres, slide, s.decor, decorImg, CW_W, CW_H, true)
     // ── 风格结构语汇（2026-09-11）：导出端此前**完全没有**结构差异，
     //    导致"预览有网格/边栏/角标、导出的 PPTX 却没有"。现与预览消费同一份 token。 ──
     const st = styleStructure(styleKeyFromThemeId(theme.id))
@@ -1300,6 +1417,7 @@ export async function exportCoursewareToPptx(
     slide.addText(s.footer || '', {
       x: CW_W - 3, y: CW_H - 0.5, w: 2.7, h: 0.4, fontFace: font, fontSize: 10, color: theme.footer, align: 'right',
     })
+    drawDecor(pres, slide, s.decor, decorImg, CW_W, CW_H, false)
     if (s.notes) slide.addNotes(s.notes)
   })
 

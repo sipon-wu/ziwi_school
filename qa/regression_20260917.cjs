@@ -13,11 +13,10 @@
 const { chromium } = require('playwright')
 const { must, notEmpty, allOf, sampled, report } = require('./lib/assert.cjs')
 const { execFileSync } = require('child_process')
+const { ensurePptFixture, ensureH5Fixture } = require('./lib/cwFixture.cjs')
 
-const B = 'http://school1.ziwi.cn'
+const B = process.env.BASE || 'http://school1.ziwi.cn'
 const FE = '/Users/sipon/CodeBuddy/AI教案/code/frontend'
-const PPT_NAME = '天窗 09-15_课件'
-const H5_ID = '71c30cca-78d8-4d4e-beee-b0af8bb2a5b4'
 const stripCW = md => String(md || '').split('\n').filter(l => !/CW-COVER/.test(l)).join('\n')
 const countPages = md => String(md || '').split('\n').filter(l => /^##\s+/.test(l.trim())).length
 const enc = s => 'data:image/svg+xml;base64,' + Buffer.from(s).toString('base64')
@@ -31,14 +30,15 @@ const withCW = (md, decor) => {
 }
 let br
 ;(async () => {
-  const lg = await (await fetch(B + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '13800000002', password: 'teacher123' }) })).json()
+  const lg = await (await fetch(B + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: process.env.PHONE || '13800000002', password: process.env.PASS || 'teacher123' }) })).json()
   must(!!lg.token, '登录成功（测试账号）')
   const H = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + lg.token }
   const get = async p => (await (await fetch(B + p, { headers: H })).json())
-  const all = (await get('/api/materials')).items || []
-  const ppt = all.find(x => String(x.name) === PPT_NAME && String(x.format) === 'ppt')
-  must(!!ppt, '找到 PPT 测试件', { name: PPT_NAME })
-  notEmpty(ppt && ppt.id, 'PPT 测试件 id')
+  // 基线件**随用随建**（staging 存量课件已按用户指令清空，守卫不再依赖既有数据）
+  const pptFx = await ensurePptFixture()
+  const ppt = { id: pptFx.id }
+  must(!!ppt.id, 'PPT 基线件就绪', { id: ppt.id, created: pptFx.created })
+  notEmpty(ppt.id, 'PPT 基线件 id')
 
   /* ── ① 环境健康 ── */
   const h = await get('/api/health')
@@ -103,11 +103,27 @@ let br
     const el = [...document.querySelectorAll('*')].find(e => { const b = getComputedStyle(e).backgroundImage || ''; return b.includes('data:image') && b.length > 30 })
     return el ? getComputedStyle(el).filter : null
   })
-  must(!!blur && /blur/.test(blur), '封面衬底带高斯模糊', { filter: blur })
+  // 注：commit 708df77「衬底放弃高斯模糊，只保留半透明 0.18——为导出保真让路」后，屏幕端封面衬底已无 blur。
+  // 原断言期望 blur 属陈旧（代码已改），此处改为校验「不再高斯模糊」（与 pptx 导出口径一致）。
+  must(!blur || !/blur/.test(blur), '封面衬底已放弃高斯模糊（仅半透明，与导出一致）', { filter: blur })
 
   /* ── ⑥ H5：封面 / 页码 / 衬底 ── */
+  // H5 基线件随用随建；并把 h5_html 快照与内容对齐（新建件快照为空，6a 会白屏）
+  const h5Fx = await ensureH5Fixture()
+  const H5_ID = h5Fx.id
+  must(!!H5_ID, 'H5 基线件就绪', { id: H5_ID, created: h5Fx.created })
   const h5Orig = await get(`/api/materials/${H5_ID}`)
   const h5Clean = stripCW(h5Orig.content)
+  execFileSync('npx', ['esbuild', 'src/lib/courseware-h5/index.ts', '--bundle', '--format=cjs', '--platform=node',
+    '--alias:@shared=../shared', '--alias:@styles=../ai-service/skills/shared/styles',
+    '--define:import.meta.env={}', '--outfile=/tmp/h5reg.cjs', '--log-level=error'], { cwd: FE, stdio: 'inherit' })
+  const { markdownToStorybookH5 } = require('/tmp/h5reg.cjs')
+  const h5Render = (md) => markdownToStorybookH5(md, {
+    subject: h5Orig.subject || '语文', grade: h5Orig.grade || '四年级',
+    title: String(h5Orig.name || '').replace(/_课件$/, ''),
+    teacherName: (lg.user && lg.user.name) || '', themeId: h5Orig.theme_id || '', colorRoot: h5Orig.color_root || '',
+  })
+  await fetch(`${B}/api/materials/${H5_ID}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...h5Orig, content: h5Clean, h5_html: h5Render(h5Clean) }) })
   const p2 = await br.newPage({ viewport: { width: 414, height: 896 } })
   p2.on('pageerror', e => { errs++; console.log('   [pageerror] ' + String(e.message).slice(0, 130)) })
   const h5snap = async () => {
@@ -138,21 +154,13 @@ let br
   const pg2 = await p2.evaluate(() => (document.querySelector('.pg-info') || {}).innerText)
   must(String(pg2) === `1/${a.n - 1}`, `H5 内容页页码=${pg2}（总数不含封面 ${a.n - 1}）`)
 
-  // 6b 注入封面装饰后：衬底层出现且带高斯模糊
-  execFileSync('npx', ['esbuild', 'src/lib/courseware-h5/index.ts', '--bundle', '--format=cjs', '--platform=node',
-    '--alias:@shared=../shared', '--alias:@styles=../ai-service/skills/shared/styles',
-    '--define:import.meta.env={}', '--outfile=/tmp/h5reg.cjs', '--log-level=error'], { cwd: FE, stdio: 'inherit' })
-  const { markdownToStorybookH5 } = require('/tmp/h5reg.cjs')
+  // 6b 注入封面装饰后：衬底层出现（无模糊，与 PPT 屏幕端一致）
   const h5Md = withCW(h5Orig.content, { background: BG })
-  const h5Html = markdownToStorybookH5(h5Md, {
-    subject: h5Orig.subject || '英语', grade: h5Orig.grade || '四年级',
-    title: String(h5Orig.name || '').replace(/_课件$/, ''),
-    teacherName: (lg.user && lg.user.name) || '', themeId: h5Orig.theme_id || '', colorRoot: h5Orig.color_root || '',
-  })
-  await fetch(`${B}/api/materials/${H5_ID}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...h5Orig, content: h5Md, h5_html: h5Html }) })
+  await fetch(`${B}/api/materials/${H5_ID}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...h5Orig, content: h5Md, h5_html: h5Render(h5Md) }) })
   const b = await h5snap()
   must(b.underlay === 1, '有装饰时封面渲染出衬底层', { underlay: b.underlay })
-  must(/blur/.test(String(b.underlayFilter)), '衬底带高斯模糊', { filter: b.underlayFilter })
+  // 注：同 708df77，H5 衬底也已放弃高斯模糊，仅半透明。原「带高斯模糊」断言陈旧，改为校验无 blur。
+  must(!b.underlayFilter || !/blur/.test(String(b.underlayFilter)), 'H5 衬底已放弃高斯模糊（仅半透明，与 PPT 屏幕一致）', { filter: b.underlayFilter })
 
   must(errs === 0, '全程 pageerror = 0', { errs })
 

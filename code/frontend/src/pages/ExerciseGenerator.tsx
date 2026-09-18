@@ -188,7 +188,11 @@ export default function ExerciseGenerator() {
   // 任教班级
   const [myClassesEG, setMyClassesEG] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClassesEG(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
-  const classLabelEG = myClassesEG.find(it => it.class_id === teaching.selectedClassId)?.class_name || GRADE_NAMES[teaching.grade - 1]
+  // 班级 ≠ 年级（2026-09-18 收口 DECISIONS 待办）：此前用 `|| GRADE_NAMES[grade-1]` 拿年级顶替"班级"。
+  // 规则与课件/教案/题单一致：选中 → 主班级 → 首个任教班级 → **留空**。
+  const classLabelEG = (myClassesEG.find(it => it.class_id === teaching.selectedClassId)
+    || myClassesEG.find(it => (it as { is_primary?: boolean }).is_primary)
+    || myClassesEG[0])?.class_name || ''
 
   // 从已选图谱节点派生知识点标签
   const knowledgeLabel = picker.selectedNodes.map((n: any) => n.name).join('、') || ''

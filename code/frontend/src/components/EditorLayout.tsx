@@ -77,6 +77,8 @@ interface Props {
   previewSlot?: ReactNode
   /** 预览层标题 */
   previewTitle?: string
+  /** 沉浸放映：纯净放映中标题栏随鼠标静止淡出（课件放映用，默认 false） */
+  previewDimChrome?: boolean
 
   // ========== P0-6 统一 footer（新，可选） ==========
   /** 统一 footer 配置：传了即用框架渲染的 保存草稿 / 发布 按钮，取代 footerLeft/footerRight（渐进迁移） */
@@ -102,7 +104,7 @@ export default function EditorLayout({
   primaryLeft, primaryRight, secondaryLeft, secondaryRight,
   sceneName,
   footerExtra, footerLeft, footerRight, hidePreviewBtn, onPreview,
-  previewSlot, previewTitle, footerLifecycle, footerAlign,
+  previewSlot, previewTitle, previewDimChrome, footerLifecycle, footerAlign,
   previewOpen: previewOpenProp, onPreviewChange, onPreviewEdit, previewEditDisabled,
 }: Props) {
   // 受控预览：传了 previewOpen 则由页面持有状态，否则框架内部自管理
@@ -261,7 +263,7 @@ export default function EditorLayout({
 
       {/* P0-2 全屏预览承载层 */}
       {useNewPreview && (
-        <PreviewOverlay open={previewOpen} title={previewTitle} onClose={() => setPreviewOpen(false)} onEdit={onPreviewEdit} editDisabled={previewEditDisabled}>
+        <PreviewOverlay open={previewOpen} title={previewTitle} onClose={() => setPreviewOpen(false)} onEdit={onPreviewEdit} editDisabled={previewEditDisabled} dimChrome={previewDimChrome}>
           {previewSlot}
         </PreviewOverlay>
       )}

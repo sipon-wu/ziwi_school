@@ -169,16 +169,18 @@ export function useKnowledgePicker(options: UseKnowledgePickerOptions = {}): Use
       setSelectedIds(firstUnit.kps || [])
       return
     }
-    // 2) 回退：textbook-math.json 缺失/不含当前组合时，按 学科/年级/学期 从知识图谱预选前若干节点，
-    //    避免「AI生成」按钮因无预选知识点而恒灰（灰度指引：知识点为可选，不应阻塞出题/教案）。
+    // 2) 回退：教材映射缺失时，从知识图谱预选若干节点（保证「AI生成」按钮不因无预选而恒灰）。
+    //    口径修正（2026-09-18，DECISIONS「预选过滤口径不一致」）：
+    //    此前按 `n.subject === 学科` / `n.grade === 年级` / `n.semester === 学期` 过滤 —— 但这些字段在
+    //    `tb_kg_node` 里**本就不存在**（接口固定返回 `subject:''`、`grade:0`、无 semester，见下方映射），
+    //    于是过滤恒为空 → 落到「全库前 6 个节点」：预选出的知识点可能与当前学科/年级毫无关系（真缺陷）。
+    //    现改为取**同一教材版本（version_id，后端确实返回）**内的节点做预选，保证口径内部自洽。
+    //    待 `/api/ai/knowledge/units` 支持 年级/学期 维度后，再按年级收口（见 DECISIONS 待办 C3）。
     if (knowledgeData.length === 0) return
-    const subj = teaching.subject
-    const grade = teaching.grade
-    const sem = teaching.semester
-    let cand = knowledgeData.filter((n: any) => n.subject === subj)
-    if (cand.length === 0) cand = knowledgeData
-    const sameGS = cand.filter((n: any) => n.grade === grade && n.semester === sem)
-    const pick = (sameGS.length ? sameGS : cand).slice(0, 6).map((n: any) => n.id)
+    const vid = String((knowledgeData[0] as { version_id?: string }).version_id || '')
+    const sameVer = knowledgeData.filter((n) => String((n as { version_id?: string }).version_id || '') === vid)
+    const pool = sameVer.length ? sameVer : knowledgeData
+    const pick = pool.slice(0, 6).map((n) => n.id)
     if (pick.length > 0) setSelectedIds(pick)
   }, [textbookData, knowledgeData, teaching.currentTextbook(), teaching.grade, teaching.semester, currentUnits, autoSelect, preSelectedNodes])
 

@@ -39,7 +39,12 @@ export default function ExamBuilder() {
   // 任教班级
   const [myClassesEB, setMyClassesEB] = useState<MyClass[]>([])
   useEffect(() => { classAPI.myClasses().then(r => setMyClassesEB(r?.items || [])).catch(e => notifyError('班级列表加载失败', e)) }, [])
-  const classLabelEB = myClassesEB.find(it => it.class_id === teaching.selectedClassId)?.class_name || gradeName
+  // 班级 ≠ 年级（2026-09-18 收口 DECISIONS 待办）：此前用 `|| gradeName` 拿年级顶替"班级"
+  // （教师看到"班级：四年级"）。规则与课件/教案/题单一致：选中 → 主班级 → 首个任教班级 → **留空**，
+  // 绝不拿年级顶替。
+  const classLabelEB = (myClassesEB.find(it => it.class_id === teaching.selectedClassId)
+    || myClassesEB.find(it => (it as { is_primary?: boolean }).is_primary)
+    || myClassesEB[0])?.class_name || ''
 
   // 加载已有试卷（编辑模式）
   useEffect(() => {
