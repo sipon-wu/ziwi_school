@@ -70,6 +70,19 @@ func recordRelease(db *gorm.DB, c *gin.Context, meta ReleaseMeta, res *policy.Re
 	if strings.TrimSpace(checkJSON) != "" && json.Valid([]byte(checkJSON)) {
 		checkPtr = &checkJSON
 	}
+	// ⚠ payload 也是 **jsonb**（不是 text），此处曾**静默失效**（2026-09-18 实测定位）：
+	// meta.Payload 对课件是 markdown、对教案是 HTML —— 都不是合法 JSON，直接写入会被 PG 拒绝
+	// （SQLSTATE 22P02 invalid input syntax for type json），而错误被下方 log.Printf 吞掉，
+	// 又因为"写失败不影响发布"的设计，表现为**发布留痕一条都没有**（实测 staging：versions 里
+	// kind='release' 恒为 0，且无人察觉）。约定与前端一致（annotation_handler.CreateVersion：
+	// 非 JSON 正文包成 JSON 字符串；既有 snapshot 行里 `"<p>旧版内容</p>"` 就是这个形态）；
+	// 课件提纲这类本身是合法 JSON 的保持原样（两种形态在库里并存）。
+	payload := meta.Payload
+	if !json.Valid([]byte(payload)) {
+		if b, err := json.Marshal(payload); err == nil {
+			payload = string(b)
+		}
+	}
 	v := &model.Version{
 		SchoolID:       schoolID,
 		UserID:         userID,
@@ -78,7 +91,7 @@ func recordRelease(db *gorm.DB, c *gin.Context, meta ReleaseMeta, res *policy.Re
 		Kind:           "release",
 		VersionNo:      int(existCount) + 1,
 		Label:          meta.Label,
-		Payload:        meta.Payload,
+		Payload:        payload,
 		ReviewStatus:   reviewStatus,
 		CheckResult:    checkPtr,
 		AIGenerated:    meta.AIGenerated,

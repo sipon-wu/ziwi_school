@@ -254,15 +254,26 @@ export function useCwSave({
         })
       }
       let newId = d.materialId
-      if (d.materialId) await materialAPI.update(d.materialId, payload)
-      else {
+      // 审核服务不可用 → 后端按安全策略把 status 降级为草稿并回 code=POLICY_UNAVAILABLE（2026-09-18）
+      let pubWarn = ''
+      if (d.materialId) {
+        const r: any = await materialAPI.update(d.materialId, payload)
+        if (r?.code === 'POLICY_UNAVAILABLE') pubWarn = String(r.message || '')
+      } else {
         const m: any = await materialAPI.createJSON(payload)
         if (m?.id) { setMaterialId(m.id); newId = m.id }
+        if (m?.code === 'POLICY_UNAVAILABLE') pubWarn = String(m.message || '')
       }
       try { localStorage.removeItem(d.draftKey) } catch { /* noop */ }
-      toast('课件已发布', 'success')
-      // H5：发布后弹出扫码查看二维码（手机扫码即可在浏览器打开投屏互动课件）
-      if (d.cwFormat === 'h5' && newId) {
+      if (pubWarn) {
+        // 防"谎报已发布"：此前接口 200 + 这里照旧提示"已发布" → 用户以为发布成功，其实还是草稿、
+        // 且没有任何发布留痕（审计上等于"从未发布"）。
+        toast(pubWarn, 'warning')
+      } else {
+        toast('课件已发布', 'success')
+      }
+      // H5：**真发布成功**才弹扫码二维码（未发布时给二维码等于误导）
+      if (!pubWarn && d.cwFormat === 'h5' && newId) {
         const url = `${window.location.origin}/api/materials/${newId}/h5`
         const dataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 })
         setH5Qr({ url, dataUrl })

@@ -284,6 +284,7 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 	// 内容安全审核（红线锁）：草稿永远可编辑、不审查；
 	// 只有「发布进素材库」（status=active）这一动作才过闸。
 	var auditRes *policy.Result
+	policyDown := false // 同 UpdateMaterial：审核不可用导致降级为草稿时，须明确告知调用方（不再静默）
 	if m.Status == "active" && h.policy != nil && h.policy.Enabled() {
 		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
 			Text:    strings.TrimSpace(m.Name + "\n" + m.Content),
@@ -294,6 +295,7 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 			// 审核没能跑成 ≠ 内容没问题：降级为草稿，避免内容"裸奔"到可用状态
 			log.Printf("[policy] 课件审核服务不可用，课件降级为草稿: %v", err)
 			m.Status = "draft"
+			policyDown = true
 		} else if blocking := res.Blocking(); len(blocking) > 0 {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{
 				"code":    "CONTENT_BLOCKED",
@@ -313,7 +315,17 @@ func (h *MaterialHandler) CreateMaterialJSON(c *gin.Context) {
 	if m.Status == "active" {
 		h.recordReleaseVersion(c, m, auditRes)
 	}
-	c.JSON(http.StatusCreated, m)
+	type materialCreateResp struct {
+		*model.Material
+		Code    string `json:"code,omitempty"`
+		Message string `json:"message,omitempty"`
+	}
+	resp := materialCreateResp{Material: m}
+	if policyDown {
+		resp.Code = "POLICY_UNAVAILABLE"
+		resp.Message = "内容安全审核服务暂不可用，本次未发布（已存为草稿），请稍后重试发布"
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 // UpdateMaterial 更新素材（课件草稿/发布落库复用）
@@ -409,6 +421,11 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	// 内容安全审核（红线锁）：草稿永远可编辑、不审查；
 	// 只要最终状态为 active（含已发布内容的再次编辑），内容就必须过闸。
 	var auditRes *policy.Result
+	// policyDown：审核服务不可用 → 本次**没能发布、已降级为草稿**（2026-09-18 补可见性）。
+	// 此前只写日志、接口照旧 200，前端照旧提示"已发布" → 用户以为发布成功，**实际是草稿**，
+	// 且因 status≠active 而**没有任何发布留痕**（审计链上表现为"这份课件从未发布过"）。
+	// 触发条件并不罕见：实测 staging 冷启动（ai-service 未就绪 → connection refused）第一次发布即中。
+	policyDown := false
 	if existing.Status == "active" && h.policy != nil && h.policy.Enabled() {
 		res, err := h.policy.Check(c.Request.Context(), policy.CheckRequest{
 			Text:    strings.TrimSpace(existing.Name + "\n" + existing.Content),
@@ -420,6 +437,7 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 			if !wasActive {
 				// 尚未发布：不给可用状态，降级为草稿
 				existing.Status = "draft"
+				policyDown = true
 			}
 			// 已发布内容的再次编辑：审核不可用时保持放行，避免锁定正在使用的内容
 		} else if blocking := res.Blocking(); len(blocking) > 0 {
@@ -442,7 +460,19 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	if existing.Status == "active" && existing.Content != originalContent {
 		h.recordReleaseVersion(c, existing, auditRes)
 	}
-	c.JSON(http.StatusOK, existing)
+	// 响应：material 字段平铺（内嵌提升）+ 可选 code/message —— 向后兼容，既有字段一个不少。
+	// policyDown 时明确告知"本次未发布、已存草稿"，由前端换成警告提示（不再谎报"已发布"）。
+	type materialResp struct {
+		*model.Material
+		Code    string `json:"code,omitempty"`
+		Message string `json:"message,omitempty"`
+	}
+	resp := materialResp{Material: existing}
+	if policyDown {
+		resp.Code = "POLICY_UNAVAILABLE"
+		resp.Message = "内容安全审核服务暂不可用，本次未发布（已存为草稿），请稍后重试发布"
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // DeleteMaterial 删除素材/课件（硬删，无回收站）。
@@ -450,13 +480,17 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 //
 // 语义与边界（2026-09-18 新增）：
 //   - **只允许删自己名下的**（`user_id = 本人`）；公共素材（user_id 为空，如装饰元件库）与同事的素材不删。
-//     （注：UpdateMaterial 目前未做属主校验，这是历史遗留；删除是破坏性操作，故此处**从严**，不跟它对齐。）
 //   - 不存在 / 非本人 → 统一 404「素材不存在或无权删除」（不泄露存在性）。
-//   - 级联清理其批注与版本（见 repository.Delete），避免留下孤儿行。
+//   - 级联清理其批注与**草稿快照**；`kind='release'` 的发布留痕**保留**（见 repository.Delete）。
+//   - **删除留痕**：成功删除后写一条 `audit_logs`（谁、何时、删了什么）——素材是硬删无回收站，
+//     不留痕则"这份课件去哪了"事后无法回答。归属已收口为仅本人 → 记录天然可归责（审计视角，用户 2026-09-18 指正）。
 func (h *MaterialHandler) DeleteMaterial(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userIDStr, _ := userID.(string)
 	id := c.Param("id")
+	// 留痕需要被删对象的名称等元信息 → 先取一份快照（**仅用于留痕**；权限判定仍以 Delete 的
+	// RowsAffected 为准，这样"不存在 / 非本人"依旧统一 404，不泄露存在性）
+	snap, _ := h.repo.GetByID(id)
 	n, err := h.repo.Delete(id, userIDStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DELETE_FAILED", "message": "删除失败：" + err.Error()})
@@ -465,6 +499,18 @@ func (h *MaterialHandler) DeleteMaterial(c *gin.Context) {
 	if n == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "素材不存在或无权删除"})
 		return
+	}
+	if snap != nil {
+		sid, _ := c.Get("school_id")
+		details := map[string]interface{}{"name": snap.Name, "format": snap.Format, "category": snap.Category, "status": snap.Status}
+		rid := id
+		if err := h.db.Create(&repository.AuditLog{
+			UserID: userIDStr, SchoolID: extractUserID(sid),
+			Action: "delete", ResourceType: "courseware", ResourceID: &rid, Details: details,
+		}).Error; err != nil {
+			// 不阻断删除（留痕是增强），但**必须可见**——历史教训：审计写入被 `_ =` 吞掉后整条审计静默失效
+			log.Printf("[audit] 素材删除留痕写入失败 id=%s: %v", id, err)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"deleted": n})
 }

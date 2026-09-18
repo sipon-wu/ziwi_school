@@ -1,8 +1,10 @@
 package repository
 
 import (
+	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -30,9 +32,29 @@ func NewAuditRepository(db *gorm.DB) *AuditRepository {
 	return &AuditRepository{db: db}
 }
 
-// Write 写入一条操作审计（由 IT 关键操作在成功落库后调用）
+// BeforeCreate 统一生成主键（2026-09-18 修，**审计失效的直接原因**）。
+//
+// ⚠ 此前 AuditLog 没有任何主键生成逻辑：GORM 会显式写入空串 `id=''`，从而**绕过**建表时声明的
+// `DEFAULT gen_random_uuid()` → 第一条以 id='' 落库，其后每一条都撞
+// `duplicate key value violates unique constraint "audit_logs_pkey"`（SQLSTATE 23505）。
+// 叠加调用点的 `_ = repo.Write(...)` 吞错，表现为"审计只有 0~1 条且无人察觉"
+// （实测 staging 1 条 / **prod 0 条** —— IT 的教材版本增删改导入从未真正留痕）。
+func (a *AuditLog) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == "" {
+		a.ID = uuid.NewString()
+	}
+	return nil
+}
+
+// Write 写入一条操作审计（由 IT 关键操作在成功落库后调用）。
+// 失败**必须可见**（2026-09-18）：调用点多写 `_ = repo.Write(...)`，若这里不吭声，
+// "审计静默失效"就永远查不出来（上面那条 23505 就是这么被埋了很久的）。
 func (r *AuditRepository) Write(a *AuditLog) error {
-	return r.db.Create(a).Error
+	if err := r.db.Create(a).Error; err != nil {
+		log.Printf("[audit] 操作审计写入失败 action=%s resource=%s/%v: %v", a.Action, a.ResourceType, a.ResourceID, err)
+		return err
+	}
+	return nil
 }
 
 // ListRecentIT 取本租户 IT 管理员最近的操作记录（按时间倒序）

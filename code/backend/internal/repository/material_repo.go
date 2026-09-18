@@ -98,7 +98,12 @@ func (r *MaterialRepository) Delete(id, userID string) (int64, error) {
 	if err := r.db.Exec(`DELETE FROM annotations WHERE resource_id = ?`, id).Error; err != nil {
 		return res.RowsAffected, err
 	}
-	if err := r.db.Exec(`DELETE FROM versions WHERE resource_id = ?`, id).Error; err != nil {
+	// ⚠ 只清 **snapshot**（草稿期快照），**保留 kind='release' 的发布留痕**（2026-09-18 修）。
+	// 为什么：`Version.BeforeDelete` 已明确"release 版本不可删除（留痕须保留以备追溯）"，
+	// 但此处用的是原生 `Exec`，**绕过 GORM 钩子**——于是删素材会把它的发布留痕一并抹掉，证据链断裂。
+	// 审计口径：素材删除后仍应能回答"这份课件曾发布过什么、谁发布的、审没审"
+	// （删除动作本身另记 audit_logs，见 handler.DeleteMaterial）。
+	if err := r.db.Exec(`DELETE FROM versions WHERE resource_id = ? AND kind <> ?`, id, "release").Error; err != nil {
 		return res.RowsAffected, err
 	}
 	return res.RowsAffected, nil
