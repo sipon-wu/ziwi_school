@@ -42,6 +42,21 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 FE_DIR="$HERE/frontend"
 BE_DIR="$HERE/backend"
 
+# ── 0/4 预检：服务器磁盘余量 ──
+# 为什么必须有（2026-09-18 事故）：staging 磁盘写满（40G 用满）→ postgres 报
+# "could not write lock file postmaster.pid: No space left on device" 起不来；
+# 而本脚本 3.5 步会**先 `docker rm -f` 掉全部 staging 容器**再重建 —— 于是"磁盘满"直接表现为
+# **整站不可用**（容器停在 Created 状态、nginx 吐 HTML 错误页）。教训：**在动任何容器之前先卡余量**。
+# 清理手段（实测可释放）：docker builder prune -af（构建缓存 10.2G）+ docker image prune -af（未引用镜像 0.5G）。
+MIN_FREE_GB=${MIN_FREE_GB:-5}
+FREE_GB=$(ssh "$SERVER" "df -BG --output=avail / | tail -1 | tr -dc '0-9'")
+if [ "${FREE_GB:-0}" -lt "$MIN_FREE_GB" ]; then
+  echo "✗ [${ENV}] 服务器磁盘余量不足：${FREE_GB}G < ${MIN_FREE_GB}G —— 已中止，**未动任何容器**（服务保持现状）"
+  echo "  请先清理：ssh $SERVER 'docker builder prune -af && docker image prune -af'"
+  exit 1
+fi
+echo "==> [${ENV}] 0/4 预检通过（磁盘余量 ${FREE_GB}G ≥ ${MIN_FREE_GB}G）"
+
 echo "==> [${ENV}] 1/4 本地构建前端"
 ( cd "$FE_DIR" && ./node_modules/.bin/vite build )
 

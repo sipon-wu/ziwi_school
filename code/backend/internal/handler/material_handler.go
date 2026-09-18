@@ -101,6 +101,12 @@ func (h *MaterialHandler) GetMaterial(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "素材不存在"})
 		return
 	}
+	// owner_name（2026-09-18）：与 ListMaterials 同口径附上归属教师显示名。
+	// 用途：前端打开**他人**课件时提示"该课件由「王老师」创建，仅可查看/放映" ——只读原因必须点名到人，
+	// 落到"其他教师"等于没说（e2e 守卫 qa/verify_material_ownership_ui.cjs 就是据此断言的）。
+	tmp := []model.Material{*m}
+	attachOwnerNames(h.db, tmp)
+	m.OwnerName = tmp[0].OwnerName
 	c.JSON(http.StatusOK, m)
 }
 
@@ -322,15 +328,15 @@ func (h *MaterialHandler) UpdateMaterial(c *gin.Context) {
 	// 归属校验（2026-09-18 补，此前**完全没有**）：GetByID 不带任何范围过滤，于是任何登录用户
 	// 只要知道 id 就能改**任意**素材（含跨校、含平台公共装饰元件库）——写入面比读取面宽是安全漏洞。
 	//
-	// 判据两条（缺一不可）：
-	//   ① **同校**：口径取"同校"而非"仅本人"——素材库本身是校内共享的（repository.List 按 school_id
-	//      返回全校素材，同事的课件在库里可见），收紧成仅本人可改会打断"同事共享课件被复用后保存"的正常流。
-	//   ② **非平台公共资产**：`user_id` 为空的行（如装饰元件库）由平台运维维护/打标，教师端不得改写。
-	//      注意：实测这些行的 `school_id` 是**真实学校**（如 sch-0001），所以只查 school_id 拦不住它们。
-	schoolID, _ := c.Get("school_id")
-	schoolIDStr, _ := schoolID.(string)
-	if schoolIDStr == "" || existing.SchoolID != schoolIDStr || existing.UserID == "" {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "无权修改该素材（仅限本校、非平台公共资产）"})
+	// 口径（2026-09-18 用户拍板）：**仅本人**（`user_id = 本人`），与 DELETE 一致。
+	// 有意**不取**"同校可改"：素材库虽按 school 共享**可见**（列表带作者名、可预览），但**改写他人作品**
+	// 不是预期能力——需要同事的课件请走"复制为我的"。公共资产（user_id 为空，如装饰元件库，由平台运维
+	// 维护/打标）同样不在可改范围（注：这些行的 school_id 是真实学校，只查 school_id 拦不住）。
+	// 边界：notice（家校宣发）走**另一路由** `PUT /notices/:id`（UpdateNotice），是校务共用资产，不受此处影响。
+	userIDVal, _ := c.Get("user_id")
+	userIDStr := extractUserID(userIDVal)
+	if userIDStr == "" || existing.UserID != userIDStr {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "无权修改该素材（仅限本人素材）"})
 		return
 	}
 	originalContent := existing.Content // 用于判断是否真发生内容变更（决定是否记新版本）

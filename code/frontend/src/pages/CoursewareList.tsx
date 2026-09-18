@@ -293,12 +293,15 @@ export default function CoursewareList({ format = 'ppt' }: { format?: Channel })
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {i.status === 'draft' ? (
+                          {/* 草稿：仅**本人**给「编辑草稿」入口（2026-09-18）。后端 `PUT /api/materials/:id`
+                              已收口为"仅本人可改"，对他人草稿保留铅笔等于把用户送进"编辑半天 → 保存失败"的死路；
+                              他人草稿改为「查看」（预览态只读放映）。 */}
+                          {i.status === 'draft' && (!i.user_id || !myId || i.user_id === myId) ? (
                             <button onClick={(e) => { e.stopPropagation(); openWorkspace(ch.openEdit(i.id)) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title="编辑草稿">
                               <Pencil size={14} />
                             </button>
                           ) : (
-                            <button onClick={(e) => { e.stopPropagation(); handleOpen(i) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title={ch.openLabel}>
+                            <button onClick={(e) => { e.stopPropagation(); handleOpen(i) }} className="p-1.5 text-[#9A9A9A] hover:text-[#02A7F0] hover:bg-blue-50 rounded-[3px]" title={i.status === 'draft' ? '查看（他人草稿 · 仅本人可编辑）' : ch.openLabel}>
                               {ch.isVideo ? <Video size={14} /> : <Eye size={14} />}
                             </button>
                           )}

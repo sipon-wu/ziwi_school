@@ -60,6 +60,11 @@ export interface CwSaveDoc {
   textbookName: string
   picker: UseKnowledgePickerReturn
   materialId: string
+  /**
+   * 是否**非本人**素材（打开的是同事的课件）——2026-09-18，配合后端 `PUT /api/materials/:id` 收口为"仅本人可改"。
+   * 用途：在前端就把保存/发布拦下并给出明确原因，避免"编辑半天 → 保存报 403"这种耗时陷阱。
+   */
+  notMine: boolean
   /** 本地兜底暂存的 key（getDraftKey(materialId)） */
   draftKey: string
   cwOpts: () => CwOptions
@@ -122,6 +127,8 @@ export function useCwSave({
 
   const handleSaveDraft = async (opts?: { trigger?: VersionTrigger; outline?: OutlineSlide[] }) => {
     const d = getDoc()
+    // 非本人素材：保存必然被后端拒（PUT 仅本人可改），故此处提前拦下并说明原因
+    if (d.notMine) { toast('该课件不是本人创建的，仅可查看/放映，不能保存修改', 'warning'); return }
     // outline 可显式传入：刚生成完就调用时，state 里的 cwOutline 还是旧值（闭包），必须显式带过去
     const outline = opts?.outline || d.cwOutline
     const payload = {
@@ -197,6 +204,8 @@ export function useCwSave({
   // （本 hook 的调用点位于组件中 ctrl 赋值之前，顺序保持不变）
   const handlePublish = async () => {
     const d = getDoc()
+    // 非本人素材：同 handleSaveDraft，发布也必然被后端拒（PUT 仅本人可改）
+    if (d.notMine) { toast('该课件不是本人创建的，仅可查看/放映，不能发布修改', 'warning'); return }
     if (!d.genTitle.trim()) { toast('请填写课题名称', 'warning'); return }
     if (!d.cwOutline.length) { toast('课件内容为空，请先生成课件', 'warning'); return }
     setValidating(true)

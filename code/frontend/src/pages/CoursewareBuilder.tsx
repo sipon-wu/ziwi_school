@@ -120,6 +120,9 @@ export default function CoursewareBuilder() {
   const channel = CW_CHANNEL[cwFormat]
   const isEditing = !!id
   const [materialId, setMaterialId] = useState<string>(id || '')
+  // 打开的是**他人**课件（2026-09-18，配合后端"素材仅本人可改"）：
+  // 置位后保存/发布在前端直接拦下（见 useCwSave），预览态「编辑」按钮禁用 —— 不给出"编辑半天保存必失败"的陷阱。
+  const [notMine, setNotMine] = useState(false)
   // 缩略图侧栏可收起（腾讯文档范式：左侧页管理可折叠，编辑区最大化）
   const [thumbCollapsed, setThumbCollapsed] = useState(false)
   // 全屏预览（放映态）开关：view 态由框架受控自动开
@@ -261,6 +264,14 @@ export default function CoursewareBuilder() {
         || (m.grade ? recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId : themeId)
       const effColorRoot = m.color_root || ''
       setGenTitle((m.name || '').replace(/_课件$/, ''))
+      // 归属判定（2026-09-18）：打开**他人**课件 → 置只读保护并说明原因。
+      // 素材库按学校共享可见（列表带作者名），但写权限仅本人（后端 PUT /materials/:id 已收口）；
+      // 这里在前端同步收口，避免"编辑半天 → 保存 403"。
+      const meId = safeGetUser().id
+      if (m.user_id && meId && m.user_id !== meId) {
+        setNotMine(true)
+        toast(`该课件由「${m.owner_name || '其他教师'}」创建，仅可查看/放映；如需改动，请另建一份课件`, 'info')
+      }
       setCwOutline(materializeOutline(markdownToOutline(m.content || ''), styleKeyFromThemeId(effTheme)))
       setCwMarkdown(m.content || '')
       // 封面装饰（2026-09-17）：封面素材随存档走（CW-COVER），打开时水合；
@@ -678,7 +689,7 @@ export default function CoursewareBuilder() {
       genTitle, cwExtra, genStyleTag, genStyleProfile, divergenceLevel, edgeEnabled, edgeCats,
       cwOutline, cwMarkdown, cwH5Html, cwDivergence, scopeResolved, themeId, colorRoot, videoConfig, coverDecor,
       cwFormat, subject: teaching.subject, gradeName, textbookName: teaching.currentTextbook(),
-      picker, materialId, draftKey: getDraftKey(materialId), cwOpts,
+      picker, materialId, notMine, draftKey: getDraftKey(materialId), cwOpts,
       cwVer, ctrl,   // 二者声明在本调用点之后 → 靠惰性取值避开 TDZ（只在保存/发布发生时才读）
     }),
     setMaterialId, setValidating, setValidateIssues, setH5Qr,
@@ -1390,6 +1401,8 @@ export default function CoursewareBuilder() {
         previewOpen={effectivePreviewOpen}
         onPreviewChange={setPreviewOpen}
         onPreviewEdit={editNow}
+        // 他人课件：预览态「编辑」按钮禁用（点进去也存不了；避免做无用功）
+        previewEditDisabled={notMine}
         // 放映中（纯净 + 鼠标静止）淡出外壳标题栏，鼠标移动即浮现
         previewDimChrome={!!ctrl.readOnly && cwImmersive.pure && !cwImmersive.hud}
       />
