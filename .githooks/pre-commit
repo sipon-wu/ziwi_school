@@ -31,7 +31,8 @@ if echo "$STAGED" | grep -qE '^(qa/|code/)'; then
     exit 1
   fi
   echo "[pre-commit] M7 静态反假绿门 + 覆盖矩阵 …"
-  if ! node "$ROOT/qa/gate_assert_hygiene.cjs"; then
+  # --staged：校验**暂存区**内容（曾踩坑：git add 后删掉磁盘文件再提交，门扫工作区判绿、暂存那份照样进了仓库）
+  if ! node "$ROOT/qa/gate_assert_hygiene.cjs" --staged; then
     echo "✘ 关键守卫存在\"静默通过\"模式 → 拒绝提交（规范 M7：skip ≠ pass）"
     exit 1
   fi

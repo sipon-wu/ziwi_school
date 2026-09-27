@@ -25,6 +25,27 @@ const path = require('path')
 const { must, report } = require('./lib/assert.cjs')
 const { GUARDS } = require('./run_all.cjs')
 
+const { execFileSync } = require('child_process')
+
+/**
+ * `--staged`：连同**暂存区**一起校验（pre-commit 用这个模式）。
+ *
+ * 为什么必须有：本门原先只读**工作区**文件 → 事故（2026-09-27 实测踩到）：
+ * `git add` 一个临时假绿守卫、随后把磁盘上的它删掉再提交 —— 门扫工作区（文件已不在）判绿，
+ * 而**暂存区里那份照样被提交进去**。教训：门禁要校验**将被提交的内容**，不是"当前磁盘长什么样"。
+ */
+const STAGED = process.argv.includes('--staged')
+const stagedGuards = () => {
+  if (!STAGED) return []
+  try {
+    return execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { encoding: 'utf8' })
+      .split('\n')
+      .filter(f => /^qa\/(verify_.*|regression_.*)\.cjs$/.test(f))
+      .map(f => f.replace(/^qa\//, ''))
+  } catch { return [] }
+}
+const readStaged = (f) => execFileSync('git', ['show', `:qa/${f}`], { encoding: 'utf8' })
+
 const QA = __dirname
 const FILES = fs.readdirSync(QA)
   .filter(f => /^(verify_.*|regression_.*)\.cjs$/.test(f))
@@ -61,8 +82,16 @@ const RULES = [
 
   const hard = []   // 强制集的问题（判红）
   const legacy = [] // 基线内历史守卫的问题（登记）
-  for (const f of FILES) {
-    const src = fs.readFileSync(path.join(QA, f), 'utf8')
+  const staged = stagedGuards()
+  const scan = [...new Set([...FILES, ...staged])]
+  for (const f of scan) {
+    // 暂存区有、工作区没有（= 刚被删掉仍留在暂存）→ 即将提交的内容与磁盘不一致，直接判红
+    if (staged.includes(f) && !FILES.includes(f)) {
+      hard.push(`${f}: 暂存区有但工作区不存在（即将提交的内容不在磁盘上，无法审阅）`)
+      continue
+    }
+    let src
+    try { src = staged.includes(f) ? readStaged(f) : fs.readFileSync(path.join(QA, f), 'utf8') } catch { continue }
     const bad = RULES.filter(r => r.test(src)).map(r => `${r.id}(${r.why})`)
     if (!bad.length) continue
     ;(isEnforced(f) ? hard : legacy).push(`${f}: ${bad.join(' ')}`)
