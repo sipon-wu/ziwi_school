@@ -95,6 +95,16 @@ if (require.main === module) {
   }
 
   const critSkip = tri.skipped.filter(g => g.critical)
+  // 落一份"上次全量结果"：体检器（qa/audit_all.cjs A6）与人工复盘都读它；**不参与门禁判定**
+  try {
+    if (onlyArg) throw new Error('--only 定点跑不落"上次全量结果"（避免体检器读到不完整样本）')
+    fs.writeFileSync(path.join(QA, '.qa_last_run.json'), JSON.stringify({
+      at: new Date().toISOString(),
+      passed: tri.passed.map(g => g.name), failed: tri.failed.map(g => g.name),
+      skipped: tri.skipped.map(g => g.name),
+      asserts: tri.passed.reduce((s, g) => s + Number(g.asserts || 0), 0),
+    }, null, 1) + '\n')
+  } catch (e) { console.log('  [note] 上次结果未落盘：' + e.message) }
   console.log('\n==== 三态汇总（M7：skipped ≠ passed）====')
   console.log(`  passed=${tri.passed.length}  failed=${tri.failed.length}  skipped=${tri.skipped.length}  | 断言合计=${tri.passed.reduce((s, g) => s + Number(g.asserts || 0), 0)}`)
   if (tri.failed.length) console.log('  failed:', tri.failed.map(g => `${g.name}${g.critical ? '(关键)' : ''}`).join(', '))
