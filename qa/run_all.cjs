@@ -28,6 +28,7 @@ const GUARDS = [
   { name: 'verify_schema_drift', critical: true, covers: ['0-1', '0-2'] },
   { name: 'verify_style_diversity_ab', critical: true, covers: ['1-1'] },
   { name: 'verify_style_tools', critical: true, covers: ['1-2'] },
+  { name: 'verify_orchestration', critical: true, covers: ['1-3'] },
   { name: 'verify_audit_trail', critical: true, covers: ['审计链'] },
   { name: 'verify_material_delete', critical: true, covers: ['素材写权限'] },
   { name: 'verify_material_ownership_ui', critical: true, covers: ['素材写权限·UI'] },
@@ -40,7 +41,7 @@ const GUARDS = [
   { name: 'verify_style_diversity', critical: false, covers: ['1-1·辅助（宽窄自适应/PPT 版式多样性）'] },
 ]
 /** 方案里**已宣布完成**的条目 → 必须至少有一个守卫覆盖（M5：未覆盖即红） */
-const DONE_ITEMS = ['0-1', '0-2', '1-1', '1-2']
+const DONE_ITEMS = ['0-1', '0-2', '1-1', '1-2', '1-3']
 
 const QA = __dirname
 // 守卫文件 = verify_*.cjs + regression_*.cjs（regression_ 不是 verify_ 前缀，

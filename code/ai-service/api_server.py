@@ -6,7 +6,7 @@ import colorsys
 import zlib
 import dashscope
 from dashscope import Generation
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse   # SSE 进度反馈（长任务不被网关掐断）
@@ -133,6 +133,7 @@ def _call_llm_safety(messages, _model=None, max_tokens=2000):
 
 # 确定性工具层（P0-b）：风格/模板解析 + 可引用资产检索（纯确定性，无 LLM）
 import style_tools  # noqa: E402
+import gen_pipeline  # noqa: E402  # P1 受控编排 S0–S5 + 逐次留痕（2026-09-27）
 
 # 向量检索（备课包/教材底料 RAG）
 from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
@@ -873,8 +874,12 @@ _GEN_PROGRESS: "dict[str, dict]" = {}
 _GEN_PROGRESS_MAX = 50          # 最多保留 50 个任务，防内存增长
 
 
-def _note_progress(job_id, stage: str, message: str) -> None:
-    """记录一个进度事件（job_id 为空则什么都不做 → 不影响既有调用方）。"""
+def _note_progress(job_id, stage: str, message: str, data=None) -> None:
+    """记录一个进度事件（job_id 为空则什么都不做 → 不影响既有调用方）。
+
+    `data`（2026-09-27，P1 编排）：结构化中间态（如 S2 的 `/已选风格/` 骨架/资产 id、S4 的质检分数），
+    供前端展示与验收核对；**不传时行为与既有完全一致**（老客户端不受影响）。
+    """
     if not job_id:
         return
     job = _GEN_PROGRESS.get(job_id)
@@ -883,7 +888,10 @@ def _note_progress(job_id, stage: str, message: str) -> None:
             for k in sorted(_GEN_PROGRESS, key=lambda x: _GEN_PROGRESS[x]["at"])[:10]:
                 _GEN_PROGRESS.pop(k, None)
         job = _GEN_PROGRESS[job_id] = {"events": [], "done": False, "at": time.time()}
-    job["events"].append({"stage": stage, "message": message, "elapsed": round(time.time() - job["at"], 1)})
+    ev = {"stage": stage, "message": message, "elapsed": round(time.time() - job["at"], 1)}
+    if data is not None:
+        ev["data"] = data
+    job["events"].append(ev)
     job["at"] = time.time()
 
 
@@ -981,6 +989,34 @@ async def gen_courseware(req: Request):
         "unit": unit or "",
         "model": _effective_model(),   # 复用既有实现（勿另写一份）：库优先、env 兜底
     }
+
+    # ── P1 受控编排 S0–S5（2026-09-27）──────────────────────────────────────
+    # 为什么要有它：此前从"收到请求"直接跳到"调 LLM"，中间没有**明确的步骤**可观测 —— 教师看不到
+    # "已选风格/已取资产"，事后也回答不了"这份课件是按什么生成的"（P1 DoD：真实链路跑通且可回放）。
+    # 三条约束见 gen_pipeline 模块头：固定六步 / LLM 只在判断点 / 工具调用由流程确定。
+    # 留痕（`trace`）与 SSE（`_note_progress`）在这里合流：`emit()` 一次写三处（留痕·响应溯源·实时事件）。
+    quality_notes = []          # 原在生成循环前定义；上移以便 S0–S5 全程可写（行为不变）
+    trace = gen_pipeline.GenTrace(job_id, {
+        "school_id": school_id, "subject": subject, "grade": grade,
+        "format": fmt, "school_stage": gen_pipeline.stage_of(grade),
+    })
+    trace.d.update(gen_pipeline.skill_meta(_skill_frontmatter(fmt), fmt))   # 留痕要能回答"用的哪版技能"
+
+    def emit(sid: str, message: str, data=None) -> None:
+        """S 步事件：同时进 留痕（逐次）/ quality_notes（响应可溯源）/ SSE（教师实时可见）。"""
+        msg = trace.step(sid, message, data)
+        quality_notes.append(msg)
+        _note_progress(job_id, sid, msg, data)
+
+    def prog(stage: str, message: str) -> None:
+        """非 S 步的即时进度（start/retry/budget/error…）—— 行为与既有实现一致。"""
+        quality_notes.append(message)
+        _note_progress(job_id, stage, message)
+
+    emit("s0", f"S0 澄清：锚点 {len(kp_names)} 个、前置 {len(prereq_names)} 个，教材边界已确认",
+         gen_pipeline.s0_scope(scope_meta, kp_names, prereq_names, unit, textbook_version, consult_answers))
+    emit("s1", f"S1 解析：{grade}{subject}《{title}》· 格式 {fmt} · 发散 {divergence_level}",
+         gen_pipeline.s1_parse(subject, grade, title, fmt, divergence_level, edge_enabled, extra))
 
     # 1) 找相近素材（AI 生成新版本的参照）
     similar = None
@@ -1155,6 +1191,31 @@ async def gen_courseware(req: Request):
             "本段不重复定义，避免两处口径不一致。）\n"
         )
 
+    # ── S2 取风格/资产（确定性工具层，无 LLM）──────────────────────────────
+    # 工具调用**由流程确定**（不由 Agent 自由选择）：平台先定骨架与资产，模型只在既定框架内组织内容。
+    # 历史问题（0910 诊断）：风格靠模型自由发挥 → 同一风格产出不一致、也无法对账。
+    # 结果同时：① 写留痕（入参+结果摘要，供归因）② 注入 scope_hint（让"平台定的风格"真正进提示词）
+    # ③ 发 SSE（教师可见"已选风格/已取资产"）。
+    # ⚠ `scene` 是**教学场景/页型**（如"导入/例题"），**不是输出格式**：首版误传 `scene=fmt`（"ppt"），
+    # 被工具当成 `pageType` 过滤 → `asset.search` 恒返回 0 项（守卫实测 total=0，且 dbNote 为空 =
+    # "查了、没命中"，看不出是参数错）。不传即不过滤该维（medium 由 kind 自动取）—— 这才是"取本风格可用元件"的本意。
+    s2 = gen_pipeline.s2_tools(style_tag=style_tag, subject=subject,
+                               stage=gen_pipeline.stage_of(grade), kind=fmt, need=6, scene="")
+    trace.tool("template.query", s2["template_params"], s2["template"], s2["template_ms"])
+    trace.tool("asset.search", s2["asset_params"], s2["assets"], s2["asset_ms"])
+    emit("s2",
+         f"S2 取风格/资产：风格 {s2['styleKey']}（骨架 {s2['skeletonClass']}，来源 {s2['templateSource']}）"
+         f"· 资产 {s2['assetCount']} 项",
+         {"styleKey": s2["styleKey"], "themeId": s2["themeId"], "skeletonClass": s2["skeletonClass"],
+          "templateId": s2["templateId"], "templateSource": s2["templateSource"],
+          "assetCount": s2["assetCount"], "assetIds": s2["assetIds"][:8]})
+    if s2["styleKey"]:
+        scope_hint += (
+            f"\n【S2 平台已定风格（确定性，不得改动）】风格 key={s2['styleKey']}，骨架类={s2['skeletonClass']}，"
+            f"theme_id={s2['themeId']}；本风格可用装饰元件 id（平台已按风格/学段检索，可引用；"
+            f"**不要自造 id**）：{', '.join(str(i) for i in s2['assetIds'][:8]) or '（本次无可用元件）'}。"
+        )
+
     # Skill 领域知识：PPT / H5 各自加载专用 Skill 的规则（约定 0：唯一生成路径）
     skill_rules = _skill_rules(fmt)
 
@@ -1170,12 +1231,7 @@ async def gen_courseware(req: Request):
     base_prompt = prompt
     max_retry = _skill_max_retry(fmt)   # 声明化：来自 SKILL.md frontmatter
     best = None                         # (违规数, md, meta, report, dropped)
-    quality_notes = []
-
-    # 进度事件：既进 quality_notes（随响应返回，便于事后追溯），也进 SSE 表（教师实时可见）
-    def prog(stage: str, message: str) -> None:
-        quality_notes.append(message)
-        _note_progress(job_id, stage, message)
+    # quality_notes / prog() 已在函数开头（P1 编排段）定义 —— S0–S5 全程可留痕，此处不再重复定义
 
     prog("start", f"提示词已组装（{len(prompt)} 字，其中 Skill 领域知识 {len(skill_rules)} 字），开始生成")
 
@@ -1192,6 +1248,11 @@ async def gen_courseware(req: Request):
         # 首轮走生成通道（质量优先）；**返修轮走 repair 通道**（必须更快，否则预算内根本跑不起重试，
         # 见 REPAIR_MODEL 注释）。返修若改差了会被下面的"保留违规最少一版"守卫丢弃，故不担心降质。
         role = "gen" if attempt == 0 else "repair"
+        # S3 步骤（2026-09-27）：**每一轮**都发事件 + 记留痕 —— "逐次留痕"的最低要求；
+        # 教师侧也能看到"第 2 轮修订中"而不是干等（强模型一轮约 50s）。
+        emit("s3", f"S3 生成：第 {attempt + 1} 轮（{role}，{_effective_model()}）",
+             {"attempt": attempt + 1, "role": role, "model": _effective_model()})
+        _t_llm = time.time()
         try:
             raw = await call_llm([{"role": "user", "content": prompt}], None, 6000, role)
         except Exception as e:
@@ -1201,6 +1262,8 @@ async def gen_courseware(req: Request):
             quality_notes.append(f"生成失败：{e}")
             _note_progress(job_id, "error", f"生成失败：{e}")
             break
+        trace.round(attempt + 1, role, _effective_model(),
+                    int((time.time() - _t_llm) * 1000), len(raw or ""))
 
         # a. 两段式剥离（输出契约要求 `<<<COURSEWARE>>>` / `<<<META>>>`，不剥离会显示给学生）
         md, meta = split_output(raw)
@@ -1341,6 +1404,28 @@ async def gen_courseware(req: Request):
     _errs = [i for i in report.get("issues", []) if i[0] == "ERR"]
     _warns = [i for i in report.get("issues", []) if i[0] == "WARN"]
 
+    # ── S4 质检（三关）落留痕 + S5 交付（2026-09-27）──
+    # 留痕"含质检分数"（P1 DoD）：三关结果 + 锚点覆盖率一次写全，事后可回答"这次为什么算过/没过"。
+    trace.quality("gate1", {"pages": report.get("pages", 0), "errors": len(_errs), "warnings": len(_warns)})
+    trace.quality("gate2", content_review)
+    trace.quality("redline", {"pass": bool(safety.get("pass")), "blocks": len(_blocks or [])})
+    trace.quality("anchor_coverage", anchor_coverage)
+    emit("s4",
+         f"S4 质检：规则 {len(_errs)} 违规 / 内容评审 "
+         f"{'已跑' if content_review.get('available') else '未开启'} / 红线 "
+         f"{'通过' if safety.get('pass') else '有命中'}",
+         {"gate1": trace.d["quality"]["gate1"], "gate2_available": bool(content_review.get("available")),
+          "redline_pass": bool(safety.get("pass")), "anchor_coverage": anchor_coverage})
+    trace.finish("ok" if not _errs else "warn")
+    # ⚠ 顺序有讲究（2026-09-27 实测踩到）：**先 emit s5、再落库**。首版"先落库、后 emit"，
+    # 落库那一刻 steps 里还没有 s5 → 留痕与活响应的步骤序列不一致（守卫的"可回放对账"当场变红）。
+    # 落库成败改由**响应字段** `pipeline.persisted` + 日志回答（s5 步自己不吹"已落库"）。
+    emit("s5", f"S5 交付：{trace.d['duration_ms'] / 1000:.1f}s · 六步完成",
+         {"duration_ms": trace.d["duration_ms"], "status": trace.d["status"]})
+    persisted = gen_pipeline.persist(trace.d)
+    if not persisted:
+        logger.warning("[trace] 本次生成留痕**未落库**（job=%s）—— 见 gen_pipeline 的 warning 原因", job_id)
+
     # 7) 进度收尾：SSE 侧据此结束等待（无 job_id 时为空操作）
     _finish_progress(job_id)
     quality_notes.append(f"生成完成：{len(_errs)} 处违规，耗时 {time.time() - start:.0f}s")
@@ -1382,6 +1467,14 @@ async def gen_courseware(req: Request):
         "recommended_refs": recommended_refs,
         "style_tag": style_tag,
         "style_profile": style_profile,
+        # P1 编排元信息（2026-09-27）：版本 / job_id / 已走步骤 id 序列 / 留痕是否落库。
+        # 前端可据此显示"六步走到哪一步"；验收可拿 job_id 调 /api/ai/courseware/trace/{job_id} 回放。
+        "pipeline": {
+            "version": gen_pipeline.PIPELINE_VERSION,
+            "job_id": job_id or "",
+            "steps": [s["id"] for s in trace.d["steps"]],
+            "persisted": bool(persisted),
+        },
         "color_palette": _courseware_palette(subject, grade, style_tag),
         "model": _effective_model(),
         "generation_time_ms": int((time.time() - start) * 1000),
@@ -1732,6 +1825,20 @@ async def tools_asset_search(req: Request):
     except Exception:
         body = {}
     return style_tools.asset_search(body or {})
+
+
+@app.get("/api/ai/courseware/trace/{job_id}")
+async def courseware_trace(job_id: str):
+    """按 job_id 取**生成留痕**（P1 DoD：断点可回放）。
+
+    内容：S0–S5 步骤（含耗时与步骤数据）、工具调用（`template.query` / `asset.search` 的**入参与结果摘要**）、
+    每轮生成（角色/模型/耗时/字数）、三关质检分数与锚点覆盖率、技能 id/版本、流水线版本。
+    数据源：`ai_generation_logs`（迁移 0012）；DB 不可用时回落进程内副本，并在响应里以 `source` 明示。
+    """
+    t = gen_pipeline.fetch_trace(job_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="未找到该 job_id 的生成留痕")
+    return t
 
 
 # ── LLM 通道管理（运营可维护 · 热生效 · 2026-09-12）──────────────────

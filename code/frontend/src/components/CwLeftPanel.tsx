@@ -307,9 +307,17 @@ export function CwLeftPanel({
           <button onClick={() => handleGenCourseware()} disabled={genLoading} title={genStage?.message || undefined}
             className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[13px] text-white bg-[#02A7F0] rounded-[4px] hover:bg-[#0398D8] disabled:opacity-50 transition-colors">
             {genLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            {/* 进度短文案（完整合规详情见 title 悬浮）：150~200s 的等待必须有可感知的推进 */}
+            {/* 进度短文案（完整合规详情见 title 悬浮）：150~200s 的等待必须有可感知的推进。
+                S0–S5（2026-09-27 受控编排）后，中间态按步骤显示：取风格/资产 → 生成 → 校验 → 交付，
+                与后端 SSE 的 s0..s5 事件一一对应（老事件 start/retry/gate1 仍保留兼容）。 */}
             {genLoading
-              ? (genStage?.stage === 'retry' ? 'AI 修订中…' : genStage?.stage === 'gate1' ? 'AI 校验中…' : 'AI 生成中…')
+              ? (genStage?.stage === 's0' || genStage?.stage === 's1' ? 'AI 解析中…'
+                : genStage?.stage === 's2' ? 'AI 取风格/资产…'
+                : genStage?.stage === 's3' ? 'AI 生成中…'
+                : genStage?.stage === 's4' || genStage?.stage === 'gate1' ? 'AI 校验中…'
+                : genStage?.stage === 's5' ? 'AI 交付中…'
+                : genStage?.stage === 'retry' ? 'AI 修订中…'
+                : 'AI 生成中…')
               : (pageCount > 0 ? '重新生成课件' : 'AI 生成课件')}
           </button>
           {cwSimilar && <p className="text-[10px] text-[#9A9A9A] mt-2">参照相近课件《{cwSimilar.name}》生成的新版本</p>}
