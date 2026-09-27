@@ -71,8 +71,13 @@
 
 ### 3.3 关键修复（P0 内必须一并做）
 
-- **前端渲染时序 bug**：`CoursewareBuilder.tsx:636-640` 用闭包旧 `themeId/colorRoot` 渲染 H5；改为用**本次返回值**渲染，且发布时**强制按当前 state 重渲染**，不复用旧 `cwH5Html`（`:933`）。
-- **H5 皮肤表对齐**：`STORY_THEMES` 4 键 vs 库内 6 个 CwTheme id 不匹配 → 扩充覆盖或统一走 `colorRoot`。
+> **2026-09-18 状态：两项均已修复**（复核方法见每条的"验证"）。
+
+- ✅ **前端渲染时序 bug（已修）**：`CoursewareBuilder.tsx:471-474` 已改为用**本次返回值**渲染（局部变量 `nextThemeId/nextColorRoot`），不再读闭包旧值；`:758-770` 另有集中重渲染（"此前只在载入/生成/发布三处计算"）。
+  验证：生成一份 H5 并立即查看快照 → 配色应等于本次所选风格（而非上一个/空）。
+- ✅ **H5 皮肤表对齐（已修）**：`renderer.ts:63-66` `resolveStoryTheme` 走 `STORY_THEMES[key] || cwThemeToStory(key)`，`cwThemeToStory`（`:47-61`）通过 `getTheme(themeId)` 取 CwTheme 本色 → **覆盖全部 56 套主题**；同时 `colorRoot`(styleDNA) 优先。
+  验证：用 `zgf-ink-wash` / `te-quantum-blue` 等库内 id 渲染，皮肤不再一律回落 `storybook`。
+- ⚠️ **但两项的 DoD 断言尚未建立**（见 §七 P0-a）：当前**没有**"同内容 × 6 个 theme_id → 主色相角距/骨架类/DOM 签名至少两项不同"的差异式 E2E；`qa/verify_style_diversity.cjs` 的 PPT 断言因 `PPT_IDS` 默认空而**静默跳过**（假绿）。
 
 ---
 
@@ -160,13 +165,128 @@
 
 ## 七、里程碑与 DoD
 
-| 阶段 | 交付 | DoD（可证伪） |
+| 阶段 | 交付 | DoD（可证伪） | **2026-09-18 状态** |
+|---|---|---|---|
+| **P0-a** | 修时序 bug + H5 皮肤对齐 | 同一内容用 6 个 theme_id 渲染，主色/骨架/DOM 签名**至少两项不同**（E2E 断言） | **实现 ✅ / DoD ❌**：两项修复均已落地（见 §3.3）；**差异式 E2E 尚未建立** → 本阶段**未验收** |
+| **P0-b** | `template.query` / `asset.search` 工具上线 | 同内容喂不同 style_tag，返回的 `skeletonClass`/`styleDNA` 有可观测差异；变异测试通过 | ❌ **未开工**（全库无实现） |
+| **P1** | S0–S5 受控流水线 + SSE | 真实链路跑通，留痕含工具调用参数与质检分数；断点可回放 | ✅ **2026-09-27 达成**（见 §七·五 1-3）：`gen_pipeline.py` 固定六步 + SSE 中间态（`s0..s5`）+ 留痕落 `ai_generation_logs`（迁移 0012）；守卫 `qa/verify_orchestration.cjs` **21 断言 0 失败**（真实链路 + 与留痕对账） |
+| **P2** | 反假绿机制接入 CI | 变异测试 + skip=fail + 覆盖矩阵三道门生效；对历史假绿用例全部整改 | ❌ **未接入**；且已知假绿仍在：`qa/verify_style_diversity.cjs:17`（`PPT_IDS` 默认空 → PPT 断言静默跳过） |
+| **P3** | 云通道探索 | 与核心链路物理隔离，不影响主流程 | ⏸ 未启动（会话 09-12 已定"先做功能适配、控制权后置到 cloud.ziwi.cn"） |
+
+---
+
+## 七·五、执行顺序（2026-09-18 排序 · **待用户审核确认**）
+
+> **北极星判据**（每个候选任务先自问一句）：**它让"同一内容换风格后肉眼可分"更进一步了吗？** 答不出 → 进"旁枝池"，不插队。
+> 说明：本节**只排序、不新增文档**（遵 09-11 铁律）；每项附**完成判据（DoD）**，兑现即勾。顺序建议 **0 层 → 1 层**；2/3 层不占轮次。
+
+### 第 0 层 · 止血（用户线上直接遇到，小时级）
+
+- [x] **0-1 `users` 缺列 → `PUT /api/user/profile` 500**（教师改"性别/地区"必失败；＝ `QA_BugList_20260707` 的 B002 至今活着）
+  - 实据：后端日志 `column "region" of relation "users" does not exist (SQLSTATE 42703)`。**订正**：001 里的 `region` 是 **`schools.region`**，
+    `users.gender/region` **在任何迁移里都不存在**（此前我写成"region 在基线里有"，属误判，已更正）；另有 `avatar` 与真实列 `avatar_url` **列名不符**，也在 500 之列。
+  - **✅ 2026-09-27 完成**：迁移 `code/backend/migrations/0011_users_profile_columns.sql`（幂等补 `gender`/`region`）+ `auth_handler.go` 的 `avatar → avatar_url` 映射修正；
+    守卫 `qa/verify_schema_drift.cjs` 断言"name/gender/phone/email/region/avatar 六字段 PUT → 200 且**查库回读一致**（并还原）"。
+- [x] **0-2 模型 ↔ 库 对账守卫**（同类病**已两次**：`audit_logs` 缺表 → IT 审计全废；`users` 缺列 → 500。根因＝ `deploy.sh` 跳过 001 基线，"基线里有、存量库没有"永远补不上）
+  - **✅ 2026-09-27 完成**：`qa/verify_schema_drift.cjs` —— 解析 `migrations/*.sql`（**含 001 基线**）+ `internal/model/*.go`（GORM 列名，含 initialism 规则）↔ `information_schema`。
+  - 判红口径（按"谁在运行时读它"分级）：**Go 模型**声明的列缺失 → 红（34 个模型已参与）；**增量迁移**声明的表缺失 → 红；
+    **代码期望字段**（迁移未声明但 handler 在写）缺失 → 红；**仅基线(001)声明**的表/列缺失 → 登记为 note（蓝图旧差：实测 56 列 / 5 表，如 `lesson_plans` 的列名重命名与 `gorm:"-"` 字段）。
+
+### 第 1 层 · 主目标（按本方案里程碑）
+
+- [x] **1-1 兑现 P0-a 的 DoD**（**实现已好、验收为空**——这是主目标当前最大缺口）
+  - **✅ 2026-09-27 完成**：`qa/verify_style_diversity_ab.cjs`（走**真实链路**：建同内容 × 6 个真实 theme_id 的 H5 课件 → 打开编辑器 →
+    从 `iframe(srcDoc=cwH5Html)` 读**渲染结果**），三个差异代理指标：**主色**（主题本色 CSS 变量 `--accent/--accent2/--bg1/--bg2` 逐位比对：
+    色相角距 ≥25° **或** RGB 距离 ≥60）+ **骨架**（`body.class` 的 morph/mv/layout + `data-motif` + `.sk-*`）+ **结构**（幕型序列 + 幕内子标签序列）。
+  - 结果：**15/15 对全部 ≥2 项不同**（17 断言 0 失败）；`body[data-theme]` 6/6 等于期望（证明主题确实到达渲染器，非回落 storybook）；
+    **负控**（同主题渲染两次 → 三项全同）通过；**变异测试**（`MUTATE=1`：6 个课件同主题 → 断言"可区分对数 = 0"）通过 → 证明断言不是恒真。
+  - 指标迭代记录（**都不是"调测试到变绿"，而是指标自身的缺陷**）：① 灰度主题（水墨）色相未定义 → 加 RGB 距离兜底；
+    ② 起初比"颜色集合两两最大距离" → 同主题自比也得 73（主题内部本有深浅差）→ 改**逐位**比对；③ 起初比 body 渐变的浅色调 →
+    深色主题趋近白、低估差异 → 改比**主题本色变量**。
+- [x] **1-2 P0-b 工具层**：`template.query` / `asset.search` 上线（含 JSON schema + "渲染只读快照、不读 template_id"契约）
+  - **✅ 2026-09-27 完成**：`code/ai-service/style_tools.py` + 两个端点（经 Go 的 `/api/ai/*` 代理）：
+    `POST /api/ai/courseware/tools/template.query`、`POST /api/ai/courseware/tools/asset.search`。**纯确定性、零 LLM**。
+  - `template.query`：`style_tag`（也接受主题前缀如 `zgf-*`）→ `{styleKey, themeId, skeletonClass, styleDNA}`；
+    `skeletonClass` 与渲染器 body 上的类**同形**（`morph-<density> mv-<motion> layout-<layout>`），可逐字对照（契约②）；
+    `styleDNA.colorSource='theme_id'` —— **服务端不复制主题色值**（配色权威源仍是 `pptThemes.ts`，与 0008 迁移注释同口径）。
+  - `asset.search`：按 `applicable/motif_root/color_root/page_type` 检索公共装饰元件，确定性排序（同输入同输出）；
+    数量 = `need × factor`（默认 3）；`params` **只含 shape/role/medium/motif/pageType/name，不含任何色值**（契约③）。
+  - **单一事实源边界**：Python 的 `STYLE_SPECS`/`STYLE_STRUCTURE` 是 `styleRegistry.ts` 的**镜像**，漂移由守卫**逐字段对账**。
+  - **DoD 达成**：`qa/verify_style_tools.cjs` **24 断言 0 失败** —— ①漂移对账（9 风格 × 10 字段）②9 个风格的
+    `skeletonClass`+`styleDNA` 组合**互不相同**、36 对全部有差异 ③缺省/未知风格 → 兜底**显式标记** `fallback`+原因
+    ④asset 契约（数量公式/确定性/无颜色/资产确实在库）⑤**变异测试**（把 style_tag 全打成同一个 → 断言必然变红）通过。
+  - **落地时发现的真实缺口**：模板库表 `courseware_templates`（迁移 0008）**当前 0 行** —— "模板外移"尚未执行，
+    故 `template.query` 返回 `templateSource='style-default'` 并附 `note` **如实说明未命中模板库，不伪造 templateId**。
+- [x] **1-3 P1 受控编排**：S0–S5 + SSE + 逐次留痕（工具参数/质检分数）
+  - **DoD**：真实链路跑通且可回放；中间态可见（已选风格 → 已取资产 → 生成中 → 质检结果）。
+  - **✅ 2026-09-27 完成**，落点与要点：
+  - **① 固定六步**（`code/ai-service/gen_pipeline.py`）：S0 澄清 → S1 解析 → S2 取风格/资产 → S3 生成 → S4 三关质检 → S5 交付。
+    步骤与顺序写死在 `STEPS`（是**流程**，不是提示词建议）；写错步骤 id 直接抛错，不静默收下。
+  - **② LLM 只在判断点**：S0/S1/S5 纯确定性；S2 由**词表 + DB** 完成（无 LLM）；LLM 只出现在 S3 生成（含返修轮）与 S4 的内容评审/红线（**独立模型**，红线绝不自评）。
+  - **③ 工具调用由流程确定**（本轮把 P0-b 工具**真正接进生成**）：S2 **必调** `template.query` + `asset.search`，
+    结果①写留痕 ②注入 `scope_hint`（平台先定骨架/资产，模型只在既定框架内组织内容）③发 SSE。
+  - **④ SSE 中间态**：`_note_progress` 支持结构化 `data`（向后兼容），事件为 `s0..s5`；前端 `CwLeftPanel` 按步骤显示
+    "解析中 → 取风格/资产 → 生成中 → 校验中 → 交付中"（老事件 `start/retry/gate1` 仍兼容）。
+  - **⑤ 逐次留痕**（迁移 `0012_ai_generation_logs.sql` + `GET /api/ai/courseware/trace/{job_id}`）：
+    六步（含耗时/数据）、**工具调用入参与结果摘要**、**每轮生成**（role/model/ms/chars）、**三关质检分数** + 锚点覆盖率、技能 id/版本（读 SKILL.md frontmatter，非代码写死）、流水线版本。
+  - **⑥ 与审计表分工**：新表是"**过程留痕**"（这份课件**怎么来的**），`audit_logs` 是"**操作审计**"（谁改的）——互补，不混表。
+  - **⑦ 守卫**：`qa/verify_orchestration.cjs` **21 断言 0 失败** —— 真跑一次生成 + 并发收 SSE，再拿留痕**与活响应逐项对账**
+    （步骤序列/轮次/质检分数/S2 与工具同源）。"可回放"由此变成可证伪：留痕若是空壳或伪造，对账必红。
+  - **⑧ 落地时抓到的三个真缺陷（守卫/追查发现，均已修并固化为断言）**：
+    1. **`scene` 语义误用**：首版把输出格式当 `scene` 传（"ppt"）→ 被工具当作 `pageType` 过滤 → `asset.search` **恒 0 项**，
+       而 0 项照样"通过"了类型断言 → 守卫补"**真的取到资产**（assetCount ≥ 1）"。
+    2. **留痕缺 s5**：落库早于 `emit("s5")` → 留痕步骤序列与活响应不一致（对账当场变红）→ 改为**先 emit、后落库**。
+    3. **冷启动被误判为链路故障**：部署刚换容器时 nginx 返回 HTML 错误页，`.json()` 抛 `Unexpected token '<'`
+       → 守卫改为**可读报错 + 预热探测**，环境未就绪记 **SKIP（未验证，退出码 2）**。
+- [x] **1-4 P2 反假绿接入 CI**：变异测试 + `skip=fail` + 覆盖矩阵
+  - **✅ 2026-09-27 完成**：三道门落地，并把已知假绿整改掉。
+  - **① M7 静态反假绿门** `qa/gate_assert_hygiene.cjs`（秒级、可挂 pre-commit）：扫 `verify_*.cjs` 的静默通过模式
+    —— R1 `process.exit(0)` / R2 无断言或无汇总 / R3 用 env 取样本却不处理零样本 / R4 按 env 条件提前跳过却不标 SKIP；
+    **分级判定**：**关键守卫**（覆盖矩阵里 `critical: true` 的 7 个）零问题才绿；其余**历史守卫实测 78 个有问题**→
+    **登记计数、不判红**（不假装看不见，也不让存量永久堵门禁）；并带**反向自检**（把"样本空→exit 0"的假绿样本丢进规则，必须被抓到）。
+  - **② M7 统一 runner + M5 覆盖矩阵** `qa/run_all.cjs`：14 套守卫跑完给**三态** `passed/failed/skipped`
+    （`skipped ≠ passed`），**关键路径跳过 = 判未验证**（红）；覆盖矩阵双向核对（幽灵登记/方案条目无覆盖 → 红，
+    存量未登记守卫 → 计数）；`--list` 可直接打印"方案条目 → 守卫"。
+  - **③ M3 变异门** `qa/gate_mutation.cjs`：对变异体跑 `MUTATE=1` 并三向断言 —— 守卫判红、自身变异断言通过、
+    有**量化证据**（"可区分对数=0"/"可区分组合数=1"）。当前两个变异体（theme 参数没生效 / style_tag 被打死）均通过。
+  - **④ 已知假绿整改**：`qa/verify_style_diversity.cjs` 此前 `H5_IDS/PPT_IDS` 默认空 → 循环不执行 → "0 PASS/0 FAIL" → **exit 0**（假绿）。
+    现改为：**样本自寻**（环境变量没给就从库内找）+ **断言下限**（一条断言都没有 → exit 2 = 未验证）+ 分段 SKIP 明示 + 三态汇总。
+  - **⑤ 接进 pre-commit**：`.githooks/pre-commit` 新增（触及 `qa/` 或 `code/` 时）跑**静态门 + 覆盖矩阵核对**（秒级），
+    全量 E2E 与变异门仍为手动/CI（`node qa/run_all.cjs` / `node qa/gate_mutation.cjs`）。
+  - **⑥ 整改后立刻抓到的两件事（如实留红，未"调测试到变绿"）**：
+    - **~~H5 三档无自适应~~ → 实为守卫测错对象（同日纠正，2026-09-27）**：原守卫开的是 `/courseware/h5/:id`，
+      而那**是编辑器页**——H5 只是编辑器画布里的 `iframe(srcDoc=播放器HTML)`，且编辑器会 postMessage **强制开 HD 舞台**；
+      外层 `setViewportSize` 动不到 iframe 内宽（实测 958 → 286 → 390 时塌成 0）→
+      "三档 padding 完全相同""scene/文档宽比=0.000"两组数字**都不可信**，据此得出的"产品无自适应"是**错的**。
+      已按 `renderer.ts:939-1000` 的既定设计重写为 `qa/verify_h5_stage.cjs`（**取播放器 HTML 独立渲染**三档）：
+      **HD 档**固定 1280×720 逻辑舞台 + `scale ≈ min(vw/1280, vh/720)`；**手机档**撤舞台、根宽随视口、场景不被压塌；
+      档位切换在 1024 边界如实发生 —— **29 断言 0 失败**。
+      **结论：HD 档下 padding/字号恒定是设计如此**（：939「课堂投屏不再忽高忽低」），不是产品缺口。
+      教训（已入 DECISIONS）：**先探针取证，再改断言或改代码**；"指标错了"与"产品错了"必须分清。
+    - **PPT 版式段采集不到页**（SKIP，未验证）：`[data-layout]/.slide/...` 选择器随新版预览标记过期，属**守卫自身待维护**；
+      按三态记 SKIP（既不谎报 PASS，也不冤枉产品为 FAIL），已登记 P2 存量。
+
+### 第 2 层 · 旁枝池（**明确不做**，攒批一次性清）
+
+- `DECISIONS.md` 未勾选条目（编辑器拖拽 / 公式输入 / 打印排版 / 风格学习 M3 / 移动端 / 标签系统 / 学生家长端…）
+- `产品规划/全量设计待出稿清单.md`（~26 页，设计侧）
+- 安全加固：鉴权错误响应结构统一、登录限流防爆破（`QA_从严回归_20260710` F-2/F-3）→ 建议另立一条
+- 文档治理残余：计划复核 #4 目视核对、静态 `knowledge-graph.json` 是否保留（**注意 V2 复核：它确实在部署中**）
+
+### 第 3 层 · 已封存（09-17~09-18 交付，有守卫，**不再投入**）
+
+装饰随 pptx 导出 · 画布边界钳制 · 左右收放校正 · 放映一键纯净 · 素材写权限仅本人 · 审计链 6 处断裂修复
+守卫：`qa/verify_*` **10 套 / 151 断言 / 0 失败**
+
+### 待用户确认清单（明天审核用）
+
+| # | 待确认 | 建议 |
 |---|---|---|
-| **P0-a** | 修时序 bug + H5 皮肤对齐 | 同一内容用 6 个 theme_id 渲染，主色/骨架/DOM 签名**至少两项不同**（E2E 断言） |
-| **P0-b** | `template.query` / `asset.search` 工具上线 | 同内容喂不同 style_tag，返回的 `skeletonClass`/`styleDNA` 有可观测差异；变异测试通过 |
-| **P1** | S0–S5 受控流水线 + SSE | 真实链路跑通，留痕含工具调用参数与质检分数；断点可回放 |
-| **P2** | 反假绿机制接入 CI | 变异测试 + skip=fail + 覆盖矩阵三道门生效；对历史假绿用例全部整改 |
-| **P3** | 云通道探索 | 与核心链路物理隔离，不影响主流程 |
+| 1 | 是否按 **0 层 → 1 层** 顺序推进（先止血，再做主目标 DoD） | 建议：是 |
+| 2 | 0-1 修法：**补列**（保留 `gender`/`region`）还是弃用这些字段 | 建议：补列（前端已在用） |
+| 3 | G3 是否还需为 6 个 CwTheme **显式写皮肤**（现走 `cwThemeToStory` 桥接取色，已覆盖 56 主题） | 建议：暂不需要 |
+| 4 | 1-1 的差异式断言阈值：**主色相角距 ≥25°** 是否仍作准；"DOM 结构签名"用节点数/层级差还是哈希 | 需你定 |
+| 5 | 是否同意"**旁枝池攒批、不单开轮次**"（含"顺手发现的缺陷只登记不当轮修"） | 建议：同意 |
 
 ---
 

@@ -124,7 +124,13 @@ git log -1 --format='%h %s (%ai)'
 
 ### V2.5 当前状态
 
+> **2026-09-18 复核修正（原记"待开工"已过期）**：两项**均已落地**，依据为 staging 实库实测：
+> - P0-1 License 模型：`schools.license_status` 列**已存在**（`information_schema.columns` 命中 1）。
+> - P0-2 三级配置 DB：`textbook_config` 表**已存在**（与 `school_textbook_override` / `teacher_textbook_pref` / `tb_textbook_version` / `user_submitted_textbook_version` 同批）。
+> - 复核方法：`docker exec … psql -c "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%textbook%'"` 与 `… WHERE table_name='schools' AND column_name='license_status'`。
+> - 相关前端接口已接线（`textbookAPI`：`/admin/textbook-configs`、`/admin/textbook-versions`、`/me/textbook-prefs`、`/me/textbook-effective`）。
+
 ```
-P0-1 License 模型    → 待开工
-P0-2 三级配置 DB     → 待开工
+P0-1 License 模型    → ✅ 已落地（schools.license_status，2026-09-18 复核）
+P0-2 三级配置 DB     → ✅ 已落地（textbook_config 表，2026-09-18 复核）
 ```
