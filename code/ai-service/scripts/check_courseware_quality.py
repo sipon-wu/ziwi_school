@@ -277,7 +277,7 @@ def check_courseware(pages, fmt="ppt", name="") -> list:
             if len(parts) >= 4:
                 try:
                     positions.append(int(parts[-1]))
-                except ValueError:
+                except ValueError:  # 合理忽略：离线质检脚本：数值解析失败 → 走默认判据
                     pass
     if len(positions) >= 3 and len(set(positions)) == 1:
         issues.append(("WARN", "quiz 答案位置单一",

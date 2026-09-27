@@ -617,7 +617,7 @@ const RUNTIME_JS = `
   // （反馈"没有播放器，不知道如何暂停与关闭"）。现在朗读时右下角出现「停止朗读」，
   // 再点同一个词也等于关闭，朗读结束自动收起。
   function stopSpeak(){
-    try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){}
+    try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){}  // 合理忽略：浏览器语音合成受自动播放策略限制，失败无副作用
     var b = root.querySelector('.tts-stop');
     if(b && b.parentNode) b.parentNode.removeChild(b);
     root.querySelectorAll('.read-word').forEach(function(x){ x.classList.remove('on'); });
@@ -647,13 +647,13 @@ const RUNTIME_JS = `
           for(var i=0;i<vs.length;i++){
             if((vs[i].lang||'').toLowerCase().indexOf(base) === 0){ u.voice = vs[i]; u.lang = vs[i].lang; break; }
           }
-        }catch(e){}
+        }catch(e){}  // 合理忽略：浏览器 API 特性探测（失败即降级无语音）
         u.onend = function(){ stopSpeak(); };
         u.onerror = function(){ stopSpeak(); };
         speechSynthesis.cancel(); speechSynthesis.speak(u);
         showStopBtn();
       }
-    }catch(e){}
+    }catch(e){}  // 合理忽略：浏览器 API 特性探测（失败即降级无语音）
   }
   root.querySelectorAll('.read-word').forEach(function(b){
     b.addEventListener('click', function(){
@@ -753,7 +753,7 @@ const RUNTIME_JS = `
   var __AC = null, __noise = null;
   function ac(){
     if(!__AC){ try{ __AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ __AC = null; } }
-    try{ if(__AC && __AC.state === 'suspended'){ __AC.resume(); } }catch(e){}
+    try{ if(__AC && __AC.state === 'suspended'){ __AC.resume(); } }catch(e){}  // 合理忽略：AudioContext 需用户手势，resume 失败无副作用
     return __AC;
   }
   function stopNoise(){
@@ -939,7 +939,7 @@ const RUNTIME_JS = `
   // 大屏（电视/电子白板）用固定 16:9 舞台并等比缩放铺满，课堂投屏不再"忽高忽低"。
   function syncHd(){
     var q = null;
-    try { q = new URLSearchParams(location.search).get('hd'); } catch(e){}
+    try { q = new URLSearchParams(location.search).get('hd'); } catch(e){}  // 合理忽略：URL 参数解析失败 → 视为未指定 hd（走视口自动判定）
     var on = window.innerWidth >= 1024 && window.innerHeight >= 576;
     if (q === '1') on = true; else if (q === '0') on = false;
     if (typeof window.__hdForced === 'boolean') on = window.__hdForced;

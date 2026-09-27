@@ -69,9 +69,24 @@ try { ssh('echo ok') } catch { sshOk = false }
   console.log(`   [登记] A1b 带变异测试或反向自检的关键守卫：${mutant.length}/${crit.length}（${mutant.join(', ') || '无'}）`
     + ` —— 目标是把剩下的 ${crit.length - mutant.length} 个也补上（M3）`)
 
-  /* ── A2 静默失败扫描（只报数，不判红：有些吞错是合法的）── */
-  const scanSink = (dir, exts, patterns) => {
-    const hits = []
+  /* ── A2 静默失败扫描（2026-09-27 重做：**先分级再计数**）──
+   * ⚠ 首版把 Go 的 226 处一律记成"丢弃 error 返回值" —— 实测那些绝大多数是
+   *   `schoolID, _ := c.Get("school_id")` / `x, _ := v.(string)`：丢的是 **ok/bool**，不是 error。
+   *   又一次"拿形态猜语义"（代理指标）。重做为三级：
+   *   **高危** = 写路径吞错（Create/Update/Delete/Save/Exec… 的返回值被丢）→ 相对基线**不得新增**（判红）；
+   *   **中危** = 解析类吞错（Atoi/Parse/Unmarshal/base64）→ 登记；
+   *   **低危** = 丢 ok（`c.Get` / 类型断言 / map 取值）、有注释说明的空 catch → 只计数。
+   */
+  /** 就地自证标记：`合理忽略：<原因>`（py 用 `#`、ts 用 `//`，扫描器只看字样） */
+  const JUSTIFIED = /合理忽略/
+  const lineOf = (txt, idx) => txt.slice(0, idx).split('\n').length
+  /**
+   * 全文匹配（跨行）并把命中定位到行 —— 关键：**必须匹配"吞掉"的完整形态**，
+   * 不能只匹配 `except Exception:`（那只是"捕获"，body 里可能老老实实在记日志）。
+   */
+  const scan = (dir, exts, patterns, skipLine = () => false) => {
+    const out = {}
+    for (const k of Object.keys(patterns)) out[k] = []
     const walk = (d) => {
       for (const e of fs.readdirSync(d, { withFileTypes: true })) {
         if (e.name === 'node_modules' || e.name.startsWith('.') || e.name === '__pycache__') continue
@@ -79,29 +94,81 @@ try { ssh('echo ok') } catch { sshOk = false }
         if (e.isDirectory()) walk(p)
         else if (exts.some(x => e.name.endsWith(x))) {
           const txt = fs.readFileSync(p, 'utf8')
-          for (const [label, re] of patterns) {
-            const n = (txt.match(re) || []).length
-            if (n) hits.push({ file: path.relative(ROOT, p), label, n })
+          const lines = txt.split('\n')
+          const rel = path.relative(ROOT, p)
+          for (const [level, re] of Object.entries(patterns)) {
+            re.lastIndex = 0
+            let m
+            while ((m = re.exec(txt)) !== null) {
+              const ln = lineOf(txt, m.index)
+              const code = (lines[ln - 1] || '').trim()
+              // 「就地自证」约定（2026-09-27）：刻意忽略的吞错必须在**命中行（或上一行）**注明
+              // `合理忽略：<具体原因>` —— 有理由的忽略 = 低危（登记）；没有理由的吞错 = 判红。
+              // 为什么这么做：与其在外挂一份 baseline 让人忘了为什么，不如让**代码自己回答"为什么可以忽略"**。
+              const justified = JUSTIFIED.test(code) || JUSTIFIED.test(lines[ln - 2] || '')
+              if (!skipLine(code, rel)) out[level].push({ file: rel, line: ln, code: code.slice(0, 110), justified })
+              if (m.index === re.lastIndex) re.lastIndex++
+            }
           }
         }
       }
     }
     if (fs.existsSync(dir)) walk(dir)
-    return hits.sort((a, b) => b.n - a.n)
+    return out
   }
-  const goHits = scanSink(path.join(ROOT, 'code/backend'), ['.go'], [
-    ['丢弃 error 返回值', /_ = [\w.]*[Ee]rr/g],
-    [', _ := ', /,\s*_ :=\s/g],
-  ])
-  const pyHits = scanSink(path.join(ROOT, 'code/ai-service'), ['.py'], [
-    ['except 后 pass/continue', /except[^\n]*:\s*\n\s*(pass|continue)\b/g],
-  ])
-  const tsHits = scanSink(path.join(ROOT, 'code/frontend/src'), ['.ts', '.tsx'], [
-    ['空 catch', /catch\s*\{?\s*\}?\s*\{?\s*\/\*\s*noop\s*\*\/|catch\s*\(\s*\w*\s*\)\s*\{\s*\}/g],
-  ])
-  const sinkTotal = [...goHits, ...pyHits, ...tsHits].reduce((s, h) => s + h.n, 0)
-  must(sinkTotal >= 0, `A2 静默失败扫描：Go ${goHits.reduce((s, h) => s + h.n, 0)} / Py ${pyHits.reduce((s, h) => s + h.n, 0)} / TS ${tsHits.reduce((s, h) => s + h.n, 0)} 处（登记；非全部为缺陷）`,
-    { top: [...goHits, ...pyHits, ...tsHits].slice(0, 6) })
+  // Go：**排除惯例写法** `defer func() { _ = tx.Rollback() }()`（Rollback 的返回值在 defer 里忽略是标准模式，
+  // 实测首版把它算成"写路径吞错" → 假阳性）。只保留真正的写操作返回值被丢。
+  const skipGoIdiom = (code) => /Rollback\(\)|defer func\(\)/.test(code)
+  const goSink = scan(path.join(ROOT, 'code/backend'), ['.go'], {
+    高危: /(?:_ = |, _ := )[\w.]*\.(?:Create|Updates|Update|Delete|Save|Exec|Upsert|Insert|Commit)\(/g,
+    中危: /, _ := (?:strconv\.(?:Atoi|ParseInt|ParseFloat)|time\.Parse|json\.Unmarshal|base64\.)/g,
+    低危: /, _ := (?:c\.Get\(|[\w.]*\.\((?:string|int)\))/g,
+  }, skipGoIdiom)
+  // Python：必须"捕获 + 直接 pass/continue"（跨行匹配）才算吞掉。
+  // ⚠ **必须容忍行尾注释** `# 合理忽略：…` —— 否则"一旦标注就再也扫不到"，等于把缺陷藏起来
+  //   （2026-09-27 实测踩到：首版正则要求 `except…:` 后**紧跟**换行，标注后 12 处 Python 吞错直接从扫描里消失，
+  //    计数从 23 掉到 11，看着更"干净"其实更危险）。A2c 反向自检专门防这一类复发。
+  const pySink = scan(path.join(ROOT, 'code/ai-service'), ['.py'], {
+    高危: /except[^\n]*:[\t ]*(?:#[^\n]*)?[\n\r]+\s*(?:pass|continue)(?=[\n\r])/g,
+    中危: /except\s+(?:json\.[A-Za-z]+Error|ValueError|KeyError)\s*:[^\n]*[\n\r]+\s*(?:pass|continue)(?=[\n\r])/g,
+  })
+  // TS：空 catch 才算（带 `/* noop */` 注释的是**有说明的**刻意忽略 → 低危），跨行匹配
+  const tsSink = scan(path.join(ROOT, 'code/frontend/src'), ['.ts', '.tsx'], {
+    高危: /catch\s*(?:\(\s*\w+\s*\))?\s*\{\s*\}/g,
+    低危: /catch\s*(?:\(\s*\w*\s*\))?\s*\{\s*\/\*\s*noop\s*\*\//g,
+  })
+  const rawHigh = [...goSink.高危, ...pySink.高危, ...tsSink.高危]
+  // A2c 反向自检（2026-09-27 加）：源码里**每一处**「合理忽略」标注都必须仍能被扫到 ——
+  // 否则"标注"就成了"隐身术"（把缺陷从扫描里弄消失），比不标注更坏。
+  const markedSites = (scan(path.join(ROOT, 'code'), ['.py', '.go', '.ts', '.tsx'], { marked: /合理忽略/g }).marked) || []
+  const missMarked = markedSites.filter(s => !rawHigh.some(h => h.file === s.file && h.line === s.line))
+  must(missMarked.length === 0,
+    'A2c 每处「合理忽略」标注都仍被扫到（标注不得让吞错"隐身"）',
+    { 标注总数: markedSites.length, 未被扫到: missMarked.map(s => `${s.file}:${s.line}`) })
+  const allHigh = rawHigh.filter(x => !x.justified)          // 未标注理由 → 判红
+  const nJustified = rawHigh.filter(x => x.justified).length // 已就地自证 → 登记
+  const nHigh = allHigh.length
+  const nMid = (goSink.中危 || []).length + (pySink.中危 || []).length
+  const nLow = (goSink.低危 || []).length + (tsSink.低危 || []).length
+
+  // 基线：高危点位冻结成清单 → 断言"**没有新增**"（比"总数不涨"更准：改一行不该算新增，删一行也不该算遗留）
+  const key = (s) => `${s.file}::${s.code}`
+  if (process.argv.includes('--sinks')) {
+    console.log(`\n── 高危·未标注理由（判红）${nHigh} 处 ──`)
+    allHigh.forEach(s => console.log(`  ${s.file}:${s.line}  ${s.code}`))
+    console.log(`\n── 高危·已就地自证「合理忽略：…」${nJustified} 处（登记）──`)
+    rawHigh.filter(x => x.justified).forEach(s => console.log(`  ${s.file}:${s.line}  ${s.code.slice(0, 90)}`))
+    console.log(`\n── 中危（解析吞错）${nMid} 处 ──`)
+    ;[...goSink.中危, ...pySink.中危].forEach(s => console.log(`  ${s.file}:${s.line}  ${s.code}`))
+    console.log(`\n── 低危（丢 ok / 有注释的空 catch）${nLow} 处（略，仅计数）`)
+    process.exit(nHigh ? 2 : 0)
+  }
+  must(nHigh === 0,
+    'A2 无"未标注理由"的吞错（写路径返回值被丢 / 裸 except 直落 pass）—— 刻意忽略必须**就地注明** `合理忽略：<原因>`',
+    { 未标注: allHigh.slice(0, 8).map(x => `${x.file}:${x.line} ${x.code.slice(0, 70)}`) })
+  must(true, `A2 静默失败扫描（登记）：已就地自证 ${nJustified} 处 / 中危 ${nMid}（解析类）/ 低危 ${nLow}（丢 ok / 有注释的空 catch）`,
+    { 中危样本: [...goSink.中危, ...pySink.中危].slice(0, 4).map(x => `${x.file}:${x.line}`) })
+  if (nJustified) notes.push(`[note] A2 已就地自证「合理忽略」${nJustified} 处 —— 理由写在代码里（随代码演进，不会与外挂清单脱节）`)
 
   /* ── A3 部署一致性：本地 == 服务器？── */
   const files = ['code/ai-service/api_server.py', 'code/ai-service/gen_pipeline.py', 'code/backend/cmd/server/main.go']

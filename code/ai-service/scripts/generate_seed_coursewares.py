@@ -802,7 +802,7 @@ def preload_used_hues(out_dir: str, used: dict) -> None:
             hsl = _hex_to_hsl(str(colors.get("primary") or ""))
             if hsl:
                 used.setdefault(m.get("style", ""), set()).add(round(hsl[0]))
-        except Exception:
+        except Exception:  # 合理忽略：离线脚本：解析失败 → 跳过该条
             continue
 
 

@@ -59,7 +59,7 @@ export default function ExamBuilder() {
         if (typeof ex.duration_minutes === 'number') setExamDuration(ex.duration_minutes)
         // 题目解析
         let qs: any[] = []
-        if (typeof ex.questions === 'string') { try { qs = JSON.parse(ex.questions || '[]') } catch {} }
+        if (typeof ex.questions === 'string') { try { qs = JSON.parse(ex.questions || '[]') } catch {} }  // 合理忽略：历史数据字段解析失败 → 用空列表兜底
         else if (Array.isArray(ex.questions)) qs = ex.questions
         if (qs.length > 0) {
           setSelectedQuestions(qs.map((q: any, i: number) => ({ id: q.id || `q_${i}_${Date.now()}`, ...q })))

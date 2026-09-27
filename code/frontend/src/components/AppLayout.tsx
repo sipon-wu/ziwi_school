@@ -123,7 +123,7 @@ export default function AppLayout({ children }: Props) {
     try {
       const saved = JSON.parse(localStorage.getItem('ziwi_sidebar_expanded') || 'null')
       if (Array.isArray(saved)) return new Set(saved)
-    } catch {}
+    } catch {}  // 合理忽略：localStorage 缓存解析失败 → 用默认展开态
     return new Set(['备课', '练习', '数据', '沟通', '个人', '课件'])
   })
 

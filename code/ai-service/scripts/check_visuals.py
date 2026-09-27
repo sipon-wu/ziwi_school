@@ -39,7 +39,7 @@ def main():
                 d = json.loads(base64.b64decode(enc).decode("utf-8"))
                 if isinstance(d, dict) and d.get("type"):
                     types.append(d["type"])
-            except Exception:
+            except Exception:  # 合理忽略：离线脚本：单样本度量失败 → 跳过该样本
                 pass
         c = Counter(types)
         all_types.update(c)

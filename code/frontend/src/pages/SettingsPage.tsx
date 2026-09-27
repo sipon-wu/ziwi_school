@@ -1067,13 +1067,13 @@ function SchoolClassTab() {
     try {
       const raw = localStorage.getItem(SC_STORAGE_KEY)
       if (raw) return JSON.parse(raw)
-    } catch {}
+    } catch {}  // 合理忽略：本地缓存解析失败 → 用默认设置
     return INIT
   }
 
   const [schools, setSchools] = useState<School[]>(loadPersisted)
   const persist = useCallback((data: School[]) => {
-    try { localStorage.setItem(SC_STORAGE_KEY, JSON.stringify(data)) } catch {}
+    try { localStorage.setItem(SC_STORAGE_KEY, JSON.stringify(data)) } catch {}  // 合理忽略：本地缓存写入失败（隐私模式/配额）
   }, [])
   // schools 变化自动落盘到 localStorage，防止硬刷新后数据还原（大问题）
   useEffect(() => { persist(schools) }, [schools, persist])
@@ -1114,7 +1114,7 @@ function SchoolClassTab() {
       ])
       setTvBooks(tb.items || [])
       setMyPrefs(pf.items || [])
-    } catch {}
+    } catch {}  // 合理忽略：本地缓存写入失败（隐私模式/配额）
     setTvLoading(false)
   }
   useEffect(() => { loadVersions() }, [])

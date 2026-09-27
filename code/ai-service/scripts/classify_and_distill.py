@@ -101,14 +101,14 @@ def _extract_json(text: str, context: str = "") -> dict:
     # 先尝试整个文本
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError:  # 合理忽略：离线批处理：模型输出解析失败 → 跳过该条
         pass
 
     # 再尝试第一个 { ... } 块（非贪婪，避免跨多个对象）
     for m in re.finditer(r"\{[\s\S]*?\}", text):
         try:
             return json.loads(m.group(0))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError:  # 合理忽略：离线批处理：模型输出解析失败 → 跳过该条
             continue
 
     # 兜底：把 "key": "value" 行包裹成对象再解析
@@ -123,7 +123,7 @@ def _extract_json(text: str, context: str = "") -> dict:
                     obj[k] = v.strip('"')
             if "class" in obj or "knowledge_points" in obj:
                 return obj
-    except Exception:
+    except Exception:  # 合理忽略：离线批处理：模型输出解析失败 → 跳过该条
         pass
 
     snippet = original[:300].replace("\n", "\\n")
@@ -254,7 +254,7 @@ def load_sources() -> dict[str, dict]:
                     continue
                 try:
                     row = json.loads(line)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError:  # 合理忽略：离线批处理：模型输出解析失败 → 跳过该条
                     continue
                 chunk_id = row.get("chunk_id")
                 if not chunk_id:
@@ -487,7 +487,7 @@ def main():
                         existing_dict = json.loads(existing)
                         if existing_dict.get("distilled") and existing_dict.get("class"):
                             continue
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError:  # 合理忽略：离线批处理：模型输出解析失败 → 跳过该条
                         pass
                 updates.append((ch["id"], ch["shard_key"], ch["chunk_id"], payload))
 

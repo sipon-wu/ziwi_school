@@ -302,7 +302,7 @@ def map_curriculum(codes, subject="", grade=""):
                     if rows:
                         item["path"] = rows[0].get("tiao_mu_lu_jing") or ""
                         item["text"] = (rows[0].get("zheng_wen") or "")[:120]
-                except Exception:
+                except Exception:  # 合理忽略：逐项解析容错（循环内，逐条刷日志只会淹没信号）
                     pass
                 out.append(item)
         finally:

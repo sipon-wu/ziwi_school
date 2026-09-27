@@ -149,7 +149,11 @@ export default function SheetBuilder() {
       try {
         const res = await api<{ assignments?: { class_name: string }[] }>(`/sheets/${id}/assignments`)
         setAssignedHistory((res?.assignments || []).map((a: any) => a.class_name || a.className || a.target_class || '').filter(Boolean))
-      } catch {}
+      } catch (e) {
+        // 拆静默（2026-09-27 吞错甄别）：这是**网络请求**失败，此前完全无声 —— 教师只会看到"班级历史空着"，
+        // 分不清"确实没布置过"还是"没加载出来"。
+        console.warn('[拆静默] 班级布置历史加载失败', e)
+      }
     }
   }
 

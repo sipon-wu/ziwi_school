@@ -21,7 +21,12 @@
 import re
 import json
 import os
+import logging
 from subjects import normalize_subject
+
+# 拆静默（2026-09-27 吞错甄别）：本模块此前两处 `except Exception: pass` 无声返回默认值，
+# 而其中一处（红线旗标抽取）是 **fail-open** 方向 —— 抽不到旗标就等于放行，必须留痕。
+logger = logging.getLogger(__name__)
 
 # ── 负面清单（平台可维护；新增只需往这里加词）──
 # 注意：本清单按「朴素子串匹配」执行，收词务必精确到具体符号/作品，
@@ -191,7 +196,9 @@ def _llm_ethic_flags(text: str, call_llm) -> list:
         if isinstance(flags, list):
             return flags
     except Exception:
-        pass
+        # 拆静默（2026-09-27 吞错甄别）：此前**无声**返回 []（= 无旗标）。
+        # ⚠ 这是 fail-open 方向（抽不到旗标 → 放行），失败必须留痕，才能事后区分"确实没旗标"与"根本没跑成"。
+        logger.warning("[拆静默] 红线旗标抽取失败 → 按无旗标返回（fail-open，需人工留意）")
     return []
 
 
@@ -353,5 +360,6 @@ def policy_consult(ctx: dict = None, call_llm=None) -> list:
         if isinstance(qs, list) and qs:
             return qs
     except Exception:
-        pass
+        # 拆静默（2026-09-27 吞错甄别）：此前无声回落到静态模板 → 记为可见
+        logger.warning("[拆静默] 发散问题模板生成失败 → 回落静态模板")
     return template

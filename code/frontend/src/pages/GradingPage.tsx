@@ -50,7 +50,7 @@ export default function GradingPage() {
         student_id: current.id, scores,
         graded_at: new Date().toISOString(),
       }))
-    } catch {}
+    } catch {}  // 合理忽略：本地缓存写入失败（隐私模式/配额）→ 不影响服务端批改
     if (currentIdx < totalCount - 1) {
       setCurrentIdx(currentIdx + 1)
     }

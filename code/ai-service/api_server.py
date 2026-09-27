@@ -374,7 +374,7 @@ async def _boundary_block(subject, grade, version, unit, query_text, top_k=5):
                             )
                             if bt:
                                 bounce_texts.append(bt[:100])
-                        except json.JSONDecodeError:
+                        except json.JSONDecodeError:  # 合理忽略：模型输出里 JSON 与文本混排、该段解析失败 → 跳过该段（后续有组装兜底）
                             pass
                 if bounce_texts:
                     c = "同单元参考：" + " | ".join(bounce_texts)
@@ -2095,7 +2095,7 @@ def _parse_duration(val):
                 return parts[0] * 60 + parts[1]
             if parts:
                 return parts[0]
-        except Exception:
+        except Exception:  # 合理忽略：时长字符串解析失败 → 落到下方 int(float(s)) 兜底，不是丢错
             pass
     try:
         return int(float(s))
@@ -2130,7 +2130,7 @@ def _parse_video_shots(raw: str):
             for o in objs:
                 try:
                     items.append(json.loads(o))
-                except Exception:
+                except Exception:  # 合理忽略：逐项 json.loads 容错 → 丢单个坏项，不影响其余项
                     pass
             if items:
                 data = items
@@ -2352,8 +2352,10 @@ async def gen_exam(req: Request):
             for t, need in type_ratio.items():
                 got = [q for q in bank if q["type"] == t][:need]
                 questions.extend(got)
-        except Exception:
-            pass
+        except Exception as e:
+            # 拆静默（2026-09-27 吞错甄别）：题库取题失败此前**无声** —— 表现为"全部题都交给 AI 生成"，
+            # 成本与耗时都悄悄变差，事后还查不出原因。
+            logger.warning("[拆静默] 题库取题失败 → 全部回退 AI 生成：%s", e)
 
     # ── 计算 AI 需补足的缺口（按题型分批生成，避免单次超长导致 JSON 截断）──
     have = {}
