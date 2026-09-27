@@ -131,6 +131,9 @@ def _call_llm_safety(messages, _model=None, max_tokens=2000):
     """
     return _call_llm(messages, None, max_tokens, role="safety")
 
+# 确定性工具层（P0-b）：风格/模板解析 + 可引用资产检索（纯确定性，无 LLM）
+import style_tools  # noqa: E402
+
 # 向量检索（备课包/教材底料 RAG）
 from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
 from vector_store import (
@@ -1696,6 +1699,39 @@ async def courseware_validate(req: Request):
             _call_llm,
         )
     return result
+
+
+# ── 确定性工具层（P0-b · 2026-09-27）────────────────────────────────────
+# 依据《0911 Skill服务化与验收防伪方案》§二/§三：工具层是**纯函数/HTTP 端点**，
+# **不调 LLM**（LLM 只出现在 S0/S2兜底/S3/S4）；渲染只读 styleDNA 快照。
+# 风格/结构语汇的单一事实源在前端 styleRegistry.ts，本服务的镜像是 style_tools.py，
+# 两边漂移由守卫 qa/verify_style_tools.cjs 逐字段对账（变红即漂移）。
+@app.post("/api/ai/courseware/tools/template.query")
+async def tools_template_query(req: Request):
+    """风格/模板解析：`{style_tag, stage, subject, scene?, kind}` → `{templateId, themeId, styleDNA, skeletonClass}`。
+
+    确定性来源：**词表映射，无 LLM**。`style_tag` 缺省/未知时按 学段→学科 兜底，且**显式标记 fallback**。
+    模板库（DB `courseware_templates`）为空时如实返回 `templateSource='style-default'`，不伪造 templateId。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    return style_tools.template_query(body or {})
+
+
+@app.post("/api/ai/courseware/tools/asset.search")
+async def tools_asset_search(req: Request):
+    """可引用资产检索：`{styleId, stage, subject, need, scene?}` → `[{assetId, url, params}]`。
+
+    确定性来源：**匹配度排序，无 LLM**。数量 = need × factor（默认 3）。
+    契约③：`params` **只含形状/语义槽、不含色值**（颜色由 styleDNA 渲染时填入）。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    return style_tools.asset_search(body or {})
 
 
 # ── LLM 通道管理（运营可维护 · 热生效 · 2026-09-12）──────────────────
