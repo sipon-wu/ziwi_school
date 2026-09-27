@@ -14,8 +14,10 @@
  *       不该罚。运行时那侧的 `skip = fail` 由 `qa/run_all.cjs` 三态判定强制，静态门只管"别偷偷跳过"。）
  *
  * 判定口径（**分级，不假装看不见**）：
- *   · **强制红**：`qa/run_all.cjs` 覆盖矩阵里的**关键守卫**（当前主目标/审计/写权限/库结构所在的那几条）必须零问题；
- *   · **登记（不判红）**：其余**历史守卫**（6–9 月积累，实测 90+ 个）的问题**逐条计数并打印**，
+ *   · **强制红** = ① `qa/run_all.cjs` 覆盖矩阵里的**关键守卫**（主目标/审计/写权限/库结构所在那几条）
+ *               **∪** ② **基线之外的新文件**（基线见 `qa/.legacy_guards.json`）——
+ *               否则"新加一个假绿守卫"会被当成存量而漏过（第一版就是这样，属于门自身的洞，已补）。
+ *   · **登记（不判红）** = 基线内的**历史守卫**（6–9 月积累，实测 86 个）的问题**逐条计数并打印**，
  *     作为 P2 存量清单待整改 —— 既不让它污染门禁，也不把它藏起来。
  */
 const fs = require('fs')
@@ -27,7 +29,14 @@ const QA = __dirname
 const FILES = fs.readdirSync(QA)
   .filter(f => /^(verify_.*|regression_.*)\.cjs$/.test(f))
   .sort()
-const ENFORCED = new Set(GUARDS.filter(g => g.critical).map(g => g.name + '.cjs'))
+/** 基线内的历史守卫（其问题只登记）—— 基线之外的一律强制（防"新加一个假绿守卫"漏过） */
+const LEGACY_BASELINE = new Set(
+  fs.existsSync(path.join(QA, '.legacy_guards.json'))
+    ? JSON.parse(fs.readFileSync(path.join(QA, '.legacy_guards.json'), 'utf8'))
+    : []
+)
+const CRITICAL = new Set(GUARDS.filter(g => g.critical).map(g => g.name + '.cjs'))
+const isEnforced = (f) => CRITICAL.has(f) || !LEGACY_BASELINE.has(f)
 
 const RULES = [
   { id: 'R1', test: (s) => /process\.exit\(0\)/.test(s), why: 'process.exit(0)：静默通过（样本为空也会报绿）' },
@@ -48,19 +57,22 @@ const RULES = [
 ]
 
 ;(async () => {
-  must(FILES.length > 0, `发现守卫文件 ${FILES.length} 个`, { enforced: [...ENFORCED] })
+  must(FILES.length > 0, `发现守卫文件 ${FILES.length} 个`, { critical: [...CRITICAL], baseline: LEGACY_BASELINE.size })
 
-  const hard = []   // 关键守卫的问题（判红）
-  const legacy = [] // 历史守卫的问题（登记）
+  const hard = []   // 强制集的问题（判红）
+  const legacy = [] // 基线内历史守卫的问题（登记）
   for (const f of FILES) {
     const src = fs.readFileSync(path.join(QA, f), 'utf8')
     const bad = RULES.filter(r => r.test(src)).map(r => `${r.id}(${r.why})`)
     if (!bad.length) continue
-    ;(ENFORCED.has(f) ? hard : legacy).push(`${f}: ${bad.join(' ')}`)
+    ;(isEnforced(f) ? hard : legacy).push(`${f}: ${bad.join(' ')}`)
   }
+  // 基线的"过期"也要看得见：已删除的历史守卫 → 提示可清理（不算问题）
+  const baselineGone = [...LEGACY_BASELINE].filter(f => !FILES.includes(f))
 
-  must(ENFORCED.size > 0, '覆盖矩阵里定义了关键守卫（强制红的那批）', { n: ENFORCED.size })
-  must(hard.length === 0, '关键守卫均无"静默通过"模式（M7 静态门 · 强制）', { issues: hard })
+  must(CRITICAL.size > 0, '覆盖矩阵里定义了关键守卫（强制红的那批）', { n: CRITICAL.size })
+  must(hard.length === 0, '强制集（关键守卫 + 基线外新文件）均无"静默通过"模式（M7 静态门）', { issues: hard })
+  if (baselineGone.length) console.log(`   [note] 基线里有 ${baselineGone.length} 个文件已不存在（可从 qa/.legacy_guards.json 移除）`)
   console.log(`   [登记] 历史守卫存量问题：**${legacy.length}** 个文件（P2 待整改，不判红；明细前 5 条）`)
   for (const l of legacy.slice(0, 5)) console.log(`     - ${l.slice(0, 150)}`)
 
