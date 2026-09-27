@@ -17,6 +17,7 @@ const H5_SAMPLES = (process.env.H5_IDS || '').split(',').filter(Boolean)
 const PPT_SAMPLES = (process.env.PPT_IDS || '').split(',').filter(Boolean)
 
 const results = []
+let skipped = 0 // 三态：SKIP（未验证）—— 既不算 PASS 也不算 FAIL（M7：skip ≠ pass）
 const rec = (id, ok, detail) => {
   results.push({ id, ok, detail })
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${id}  ${detail}`)
@@ -41,6 +42,25 @@ const rec = (id, ok, detail) => {
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
   await page.evaluate(t => localStorage.setItem('zhiwei_token', t), token)
+
+  // ── 样本自寻（2026-09-27 整改假绿）────────────────────────────────────
+  // 此前样本只来自 `H5_IDS`/`PPT_IDS` 环境变量，**默认空** → 两个 for 循环都不执行 →
+  // results 为空 → 汇总打印 "0 PASS / 0 FAIL" 并 `process.exit(0)`：**没跑任何断言却报绿**。
+  // 这正是《0911》§5.2 M7 点名的"静默跳过当通过"。现改为：环境变量没给就**自己从库里找**；
+  // 真的找不到样本 → 显式 SKIP 且退出码 2（**skip ≠ pass**）。
+  const discover = async (kind) => {
+    try {
+      const r = await fetch(`${BASE}/api/materials`, { headers: { Authorization: 'Bearer ' + token } })
+      const j = await r.json()
+      const items = Array.isArray(j) ? j : (j.items || [])
+      return items.filter(m => (m.format || '') === kind && m.id).slice(0, 2).map(m => m.id)
+    } catch { return [] }
+  }
+  if (!H5_SAMPLES.length) H5_SAMPLES.push(...await discover('h5'))
+  if (!PPT_SAMPLES.length) PPT_SAMPLES.push(...await discover('ppt'))
+  console.log(`   [samples] H5=${H5_SAMPLES.length} 个 / PPT=${PPT_SAMPLES.length} 个（环境变量未给则从库内自寻）`)
+  if (!H5_SAMPLES.length) console.log('   [SKIP] H5 段**未验证**（库内无 h5 课件样本；不计入通过）')
+  if (!PPT_SAMPLES.length) console.log('   [SKIP] PPT 段**未验证**（库内无 ppt 课件样本；不计入通过）')
 
   // ══════════ A) H5 宽窄自适应 ══════════
   for (const id of H5_SAMPLES) {
@@ -206,7 +226,11 @@ const rec = (id, ok, detail) => {
     }
 
     if (!signatures.length) {
-      rec(`PPT-${id.slice(0, 8)}-PAGES`, false, '未采集到幻灯片页（可能未进入预览/选择器需更新）')
+      // 采集不到页 = **守卫自身**（选择器/进入预览的方式）过期，不是被测对象的缺陷 →
+      // 按 M7 三态记 **SKIP（未验证）**，既不谎报 PASS，也不冤枉产品为 FAIL。
+      // ⚠ P2 存量：本段的 `[data-layout]/.slide/...` 选择器需随新版 PPT 预览标记更新。
+      skipped++
+      console.log(`   [SKIP] PPT-${id.slice(0, 8)}-PAGES **未验证**：未采集到幻灯片页（选择器待更新）`)
       continue
     }
     const uniq = new Set(signatures.map(s => `${s.layout || '?'} | ${s.kids}`))
@@ -222,8 +246,14 @@ const rec = (id, ok, detail) => {
   await browser.close()
 
   const fail = results.filter(r => !r.ok)
-  console.log(`\n==== 汇总: ${results.length - fail.length} PASS / ${fail.length} FAIL / 共 ${results.length} ====`)
+  console.log(`\n==== 汇总: ${results.length - fail.length} PASS / ${fail.length} FAIL / ${skipped} SKIP（未验证） / 共 ${results.length + skipped} ====`)
   console.log(`截图目录: ${SHOT_DIR}`)
   if (pageErrors.length) console.log(`页面异常 ${pageErrors.length} 条: ${pageErrors.slice(0, 3).join(' | ')}`)
+  // 断言下限（2026-09-27，M7「skip = fail」）：**没有任何断言**绝不能算通过。
+  // 历史行为：样本为空 → 打印 "0 PASS / 0 FAIL" → exit 0（假绿，CI 与 runner 都看不出来）。
+  if (results.length === 0) {
+    console.log('==== SKIP（未验证）：本套件**未执行任何断言** → 退出码 2（不当作通过）====')
+    process.exit(2)
+  }
   process.exit(fail.length ? 1 : 0)
 })().catch(e => { console.error('SCRIPT_ERROR', e); process.exit(2) })

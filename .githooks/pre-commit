@@ -19,8 +19,31 @@
 set -e
 ROOT=$(git rev-parse --show-toplevel)
 FE="$ROOT/code/frontend"
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
 
-if ! git diff --cached --name-only --diff-filter=ACMR | grep -q '^code/frontend/'; then
+# ── 反假绿静态门（2026-09-27 · 1-4 / M7）────────────────────────────
+# 秒级、不跑网络与浏览器 → 适合放在提交门禁；全量守卫（含浏览器 E2E）请手动跑：
+#     node qa/run_all.cjs          # 三态汇总（passed/failed/skipped），关键路径 skip 即判未验证
+#     node qa/gate_mutation.cjs    # M3 变异门：注入缺陷 → 断言必须变红
+if echo "$STAGED" | grep -qE '^(qa/|code/)'; then
+  if ! command -v node >/dev/null 2>&1; then
+    echo "✘ [pre-commit] 找不到 node，无法跑反假绿静态门 → 拒绝提交（门禁宁可拦，不放行未验证的提交）"
+    exit 1
+  fi
+  echo "[pre-commit] M7 静态反假绿门 + 覆盖矩阵 …"
+  if ! node "$ROOT/qa/gate_assert_hygiene.cjs"; then
+    echo "✘ 关键守卫存在\"静默通过\"模式 → 拒绝提交（规范 M7：skip ≠ pass）"
+    exit 1
+  fi
+  if ! node "$ROOT/qa/run_all.cjs" --list; then
+    echo "✘ 守卫覆盖矩阵不完整（幽灵登记 / 方案条目无覆盖）→ 拒绝提交"
+    exit 1
+  fi
+else
+  echo "[pre-commit] 未触及 qa/ 或 code/ → 跳过反假绿静态门"
+fi
+
+if ! echo "$STAGED" | grep -q '^code/frontend/'; then
   echo "[pre-commit] 未触及 code/frontend → 跳过 tsc"
   exit 0
 fi
