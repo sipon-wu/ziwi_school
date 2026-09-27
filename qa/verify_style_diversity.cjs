@@ -62,8 +62,19 @@ const rec = (id, ok, detail) => {
   if (!H5_SAMPLES.length) console.log('   [SKIP] H5 段**未验证**（库内无 h5 课件样本；不计入通过）')
   if (!PPT_SAMPLES.length) console.log('   [SKIP] PPT 段**未验证**（库内无 ppt 课件样本；不计入通过）')
 
-  // ══════════ A) H5 宽窄自适应 ══════════
+  // ══════════ A) H5 宽窄自适应【本段已废弃 · 见下方说明】══════════
+  // ⚠ 2026-09-27 纠正：本段**测量方法错了**，曾据此误报"产品三档无自适应"。
+  //   它直接开 `/courseware/h5/:id` —— 那是**编辑器页**，H5 只是嵌在编辑器画布 `iframe(srcDoc=播放器HTML)`
+  //   里，且编辑器会 postMessage 强制开 HD 舞台；外层 setViewportSize 动不到 iframe 内宽
+  //   （实测 958 → 286 → 390 时塌成 0）→ "三档 padding 完全相同""scene/文档宽比=0.000"两组数字都不可信。
+  // H5 舞台口径（HD 固定 1280×720 等比 / 手机档撤舞台自适应）已由 `qa/verify_h5_stage.cjs`
+  //   用**正确方法**覆盖（取播放器 HTML 独立渲染三档，29 断言）。此处整段跳过、计入 SKIP（未验证），
+  //   不再对 H5 下任何断言；下方实现仅作对照保留，待清理（见 DECISIONS 09-27）。
   for (const id of H5_SAMPLES) {
+    skipped++
+    console.log(`   [SKIP] H5-${id.slice(0, 8)} **未验证**（本段测量方法已废弃 → 改由 qa/verify_h5_stage.cjs 覆盖）`)
+    continue
+
     const url = `${BASE}/courseware/h5/${id}`
     await page.goto(url, { waitUntil: 'networkidle' })
     await page.waitForTimeout(3000)

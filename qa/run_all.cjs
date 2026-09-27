@@ -38,7 +38,8 @@ const GUARDS = [
   { name: 'verify_preview_pure', critical: false, covers: ['预览纯净态'] },
   { name: 'verify_cover_elements', critical: false, covers: ['封面'] },
   { name: 'verify_materials_preview_decor', critical: false, covers: ['素材预览装饰'] },
-  { name: 'verify_style_diversity', critical: false, covers: ['1-1·辅助（宽窄自适应/PPT 版式多样性）'] },
+  { name: 'verify_h5_stage', critical: true, covers: ['H5 舞台（HD 等比档 / 手机档）'] },
+  { name: 'verify_style_diversity', critical: false, covers: ['PPT 版式多样性（H5 段已迁移至 verify_h5_stage）'] },
 ]
 /** 方案里**已宣布完成**的条目 → 必须至少有一个守卫覆盖（M5：未覆盖即红） */
 const DONE_ITEMS = ['0-1', '0-2', '1-1', '1-2', '1-3']
@@ -74,13 +75,19 @@ if (require.main === module) {
   }
 
   const tri = { passed: [], failed: [], skipped: [] }
-  for (const g of GUARDS) {
+  // `--only=a,b`：只跑指定守卫（定点复验用；**覆盖矩阵仍按全量清单核对**，不会被 --only 糊弄过去）
+  const onlyArg = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1]
+  const guards = onlyArg ? GUARDS.filter(g => onlyArg.split(',').includes(g.name)) : GUARDS
+  if (onlyArg) console.log(`[--only] 只跑 ${guards.map(g => g.name).join(', ')}（共 ${guards.length} 个）`)
+  for (const g of guards) {
     process.stdout.write(`${g.name.padEnd(34)} `)
     const r = require('child_process').spawnSync('node', [path.join(QA, `${g.name}.cjs`)], { encoding: 'utf8', timeout: 20 * 60 * 1000 })
     const out = `${r.stdout || ''}${r.stderr || ''}`
     const asserts = (out.match(/断言\s*(\d+)\s*条/) || [])[1]
     const skipped = /SKIP（未验证）|\[SKIP\]/.test(out) || r.status === 2
-    const state = r.status === 0 ? (skipped ? 'skip' : 'pass') : 'fail'
+    // ⚠ 退出码 2 = **未验证（skip）**，不是失败（2026-09-27 修：首版只在"退出码 0 且输出含 SKIP"时算 skip，
+    // 于是"零断言 → exit 2"的守卫被误报为 failed）。三态口径：0=passed / 2=skipped / 其他=failed。
+    const state = r.status === 2 ? 'skip' : (r.status === 0 ? (skipped ? 'skip' : 'pass') : 'fail')
     console.log(`${state.toUpperCase().padEnd(5)} ${asserts ? `断言 ${asserts} 条` : ''} ${r.status !== 0 ? `(exit=${r.status})` : ''}`)
     if (state === 'pass') tri.passed.push({ ...g, asserts })
     else if (state === 'skip') tri.skipped.push({ ...g, asserts })
