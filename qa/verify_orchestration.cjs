@@ -25,6 +25,8 @@ const B = process.env.BASE || 'http://school1.ziwi.cn'
 const PHONE = process.env.PHONE || '13800000002'
 const PASS = process.env.PASS || 'teacher123'
 const JOB = process.env.JOB_ID || `qa-orch-${Date.now()}`
+/** `MUTATE=1`：变异模式（A1b 判据自检）—— 只跑"喂坏输入 → 判据必须报错"，用于证明判据非恒真 */
+const MUTATE = process.env.MUTATE === '1'
 const STEPS = ['s0', 's1', 's2', 's3', 's4', 's5']
 
 ;(async () => {
@@ -165,7 +167,16 @@ const STEPS = ['s0', 's1', 's2', 's3', 's4', 's5']
 
   /* ⑤ 可回放对账：活的事件/响应 ↔ 落的留痕，必须一致 */
   const traceIds = (tr.steps || []).map(s => s.id)
-  must(JSON.stringify([...new Set(traceIds)]) === JSON.stringify([...new Set(liveSteps)]),
+  // 判据抽成可复用函数（2026-09-27，A1b）：只有能被"喂坏输入"的判据，才谈得上不是恒真。
+  const sameStepSet = (a, b) => JSON.stringify([...new Set(a)]) === JSON.stringify([...new Set(b)])
+  if (MUTATE) {
+    // 【变异测试·判据自检】注入：把留痕里的 s5 删掉（模拟"落库早于 emit s5"那个真实缺陷）→ 对账必须报不一致。
+    const tampered = traceIds.filter(id => id !== 's5')
+    must(!sameStepSet(tampered, liveSteps),
+      '【变异测试·判据自检】故意删掉留痕里的 s5 → 对账判据必须报"不一致"（证明下面那条断言不是恒真）',
+      { tampered: [...new Set(tampered)], live: [...new Set(liveSteps)] })
+  }
+  must(sameStepSet(traceIds, liveSteps),
     '可回放：留痕步骤序列 == 活响应步骤序列', { trace: [...new Set(traceIds)], live: [...new Set(liveSteps)] })
   must((tr.rounds || []).length === s3evs.length,
     '可回放：留痕轮次 == SSE 实际发生的 s3 轮次', { trace: tr.rounds.length, sse: s3evs.length })

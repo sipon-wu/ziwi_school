@@ -32,6 +32,8 @@ const PHONE = process.env.PHONE || '13800000002'
 const PASS = process.env.PASS || 'teacher123'
 // [宽, 高]：1440×900 属 HD 档；768×900 与 390×844 都 <1024 → 手机档
 const TIERS = [[1440, 900], [768, 900], [390, 844]]
+/** `MUTATE=1`：变异模式——**改被测对象**（剥掉 `syncHd()`）而不是改期望值，验证判据真的在看 `body.hd` */
+const MUTATE = process.env.MUTATE === '1'
 
 /** 从编辑器画布里取出**播放器 HTML**（srcDoc 的 outerHTML；same-origin iframe 可直读） */
 async function extractPlayerHtml(page) {
@@ -55,10 +57,14 @@ async function extractPlayerHtml(page) {
       }
     }
   }
+  if (!html) return null
+  // 【变异测试】注入（2026-09-27，A1b）：剥掉 `syncHd()` 调用 → 播放器不再按视口启用 HD 舞台。
+  // 这**改的是被测对象**、不是期望值：判据若仍报"HD 已启用"，说明它没真的在看 body.hd。
+  const withHtml = MUTATE ? html.replace(/\bsyncHd\(\)/g, 'void 0') : html
   // 编辑器会 postMessage 强制给播放器加 `class="hd"`；独立渲染时该脚本会按自身视口重算，
   // 但为免"初始类"干扰测量，这里先摘掉 hd（脚本 load 时会按真实视口再决定）。
-  return html ? html.replace(/<body([^>]*?)class="([^"]*)"/, (m, pre, cls) =>
-    `<body${pre}class="${cls.split(/\s+/).filter(c => c && c !== 'hd').join(' ')}"`) : null
+  return withHtml.replace(/<body([^>]*?)class="([^"]*)"/, (m, pre, cls) =>
+    `<body${pre}class="${cls.split(/\s+/).filter(c => c && c !== 'hd').join(' ')}"`)
 }
 
 ;(async () => {
@@ -125,11 +131,16 @@ async function extractPlayerHtml(page) {
 
     /* ② HD 档：固定 1280×720 逻辑舞台 + 等比缩放 + 无溢出 */
     const want = Math.min(hd.vw / 1280, hd.vh / 720)
-    must(hd.hd === true, `${tag} HD 档（1440×900）启用固定舞台（body.hd）`, { hd: hd.hd })
-    must(hd.rootCssW === 1280, `${tag} HD 档舞台逻辑宽 = 1280（16:9 固定舞台，非按内容撑开）`, { cssW: hd.rootCssW })
-    must(Math.abs(hd.scale - want) < 0.02, `${tag} HD 档等比缩放 scale ≈ min(vw/1280, vh/720)`,
-      { scale: hd.scale, want: Number(want.toFixed(3)) })
-    must(!hd.overflowX, `${tag} HD 档无横向溢出`, { rootW: hd.rootW, vw: hd.vw })
+    if (MUTATE) {
+      // 注入（syncHd 被剥掉）后舞台**不得**启用 —— 反过来证明下面那组断言真的在看 body.hd。
+      must(hd.hd === false, `${tag} 【变异测试】剥掉 syncHd() → HD 舞台不再启用（判据确实在读 body.hd）`, { hd: hd.hd })
+    } else {
+      must(hd.hd === true, `${tag} HD 档（1440×900）启用固定舞台（body.hd）`, { hd: hd.hd })
+      must(hd.rootCssW === 1280, `${tag} HD 档舞台逻辑宽 = 1280（16:9 固定舞台，非按内容撑开）`, { cssW: hd.rootCssW })
+      must(Math.abs(hd.scale - want) < 0.02, `${tag} HD 档等比缩放 scale ≈ min(vw/1280, vh/720)`,
+        { scale: hd.scale, want: Number(want.toFixed(3)) })
+      must(!hd.overflowX, `${tag} HD 档无横向溢出`, { rootW: hd.rootW, vw: hd.vw })
+    }
 
     /* ③ 手机档：撤舞台 + 自适应宽度 + 场景不被压塌 + 无溢出 */
     for (const [i, r] of [[768, mob768], [390, mob390]]) {
@@ -139,9 +150,11 @@ async function extractPlayerHtml(page) {
       must(!r.overflowX, `${tag} 手机档（${i}px）无横向溢出`, { sceneW: r.sceneW, vw: r.vw })
     }
 
-    /* ④ 档位切换真的发生在 1024 边界 */
-    must(hd.hd && !mob768.hd && !mob390.hd,
-      `${tag} 三档档位切换正确（1440→HD / 768、390→手机）`, { flags: rows.map(r => r.hd) })
+    /* ④ 档位切换真的发生在 1024 边界（变异模式下 1440 档被注入破坏，故跳过） */
+    if (!MUTATE) {
+      must(hd.hd && !mob768.hd && !mob390.hd,
+        `${tag} 三档档位切换正确（1440→HD / 768、390→手机）`, { flags: rows.map(r => r.hd) })
+    }
   }
   await browser.close()
   report()

@@ -60,14 +60,24 @@ let br, aId, bId, mineLg, otherLg
   const p = await br.newPage({ viewport: { width: 1440, height: 900 } })
   p.on('pageerror', e => errs.push(String(e.message).slice(0, 120)))
   await p.goto(B + '/login', { waitUntil: 'domcontentloaded' })
-  await p.evaluate(([t, u]) => { localStorage.setItem('zhiwei_token', t); localStorage.setItem('user', JSON.stringify(u)) }, [mineLg.token, mineLg.user])
+  // 变异注入（2026-09-27，A1b）：把登录身份换成**假 id** → "本人课件"应被判成"他人的"。
+  // 判据若仍报"无只读提示"，说明归属判定根本没读 user.id（即断言恒真）。
+  const MUTATE = process.env.MUTATE === '1'
+  const injectedUser = MUTATE ? { ...mineLg.user, id: 'u-qa-mutated-fake' } : mineLg.user
+  await p.evaluate(([t, u]) => { localStorage.setItem('zhiwei_token', t); localStorage.setItem('user', JSON.stringify(u)) }, [mineLg.token, injectedUser])
 
   /* ① 本人课件：不得被判为"他人"（否则等于禁掉了所有正常编辑） */
   await p.addInitScript(WATCH)
   await p.goto(`${B}/courseware/ppt/${aId}/edit`, { waitUntil: 'domcontentloaded' })
   await p.waitForTimeout(11000)
   const mineHits = await p.evaluate(() => window.__hits || [])
-  must(mineHits.length === 0, '打开本人课件**不出现**只读提示（user.id 与 user_id 口径一致，未被误判）', { hits: mineHits })
+  if (MUTATE) {
+    must(mineHits.length > 0,
+      '【变异测试】把登录身份改成假 id → 本人课件**必须**被判为他人（只读提示出现）—— 证明归属判据真的在读 user.id',
+      { hits: mineHits })
+  } else {
+    must(mineHits.length === 0, '打开本人课件**不出现**只读提示（user.id 与 user_id 口径一致，未被误判）', { hits: mineHits })
+  }
 
   /* ② 同事课件：必须出现只读提示 + 点名作者 */
   await p.goto(`${B}/courseware/ppt/${bId}/edit`, { waitUntil: 'domcontentloaded' })

@@ -175,8 +175,20 @@ function parseMigrations() {
     must(models.length > 0, '解析到 Go 模型（参与对账）', { models: models.length })
 
     /* ② 代码期望字段 */
-    const missCode = CODE_EXPECTED.filter(x => !have.has(`${x.table}|${x.column}`))
-    must(missCode.length === 0, '代码期望字段（迁移未声明）在库中已补齐', { missing: missCode.map(x => `${x.table}.${x.column} ← ${x.why}`) })
+    // 【变异测试】注入（2026-09-27，A1b）：往期望清单里塞一条**库里肯定没有**的列 —— 对账必须报出来。
+    // 只有当它能红，"期望字段在库中已补齐"才不是一句恒真的空话。
+    const MUTATE = process.env.MUTATE === '1'
+    const expectedForCheck = MUTATE
+      ? [...CODE_EXPECTED, { table: 'users', column: '__qa_mutation_probe', why: '变异注入（库中不存在）' }]
+      : CODE_EXPECTED
+    const missCode = expectedForCheck.filter(x => !have.has(`${x.table}|${x.column}`))
+    if (MUTATE) {
+      must(missCode.some(x => x.column === '__qa_mutation_probe'),
+        '【变异测试】塞入"库中不存在的期望字段" → 漂移对账必须报出来（证明对账真的在比对）',
+        { missing: missCode.map(x => `${x.table}.${x.column}`) })
+    } else {
+      must(missCode.length === 0, '代码期望字段（迁移未声明）在库中已补齐', { missing: missCode.map(x => `${x.table}.${x.column} ← ${x.why}`) })
+    }
   }
 
   /* ── ③ 功能回读：PUT /api/user/profile 六个字段 ── */

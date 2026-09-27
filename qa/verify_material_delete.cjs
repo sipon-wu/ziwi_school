@@ -91,6 +91,13 @@ const { B } = require('./lib/cwFixture.cjs')
   } else {
     must(true, '跳过公共资产 PUT 用例（本次无公共元件可取样）')
   }
+  // 变异注入（2026-09-27，A1b）：用**同事 token** 去改**本人**素材 —— 跨主体改写必须被归属校验拦住。
+  // 若放行（200），说明"仅本人可改"没有真正生效（上面的 403 断言可能只是碰巧成立）。
+  if (process.env.MUTATE === '1') {
+    const dB2 = await (await fetch(`${B}/api/materials/${tmp2.id}`, { headers: H })).json()
+    const cross = await fetch(`${B}/api/materials/${tmp2.id}`, { method: 'PUT', headers: HB, body: JSON.stringify({ ...dB2, name: dB2.name }) })
+    must(cross.status === 403, '【变异测试】同事改**本人**素材 → 403（跨主体改写被拦住）', { status: cross.status, id: tmp2.id })
+  }
   await del(tmp2.id) // 清掉本人 PUT 用例的临时件
 
   /* ⑦ 基线件可清零（跑完不留残留） */

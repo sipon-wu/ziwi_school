@@ -88,6 +88,16 @@ const psql = (sql) => {
   must(v2.filter(v => v.kind === 'release').length >= 1, '删除素材后 **release 留痕仍在**（级联不抹证据：原生 SQL 曾绕过 BeforeDelete 钩子）', { after: v2.map(v => v.kind) })
   must(v2.filter(v => v.kind === 'snapshot').length === 0, '草稿快照被正常级联清理（只留证据、不留垃圾）', { after: v2.map(v => v.kind) })
 
+  // 【变异测试】注入（2026-09-27，A1b）：用 psql **主动抹掉 release 留痕** —— 这正是脚本注释里写的真实事故③
+  // （原生 SQL 绕过 BeforeDelete 把证据级联删掉）。判据必须当场看到"证据已消失"，否则上面那条"留痕仍在"恒真。
+  if (process.env.MUTATE === '1' && tbl === '1') {
+    psql(`DELETE FROM versions WHERE resource_id='${m.id}' AND kind='release'`)
+    const v3 = await vers(m.id)
+    must(v3.filter(v => v.kind === 'release').length === 0,
+      '【变异测试】主动抹掉 release 留痕 → 判据必须看到"证据已消失"（证明留痕检查真的在读库）',
+      { after: v3.map(v => v.kind) })
+  }
+
   if (tbl === '1') {
     const audit = psql(`SELECT action||'|'||resource_type||'|'||coalesce(resource_id,'-')||'|'||coalesce(details->>'name','-') FROM audit_logs WHERE resource_id='${m.id}' ORDER BY created_at DESC LIMIT 3`)
     must(!!audit && /delete/.test(audit), '删除动作写入 audit_logs（硬删无回收站，须留"谁删了什么"）', { audit })

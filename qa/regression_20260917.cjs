@@ -195,6 +195,15 @@ let br
   const dOutline = [{ title: '甲', bullets: ['a'], layout: 'edu-goal', decor: dDecor }, { title: '乙', bullets: ['b'] }]
   const dBack = EP.markdownToOutline(EP.outlineToMarkdown(dOutline, dOpts))
   must(JSON.stringify(dBack[0].decor) === JSON.stringify(dDecor), '内容页装饰随 markdown 往返（CW-DECOR）')
+  // 【变异测试】注入（2026-09-27，A1b）：把"带装饰提纲"的 decor 摘掉再序列化（模拟"CW-DECOR 没写进 markdown"）
+  // → 往返对账必须发现装饰丢失。只有当它能红，上面那条"装饰随 markdown 往返"才不是恒真。
+  if (process.env.MUTATE === '1') {
+    const stripped = dOutline.map(({ decor, ...rest }) => rest)
+    const dBad = EP.markdownToOutline(EP.outlineToMarkdown(stripped, dOpts))
+    must(JSON.stringify(dBad[0].decor) !== JSON.stringify(dDecor),
+      '【变异测试】剥掉带装饰提纲的 decor → 往返对账必须发现不一致（证明该断言不是恒真）',
+      { got: dBad[0].decor })
+  }
   must(!dBack[1].decor, '无装饰页不产生装饰')
   must(dBack.length === 2 && dBack[0].title === '甲', '往返未污染页数与标题', { pages: dBack.length })
   must(!/CW-DECOR/.test(EP.outlineToMarkdown([{ title: '甲', bullets: ['a'] }], dOpts)), '无装饰文档不写 CW-DECOR（旧文档零变化）')
