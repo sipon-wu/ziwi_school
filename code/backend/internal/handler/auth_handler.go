@@ -228,7 +228,9 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		updates["region"] = req.Region
 	}
 	if req.Avatar != "" {
-		updates["avatar"] = req.Avatar
+		// 列名对齐（2026-09-27 修）：真实列是 `avatar_url`（见 model.User.AvatarURL 与 001 基线），
+		// 此前写成 `avatar` → PG 报 column does not exist → 头像保存 500（= B003）。
+		updates["avatar_url"] = req.Avatar
 	}
 	if len(updates) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "no fields to update"})
