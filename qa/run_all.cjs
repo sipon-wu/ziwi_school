@@ -34,6 +34,9 @@ const GUARDS = [
   { name: 'verify_cloud_isolation', critical: true, covers: ['P3 云通道隔离'] },
   { name: 'verify_material_delete', critical: true, covers: ['素材写权限'] },
   { name: 'verify_material_ownership_ui', critical: true, covers: ['素材写权限·UI'] },
+  // 2026-09-29（3dB 整改）：原本是"自定义 ✔/✘ 打印"的纯函数单测（判定有效但门禁/runner 识别不到），
+  // 已接入标准断言库（9 条确定性断言），登记进覆盖矩阵 → 从"老脚本"变成被 runner 跟踪的守卫。
+  { name: 'verify_version_policy', critical: false, covers: ['版本粒度策略（纯函数）'] },
   { name: 'verify_kg_units_backend', critical: false, covers: ['知识点来源'] },
   { name: 'verify_canvas_bounds', critical: false, covers: ['课件编辑器·画布'] },
   { name: 'verify_pptx_decor_export', critical: false, covers: ['课件导出'] },

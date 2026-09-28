@@ -2,6 +2,9 @@
 // 覆盖：生成的里程碑语义 · 内容去重 · 点击 2 分钟合并窗 · 自动 5 分钟节流 · 里程碑不参与合并
 const { execSync } = require('child_process')
 const path = require('path')
+// 2026-09-29：改用**标准断言库**（原自定义 `chk()` 只打印 ✔/✘，门禁与 runner 识别不到它的结论，
+// 于是这条其实有效的纯函数单测被当成"没有汇总输出"）。改写后：断言条数/失败数统一可见，可纳入 runner。
+const { must, report } = require('./lib/assert.cjs')
 const FE = path.resolve(__dirname, '../code/frontend')
 const OUT = '/tmp/vp_bundle.cjs'
 
@@ -15,10 +18,7 @@ const NOW = Date.parse('2026-09-15T10:00:00+08:00')
 const ago = (ms) => new Date(NOW - ms).toISOString()
 const snap = (label, msAgo) => ({ kind: 'snapshot', label, created_at: ago(msAgo) })
 
-let bad = 0
-const chk = (got, want, msg) => {
-  if (got !== want) { bad++; console.log(`   ✘ ${msg}：得到 ${got}，期望 ${want}`) } else console.log(`   ✔ ${msg}`)
-}
+const chk = (got, want, msg) => must(got === want, msg, { got, want })
 
 console.log(`窗口：点击 ${CLICK_COALESCE_MS / 60000} 分钟 · 自动 ${AUTO_THROTTLE_MS / 60000} 分钟\n`)
 
@@ -57,5 +57,4 @@ chk(decideVersion({ trigger: 'click', last: null, contentSame: false, now: NOW }
 chk(decideVersion({ trigger: 'click', last: { kind: 'release', label: '观潮_课件', created_at: ago(30 * 1000) },
   contentSame: false, now: NOW }), 'create', '最新版是发布版 → 点击保存照常建版')
 
-console.log(bad === 0 ? '\n结论：粒度策略全部通过 ✔' : `\n结论：${bad} 项未通过 ✘`)
-process.exit(bad ? 1 : 0)
+report()
