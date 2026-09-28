@@ -30,6 +30,8 @@ const GUARDS = [
   { name: 'verify_style_tools', critical: true, covers: ['1-2'] },
   { name: 'verify_orchestration', critical: true, covers: ['1-3'] },
   { name: 'verify_audit_trail', critical: true, covers: ['审计链'] },
+  { name: 'verify_publish_degrade', critical: true, covers: ['发布·审核降级（真故障注入）'] },
+  { name: 'verify_cloud_isolation', critical: true, covers: ['P3 云通道隔离'] },
   { name: 'verify_material_delete', critical: true, covers: ['素材写权限'] },
   { name: 'verify_material_ownership_ui', critical: true, covers: ['素材写权限·UI'] },
   { name: 'verify_kg_units_backend', critical: false, covers: ['知识点来源'] },

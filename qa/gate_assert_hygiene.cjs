@@ -61,8 +61,19 @@ const isEnforced = (f) => CRITICAL.has(f) || !LEGACY_BASELINE.has(f)
 
 const RULES = [
   { id: 'R1', test: (s) => /process\.exit\(0\)/.test(s), why: 'process.exit(0)：静默通过（样本为空也会报绿）' },
-  { id: 'R2a', test: (s) => !/must\(|rec\(/.test(s), why: '没有断言调用（must/rec）→ 套件不可能失败' },
-  { id: 'R2b', test: (s) => !/report\(\)|断言|PASS \/|汇总/.test(s), why: '没有汇总输出 → 结果不可见' },
+  // ⚠ R2a/R2b 首版只认 `must(`/`rec(` —— **代理指标**：实测老守卫多用 `FAIL` / `✘` / `assert(...)`
+  //   自定义断言（如 `verify_knowledge_boundary_fast.cjs` 有 21 处 FAIL），于是被误判成"没有断言"（78 个里 76 个"命中"）。
+  //   已扩到"任何**会失败**的写法"；只有**完全没有**失败路径的脚本才算命中。
+  {
+    id: 'R2a',
+    test: (s) => !/must\(|rec\(|assert[A-Za-z]*\(|expect\(|\bFAIL\b|✘|❌|throw new Error|process\.exit\(1\)/.test(s),
+    why: '没有任何"会失败"的判定（must/rec/assert/expect/FAIL/✘/抛错/exit 1）→ 套件不可能失败',
+  },
+  {
+    id: 'R2b',
+    test: (s) => !/report\(\)|断言|PASS|FAIL|汇总|总结|====/.test(s),
+    why: '没有任何汇总输出 → 结果不可见',
+  },
   {
     id: 'R3',
     test: (s) => /\.split\(','\)\.filter\(Boolean\)/.test(s) && !/length === 0|length ===0|SKIP/.test(s),
@@ -104,6 +115,11 @@ const RULES = [
   if (baselineGone.length) console.log(`   [note] 基线里有 ${baselineGone.length} 个文件已不存在（可从 qa/.legacy_guards.json 移除）`)
   console.log(`   [登记] 历史守卫存量问题：**${legacy.length}** 个文件（P2 待整改，不判红；明细前 5 条）`)
   for (const l of legacy.slice(0, 5)) console.log(`     - ${l.slice(0, 150)}`)
+  // `--legacy`：把存量问题**全量**列出来（挑高风险项整改时用；信息性输出，不参与判定）
+  if (process.argv.includes('--legacy')) {
+    console.log(`\n── 历史守卫存量问题全量（${legacy.length} 个文件）──`)
+    for (const l of legacy) console.log(`  ${l}`)
+  }
 
   /* 反向自检：门必须能抓到假绿（否则又是一层假绿） */
   const FAKE = `const S = (process.env.IDS || '').split(',').filter(Boolean)\nfor (const i of S) {}\nconsole.log('0 PASS / 0 FAIL')\nprocess.exit(0)\n`

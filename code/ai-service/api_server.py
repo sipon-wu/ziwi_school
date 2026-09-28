@@ -134,6 +134,7 @@ def _call_llm_safety(messages, _model=None, max_tokens=2000):
 # 确定性工具层（P0-b）：风格/模板解析 + 可引用资产检索（纯确定性，无 LLM）
 import style_tools  # noqa: E402
 import gen_pipeline  # noqa: E402  # P1 受控编排 S0–S5 + 逐次留痕（2026-09-27）
+import cloud_sync  # noqa: E402  # P3 云通道（控制面，默认关闭/出网单向/不在请求路径，2026-09-28）
 
 # 向量检索（备课包/教材底料 RAG）
 from embeddings import embed_texts, EMBED_MODEL, EMBED_DIM  # noqa: E402
@@ -1912,6 +1913,34 @@ async def llm_config_reload():
     return {"ok": True, "models": {r: channel_for(r)["model"] for r in ("gen", "review", "safety")}}
 
 
+# ── P3 云通道（控制面 · 默认关闭 · 出网单向 · 不在请求路径）2026-09-28 ──
+# 边界（《0911》§六）：云通道**仅作探索/控制面**，不做核心生成；DoD = **与核心链路物理隔离、不影响主流程**。
+# 下面三个端点只在**管理**时被调用（供运维/验收），核心生成与发布链路从不引用 cloud_sync。
+@app.get("/api/ai/llm/sync/status")
+async def cloud_sync_status():
+    """云通道状态（配置/上次结果/是否干跑）。**不回传 token 明文**。"""
+    return cloud_sync.status()
+
+
+@app.post("/api/ai/llm/sync/config")
+async def cloud_sync_config(req: Request):
+    """设置云通道（运维/测试）。`url` 留空 = 关闭；`apply=true` 才真正落地配置（**默认干跑**）。"""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    return cloud_sync.set_config(
+        url=str(body.get("url") or ""), token=str(body.get("token") or ""),
+        enabled=bool(body.get("enabled", True)), apply=bool(body.get("apply", False)),
+    )
+
+
+@app.post("/api/ai/llm/sync")
+async def cloud_sync_run():
+    """触发一次同步（同步返回，便于验收；后台任务另按 `CLOUD_SYNC_INTERVAL_S` 跑）。**失败不抛异常**。"""
+    return await run_in_threadpool(cloud_sync.sync_once)
+
+
 @app.on_event("startup")
 async def _startup_llm_channel():
     """启动时建表并预热通道配置（失败不阻断服务：沿用 env）。"""
@@ -1923,6 +1952,24 @@ async def _startup_llm_channel():
                      for r in ("gen", "review", "safety")})
     except Exception as e:
         logger.warning("LLM 通道初始化失败（沿用 env）：%s", e)
+
+    # P3 云通道：**只有已配置**才起后台同步（默认不配置 → 零网络行为，隔离原则①）
+    try:
+        st = cloud_sync.status()
+        if st["configured"]:
+            async def _cloud_loop():
+                while True:
+                    try:
+                        await run_in_threadpool(cloud_sync.sync_once)
+                    except Exception as e:      # 云通道的任何异常都不得影响服务
+                        logger.warning("[cloud_sync] 后台同步异常（忽略）：%s", e)
+                    await asyncio.sleep(float(os.getenv("CLOUD_SYNC_INTERVAL_S", "600")))
+            asyncio.create_task(_cloud_loop())
+            logger.info("P3 云通道已启用：%s（干跑=%s）", st["url"], not st["apply"])
+        else:
+            logger.info("P3 云通道未配置 → 关闭（与核心链路隔离；要开：POST /api/ai/llm/sync/config）")
+    except Exception as e:
+        logger.warning("P3 云通道启动检查失败（忽略）：%s", e)
 
 
 _NOTICE_SKILL_REFS = ("courseware-notice/SKILL.md",
