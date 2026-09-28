@@ -157,8 +157,40 @@
 |---|---|---|---|
 | 2026-09-29 | 出题 · 组卷/试卷库 | `verify_exam_flow`（真造卷 → 回读一致 → 列表/预览读真数据；变异：**真改库题目** → 列表与预览必须跟着变） | `verify_exam_generate` / `verify_exam_preview` / `verify_exam_warn` |
 | 2026-09-29 | 导出 · 内部配方不泄漏 + 公式嵌入 | `verify_export_no_leak`（真打包导出器 → 真 docx 产物：正文进档 / 公式进 `word/media` / **不出现生成模型等内部配方**；变异：**真改被测源码**把"生成模型"写回 → 判据必须抓到） | `verify_docx_no_model` / `verify_export_formula`（公式部分） |
+| 2026-09-29 | 题单 · 习题库（工作单/简单卷面） | `verify_worksheet_flow`（真 CRUD：新建→回读一致→更新真写库→列表读真源→删除真删 404，题单只读可达；变异：**psql 绕过 API 改库** → 回读必须立刻反映）**⚠ 本守卫当前判红**：它抓到了缺陷 1（`exercise_sheets` 缺表；见下文），依赖项显式记未验证 | `verify_sheet_unified` |
 
 > 其余 53 条缺口仍**无接管者**（见上表"覆盖缺口清单"），按需一条条收。
+
+---
+
+## 新守卫抓到的真缺陷（2026-09-29 · **留红待决**）
+
+写 `verify_worksheet_flow` 时立刻抓到一条，并连带把 `verify_schema_drift` 的**两个盲区**修出来。
+
+### 缺陷 1（真缺陷 · 有红）：`/api/worksheets`（习题库/工作单）**全 500**
+
+- **症状**：`POST/GET /api/worksheets` → `500 {"error":"ERROR: relation \"exercise_sheets\" does not exist (SQLSTATE 42P01)"}`。
+  路由在 `code/backend/cmd/server/main.go:318-322` 已注册、前端有页面、模型也在，但**表不存在**。
+- **根因（证据）**：`code/backend/cmd/server/main.go:48-61` 的 `AutoMigrate(...)` 清单里有 `&model.Sheet{}`，
+  **没有 `&model.ExerciseSheet{}`**；`code/backend/migrations/` 里也没有任何 `exercise_sheets` 建表语句。
+  实测：`SELECT tablename FROM pg_tables` 只有 `sheets`，没有 `exercise_sheets`。
+- **影响面（实测）**：有 `TableName()` 的模型共 19 个，**库里缺表的就这 1 个**。
+- **建议修法（二选一，需你定）**：
+  1. `main.go` 的 AutoMigrate 清单加 `&model.ExerciseSheet{}`（最小改动，GORM 幂等建表）；或
+  2. 新增迁移 `0013_exercise_sheets.sql`（与"迁移是结构真源"的口径更一致）。
+- **现状**：`verify_worksheet_flow` 与（补盲区后的）`verify_schema_drift` **都判红**，指明同一根因。
+
+### 盲区 2（守卫自身缺陷 · 已修）：`verify_schema_drift` 把"声明了表名但库里缺表"**静默跳过**
+
+- 旧写法两处：
+  ① `if (!dbTables.has(table)) skipStructs.push(...)` —— 表不存在时**跳过而非判红**（正是 `audit_logs` 那次事故的形状）；
+  ② `TableName()` 接收者正则 `\(\s*\w*\s*\*?([A-Z]\w*)\s*\)` 在**值接收者** `func (ExerciseSheet)` 上会贪婪吃掉
+     `Exercise`、只捕到 `Sheet` → 声明取不到 → 又落进"猜表名"分支被跳过。
+- 已修：① 改为判红（新增断言"模型声明了表名 → 库里必须有该表"）；② 改为取 `)` 前最后一个大写标识符。
+- 附带发现（**登记不判红，已加窄白名单**）：修正则后露出 `tb_lesson_source.created_at/updated_at` 与库里不一致 ——
+  该表是 `ensureDistillSchema()` 用**幂等原生 SQL** 建的 32 分区表（含 `vector(1024)`/HNSW，GORM 不支持 AutoMigrate），
+  模型文件自述"仅供查询扫描"，且全仓无写入消费者 → 属**声明级不一致、当前无害**；按既有口径（同"仅基线声明的缺列"）
+  记 note 并写明理由。**一旦有写入路径就必须转红。**
 
 ---
 

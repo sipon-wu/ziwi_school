@@ -12,6 +12,10 @@
  *   ① **迁移声明 ⊇ 库实际**：解析 `code/backend/migrations/*.sql`（001 基线 + 增量；排除 *.down.sql）里声明的
  *      表与列，与 `information_schema` 比对 —— 缺表/缺列即红（① 正是能抓住上述两次事故的那条）。
  *   ② **代码期望字段清单**：迁移里没声明、但**代码会写**的列（如 users.gender/region）→ 缺即红。
+ *   **②b（2026-09-29 补盲区）**：Go 模型**显式声明了表名**（`TableName()`）时，该表**必须在库中存在** →
+ *      缺即红。旧版把这种情形与"猜不出表名"一并 `skipStructs` **静默跳过** —— 恰是假绿形状；
+ *      实测抓到的第一个：`model.ExerciseSheet` → `exercise_sheets` 表不存在（没进 AutoMigrate、迁移也没有），
+ *      导致 `/api/worksheets` 全 500 而无任何门禁报警。
  *   ③ **功能回读**：`PUT /api/user/profile` 六个字段（name/gender/phone/email/region/avatar）逐个保存 →
  *      **200 且查库回读一致**，随后**还原原值**（不留测试数据）。
  *
@@ -78,7 +82,11 @@ function parseModels() {
   for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.go'))) {
     const src = fs.readFileSync(path.join(dir, file), 'utf8')
     const tableOf = new Map()
-    for (const m of src.matchAll(/func\s*\(\s*\w*\s*\*?([A-Z]\w*)\s*\)\s*TableName\(\)\s*string\s*\{\s*return\s*"([^"]+)"/g)) {
+    /* ⚠ 正则坑（2026-09-29 实测修）：旧写法 `\(\s*\w*\s*\*?([A-Z]\w*)\s*\)` 在**值接收者** `func (ExerciseSheet)`
+     *   上会贪婪地把 "Exercise" 吃掉、只捕到 "Sheet" → `tableOf` 查不到 → `declared=null` → 落进"猜表名"分支
+     *   被静默跳过（于是 `exercise_sheets` 缺表这件事**两次都没被发现**）。
+     *   现改为"取 `)` 前**最后一个**大写开头的标识符"，两种接收者写法都对。 */
+    for (const m of src.matchAll(/func\s*\([^)]*?([A-Z]\w*)\s*\)\s*TableName\(\)\s*string\s*\{\s*return\s*"([^"]+)"/g)) {
       tableOf.set(m[1], m[2])
     }
     for (const m of src.matchAll(/type\s+([A-Z]\w*)\s+struct\s*\{([\s\S]*?)\n\}/g)) {
@@ -186,14 +194,21 @@ function parseMigrations() {
     const models = parseModels()
     const skipStructs = []
     const missModelCols = []
+    const missModelTables = []
     for (const m of models) {
       let table = m.declared
       if (!table) {
         const snake = snakeCase(m.struct)
         table = [snake + 's', snake + 'es', snake].find(c => dbTables.has(c)) || null
-        if (!table) { skipStructs.push(m.struct); continue }
+        if (!table) { skipStructs.push(m.struct); continue }   // 没声明表名、也猜不出 → 未验证（会打印出来）
+      } else if (!dbTables.has(table)) {
+        /* ⚠ 这正是本守卫**存在的理由**（`audit_logs` 那次事故就是"代码/模型声明了、库里没有"）。
+         *   旧版把这种情形跟"猜不出表名"一起丢进 skipStructs → **静默跳过 = 假绿**。
+         *   2026-09-29 实测抓到：`model.ExerciseSheet` 声明 `exercise_sheets`，但**没进 AutoMigrate、迁移里也没有**
+         *   → 表根本不存在 → `/api/worksheets` 全 500；而本守卫当时报的是"全部通过"。已改为**判红**。 */
+        missModelTables.push(`${table} ← ${m.struct}.TableName()（声明了表名，库里不存在）`)
+        continue
       }
-      if (!dbTables.has(table)) { skipStructs.push(m.struct); continue }
       for (const [c, field] of m.cols) if (!have.has(`${table}|${c}`)) missModelCols.push(`${table}.${c} ← ${m.struct}.${field}`)
     }
 
@@ -205,7 +220,27 @@ function parseMigrations() {
     //     （实测：`lesson_plans.unit/lesson_period/...` 在模型里是 `textbook_unit/period/...`，
     //      而 `class_id/textbook_version_id/custom_tags/supplement_text` 是 `gorm:"-"`（故意不落库）；
     //      `users.wechat_openid` 与库里/模型里的 `wechat_open_id` 也只是命名旧差）
-    must(missModelCols.length === 0, '**Go 模型**声明的列在库中全部存在（运行时真源）', { missing: missModelCols.slice(0, 12) })
+    /* 「原生 SQL 建表」白名单（2026-09-29）：这些表**故意**不走 AutoMigrate（分区/vector/HNSW 等 GORM 不支持），
+     * 由 main.go 的幂等原生 SQL 建；模型仅供**查询扫描**用 → 字段级差异**登记不判红**（与"仅基线声明的缺列"同一口径），
+     * 但必须**逐条打印**、且**表本身不存在仍判红**。加白名单必须写清理由，禁止"整表忽略"。 */
+    const RAW_SQL_TABLES = {
+      tb_lesson_source: 'ensureDistillSchema() 幂等原生 SQL 建 32 分区表（含 vector(1024)/HNSW）；模型仅用于查询扫描，无写入路径',
+    }
+    const missModelColsHard = []
+    const missModelColsNote = []
+    for (const x of missModelCols) {
+      const t = x.split('.')[0]
+      ;(RAW_SQL_TABLES[t] ? missModelColsNote : missModelColsHard).push(x)
+    }
+
+    must(missModelColsHard.length === 0, '**Go 模型**声明的列在库中全部存在（运行时真源）', { missing: missModelColsHard.slice(0, 12) })
+    must(missModelTables.length === 0,
+      '**Go 模型声明了表名 → 库里必须有该表**（喂：没进 AutoMigrate / 迁移漏写 这一类；2026-09-29 补盲区）',
+      { missing: missModelTables })
+    if (missModelColsNote.length) {
+      console.log(`   [note] 原生 SQL 建表（白名单）的字段级差异 ${missModelColsNote.length} 个（登记不判红）：`, missModelColsNote.slice(0, 6))
+      console.log(`          → 理由：${Object.values(RAW_SQL_TABLES)[0]}`)
+    }
     must(missIncr.length === 0, '增量迁移声明的**表**在库中存在', { missing: missIncr })
     if (missBaseCols.length) console.log(`   [note] 仅基线(001)声明、库中缺的列 ${missBaseCols.length} 个（蓝图旧差，登记不判红）：`, missBaseCols.slice(0, 8))
     if (missBaseline.length) console.log(`   [note] 仅基线(001)声明、库中缺的表 ${missBaseline.length} 个（登记不判红）：`, missBaseline.slice(0, 8))
