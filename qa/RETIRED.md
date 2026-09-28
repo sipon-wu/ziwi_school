@@ -75,7 +75,7 @@
 | 57 | `verify_preview_scroll.cjs` | 验证预览页滚动 + 左右滑动翻页 + 底部导航可达（staging · 13800000002） | `qa/verify_preview_pure.cjs` + `qa/verify_materials_preview_decor.cjs`（预览/装饰，已登记） |
 | 58 | `verify_probe.cjs` | (原文件无头部说明) | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 59 | `verify_reflow.cjs` | 「重新套版」（重档）语义的**确定性单测**（2026-09-15）——不依赖浏览器、不依赖 LLM。 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 60 | `verify_review_pool.cjs` | 知微 AI 教学助手 · 教案互审池专项真浏览器 E2E（复用阅读视图 + 评审人落库） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
+| 60 | `verify_review_pool.cjs` | 知微 AI 教学助手 · 教案互审池专项真浏览器 E2E（复用阅读视图 + 评审人落库） | `qa/verify_review_flow.cjs`（2026-09-29 补：开关→待审列表→决策）|
 | 61 | `verify_route_consistency.cjs` | 五类资源：列表端点 + 路径前缀 + 场景关键词 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 62 | `verify_s52_lock.cjs` | §5.2 家长端功能锁定验证：个人试用模式（licenseStatus !== 'active'）下， | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 63 | `verify_sheet_unified.cjs` | 题单 SheetBuilder 专项验证：渲染健康 / 小微 / 统一 footer / 出题生成 | `qa/verify_worksheet_flow.cjs`（2026-09-29 补：习题库 CRUD + 题单只读可达）**⚠ 当前红：见真缺陷** |
@@ -89,7 +89,7 @@
 | 71 | `verify_version_cadence.cjs` | 版本节奏验收（2026-09-15，按产品规则：生成 / 保存草稿 / 发布 三个时机形成版本） | `qa/verify_version_policy.cjs`（版本策略，已登记） |
 | 72 | `verify_view_unified.cjs` | 查看态统一 EditorLayout + 全屏预览 fullscreen 专项验证（staging 真浏览器） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 
-## 覆盖缺口清单（无接管者，共 49 个；2026-09-29 已收口 6 条）
+## 覆盖缺口清单（无接管者，共 48 个；2026-09-29 已收口 7 条）
 
 这些性质**目前没有自动守卫**。要补，就在 `qa/` 下新写守卫并登记进 `qa/run_all.cjs`（写 covers + critical 视情况）。
 
@@ -156,7 +156,7 @@
 | 优先 | 缺口 | 退役文件 | 成本 | 强形态注入点（预备） |
 |---|---|---|---|---|
 | ★★★ | **换风格流程**（小微指令换风格 / 重新套版：选档 → 二次确认 → 报**真实影响**） | `verify_switch_style` / `verify_switch_flow` / `verify_reflow` | 高：**纯前端**（`hooks/useCwTemplate.ts` + 小微对话），无后端接口 → 必须真浏览器 + 真 AI 对话 | 真改库课件页数/元素 → "预演影响"必须跟着变（不来自写死文案） |
-| ★★★ | **教案互审**（开关 → 待审列表 → 评审决策） | `verify_review_pool` / `verify_annotation_version` | 中：有 API（`/review/pending`、`/lesson-plans/:id/review-decision`、`/me/school-review-config`），无需浏览器 | psql 改教案审核状态/开关 → 待审列表必须跟着变 |
+| ✅ | ~~**教案互审**（开关 → 待审列表 → 评审决策）~~ **2026-09-29 已收** | → `verify_review_flow`（12 断言 + 强形态变异：psql 改回 pending → 列表必须重新出现） | — | — |
 | ★★ | **缩略图**（数量==页数、内容是真实渲染） | `verify_thumbs` | 中：真浏览器 + 编辑器选择器（**先探针**，旧选择器多半已过期） | 真改库页数 → 缩略图数量必须跟着变 |
 | ★★ | **H5 交互一族**（导航/二维码/规则/模板/进入态/草稿 HTML） | `verify_h5_*`（9 个） | 中高：真浏览器；`verify_h5_stage` 只接管了"HD/手机两档" | 真改库 H5 内容 → 页面渲染必须跟着变 |
 | ★ | **编辑器外壳/路由一致性**（6 个编辑器页 footer 预览、路由可达、不白屏） | `verify_route_consistency` / `verify_shell_consistency` / `verify_view_unified` / `verify_cw_view_unified` / `verify_list_open_mode` / `verify_lesson_menus` | 中：真浏览器 smoke，**难点是"强形态注入点"**（改库带不出差异 → 需另想注入，否则只能是弱形态） | 待想：例如真改前端 dist 里的某个 chunk（风险高，不推荐） |
@@ -170,9 +170,10 @@
 |---|---|---|---|
 | 2026-09-29 | 出题 · 组卷/试卷库 | `verify_exam_flow`（真造卷 → 回读一致 → 列表/预览读真数据；变异：**真改库题目** → 列表与预览必须跟着变） | `verify_exam_generate` / `verify_exam_preview` / `verify_exam_warn` |
 | 2026-09-29 | 导出 · 内部配方不泄漏 + 公式嵌入 | `verify_export_no_leak`（真打包导出器 → 真 docx 产物：正文进档 / 公式进 `word/media` / **不出现生成模型等内部配方**；变异：**真改被测源码**把"生成模型"写回 → 判据必须抓到） | `verify_docx_no_model` / `verify_export_formula`（公式部分） |
+| 2026-09-29 | 教案互审（开关/待审列表/评审决策） | `verify_review_flow`（开关真写库 → 开关注入行为：定稿即 `pending` → 待审列表**含同事件、排除自己的** → 决策落地：列表消失且教案 `approved`；变异：**psql 绕过 API 改回 pending** → 列表必须重新出现） | `verify_review_pool` |
 | 2026-09-29 | 题单 · 习题库（工作单/简单卷面） | `verify_worksheet_flow`（真 CRUD：新建→回读一致→更新真写库→列表读真源→删除真删 404，题单只读可达；变异：**psql 绕过 API 改库** → 回读必须立刻反映）**⚠ 本守卫当前判红**：它抓到了缺陷 1（`exercise_sheets` 缺表；见下文），依赖项显式记未验证 | `verify_sheet_unified` |
 
-> 其余 **49** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 6 条见上表"接管者"列），按需一条条收。
+> 其余 **48** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 7 条见上表"接管者"列），按需一条条收。
 
 ---
 
