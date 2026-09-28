@@ -167,7 +167,7 @@
 
 写 `verify_worksheet_flow` 时立刻抓到一条，并连带把 `verify_schema_drift` 的**两个盲区**修出来。
 
-### 缺陷 1（真缺陷 · 有红）：`/api/worksheets`（习题库/工作单）**全 500**
+### 缺陷 1 ✅ **已修复（2026-09-29，修法 ①）**：`/api/worksheets`（习题库/工作单）曾**全 500**
 
 - **症状**：`POST/GET /api/worksheets` → `500 {"error":"ERROR: relation \"exercise_sheets\" does not exist (SQLSTATE 42P01)"}`。
   路由在 `code/backend/cmd/server/main.go:318-322` 已注册、前端有页面、模型也在，但**表不存在**。
@@ -178,7 +178,11 @@
 - **建议修法（二选一，需你定）**：
   1. `main.go` 的 AutoMigrate 清单加 `&model.ExerciseSheet{}`（最小改动，GORM 幂等建表）；或
   2. 新增迁移 `0013_exercise_sheets.sql`（与"迁移是结构真源"的口径更一致）。
-- **现状**：`verify_worksheet_flow` 与（补盲区后的）`verify_schema_drift` **都判红**，指明同一根因。
+- **现状（已修）**：`code/backend/cmd/server/main.go` 的 AutoMigrate 清单已补 `&model.ExerciseSheet{}`（并留注释说明为何曾漏）；
+  部署后实测：`exercise_sheets` 表已建、`POST /api/worksheets` → 201、DELETE → 200。
+  `verify_worksheet_flow`（正常 10 断言 / 变异 11 断言）与 `verify_schema_drift`（14 断言）**均转绿**；
+  变异门对 `verify_worksheet_flow` 的"未验证"也随之解除（15 个关键守卫全部满足变异契约）。
+  教训留档：**"路由+模型+前端都在、只差一张表"**这种漏写，光靠代码评审看不出来 —— 只有"声明 ↔ 库"对账能抓。
 
 ### 盲区 2（守卫自身缺陷 · 已修）：`verify_schema_drift` 把"声明了表名但库里缺表"**静默跳过**
 

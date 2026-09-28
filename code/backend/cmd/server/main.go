@@ -57,6 +57,11 @@ func main() {
 		&model.TeacherTextbookPref{},
 		&model.UserSubmittedTextbookVersion{},
 		&model.Sheet{},
+		// ⚠ 2026-09-29 补：`ExerciseSheet`（习题库/工作单，表 `exercise_sheets`）此前**漏在本清单之外**，
+		// 迁移目录里也没有该表 → 表根本不存在 → `/api/worksheets` 全部接口 500
+		// （路由 main.go:318-322 早已注册、前端页面也在，属漏写）。由 QA 守卫实测抓出：
+		// `qa/verify_schema_drift.cjs`（"模型声明了表名 → 库里必须有该表"）与 `qa/verify_worksheet_flow.cjs`。
+		&model.ExerciseSheet{},
 		&model.Annotation{}, &model.Version{},
 		&model.FacetVocab{},
 	); err != nil {
