@@ -151,6 +151,19 @@
 
 ---
 
+## 下一批建议（2026-09-29 摸底，按"价值 ÷ 成本"排序；成本含"要不要真浏览器/真 AI"）
+
+| 优先 | 缺口 | 退役文件 | 成本 | 强形态注入点（预备） |
+|---|---|---|---|---|
+| ★★★ | **换风格流程**（小微指令换风格 / 重新套版：选档 → 二次确认 → 报**真实影响**） | `verify_switch_style` / `verify_switch_flow` / `verify_reflow` | 高：**纯前端**（`hooks/useCwTemplate.ts` + 小微对话），无后端接口 → 必须真浏览器 + 真 AI 对话 | 真改库课件页数/元素 → "预演影响"必须跟着变（不来自写死文案） |
+| ★★★ | **教案互审**（开关 → 待审列表 → 评审决策） | `verify_review_pool` / `verify_annotation_version` | 中：有 API（`/review/pending`、`/lesson-plans/:id/review-decision`、`/me/school-review-config`），无需浏览器 | psql 改教案审核状态/开关 → 待审列表必须跟着变 |
+| ★★ | **缩略图**（数量==页数、内容是真实渲染） | `verify_thumbs` | 中：真浏览器 + 编辑器选择器（**先探针**，旧选择器多半已过期） | 真改库页数 → 缩略图数量必须跟着变 |
+| ★★ | **H5 交互一族**（导航/二维码/规则/模板/进入态/草稿 HTML） | `verify_h5_*`（9 个） | 中高：真浏览器；`verify_h5_stage` 只接管了"HD/手机两档" | 真改库 H5 内容 → 页面渲染必须跟着变 |
+| ★ | **编辑器外壳/路由一致性**（6 个编辑器页 footer 预览、路由可达、不白屏） | `verify_route_consistency` / `verify_shell_consistency` / `verify_view_unified` / `verify_cw_view_unified` / `verify_list_open_mode` / `verify_lesson_menus` | 中：真浏览器 smoke，**难点是"强形态注入点"**（改库带不出差异 → 需另想注入，否则只能是弱形态） | 待想：例如真改前端 dist 里的某个 chunk（风险高，不推荐） |
+| ★ | 其余（公式插入光标、知识图谱、批注版本、S52 锁定、频道导航…） | 见下表 | 视条目 | 逐条定 |
+
+> 口径不变：**没有真注入点就先不要写**（弱形态只保底、不算数）。
+
 ## 缺口收口记录（按需补，补一条划一条）
 
 | 日期 | 缺口 | 新守卫（已登记 `qa/run_all.cjs`） | 覆盖了哪些退役文件 |
