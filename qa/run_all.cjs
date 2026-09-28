@@ -44,6 +44,10 @@ const GUARDS = [
   { name: 'verify_cover_elements', critical: false, covers: ['封面'] },
   { name: 'verify_materials_preview_decor', critical: false, covers: ['素材预览装饰'] },
   { name: 'verify_h5_stage', critical: true, covers: ['H5 舞台（HD 等比档 / 手机档）'] },
+  // 2026-09-29（用户选「1」收缺口）：清退存量守卫后，"出题/试卷"与"导出（配方泄漏/公式）"两块**当时无守卫**，
+  // 新建两条并登记为关键路径（都带**强形态**变异：真改库 / 真改被测源码重打包）。
+  { name: 'verify_exam_flow', critical: true, covers: ['出题·组卷/试卷库（造卷→回读→预览）'] },
+  { name: 'verify_export_no_leak', critical: true, covers: ['导出·配方不泄漏 + 公式嵌入'] },
   // 2026-09-28：PPT 版式段从"浏览器选择器（已过期 → SKIP）"重写为**确定性判据**后升为关键守卫
   // （往返不丢版式 / 结构化版式几何两两不同 / 单列几何随风格 / 不得自创版式），并带变异自检。
   { name: 'verify_style_diversity', critical: true, covers: ['PPT 版式多样性（确定性判据）'] },

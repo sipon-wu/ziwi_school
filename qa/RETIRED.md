@@ -151,5 +151,16 @@
 
 ---
 
+## 缺口收口记录（按需补，补一条划一条）
+
+| 日期 | 缺口 | 新守卫（已登记 `qa/run_all.cjs`） | 覆盖了哪些退役文件 |
+|---|---|---|---|
+| 2026-09-29 | 出题 · 组卷/试卷库 | `verify_exam_flow`（真造卷 → 回读一致 → 列表/预览读真数据；变异：**真改库题目** → 列表与预览必须跟着变） | `verify_exam_generate` / `verify_exam_preview` / `verify_exam_warn` |
+| 2026-09-29 | 导出 · 内部配方不泄漏 + 公式嵌入 | `verify_export_no_leak`（真打包导出器 → 真 docx 产物：正文进档 / 公式进 `word/media` / **不出现生成模型等内部配方**；变异：**真改被测源码**把"生成模型"写回 → 判据必须抓到） | `verify_docx_no_model` / `verify_export_formula`（公式部分） |
+
+> 其余 53 条缺口仍**无接管者**（见上表"覆盖缺口清单"），按需一条条收。
+
+---
+
 > 维护提示：新增守卫 **必须**登记进 `qa/run_all.cjs`，否则它会走进这份"退役"名单 ——
 > 因为它同样"没人跑"。详见 `DECISIONS.md` 的「反假绿机制」与 `qa/gate_assert_hygiene.cjs`。
