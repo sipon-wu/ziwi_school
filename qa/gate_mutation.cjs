@@ -21,8 +21,9 @@
  * 用法：`node qa/gate_mutation.cjs`（约 6~8 分钟：内含一次真实 LLM 生成与真浏览器）
  *       `node qa/gate_mutation.cjs --only=verify_h5_stage,verify_material_delete`（定点复验）
  *
- * ── 形态分级（2026-09-29 补记，免得下一个人又分不清"弱形态算不算数"）──────────────
- * **强形态 = 真往被测系统里注入故障**（改库/停服务/换真身份/喂真实坏输入），当前 7 个：
+ * ── 形态分级（2026-09-29 补记 + 同日搬强，免得下一个人又分不清"弱形态算不算数"）──────
+ * **强形态 = 真往被测系统里注入故障**（改库 / 改结构 / 停服务 / 换真身份 / 改被测源码 / 喂真实坏输入），
+ * 当前 **12/12 关键守卫全部是强形态**：
  *   · verify_publish_degrade    真停 ai-service（发布链路降级）
  *   · verify_audit_trail        psql **真抹掉** release 留痕 → 证据必须消失
  *   · verify_orchestration      psql **真改库里留痕**（去掉 s5）→ 经 HTTP 端点读回必须可见、对账必须红
@@ -30,9 +31,13 @@
  *   · verify_material_delete    用**同事真实 token** 真发越权写请求 → 必须 403
  *   · verify_material_ownership_ui  用**同事真实凭据**打开本人课件 → 页面必须翻转成只读（并做对称对照）
  *   · verify_h5_stage           真改被测源码（剥掉 `syncHd()`）→ 舞台必须不再启用
- * **弱形态 = 只给判据喂坏数据/改期望值**（证明力有限，但足以证明"判据不是恒真"），当前 5 个：
- *   regression_20260917 / verify_schema_drift / verify_style_diversity_ab / verify_style_tools / verify_style_diversity
- *   演进方向：**逐个往强形态搬**（弱形态只保底，不当作"已证明"）。
+ *   · verify_schema_drift       真 `ALTER TABLE … RENAME COLUMN` → 迁移↔库 对账必须报"缺列"，跑完改回
+ *   · verify_style_diversity_ab 真改库把一个 fixture 的 theme_id 改成另一个的 → 对账必须**恰好指认那一对**
+ *   · verify_style_tools        真改容器内 `style_tools.py`（font: kai→hei）+ 重启 → 漂移必须报 china.font，跑完还原
+ *   · verify_style_diversity    真改被测源码（layout 标注永远写同一个）后**重打包** → 往返/多样性判据必须红
+ *   · regression_20260917       真改库抹掉存档里的 `CW-COVER` → 回读必须"装饰没了"，跑完写回
+ * 口子就这么大：**凡"只给判据喂坏数据/改期望值"的形态都算保底，不算数** —— 它会证明"函数会算"，
+ * 却证明不了"判据真在读被测系统"。新增守卫请照上表挑一个真注入点。
  */
 const fs = require('fs')
 const path = require('path')

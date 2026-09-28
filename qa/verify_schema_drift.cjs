@@ -34,6 +34,12 @@ const CODE_EXPECTED = [
   { table: 'users', column: 'region', why: 'PUT /api/user/profile 白名单（auth_handler.go:227）' },
 ]
 
+/** 读库实际结构（`表|列` 集合）；ssh/psql 不可用返回 null —— 变异注入后需要**重新读一遍**，故抽成函数 */
+const readHave = () => {
+  const rows = psql(`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='public'`)
+  return rows === null ? null : new Set(rows.filter(r => r.includes('|')).map(r => r))
+}
+
 const psql = (sql) => {
   try {
     return execFileSync('ssh', [SSH,
@@ -126,12 +132,11 @@ function parseMigrations() {
 
 ;(async () => {
   /* ── 取库实际结构 ── */
-  const rows = psql(`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='public'`)
-  if (rows === null) {
+  const have = readHave()
+  if (have === null) {
     must(true, 'SKIP①：ssh/psql 不可用 → 迁移↔库 对账**未验证**（不计入通过）')
     must(true, 'SKIP②：同上 → 代码期望字段**未验证**')
   } else {
-    const have = new Set(rows.filter(r => r.includes('|')).map(r => r))
     const dbTables = new Set([...have].map(s => s.split('|')[0]))
     const { tables, files } = parseMigrations()
     must(tables.size > 0, `解析到迁移声明的表（${files.length} 个迁移文件）`, { tables: tables.size })
@@ -144,6 +149,39 @@ function parseMigrations() {
       if (!dbTables.has(t)) { (baselineOnly ? missBaseline : missIncr).push(t); continue }
       for (const [c, src] of cols) if (!have.has(`${t}|${c}`)) missBaseCols.push(`${t}.${c}(${src})`)
     }
+    /* 【强形态变异】（2026-09-29 升级）—— 旧形态是往**期望清单**塞一条假列（改期望值，弱：只证明"清单会参与比对"）。
+     * 现在**真改库结构**：把迁移声明的一列 `RENAME COLUMN` 改名 → 迁移↔库 对账必须报"库中缺该列"。
+     * 为什么用改名而不是删列：**零数据损失**，且可秒级改回；跑完自检"列已恢复"，不留结构改动。 */
+    if (process.env.MUTATE === '1') {
+      const probe = { t: 'ai_generation_logs', c: 'duration_ms' }   // 选它：迁移 0012 声明、且本守卫运行期间无生成动作会写它
+      const missingDeclared = (h) => {
+        const out = []
+        const dbt = new Set([...h].map(s => s.split('|')[0]))
+        for (const [t, cols] of tables) {
+          if (!dbt.has(t)) { out.push(`${t}.(表缺失)`); continue }
+          for (const [c, src] of cols) if (!h.has(`${t}|${c}`)) out.push(`${t}.${c}(${src})`)
+        }
+        return out
+      }
+      must(have.has(`${probe.t}|${probe.c}`), '【变异测试·前置】探测列此刻存在于库中', { probe })
+      const r1 = psql(`ALTER TABLE ${probe.t} RENAME COLUMN ${probe.c} TO ${probe.c}_qa_probe`)
+      if (r1 === null) {
+        console.log('   [SKIP] 强形态变异需改库结构（ALTER 失败）→ 本项**未验证**（skip ≠ pass）')
+        process.exit(2)
+      }
+      try {
+        const h2 = readHave()
+        const miss = h2 ? missingDeclared(h2) : []
+        must(miss.some(x => x.startsWith(`${probe.t}.${probe.c}`)),
+          '【变异测试·真注入】把库里该列**真改名**后，迁移↔库 对账必须报"库中缺该列"（证明对账真在读库，不是读缓存/常量）',
+          { missing: miss.slice(0, 6) })
+      } finally {
+        psql(`ALTER TABLE ${probe.t} RENAME COLUMN ${probe.c}_qa_probe TO ${probe.c}`)
+      }
+      const h3 = readHave()
+      must(!!h3 && h3.has(`${probe.t}|${probe.c}`), '【变异测试·收尾】改回后该列已恢复（守卫不留库结构改动）', {})
+    }
+
     /* ② Go 模型（运行时真源）声明的列 → 库中必须存在（**判红**） */
     const models = parseModels()
     const skipStructs = []
@@ -174,21 +212,9 @@ function parseMigrations() {
     if (skipStructs.length) console.log(`   [note] 无法定位表名的模型（未参与对账）：`, skipStructs.slice(0, 8))
     must(models.length > 0, '解析到 Go 模型（参与对账）', { models: models.length })
 
-    /* ② 代码期望字段 */
-    // 【变异测试】注入（2026-09-27，A1b）：往期望清单里塞一条**库里肯定没有**的列 —— 对账必须报出来。
-    // 只有当它能红，"期望字段在库中已补齐"才不是一句恒真的空话。
-    const MUTATE = process.env.MUTATE === '1'
-    const expectedForCheck = MUTATE
-      ? [...CODE_EXPECTED, { table: 'users', column: '__qa_mutation_probe', why: '变异注入（库中不存在）' }]
-      : CODE_EXPECTED
-    const missCode = expectedForCheck.filter(x => !have.has(`${x.table}|${x.column}`))
-    if (MUTATE) {
-      must(missCode.some(x => x.column === '__qa_mutation_probe'),
-        '【变异测试】塞入"库中不存在的期望字段" → 漂移对账必须报出来（证明对账真的在比对）',
-        { missing: missCode.map(x => `${x.table}.${x.column}`) })
-    } else {
-      must(missCode.length === 0, '代码期望字段（迁移未声明）在库中已补齐', { missing: missCode.map(x => `${x.table}.${x.column} ← ${x.why}`) })
-    }
+    /* ② 代码期望字段（原"往清单塞一条假列"的**弱形态已移除**：2026-09-29 起由上面的"真改库结构"自证） */
+    const missCode = CODE_EXPECTED.filter(x => !have.has(`${x.table}|${x.column}`))
+    must(missCode.length === 0, '代码期望字段（迁移未声明）在库中已补齐', { missing: missCode.map(x => `${x.table}.${x.column} ← ${x.why}`) })
   }
 
   /* ── ③ 功能回读：PUT /api/user/profile 六个字段 ── */

@@ -21,9 +21,11 @@
  *   C. **负控**：同一主题的两次独立渲染 → 三项指标**全同**（证明指标能判"同"，不是恒真）
  *
  * 变异测试（M3，按需跑）：`MUTATE=1 node qa/verify_style_diversity_ab.cjs`
- *   → 建 6 个**同主题**的 fixture（模拟"theme 参数被打死/未生效"这类缺陷），
- *     断言"可区分对数 = 0"；若它仍然全绿，说明本套件**无效**（脚本自身报错）。
+ *   → **强形态（2026-09-29 升级）**：正常建 6 个真不同主题的 fixture，然后**直接改库**把其中
+ *     一个的 theme_id 改成另一个的 → 对账必须**恰好指出被改的那一对**不可区分（其余各对仍可区分）。
+ *     旧形态是"再建 6 个同主题 fixture"（把数据造成同质，只证明比较函数会算，证明力弱）。
  */
+const { execFileSync } = require('child_process')
 const { chromium } = require('playwright')
 const { must, report } = require('./lib/assert.cjs')
 const { session, h5Content } = require('./lib/cwFixture.cjs')
@@ -32,6 +34,18 @@ const B = process.env.BASE || 'http://school1.ziwi.cn'
 const THEMES = ['zgf-ink-wash', 'te-quantum-blue', 'fr-mint', 'aca-edu-blue', 'sp-cartoon', 'min-classic-blue']
 const MUTATE = !!process.env.MUTATE
 const CONTENT = h5Content()
+
+/** 直连数据库（**变异模式专用**）：真改库里 fixture 的 theme_id，而不是"换个参数再建一个同质 fixture" */
+const SSH = process.env.SSH_TARGET || 'root@193.112.163.147'
+const ENV_FILE = process.env.ENV_FILE || '/opt/zhiwei/code/deploy/.env.staging'
+const psql = (sql) => {
+  try {
+    return execFileSync('ssh', [SSH,
+      `set -a; . ${ENV_FILE}; set +a; docker exec -i zhiwei-postgres-staging psql -U "$DB_USER" -d "$DB_NAME" -t -A -c ${JSON.stringify(sql)}`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n').map(s => s.trim()).filter(s => s && !/^WARNING|^DETAIL|^HINT|collation/i.test(s)).join('\n')
+  } catch { return null }
+}
 
 const rgbToHue = (r, g, b) => {
   r /= 255; g /= 255; b /= 255
@@ -93,9 +107,9 @@ const created = []
 ;(async () => {
   const S = await session()
   const H = S.H
-  /* ── 建 fixture：同内容 × 6 主题（变异模式：全部同一主题）── */
+  /* ── 建 fixture：同内容 × 6 主题（**一律用真主题**；变异注入改为"建好后真改库"，见下）── */
   for (const [i, th] of THEMES.entries()) {
-    const theme = MUTATE ? THEMES[0] : th
+    const theme = th
     const name = `__E2E风格自证_${th}_0927`
     const r = await fetch(B + '/api/materials/json', {
       method: 'POST', headers: H,
@@ -105,7 +119,21 @@ const created = []
     if (!m || !m.id) throw new Error(`建 fixture 失败（${th}）：${JSON.stringify(m).slice(0, 120)}`)
     created.push({ id: m.id, theme, want: th, i })
   }
-  must(created.length === 6, `建出 6 个同内容 / 不同 theme_id 的 H5 fixture${MUTATE ? '（变异模式：theme 全部相同）' : ''}`, { ids: created.map(c => c.id.slice(0, 8)) })
+  must(created.length === 6, `建出 6 个同内容 / 真不同 theme_id 的 H5 fixture`, { ids: created.map(c => c.id.slice(0, 8)) })
+
+  /* 【强形态变异 · 真注入】（2026-09-29 升级）：把**第 2 个 fixture 的 theme_id 直接改库**成第 1 个的。
+   * 为什么这样更强：旧形态是"建 6 个同主题 fixture"——数据本身同质，判据说"不可区分"是理所当然；
+   * 现在数据本来是好的（6 个真不同主题），只有**库里的一个字段**被真改坏 → 对账必须精确指认出那一对。 */
+  if (MUTATE) {
+    const target = created[1], src = created[0]
+    const r = psql(`UPDATE materials SET theme_id='${src.theme}' WHERE id='${target.id}'`)
+    if (r === null) {
+      console.log('   [SKIP] 强形态变异需改库（ssh/psql 不可用）→ 本项**未验证**（skip ≠ pass）')
+      process.exit(2)
+    }
+    target.tamperedTo = src.theme
+    console.log(`   [mutation] 真改库：fixture#2（原 ${target.want}）的 theme_id → ${src.theme}（与 fixture#1 相同）`)
+  }
 
   br = await chromium.launch()
   const p = await br.newPage({ viewport: { width: 1440, height: 900 } })
@@ -138,7 +166,8 @@ const created = []
 
   /* A. 主题真的到达渲染器（否则"头面一样"的原始缺陷会重现） */
   for (const x of metrics) {
-    must(x.m && x.m.themeReached === x.theme, `渲染结果的 body[data-theme] = ${x.theme}（参数确实到达渲染器，非回落 storybook）`, { got: x.m && x.m.themeReached })
+    const want = x.tamperedTo || x.theme   // 变异：被改库的那个 fixture 应渲染成"被改成的新主题"
+    must(x.m && x.m.themeReached === want, `渲染结果的 body[data-theme] = ${want}（参数确实到达渲染器，非回落 storybook）`, { got: x.m && x.m.themeReached })
   }
 
   /* B. DoD：两两 ≥2 项不同 */
@@ -181,10 +210,13 @@ const created = []
   for (const x of pairs) console.log(`     ${x.a.padEnd(18)} vs ${x.b.padEnd(18)} C=${x.dColor ? '✔' : '✘'}(${x.hue}°/${x.rgb}) S=${x.dSkel ? '✔' : '✘'} T=${x.dStruct ? '✔' : '✘'} → ${x.dims} 项`)
 
   if (MUTATE) {
-    /* 变异模式：注入了"主题参数无效"缺陷 → 本套件必须**判红**（即可区分对数 = 0） */
-    must(distinguishable.length === 0,
-      '【变异测试】注入"6 个课件同主题"缺陷后，本套件**确实变红**（可区分对数 = 0 → 证明断言不是恒真）',
-      { distinguishable: distinguishable.length, pairs: pairs.length })
+    /* 变异模式（真注入）：只把**一个** fixture 的 theme_id 改坏 →
+     * 对账必须**恰好**判"这一对不可区分"，其余各对仍可区分（精确指认，比"全塌成 0"更严）。 */
+    const bad = pairs.filter(x => x.dims < 2)
+    must(distinguishable.length === pairs.length - 1 && bad.length === 1
+      && bad[0].a === created[0].want && bad[0].b === created[1].want,
+      '【变异测试·真注入】真改库里一个 fixture 的 theme_id 后，对账必须**恰好指出被改的那一对**不可区分（其余各对仍可区分）',
+      { distinguishable: distinguishable.length, total: pairs.length, bad: bad.map(x => `${x.a}|${x.b}`) })
   } else {
     must(distinguishable.length === pairs.length,
       `DoD：6 个主题**两两之间 ≥2 项不同**（共 ${pairs.length} 对）`,

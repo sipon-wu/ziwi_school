@@ -135,17 +135,37 @@ function knownLayouts() {
     console.log(`   [SKIP] 逐页多版式 deck 未验证（已知集合里可用的版式不足：${DECK.length}）`)
   }
 
-  /* ── 变异自检：把 4 页打成同一版式 → 多样性判据必须变红 ── */
+  /* ── 变异自检（**强形态**，2026-09-29 升级）─────────────────────────────
+   * 旧形态：把 4 页的 layout 参数都传成同一个（喂坏输入给判据）—— 只证明比较函数会算。
+   * 新形态：**真改被测源码**（`exportPptx.ts` 里"把 layout 标注写进 markdown"那一行改成永远写同一个），
+   *        复制成临时件 `__qa_mut_exportPptx.ts` 重新打包，再用**同一批判据**去判它 → 必须变红。
+   *        跑完 finally 删除临时件（被测源码本体一行不动）。 */
   if (MUTATE) {
-    const bad = build(FIXED.map(() => FIXED[0]))
-    const badDistinct = distinct(bad.back.map(s => s.layout))
-    must(badDistinct.length === 1,
-      '【变异测试】把 4 页版式全打成同一个 → 多样性判据必须看到"只剩 1 种"（证明它不是恒真）',
-      { got: badDistinct })
-    // 且这个"1 种"必须来自 **markdown 往返**（不是内存里的残留）：真的把坏输入序列化再解析回来
-    must(bad.back.length === FIXED.length && new Set(bad.back.map(s => s.layout)).size === 1,
-      '【变异测试·判据自检】坏输入经 markdown 往返后仍只有 1 种版式（判据读的是序列化结果，不是内存对象）',
-      { layouts: [...new Set(bad.back.map(s => s.layout))] })
+    const srcPath = path.join(FE, 'src/lib/exportPptx.ts')
+    const mutPath = path.join(FE, 'src/lib/__qa_mut_exportPptx.ts')
+    const mutBundle = '/tmp/qaMutLayoutDiversity.cjs'
+    const orig = fs.readFileSync(srcPath, 'utf8')
+    const patched = orig.replace('if (s.layout) lines.push(`<!-- layout: ${s.layout} -->`)',
+      'if (s.layout) lines.push(`<!-- layout: edu-goal -->`)')
+    try {
+      must(patched !== orig,
+        '【变异测试·前置】源码注入点匹配成功（否则说明实现变了，需更新注入点 —— 不是"变异通过"）', {})
+      fs.writeFileSync(mutPath, patched)
+      execFileSync('npx', ['esbuild', 'src/lib/__qa_mut_exportPptx.ts', '--bundle', '--format=cjs', '--platform=node',
+        '--alias:@shared=../shared', '--alias:@styles=../ai-service/skills/shared/styles',
+        '--define:import.meta.env={}', `--outfile=${mutBundle}`, '--log-level=error'], { cwd: FE, stdio: 'inherit' })
+      const EP2 = require(mutBundle)
+      const back2 = EP2.markdownToOutline(EP2.outlineToMarkdown(mkOutline(FIXED), opts))
+      const kept2 = back2.map(s => s.layout)
+      must(JSON.stringify(kept2) !== JSON.stringify(FIXED) && new Set(kept2).size === 1,
+        '【变异测试·真注入】真改被测源码（layout 标注永远写同一个）后重打包 → "往返不丢版式"与多样性判据**必须变红**（只剩 1 种）',
+        { got: [...new Set(kept2)], want: FIXED })
+      must(distinct(kept2).length < MIN_DISTINCT,
+        `【变异测试·真注入】重打包后的产物在"多样性达标（≥${MIN_DISTINCT}）"这条上也确实不达标`,
+        { distinct: distinct(kept2) })
+    } finally {
+      try { fs.unlinkSync(mutPath) } catch { /* 已删除 */ }
+    }
   }
 
   /* ══════════ B) 真实课件：不得自创版式（硬）+ 多样性计数（登记） ══════════ */

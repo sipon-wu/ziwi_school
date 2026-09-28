@@ -29,6 +29,19 @@ const withCW = (md, decor) => {
   return ls.join('\n')
 }
 let br
+
+/** 直连数据库（**变异模式专用**）：真改库里的存档，而不是"在内存里换掉判据的输入" */
+const SSH = process.env.SSH_TARGET || 'root@193.112.163.147'
+const ENV_FILE = process.env.ENV_FILE || '/opt/zhiwei/code/deploy/.env.staging'
+const psql = (sql) => {
+  try {
+    return execFileSync('ssh', [SSH,
+      `set -a; . ${ENV_FILE}; set +a; docker exec -i zhiwei-postgres-staging psql -U "$DB_USER" -d "$DB_NAME" -t -A -c ${JSON.stringify(sql)}`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n').map(s => s.trim()).filter(s => s && !/^WARNING|^DETAIL|^HINT|collation/i.test(s)).join('\n')
+  } catch { return null }
+}
+
 ;(async () => {
   const lg = await (await fetch(B + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: process.env.PHONE || '13800000002', password: process.env.PASS || 'teacher123' }) })).json()
   must(!!lg.token, '登录成功（测试账号）')
@@ -94,6 +107,27 @@ let br
   while (Date.now() - t1 < 12000) { if (/草稿已保存/.test(await p.evaluate(() => document.body.innerText))) { saved = true; break } await p.waitForTimeout(400) }
   must(saved, '提示「草稿已保存」')
   must(/CW-COVER/.test(String((await get(`/api/materials/${ppt.id}`)).content)), '封面装饰已写入存档（CW-COVER 落盘）')
+
+  /* 【强形态变异 · 真注入】（2026-09-29 升级）：旧形态是"把带装饰提纲的 decor 摘掉再序列化"（喂坏数据给判据，弱）。
+   * 现在**真改库里的存档**：用 SQL 把 content 里的 `<!-- CW-COVER:… -->` 抹掉，再走**同一个 HTTP 读接口**回读
+   * → 必须看到"装饰没了"。这同时证明两件事：上面那条"装饰已落盘"读的是**真存档**（不是内存对象）、回读路径没缓存。
+   * 跑完把原内容写回并自检（不留脏数据）。 */
+  if (process.env.MUTATE === '1') {
+    const cur = await get(`/api/materials/${ppt.id}`)
+    const before = String(cur.content || '')
+    const r = psql(`UPDATE materials SET content = regexp_replace(content, '<!-- CW-COVER:[^>]*-->', '', 'g') WHERE id='${ppt.id}'`)
+    if (r === null) {
+      console.log('   [SKIP] 强形态变异需改库（ssh/psql 不可用）→ 本项**未验证**（skip ≠ pass）')
+      process.exit(2)
+    }
+    const after = String((await get(`/api/materials/${ppt.id}`)).content || '')
+    must(/CW-COVER/.test(before) && !/CW-COVER/.test(after),
+      '【变异测试·真注入】直接改库抹掉 CW-COVER → 经 HTTP 回读确实"装饰没了"（"装饰落盘"断言读的是真存档，不是内存对象）',
+      { inStoreBefore: /CW-COVER/.test(before), inStoreAfter: /CW-COVER/.test(after) })
+    const cur2 = await get(`/api/materials/${ppt.id}`)
+    await fetch(`${B}/api/materials/${ppt.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...cur2, content: before }) })
+    must(/CW-COVER/.test(String((await get(`/api/materials/${ppt.id}`)).content)), '【变异测试·收尾】原内容已写回（封面装饰复原）')
+  }
 
   await p.goto(`${B}/courseware/ppt/${ppt.id}/edit`, { waitUntil: 'domcontentloaded' })
   await p.waitForTimeout(11000)

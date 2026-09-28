@@ -14,8 +14,10 @@
  *   ③ **兜底显式**：`style_tag` 缺省/未知时按 学段→学科 兜底，且 **`fallback=true` 明示**（不许静默给个风格了事）。
  *   ④ **asset.search 契约**：数量 = need × factor、params **不含色值**、同输入结果确定、资产在库中存在。
  *
- * 变异测试（M3 · 按需）：`MUTATE=1 node qa/verify_style_tools.cjs`
- *   → 把 9 次请求的 style_tag 全部换成同一个（模拟"风格参数被打死"）→ 断言"可区分组合数 = 1"（即 DoD 断言必然变红）。
+ * 变异测试（M3 · 按需 · **强形态**）：`MUTATE=1 node qa/verify_style_tools.cjs`
+ *   → 先正常跑完全部对账，再**真改被测服务**：容器内 `style_tools.py` 的 china 风格 `font: kai → hei` + 重启
+ *     ai-service → 断言"漂移对账**必须**报出 china.font"；随后从容器内备份还原 + 重启 + **自检**工具返回与事实源
+ *     重新一致（不留污染）。旧形态"把 9 次请求打成同一个标签"证明力弱（只证明比较函数会算），已移除。
  */
 const fs = require('fs')
 const path = require('path')
@@ -76,18 +78,12 @@ function parseTsRegistry() {
   must(keys.length === 9 && keys.every(k => ts.styles[k].h5Layout && ts.styles[k].themeId), '解析到 TS 风格表 9 条（事实源）', { keys })
   must(keys.every(k => ts.structure[k]), '解析到 TS 结构语汇 9 条（STYLE_STRUCTURE）', {})
 
-  const drift = []
-  const results = {}
-  let mutateSample = null
-  for (const k of keys) {
-    const tag = MUTATE ? keys[0] : k
-    const r = await post(TQ, { style_tag: tag, kind: 'h5', stage: 'primary', subject: '语文' })
-    if (MUTATE) mutateSample = r
-    else results[k] = r
+  /** 逐字段对账（抽成函数：正常对账与**变异后的复算**用同一口径，不许两套标准） */
+  const driftOf = (k, r) => {
     const t = ts.styles[k]
     const d = r.styleDNA || {}
     const cmp = {
-      styleKey: r.styleKey === tag,
+      styleKey: r.styleKey === k,
       themeId: r.themeId === t.themeId,
       font: d.font === t.font,
       density: d.density === t.density,
@@ -100,22 +96,32 @@ function parseTsRegistry() {
         && String(r.skeletonClass || '').includes(`mv-${t.motion}`),
       colorSource: d.colorSource === 'theme_id', // 配色单一事实源仍在渲染端（不复制主题色）
     }
-    for (const [f, ok] of Object.entries(cmp)) if (!ok) drift.push(`${k}.${f}（TS=${JSON.stringify({ l: t.h5Layout, f: t.font, d: t.density, m: t.motion, mo: t.motif, dec: t.decor, th: t.themeId, st: ts.structure[k] })} / tool=${JSON.stringify({ sk: r.styleKey, th: r.themeId, font: d.font, structure: d.structure, skeleton: r.skeletonClass })}）`)
-    if (!MUTATE) must(r.resolvedFrom && r.resolvedFrom.fallback === false, `风格 ${k}：显式 style_tag 不被判为兜底`, { resolvedFrom: r.resolvedFrom })
+    const out = []
+    for (const [f, ok] of Object.entries(cmp)) {
+      if (!ok) out.push(`${k}.${f}（TS=${JSON.stringify({ l: t.h5Layout, f: t.font, d: t.density, m: t.motion, mo: t.motif, dec: t.decor, th: t.themeId, st: ts.structure[k] })} / tool=${JSON.stringify({ sk: r.styleKey, th: r.themeId, font: d.font, structure: d.structure, skeleton: r.skeletonClass })}）`)
+    }
+    return out
   }
-  // 变异模式下**故意**让 9 次请求同风格 → 漂移对账本就是"必须变红"的那条，故此处只在正常模式断言它
-  if (!MUTATE) must(drift.length === 0, '① 漂移对账：工具返回与 styleRegistry.ts（单一事实源）逐字段一致', { drift: drift.slice(0, 6) })
-  else console.log(`   [mutation] 漂移对账本次预期变红（${drift.length} 处），这正是"注入缺陷 → 断言必须红"的证据`)
+
+  const drift = []
+  const results = {}
+  for (const k of keys) {
+    // 变异模式**不再**把 9 次请求打成同一个标签（那是"喂坏数据给判据"）——
+    // 一律用真标签跑正常对账；注入改在**末尾真改被测服务**（见文件尾）。
+    const r = await post(TQ, { style_tag: k, kind: 'h5', stage: 'primary', subject: '语文' })
+    results[k] = r
+    drift.push(...driftOf(k, r))
+    must(r.resolvedFrom && r.resolvedFrom.fallback === false, `风格 ${k}：显式 style_tag 不被判为兜底`, { resolvedFrom: r.resolvedFrom })
+  }
+  must(drift.length === 0, '① 漂移对账：工具返回与 styleRegistry.ts（单一事实源）逐字段一致', { drift: drift.slice(0, 6) })
 
   /* ② DoD：9 个风格的 (skeletonClass, styleDNA) 组合两两可区分 */
   const sig = (r) => JSON.stringify([r.skeletonClass, r.styleDNA])
-  const sigs = MUTATE ? [sig(mutateSample)] : keys.map(k => sig(results[k]))
+  const sigs = keys.map(k => sig(results[k]))
   const uniq = new Set(sigs)
   const pairDiff = (() => {
-    if (MUTATE) return 0
-    let ok = 0, tot = 0
+    let ok = 0
     for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
-      tot++
       const a = results[keys[i]], b = results[keys[j]]
       const dims = [
         a.skeletonClass !== b.skeletonClass,
@@ -126,15 +132,11 @@ function parseTsRegistry() {
     }
     return ok
   })()
-  if (MUTATE) {
-    must(uniq.size === 1, '【变异测试】把 style_tag 全部打成同一个后，本套件**确实变红**（可区分组合数 = 1 → 断言非恒真）', { uniq: uniq.size })
-  } else {
-    must(uniq.size === keys.length, '② DoD：9 个风格的 skeletonClass+styleDNA 组合**互不相同**（可观测差异）', { unique: uniq.size, total: keys.length })
-    must(pairDiff === 36, '② DoD：任意两风格至少在「骨架 / 装饰词+字体 / 结构语汇」之一上不同（36 对全覆盖）', { ok: pairDiff, total: 36 })
-  }
+  must(uniq.size === keys.length, '② DoD：9 个风格的 skeletonClass+styleDNA 组合**互不相同**（可观测差异）', { unique: uniq.size, total: keys.length })
+  must(pairDiff === 36, '② DoD：任意两风格至少在「骨架 / 装饰词+字体 / 结构语汇」之一上不同（36 对全覆盖）', { ok: pairDiff, total: 36 })
 
   /* ③ 兜底必须显式 */
-  if (!MUTATE) {
+  {
     const fb1 = await post(TQ, { style_tag: '', stage: 'primary', subject: '语文' })
     must(fb1.resolvedFrom && fb1.resolvedFrom.fallback === true && !!fb1.resolvedFrom.reason,
       '③ 风格缺省 → 按学段兜底且**显式标记** fallback + 原因', { resolvedFrom: fb1.resolvedFrom })
@@ -146,7 +148,7 @@ function parseTsRegistry() {
   }
 
   /* ④ asset.search 契约 */
-  if (!MUTATE) {
+  {
     const a1 = await post(AS, { styleId: 'china', stage: 'primary', subject: '语文', need: 1, factor: 3, medium: 'ppt' })
     const a2 = await post(AS, { styleId: 'china', stage: 'primary', subject: '语文', need: 1, factor: 3, medium: 'ppt' })
     const a3 = await post(AS, { styleId: 'china', stage: 'primary', subject: '语文', need: 3, factor: 3, medium: 'ppt' })
@@ -164,6 +166,56 @@ function parseTsRegistry() {
     else must(dbRows[0] === String(ids.length), '④ 返回的 assetId **确实存在于库**（materials 表）', { got: dbRows[0], want: ids.length })
     must(a2.items.every(i => i.params && i.params.medium && i.params.shape && typeof i.params.role === 'string'),
       '④ params 含形状/语义槽（shape/medium/role）', { sample: a2.items[0] && a2.items[0].params })
+  }
+
+  /* ── 【强形态变异 · 真注入】（2026-09-29 升级）────────────────────────────
+   * 旧形态：把 9 次请求的 style_tag 全换成同一个（喂坏数据给判据 → 只证明比较函数会算）。
+   * 新形态：**真改被测服务** —— 把容器里 `style_tools.py` 中 china 风格的 `font: kai` 改成 `hei`，
+   *        重启 ai-service → 工具返回与事实源（styleRegistry.ts）不一致 → 漂移对账**必须报出 china.font**。
+   *        跑完从容器内备份还原并再次重启，自检"工具返回与事实源重新一致"（不留污染）。
+   * 风险控制：备份在容器内 `/tmp/style_tools.py.qa.bak`；还原在 finally 里**无条件**执行；
+   *          仓库源码才是真源（万一还原失败：`bash code/deploy/deploy.sh staging` 即可恢复）。 */
+  if (MUTATE) {
+    const C = process.env.AI_CONTAINER || 'zhiwei-ai-staging'
+    const F = '/app/style_tools.py'
+    const BAK = '/tmp/style_tools.py.qa.bak'
+    const sh = (cmd) => {
+      try { return execFileSync('ssh', [SSH, cmd], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null }
+    }
+    const ready = async () => {
+      for (let i = 0; i < 20; i++) {
+        const r = await fetch(B + TQ, { method: 'POST', headers: S.H, body: JSON.stringify({ style_tag: 'china', kind: 'h5' }) }).catch(() => null)
+        if (r && r.ok) return true
+        await new Promise(x => setTimeout(x, 3000))
+      }
+      return false
+    }
+    const chinaOf = async () => post(TQ, { style_tag: 'china', kind: 'h5' })
+
+    must(sh(`docker exec ${C} cp ${F} ${BAK} && echo ok`) !== null, '【变异测试·前置】容器内工具源码已备份', { bak: BAK })
+    const line0 = String(sh(`docker exec ${C} sed -n '/zgf-ink-wash/p' ${F}`) || '')
+    must(/"font": "kai"/.test(line0), '【变异测试·前置】定位到 china 风格行（font=kai）', { line: line0.trim().slice(0, 60) })
+    try {
+      sh(`docker exec ${C} sed -i '/zgf-ink-wash/ s/"font": "kai"/"font": "hei"/' ${F}`)
+      sh(`docker restart ${C} >/dev/null 2>&1; echo restarted`)
+      must(await ready(), '【变异测试·前置】注入后 ai-service 重新就绪（重启等待 ≤60s）', {})
+      const rMut = await chinaOf()
+      must((rMut.styleDNA || {}).font === 'hei',
+        '【变异测试·真注入】真改容器内工具源码后，工具确实返回 font=hei（说明改对了地方）',
+        { tool: (rMut.styleDNA || {}).font })
+      const d2 = driftOf('china', rMut)
+      must(d2.some(x => x.startsWith('china.font')),
+        '【变异测试·真注入】工具返回与事实源不一致 → 漂移对账**必须报出 china.font**（证明对账真在读被测服务，不是读常量）',
+        { drift: d2.slice(0, 3) })
+    } finally {
+      sh(`docker exec ${C} cp ${BAK} ${F}`)
+      sh(`docker restart ${C} >/dev/null 2>&1; echo restarted`)
+    }
+    must(await ready(), '【变异测试·收尾】还原后 ai-service 重新就绪', {})
+    const rBack = await chinaOf()
+    must((rBack.styleDNA || {}).font === ts.styles.china.font,
+      '【变异测试·收尾】还原已完成：工具返回与事实源重新一致（环境无残留污染）',
+      { tool: (rBack.styleDNA || {}).font, ts: ts.styles.china.font })
   }
 
   report()
