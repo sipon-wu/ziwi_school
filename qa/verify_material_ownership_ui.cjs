@@ -60,11 +60,16 @@ let br, aId, bId, mineLg, otherLg
   const p = await br.newPage({ viewport: { width: 1440, height: 900 } })
   p.on('pageerror', e => errs.push(String(e.message).slice(0, 120)))
   await p.goto(B + '/login', { waitUntil: 'domcontentloaded' })
-  // 变异注入（2026-09-27，A1b）：把登录身份换成**假 id** → "本人课件"应被判成"他人的"。
-  // 判据若仍报"无只读提示"，说明归属判定根本没读 user.id（即断言恒真）。
+  /* 变异注入（2026-09-29 **升级为强形态**）：
+   *   旧形态：只把 localStorage 里的 `user.id` 改成假字符串 —— 只能证明"前端会拿 user.id 比大小"，
+   *           （连后端都不一定参与，改的是浏览器本地的一个字段）。
+   *   新形态：**换成同事的真实凭据**（真 token + 真 user.id），再打开**本人**的课件 →
+   *           整条链路（token → 后端授权/返回 → 前端归属判定）都必须翻转成"只读"。
+   *           并做**对称对照**：同一身份打开自己的件，不得出现只读提示 —— 两向都要对，
+   *           才能证明判定真的随身份走，而不是"提示恒出现/恒不出现"。 */
   const MUTATE = process.env.MUTATE === '1'
-  const injectedUser = MUTATE ? { ...mineLg.user, id: 'u-qa-mutated-fake' } : mineLg.user
-  await p.evaluate(([t, u]) => { localStorage.setItem('zhiwei_token', t); localStorage.setItem('user', JSON.stringify(u)) }, [mineLg.token, injectedUser])
+  const sess = MUTATE ? { token: otherLg.token, user: otherLg.user } : { token: mineLg.token, user: mineLg.user }
+  await p.evaluate(([t, u]) => { localStorage.setItem('zhiwei_token', t); localStorage.setItem('user', JSON.stringify(u)) }, [sess.token, sess.user])
 
   /* ① 本人课件：不得被判为"他人"（否则等于禁掉了所有正常编辑） */
   await p.addInitScript(WATCH)
@@ -73,18 +78,25 @@ let br, aId, bId, mineLg, otherLg
   const mineHits = await p.evaluate(() => window.__hits || [])
   if (MUTATE) {
     must(mineHits.length > 0,
-      '【变异测试】把登录身份改成假 id → 本人课件**必须**被判为他人（只读提示出现）—— 证明归属判据真的在读 user.id',
-      { hits: mineHits })
+      `【变异测试·真身份】用**同事的真实 token**（${(otherLg.user || {}).name || '同事'}）打开本人课件 → 必须被判为他人（只读提示出现）`,
+      { hits: mineHits, as: (otherLg.user || {}).name })
   } else {
     must(mineHits.length === 0, '打开本人课件**不出现**只读提示（user.id 与 user_id 口径一致，未被误判）', { hits: mineHits })
   }
 
-  /* ② 同事课件：必须出现只读提示 + 点名作者 */
+  /* ② 同事课件：正常身份下必须出现只读提示 + 点名作者；
+        变异（=身份已换成同事）下**对称翻转**：打开"自己的件"不得出现只读提示。 */
   await p.goto(`${B}/courseware/ppt/${bId}/edit`, { waitUntil: 'domcontentloaded' })
   await p.waitForTimeout(11000)
   const otherHits = await p.evaluate(() => window.__hits || [])
-  must(otherHits.length > 0, '打开同事课件出现只读提示（前端同步收口）', { hits: otherHits })
-  must(otherHits.join(' ').includes('王老师'), '提示点名作者（王老师）', { hits: otherHits })
+  if (MUTATE) {
+    must(otherHits.length === 0,
+      '【变异测试·真身份】同一身份（同事）打开**自己的**件 → **不得**出现只读提示（与①对照，证明判定确实随身份翻转，而非恒出现）',
+      { hits: otherHits, as: (otherLg.user || {}).name })
+  } else {
+    must(otherHits.length > 0, '打开同事课件出现只读提示（前端同步收口）', { hits: otherHits })
+    must(otherHits.join(' ').includes('王老师'), '提示点名作者（王老师）', { hits: otherHits })
+  }
   must(errs.length === 0, '全程 pageerror=0', { errs })
   report()
 })().catch(e => {

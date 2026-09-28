@@ -19,6 +19,7 @@
  * 用法：BASE=http://school1.ziwi.cn node qa/verify_orchestration.cjs
  *       （可选 JOB_ID=xxx 指定 job_id，便于人工按 id 去 trace 端点复查）
  */
+const { execFileSync } = require('child_process')
 const { must, report } = require('./lib/assert.cjs')
 
 const B = process.env.BASE || 'http://school1.ziwi.cn'
@@ -28,6 +29,21 @@ const JOB = process.env.JOB_ID || `qa-orch-${Date.now()}`
 /** `MUTATE=1`：变异模式（A1b 判据自检）—— 只跑"喂坏输入 → 判据必须报错"，用于证明判据非恒真 */
 const MUTATE = process.env.MUTATE === '1'
 const STEPS = ['s0', 's1', 's2', 's3', 's4', 's5']
+
+/**
+ * 直连数据库（**变异模式专用**）：往真系统里注入故障，而不是"在内存里改判据的输入"。
+ * ssh 不可用时返回 null → 该分支记 SKIP（未验证），不伪装通过。
+ */
+const SSH = process.env.SSH_TARGET || 'root@193.112.163.147'
+const ENV_FILE = process.env.ENV_FILE || '/opt/zhiwei/code/deploy/.env.staging'
+const psql = (sql) => {
+  try {
+    return execFileSync('ssh', [SSH,
+      `set -a; . ${ENV_FILE}; set +a; docker exec -i zhiwei-postgres-staging psql -U "$DB_USER" -d "$DB_NAME" -t -A -c ${JSON.stringify(sql)}`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n').map(s => s.trim()).filter(s => s && !/^WARNING|^DETAIL|^HINT|collation/i.test(s)).join('\n')
+  } catch { return null }
+}
 
 ;(async () => {
   /**
@@ -170,11 +186,26 @@ const STEPS = ['s0', 's1', 's2', 's3', 's4', 's5']
   // 判据抽成可复用函数（2026-09-27，A1b）：只有能被"喂坏输入"的判据，才谈得上不是恒真。
   const sameStepSet = (a, b) => JSON.stringify([...new Set(a)]) === JSON.stringify([...new Set(b)])
   if (MUTATE) {
-    // 【变异测试·判据自检】注入：把留痕里的 s5 删掉（模拟"落库早于 emit s5"那个真实缺陷）→ 对账必须报不一致。
-    const tampered = traceIds.filter(id => id !== 's5')
-    must(!sameStepSet(tampered, liveSteps),
-      '【变异测试·判据自检】故意删掉留痕里的 s5 → 对账判据必须报"不一致"（证明下面那条断言不是恒真）',
-      { tampered: [...new Set(tampered)], live: [...new Set(liveSteps)] })
+    /* 【强形态变异】（2026-09-29 升级）—— 旧形态是在**内存里**把 `traceIds` 过滤掉 s5（喂坏数据给判据），
+     * 只证明"这个比较函数会算"。现在改成**真往数据库注入故障**：用 psql 抹掉库里这份留痕的 s5，
+     * 再**重新走 HTTP 端点**读一遍 → ① 篡改必须立刻可见（证明端点读的是 DB，不是内存副本）
+     * ② 对账判据在真实故障下必须判"不一致"。
+     * 若端点其实在读内存副本（篡改看不见），这里会当场变红 —— 那是真问题，不是脚本问题。 */
+    const rowId = psql(`SELECT id FROM ai_generation_logs WHERE job_id='${JOB.replace(/'/g, "''")}' ORDER BY created_at DESC LIMIT 1`)
+    if (!rowId) {
+      console.log('   [SKIP] 强形态变异需要直连数据库（ssh/psql 不可用）→ 本项**未验证**（skip ≠ pass）')
+      process.exit(2)
+    }
+    psql(`UPDATE ai_generation_logs SET steps=(SELECT coalesce(jsonb_agg(e),'[]'::jsonb) FROM jsonb_array_elements(steps) e WHERE e->>'id'<>'s5') WHERE id='${rowId}'`)
+    const tr2 = await jread(await fetch(`${B}/api/ai/courseware/trace/${encodeURIComponent(JOB)}`, { headers: H }), '留痕端点（篡改后）')
+    const dbSteps2 = (tr2.steps || []).map(s => s.id)
+    must(tr2.source === 'db' && !dbSteps2.includes('s5'),
+      '【变异测试·真注入】psql 抹掉库里留痕的 s5 后，**经 HTTP 端点**读回的步骤里确实没有 s5（端点读的是 DB，不是内存副本）',
+      { source: tr2.source, steps: dbSteps2 })
+    must(!sameStepSet(dbSteps2, liveSteps),
+      '【变异测试·真注入】真实数据库故障下，对账判据必须报"不一致"（证明下面那条断言不是恒真）',
+      { db: [...new Set(dbSteps2)], live: [...new Set(liveSteps)] })
+    psql(`DELETE FROM ai_generation_logs WHERE job_id='${JOB.replace(/'/g, "''")}'`)   // 收尾：清掉被篡改的测试留痕
   }
   must(sameStepSet(traceIds, liveSteps),
     '可回放：留痕步骤序列 == 活响应步骤序列', { trace: [...new Set(traceIds)], live: [...new Set(liveSteps)] })

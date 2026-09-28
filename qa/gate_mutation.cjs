@@ -20,6 +20,19 @@
  *
  * 用法：`node qa/gate_mutation.cjs`（约 6~8 分钟：内含一次真实 LLM 生成与真浏览器）
  *       `node qa/gate_mutation.cjs --only=verify_h5_stage,verify_material_delete`（定点复验）
+ *
+ * ── 形态分级（2026-09-29 补记，免得下一个人又分不清"弱形态算不算数"）──────────────
+ * **强形态 = 真往被测系统里注入故障**（改库/停服务/换真身份/喂真实坏输入），当前 7 个：
+ *   · verify_publish_degrade    真停 ai-service（发布链路降级）
+ *   · verify_audit_trail        psql **真抹掉** release 留痕 → 证据必须消失
+ *   · verify_orchestration      psql **真改库里留痕**（去掉 s5）→ 经 HTTP 端点读回必须可见、对账必须红
+ *   · verify_cloud_isolation    真连非契约地址 + 喂非 JSON/坏契约/未知角色 → 必须如实报错且**本地零改动**
+ *   · verify_material_delete    用**同事真实 token** 真发越权写请求 → 必须 403
+ *   · verify_material_ownership_ui  用**同事真实凭据**打开本人课件 → 页面必须翻转成只读（并做对称对照）
+ *   · verify_h5_stage           真改被测源码（剥掉 `syncHd()`）→ 舞台必须不再启用
+ * **弱形态 = 只给判据喂坏数据/改期望值**（证明力有限，但足以证明"判据不是恒真"），当前 5 个：
+ *   regression_20260917 / verify_schema_drift / verify_style_diversity_ab / verify_style_tools / verify_style_diversity
+ *   演进方向：**逐个往强形态搬**（弱形态只保底，不当作"已证明"）。
  */
 const fs = require('fs')
 const path = require('path')

@@ -46,6 +46,10 @@ const MUTATE = process.env.MUTATE === '1'
     method: 'POST', headers: H, body: JSON.stringify({ style_tag: 'china' }),
   })).json()).styleKey
   const realConfig = async () => JSON.stringify(await (await fetch(`${BASE}/api/ai/llm/config`, { headers: H })).json())
+  /** 把一份 mock payload（对象或原始字符串）写进**容器内**：`file://` 走的是与真实云端**同一条** `urlopen` 路径 */
+  const writeMock = (p, obj) => execSync(
+    `ssh -o ConnectTimeout=8 ${SERVER} 'docker exec -i ${CONTAINER} sh -c "cat > ${p}"'`,
+    { input: typeof obj === 'string' ? obj : JSON.stringify(obj), stdio: ['pipe', 'ignore', 'ignore'] })
 
   try {
     /* ── ② 静态：出网单向（cloud_sync 只有出网、没有入站路由）── */
@@ -89,12 +93,46 @@ const MUTATE = process.env.MUTATE === '1'
 
     /* ── 故障注入 B：云端可达但返回掩码配置（指向本服务自己的 config 端点）── */
     if (MUTATE) {
-      // 【变异测试】判据必须能区分三种"不成功"：未配置 / 网络失败 / 成功 —— 若能区分，说明它真的在看状态而不是恒真。
-      await setCfg({ url: '', enabled: false })
-      const rOff = await runSync()
-      must(/未配置/.test(String(rOff.reason)) && !/未配置/.test(String(rDead.reason)),
-        '【变异测试】判据能区分"未配置"与"网络失败"（两次结果文案不同 → 状态真的在被观察）',
-        { off: String(rOff.reason).slice(0, 40), dead: String(rDead.reason).slice(0, 60) })
+      /* 【强形态变异】（2026-09-29 升级）—— 旧形态只是"比较两条失败文案"（证明力弱：文案不同 ≠ 判据在看数据）。
+       * 现在给对账喂**真实世界会出现的坏输入**，看它是否如实报错、且**本地配置零改动**：
+       *   ① 真连 cloud 首页（非 JSON 或非契约 JSON）→ 必须如实报"不成功"，不许"解析不了就当成功"；
+       *   ② 确定性非 JSON（HTML）→ 必须**明确失败**并给出解析原因；
+       *   ③ 契约形状坏（缺 channels / channels 不是数组）→ 必须报"契约不符"且不写入；
+       *   ④ 云端下发**未知角色** → 必须逐条报出来（否则口径漂移无从发现）。 */
+      const cfgBefore = await realConfig()
+
+      await setCfg({ url: 'https://cloud.ziwi.cn/', enabled: true })
+      const rHtml = await runSync()
+      must(rHtml.ok === false || rHtml.contract_ok === false,
+        '【变异测试·真注入】真连 cloud 首页（**不是**契约端点）→ 必须如实报"不成功"（不许静默当成功）',
+        { ok: rHtml.ok, contract_ok: rHtml.contract_ok, reason: String(rHtml.reason || '').slice(0, 70) })
+
+      writeMock('/tmp/qa_mock_html.json', '<!DOCTYPE html><html><body>not json at all</body></html>')
+      await setCfg({ url: 'file:///tmp/qa_mock_html.json', enabled: true })
+      const rNotJson = await runSync()
+      must(rNotJson.ok === false && /JSON|Expecting|decode|Value/i.test(String(rNotJson.reason)),
+        '【变异测试·真注入】云端返回**非 JSON**（HTML）→ 同步必须**明确失败**并说明是解析问题（不是静默成功、也不是抛异常）',
+        { reason: String(rNotJson.reason).slice(0, 90) })
+
+      for (const [name, payload] of [['缺 channels', { data: { foo: 1 } }], ['channels 不是数组', { data: { channels: 'oops' } }]]) {
+        writeMock('/tmp/qa_mock_bad.json', payload)
+        await setCfg({ url: 'file:///tmp/qa_mock_bad.json', enabled: true })
+        const rBad = await runSync()
+        must(rBad.ok === true && rBad.contract_ok === false && /契约不符/.test(String(rBad.reason || '')) && rBad.applied === false,
+          `【变异测试·真注入】坏契约（${name}）→ 必须**如实报"契约不符"且不写入**（不许当成"对上了、没差异"）`,
+          { shape: name, reason: String(rBad.reason || '').slice(0, 70) })
+      }
+
+      writeMock('/tmp/qa_mock_ghost.json', { data: { channels: [{ role: 'ghost-role', model: 'x' }] } })
+      await setCfg({ url: 'file:///tmp/qa_mock_ghost.json', enabled: true })
+      const rGhost = await runSync()
+      const gd = rGhost.drift || []
+      must(gd.some(d => /未知角色/.test(String(d.why))),
+        '【变异测试·真注入】云端下发**未知角色** → 对账必须逐条报出来（口径漂移不得被吞掉）',
+        { drift: gd.slice(0, 3) })
+
+      must((await realConfig()) === cfgBefore,
+        '【变异测试·真注入】上述坏输入全程 **本地模型配置零改动**（最要紧的一条）', {})
     } else {
       const before = await realConfig()
       // 形状正确的"云端"配置：放在**容器内**（`file://` 同一个 urlopen 路径，可控 payload）
