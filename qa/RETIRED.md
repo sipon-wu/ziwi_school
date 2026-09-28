@@ -29,14 +29,14 @@
 | 11 | `verify_cursor.cjs` | 验证公式插入到【光标位置】而非文档末尾（真浏览器）。 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 12 | `verify_cw_view_unified.cjs` | (原文件无头部说明) | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 13 | `verify_distill_base.cjs` | 蒸馏底座回归断言（知微·有谱引擎 RAG 素材层） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 14 | `verify_docx_no_model.cjs` | 自证：教案 Word 导出里**不再出现内部配方**（生成模型 / qwen-plus / 发散边界 / 前置来源）2026-09-15 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
+| 14 | `verify_docx_no_model.cjs` | 自证：教案 Word 导出里**不再出现内部配方**（生成模型 / qwen-plus / 发散边界 / 前置来源）2026-09-15 | `qa/verify_export_no_leak.cjs`（2026-09-29 补：成品不得含内部配方） |
 | 15 | `verify_editor_p0.cjs` | Phase 0 编辑器框架重构专项验证（真实浏览器，本地 dev :5173 + staging 后端） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 16 | `verify_editor_p0_exam.cjs` | Phase 0 编辑器框架重构专项验证 · 组卷页（ExamBuilder 迁移） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 17 | `verify_editor_p0_exercise.cjs` | Phase 0 编辑器框架重构专项验证 · 出题页（ExerciseGenerator 迁移） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 18 | `verify_exam_generate.cjs` | verify_exam_generate.cjs — 出题 AI 生成端到端验证 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 19 | `verify_exam_preview.cjs` | 验证试卷 A3 横排预览（ExamPreview 组件）staging · 13800000002 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 20 | `verify_exam_warn.cjs` | P3 组卷页 G6 遗留 WARN 消除验证：打开 /exams/new，捕获 console 中的 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 21 | `verify_export_formula.cjs` | 真实验证：公式导出一致性（教案+试卷 × Word+PDF） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
+| 18 | `verify_exam_generate.cjs` | verify_exam_generate.cjs — 出题 AI 生成端到端验证 | `qa/verify_exam_flow.cjs`（2026-09-29 补：造卷→回读→预览） |
+| 19 | `verify_exam_preview.cjs` | 验证试卷 A3 横排预览（ExamPreview 组件）staging · 13800000002 | `qa/verify_exam_flow.cjs`（2026-09-29 补：A3 对折卷面/预览渲染） |
+| 20 | `verify_exam_warn.cjs` | P3 组卷页 G6 遗留 WARN 消除验证：打开 /exams/new，捕获 console 中的 | `qa/verify_exam_flow.cjs`（2026-09-29 补：pageerror=0） |
+| 21 | `verify_export_formula.cjs` | 真实验证：公式导出一致性（教案+试卷 × Word+PDF） | `qa/verify_export_no_leak.cjs`（2026-09-29 补：公式须以 word/media 嵌入） |
 | 22 | `verify_formula.cjs` | 验证公式渲染集成（KaTeX）staging · 13800000002 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 23 | `verify_formula_frames.cjs` | 公式编辑器逐帧验证 v2（真浏览器 + API 真相源） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 24 | `verify_formula_interactive.cjs` | 公式编辑器深度验证 v3（真点击 + 视觉量化） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
@@ -78,7 +78,7 @@
 | 60 | `verify_review_pool.cjs` | 知微 AI 教学助手 · 教案互审池专项真浏览器 E2E（复用阅读视图 + 评审人落库） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 61 | `verify_route_consistency.cjs` | 五类资源：列表端点 + 路径前缀 + 场景关键词 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 62 | `verify_s52_lock.cjs` | §5.2 家长端功能锁定验证：个人试用模式（licenseStatus !== 'active'）下， | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
-| 63 | `verify_sheet_unified.cjs` | 题单 SheetBuilder 专项验证：渲染健康 / 小微 / 统一 footer / 出题生成 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
+| 63 | `verify_sheet_unified.cjs` | 题单 SheetBuilder 专项验证：渲染健康 / 小微 / 统一 footer / 出题生成 | `qa/verify_worksheet_flow.cjs`（2026-09-29 补：习题库 CRUD + 题单只读可达）**⚠ 当前红：见真缺陷** |
 | 64 | `verify_shell_consistency.cjs` | 验证编辑器外壳一致性：题单 / 教案 / 出题 / 组卷 / 试卷 / 课件 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 65 | `verify_source_panel_hidden.cjs` | 验证「来源（生成配方）」面板：**缺省隐藏**，`?debug=1` 才显示（2026-09-15） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 66 | `verify_switch_flow.cjs` | 换风格「多轮流程」验收（2026-09-15） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
@@ -89,7 +89,7 @@
 | 71 | `verify_version_cadence.cjs` | 版本节奏验收（2026-09-15，按产品规则：生成 / 保存草稿 / 发布 三个时机形成版本） | `qa/verify_version_policy.cjs`（版本策略，已登记） |
 | 72 | `verify_view_unified.cjs` | 查看态统一 EditorLayout + 全屏预览 fullscreen 专项验证（staging 真浏览器） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 
-## 覆盖缺口清单（无接管者，共 55 个）
+## 覆盖缺口清单（无接管者，共 49 个；2026-09-29 已收口 6 条）
 
 这些性质**目前没有自动守卫**。要补，就在 `qa/` 下新写守卫并登记进 `qa/run_all.cjs`（写 covers + critical 视情况）。
 
@@ -159,7 +159,7 @@
 | 2026-09-29 | 导出 · 内部配方不泄漏 + 公式嵌入 | `verify_export_no_leak`（真打包导出器 → 真 docx 产物：正文进档 / 公式进 `word/media` / **不出现生成模型等内部配方**；变异：**真改被测源码**把"生成模型"写回 → 判据必须抓到） | `verify_docx_no_model` / `verify_export_formula`（公式部分） |
 | 2026-09-29 | 题单 · 习题库（工作单/简单卷面） | `verify_worksheet_flow`（真 CRUD：新建→回读一致→更新真写库→列表读真源→删除真删 404，题单只读可达；变异：**psql 绕过 API 改库** → 回读必须立刻反映）**⚠ 本守卫当前判红**：它抓到了缺陷 1（`exercise_sheets` 缺表；见下文），依赖项显式记未验证 | `verify_sheet_unified` |
 
-> 其余 53 条缺口仍**无接管者**（见上表"覆盖缺口清单"），按需一条条收。
+> 其余 **49** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 6 条见上表"接管者"列），按需一条条收。
 
 ---
 
