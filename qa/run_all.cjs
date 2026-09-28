@@ -39,7 +39,9 @@ const GUARDS = [
   { name: 'verify_cover_elements', critical: false, covers: ['封面'] },
   { name: 'verify_materials_preview_decor', critical: false, covers: ['素材预览装饰'] },
   { name: 'verify_h5_stage', critical: true, covers: ['H5 舞台（HD 等比档 / 手机档）'] },
-  { name: 'verify_style_diversity', critical: false, covers: ['PPT 版式多样性（H5 段已迁移至 verify_h5_stage）'] },
+  // 2026-09-28：PPT 版式段从"浏览器选择器（已过期 → SKIP）"重写为**确定性判据**后升为关键守卫
+  // （往返不丢版式 / 结构化版式几何两两不同 / 单列几何随风格 / 不得自创版式），并带变异自检。
+  { name: 'verify_style_diversity', critical: true, covers: ['PPT 版式多样性（确定性判据）'] },
 ]
 /** 方案里**已宣布完成**的条目 → 必须至少有一个守卫覆盖（M5：未覆盖即红） */
 const DONE_ITEMS = ['0-1', '0-2', '1-1', '1-2', '1-3']
