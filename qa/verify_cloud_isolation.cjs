@@ -120,6 +120,40 @@ const MUTATE = process.env.MUTATE === '1'
       must(before === after, '④ **最要紧的一条**：真实模型配置前后完全一致（云通道不许改动它）',
         { changed: before !== after })
     }
+
+    /* ── ⑤ 接**真实 cloud 服务**（只读）+ 契约对账（2026-09-29 深化，用户选 a）──
+     *  ① 真的连上 cloud.ziwi.cn（不是 mock）——证明"云通道"接的是真服务；
+     *  ② 它当前没有对账契约端点 → 必须**如实报告"契约不符"**，不许伪造成功；
+     *  ③ 给一份符合契约的 payload → 必须**算出真实差异**（模型不一致 / 云端下发未知角色），且不写入。 */
+    const realConfigBefore = await realConfig()
+    await setCfg({ url: 'https://cloud.ziwi.cn/api/v1/auth/public-key', enabled: true })
+    const rReal = await runSync()
+    must(rReal.ok === true, '⑤ 真的连上了 cloud 服务（cloud.ziwi.cn 从容器内可达，HTTP 200）',
+      { url: rReal.url, mode: rReal.mode })
+    must(rReal.contract_ok === false && /契约不符/.test(String(rReal.reason || '')),
+      '⑤ 云端当前无对账契约端点 → **如实报告契约不符**（不伪造成功、不假装对上了）',
+      { reason: String(rReal.reason || '').slice(0, 80) })
+
+    const contractMock = JSON.stringify({
+      data: {   // 注意：cloud.ziwi.cn 统一把响应包在 data 里（实测）
+        channels: [
+          { role: 'gen', model: '__cloud-model-X' },   // 与本地不一致 → 应报 drift
+          { role: 'ghost-role', model: 'whatever' },   // 未知角色 → 应报 drift
+        ],
+      },
+    })
+    execSync(`ssh -o ConnectTimeout=8 ${SERVER} 'docker exec -i ${CONTAINER} sh -c "cat > /tmp/qa_mock_contract.json"'`,
+      { input: contractMock, stdio: ['pipe', 'ignore', 'ignore'] })
+    await setCfg({ url: 'file:///tmp/qa_mock_contract.json', enabled: true })
+    const rRec = await runSync()
+    must(rRec.mode === 'reconcile' && rRec.contract_ok === true,
+      '⑤ 契约符合 → 进入**对账模式**（不是直接套用）', { mode: rRec.mode, contract: rRec.contract })
+    const drift = rRec.drift || []
+    must(drift.some(d => d.field === 'model') && drift.some(d => /未知角色/.test(String(d.why))),
+      '⑤ 对账算出真实差异（模型不一致 + 云端下发未知角色），逐条给出 云端值/本地值',
+      { drift: drift.slice(0, 4) })
+    must(rRec.dry_run === true && rRec.applied === false, '⑤ 对账是**干跑**（不写入）', { dry_run: rRec.dry_run })
+    must((await realConfig()) === realConfigBefore, '⑤ 对账全程本地配置零改动（最要紧的一条）', {})
   } finally {
     // 收尾：无论如何把云通道恢复为"未配置"（不把测试地址留在环境里）
     const closed = await setCfg({ url: '', enabled: false }).catch(() => null)

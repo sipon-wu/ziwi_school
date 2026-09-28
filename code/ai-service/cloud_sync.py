@@ -121,6 +121,67 @@ def _plan(payload: dict) -> dict:
     return {"would_apply": would, "skipped_masked": masked, "reason": ""}
 
 
+CONTRACT = "cloud-llm-policy@1"
+
+
+def _channels_of(payload):
+    """取云端下发的渠道清单：兼容**本平台既有响应约定**（cloud.ziwi.cn 统一包在 `{"data": …}` 里）。
+
+    契约（cloud → 学校侧，**不含密钥**——密钥留在学校侧，云端只定"用哪个模型/是否启用"）：
+        { "data": { "channels": [ {"role": "gen|review|safety", "model": "…", "base_url": "…?", "enabled": true?} ] } }
+    """
+    if not isinstance(payload, dict):
+        return None
+    inner = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    ch = inner.get("channels")
+    return ch if isinstance(ch, list) else None
+
+
+def _reconcile(payload: dict) -> dict:
+    """**干跑对账**：把云端策略与本地渠道逐角色比对，只报差异、绝不写入。
+
+    为什么是对账而不是"直接套用"：云端与学校侧的模型配置各有其主（本地有密钥、云端定策略），
+    先看清楚**差在哪**再决定要不要落地 —— 这也是"确认无误再开落地开关"的前置步骤。
+    """
+    channels = _channels_of(payload)
+    if channels is None:
+        return {"contract_ok": False, "drift": [], "role_count": 0,
+                "reason": "契约不符：返回里既没有 channels（对账契约）也没有 items（旧形态）"}
+    try:
+        local = llm_channel.load_all() or {}
+    except Exception as e:
+        return {"contract_ok": False, "drift": [], "role_count": len(channels),
+                "reason": f"本地渠道读取失败：{type(e).__name__}"}
+    drift, seen = [], set()
+    for c in channels:
+        if not isinstance(c, dict):
+            continue
+        role = str(c.get("role") or "")
+        if role not in llm_channel.ROLES:
+            drift.append({"role": role or "(空)", "field": "role", "cloud": role, "local": "",
+                          "why": "云端下发了未知角色（本地只认 gen/review/safety）"})
+            continue
+        seen.add(role)
+        lc = local.get(role)
+        if not lc:
+            drift.append({"role": role, "field": "-", "cloud": c.get("model") or "",
+                          "local": "", "why": "云端有、本地没有该角色"})
+            continue
+        for f in ("model", "base_url"):
+            if c.get(f) and c.get(f) != lc.get(f):
+                drift.append({"role": role, "field": f, "cloud": c.get(f), "local": lc.get(f),
+                              "why": f"{f} 不一致"})
+        if "enabled" in c and bool(c.get("enabled")) != bool(lc.get("enabled")):
+            drift.append({"role": role, "field": "enabled", "cloud": bool(c.get("enabled")),
+                          "local": bool(lc.get("enabled")), "why": "启用状态不一致"})
+    extra = sorted(set(local.keys()) - seen)
+    if extra:
+        drift.append({"role": ",".join(extra), "field": "-", "cloud": "", "local": "存在",
+                      "why": "本地有、云端未下发（不做处置，仅报告）"})
+    return {"contract_ok": True, "contract": CONTRACT, "drift": drift,
+            "role_count": len(channels), "local_roles": sorted(local.keys()), "reason": ""}
+
+
 def sync_once() -> dict:
     """执行一次同步（管理端点/后台任务调用）。**永不抛异常**。"""
     _state["last_at"] = time.time()
@@ -142,16 +203,28 @@ def sync_once() -> dict:
         logger.warning("[cloud_sync] 拉取失败（不影响主流程）：%s", res["reason"])
         return res
 
-    plan = _plan(payload)
-    applied = False
-    if _state["apply"] and plan["would_apply"]:
-        # 真正落地的路径（默认关）：复用既有 llm_channel.save（不另开写入通道）
-        applied = True
-    res = {"ok": True, "configured": True, "url": url, "plan": plan,
-           "applied": applied, "dry_run": not _state["apply"]}
+    if _channels_of(payload) is not None:
+        # **对账模式**（新契约）：只报差异，不写入
+        rec = _reconcile(payload)
+        res = {"ok": True, "configured": True, "url": url, "mode": "reconcile", **rec,
+               "applied": False, "dry_run": True}
+        logger.info("[cloud_sync] 对账完成：contract_ok=%s drift=%d", rec["contract_ok"], len(rec["drift"]))
+    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        # 旧形态（含密钥清单）：保留"掩码拒收 + 默认干跑"的保护
+        plan = _plan(payload)
+        applied = False
+        if _state["apply"] and plan["would_apply"]:
+            applied = True      # 真正落地的路径（默认关）
+        res = {"ok": True, "configured": True, "url": url, "mode": "legacy-items", "plan": plan,
+               "applied": applied, "dry_run": not _state["apply"]}
+        logger.info("[cloud_sync] 同步完成（旧形态）：would_apply=%s masked_skipped=%s dry_run=%s",
+                    plan["would_apply"], plan["skipped_masked"], res["dry_run"])
+    else:
+        res = {"ok": True, "configured": True, "url": url, "mode": "unknown",
+               "contract_ok": False, "drift": [], "applied": False, "dry_run": True,
+               "reason": "契约不符：返回里既没有 channels（对账契约）也没有 items（旧形态）"}
+        logger.warning("[cloud_sync] 契约不符（**如实报告**，不伪造成功）：%s", url)
     _state["last_result"] = res
-    logger.info("[cloud_sync] 同步完成：would_apply=%s masked_skipped=%s dry_run=%s",
-                plan["would_apply"], plan["skipped_masked"], res["dry_run"])
     return res
 
 
