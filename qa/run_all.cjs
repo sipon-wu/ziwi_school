@@ -58,6 +58,7 @@ const GUARDS = [
   { name: 'verify_h5_fit', critical: true, covers: ['H5 整页适配（HD 档等比缩放后整页可见）'] },
   { name: 'verify_h5_rules', critical: true, covers: ['H5 换风格规则（事件契约 / 版本快照 / 画布真重渲染）'] },
   { name: 'verify_h5_qr_three_entries', critical: true, covers: ['H5 课件库三种入口归属（点行/右侧按钮/状态翻转）'] },
+  { name: 'verify_editor_shell', critical: true, covers: ['编辑器外壳一致性（6 页同壳/预览全屏层）+ 坏数据不白屏'] },
   // 2026-09-28：PPT 版式段从"浏览器选择器（已过期 → SKIP）"重写为**确定性判据**后升为关键守卫
   // （往返不丢版式 / 结构化版式几何两两不同 / 单列几何随风格 / 不得自创版式），并带变异自检。
   { name: 'verify_style_diversity', critical: true, covers: ['PPT 版式多样性（确定性判据）'] },
