@@ -17,15 +17,18 @@
  * 本守卫的正确做法：**把播放器 HTML 取出来，用 `setContent` 在三个视口各自独立渲染**（验的是播放器本身）。
  *
  * 断言：
- *   ① 能取到播放器 HTML（取不到 → SKIP：未验证，退出码 2）
+ *   ① **自建夹具**（草稿 · 本人；2026-09-29 修数据依赖，原先是从库里现成件挑样本）并取到播放器 HTML
+ *      （取不到 → SKIP：未验证，退出码 2）
  *   ② HD 档（1440×900）：`body.hd` 在场；舞台逻辑宽 1280；`scale ≈ min(vw/1280, vh/720)`；**无横向溢出**
  *   ③ 手机档（768×900 / 390×844）：`body.hd` **缺席**（撤舞台）；根宽 ≤ 视口 +2；**场景宽 > 0（不许被压塌）**；无横向溢出
  *   ④ 档位切换在 1024 附近真实发生（三档 hd 标志应为 true/false/false）—— 这就是"宽窄自适应"的策略性证据
+ *   ⑤ 不留副作用：自建夹具跑完删除（清理**先于** report()，免得 report 里的 process.exit 跳过清理）
  *
  * 用法：BASE=http://school1.ziwi.cn node qa/verify_h5_stage.cjs
  */
 const { chromium } = require('playwright')
-const { must, report } = require('./lib/assert.cjs')
+const { must, skip, report } = require('./lib/assert.cjs')
+const { h5Content } = require('./lib/cwFixture.cjs')
 
 const BASE = process.env.BASE || 'http://school1.ziwi.cn'
 const PHONE = process.env.PHONE || '13800000002'
@@ -75,14 +78,27 @@ async function extractPlayerHtml(page) {
   must(!!lg.token, '教师登录成功（取样本用）', { user: lg.user && lg.user.name })
   const H = { Authorization: 'Bearer ' + lg.token }
 
-  const l = await (await fetch(`${BASE}/api/materials`, { headers: H })).json()
-  const items = (Array.isArray(l) ? l : (l.items || [])).filter(m => (m.format || '') === 'h5' && m.id)
-  if (!items.length) {
-    console.log('   [SKIP] 库内无 h5 课件样本 → 本套件**未验证**（skip ≠ pass）')
-    process.exit(2)
+  /* ── 自建夹具（2026-09-29 修 **数据依赖**）──────────────────────────────────────
+   * 此前是"从库里现成课件挑样本（≤2 个）"，库里没有 H5 件就直接 SKIP。清库时立刻暴露：
+   * 它的"绿"曾经**靠测试残留件**（`__E2E_H5自检_*` 之类）当样本 —— 等于把关键守卫能否运行，
+   * 挂在"恰好有人留了数据"上（清完残留就变成"未验证"）。
+   * 现改为**自建夹具、跑完自删**。可行性已实测（探针）：API 建的 H5 件即使 `h5_html` 为空，
+   * 查看页仍会**客户端渲染**出播放器（iframe srcDoc ≈70k 字、含 `syncHd()`），足以支撑本套判据。 */
+  const NAME = `__E2E_H5舞台自检_${Date.now()}`
+  const cr = await (await fetch(`${BASE}/api/materials/json`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({ name: NAME, type: 'courseware', format: 'h5', content: h5Content(), status: 'draft', subject: '语文', grade: '四年级' }),
+  })).json()
+  const ownId = cr && cr.id
+  must(!!ownId, '自建 H5 夹具（草稿 · 本人）—— 不再依赖库内现成样本', { id: ownId, name: NAME })
+  if (!ownId) {
+    skip('无法自建 H5 夹具 → 本套件**未验证**')
+    report()
+    process.exitCode = 2
+    return
   }
-  const samples = items.slice(0, 2)
-  console.log(`   [samples] h5 课件 ${samples.length} 个`)
+  const samples = [{ id: ownId, name: NAME }]
+  console.log(`   [samples] 自建 h5 夹具 1 个`)
 
   const browser = await chromium.launch()
   for (const m of samples) {
@@ -157,6 +173,11 @@ async function extractPlayerHtml(page) {
     }
   }
   await browser.close()
+
+  /* ── ⑤ 不留副作用：删掉自建夹具（清理**先于** report()，避免 report 里的 process.exit 跳过清理）── */
+  const delStatus = (await fetch(`${BASE}/api/materials/${ownId}`, { method: 'DELETE', headers: H })).status
+  must(delStatus === 200, '⑤ **本守卫不留副作用**：自建夹具已删除（先清理再 report）', { status: delStatus })
+
   report()
 })().catch(e => {
   console.error('✘ 守卫自身异常：' + e.message)
