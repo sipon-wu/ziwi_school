@@ -18,7 +18,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
-const { must, report } = require('./lib/assert.cjs')
+const { must, skip, report } = require('./lib/assert.cjs')
 
 const BASE = process.env.BASE || 'http://school1.ziwi.cn'
 const SERVER = process.env.SERVER || 'root@193.112.163.147'
@@ -193,13 +193,27 @@ const MUTATE = process.env.MUTATE === '1'
     must(rRec.dry_run === true && rRec.applied === false, '⑤ 对账是**干跑**（不写入）', { dry_run: rRec.dry_run })
     must((await realConfig()) === realConfigBefore, '⑤ 对账全程本地配置零改动（最要紧的一条）', {})
   } finally {
-    // 收尾：无论如何把云通道恢复为"未配置"（不把测试地址留在环境里）
+    // 收尾①：无论如何把云通道恢复为"未配置"（不把测试地址留在环境里）
     const closed = await setCfg({ url: '', enabled: false }).catch(() => null)
     console.log(`   [cleanup] 云通道已复位为未配置：${closed && closed.configured === false ? 'OK' : '需人工检查'}`)
+    // 收尾②：删掉写进容器的 mock 响应（2026-09-29 补）—— 体检器新加的 **A7 残留指标**抓到的：
+    //   本守卫**正常模式**也会写 `/tmp/qa_mock_cloud.json` 与 `/tmp/qa_mock_contract.json`（契约/坏输入用例），
+    //   此前只管复位配置、不管这两个文件 → 每跑一轮容器里就积 2 个（不判红的指标立刻起了作用）。
+    try {
+      execSync(`ssh -o ConnectTimeout=8 ${SERVER} 'docker exec -i ${CONTAINER} sh -c "rm -f /tmp/qa_mock_*.json"'`, { stdio: 'ignore' })
+    } catch { /* ssh 不可用时下面那条断言会显式报出来 */ }
   }
 
   const sEnd = await st()
   must(sEnd.configured === false, '收尾自检：云通道处于关闭状态（守卫不留下配置）', { status: sEnd })
+  // 收尾自检②：容器内 mock 文件已清空（`|| true` 不能省：grep -c 计数为 0 时退出码为 1）
+  try {
+    const left = execSync(`ssh -o ConnectTimeout=8 ${SERVER} 'docker exec -i ${CONTAINER} sh -c "ls /tmp 2>/dev/null | grep -c qa_mock || true"'`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    must(left === '0', '收尾自检：容器内测试 mock 文件已清理（守卫不留下临时件）', { left })
+  } catch {
+    skip('ssh 不可用 → 容器 mock 残留**未验证**')
+  }
   report()
 })().catch(e => {
   console.error('✘ 守卫自身异常：' + e.message)
