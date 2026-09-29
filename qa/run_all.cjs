@@ -54,6 +54,7 @@ const GUARDS = [
   { name: 'verify_thumbs', critical: true, covers: ['PPT 编辑器缩略图（数量/真实渲染/与库内容同步）'] },
   { name: 'verify_h5_flow', critical: true, covers: ['H5：派生 HTML 落库/重算 + 两态作用域 + 不白屏'] },
   { name: 'verify_h5_interactive', critical: true, covers: ['H5 互动组件（8 类渲染 / XSS 转义 / 向后兼容）'] },
+  { name: 'verify_h5_template', critical: true, covers: ['H5 模板库接入（池隔离 / 条目完备 / 面板用 H5 池）'] },
   // 2026-09-28：PPT 版式段从"浏览器选择器（已过期 → SKIP）"重写为**确定性判据**后升为关键守卫
   // （往返不丢版式 / 结构化版式几何两两不同 / 单列几何随风格 / 不得自创版式），并带变异自检。
   { name: 'verify_style_diversity', critical: true, covers: ['PPT 版式多样性（确定性判据）'] },
