@@ -15,7 +15,7 @@
  * 依赖：可直接 ssh 到部署机的环境（用 psql 查 audit_logs）；ssh 不可用时该项**明确标注跳过**，不伪装通过。
  */
 const { execFileSync } = require('child_process')
-const { must, report } = require('./lib/assert.cjs')
+const { must, skip, report } = require('./lib/assert.cjs')
 
 const B = process.env.BASE || 'http://school1.ziwi.cn'
 const SSH = process.env.SSH_TARGET || 'root@193.112.163.147'
@@ -76,7 +76,7 @@ const psql = (sql) => {
   /* ② audit_logs 表可用（存量库此前缺表 → IT 审计静默失效） */
   const tbl = psql(`SELECT count(*) FROM pg_tables WHERE tablename='audit_logs'`)
   if (tbl === null) {
-    must(true, '跳过：ssh 不可用，无法核验 audit_logs（**未验证**，非通过）')
+    skip('ssh 不可用 → audit_logs 表是否存在**未验证**')
   } else {
     must(tbl === '1', 'audit_logs 表存在（存量库缺表曾导致审计写入全部静默失败）', { pgTables: tbl })
   }

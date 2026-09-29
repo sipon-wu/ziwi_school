@@ -19,7 +19,7 @@
  *   ⑥ 平台公共资产（装饰元件，user_id 为空）PUT → 403（此前放行 = 安全漏洞）
  *   ⑦ 基线件可清零（cleanupFixtures）→ 库内 `__E2E基线_` 归零（"跑完不留残留"）
  */
-const { must, report } = require('./lib/assert.cjs')
+const { must, skip, report } = require('./lib/assert.cjs')
 const { session, ensurePptFixture, cleanupFixtures, PPT_NAME } = require('./lib/cwFixture.cjs')
 const { B } = require('./lib/cwFixture.cjs')
 
@@ -51,7 +51,7 @@ const { B } = require('./lib/cwFixture.cjs')
     const s3 = await del(firstDecor.id)
     must(s3 === 404, '公共装饰元件（非本人名下）不可删 → 404', { status: s3, id: firstDecor.id })
   } else {
-    must(true, '跳过公共装饰元件用例（本次无公共元件可取样）')
+    skip('本次无公共装饰元件可取样 → 「非本人名下不可删」**未验证**')
   }
 
   /* ④ 本人素材 PUT → 200（自己的课件照常能存） */
@@ -89,7 +89,7 @@ const { B } = require('./lib/cwFixture.cjs')
     const dPut = await fetch(`${B}/api/materials/${firstDecor.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ...dDetail, name: dDetail.name }) })
     must(dPut.status === 403, '平台公共资产（装饰元件）PUT → 403（此前放行的安全漏洞）', { status: dPut.status, id: firstDecor.id })
   } else {
-    must(true, '跳过公共资产 PUT 用例（本次无公共元件可取样）')
+    skip('本次无公共装饰元件可取样 → 「公共资产 PUT 必须 403」**未验证**')
   }
   // 变异注入（2026-09-27，A1b）：用**同事 token** 去改**本人**素材 —— 跨主体改写必须被归属校验拦住。
   // 若放行（200），说明"仅本人可改"没有真正生效（上面的 403 断言可能只是碰巧成立）。

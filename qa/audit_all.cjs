@@ -22,8 +22,8 @@
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
-const { execSync } = require('child_process')
-const { must, report } = require('./lib/assert.cjs')
+const { execSync, execFileSync } = require('child_process')
+const { must, skip, report } = require('./lib/assert.cjs')
 const { GUARDS, DONE_ITEMS } = require('./run_all.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -265,10 +265,35 @@ try { ssh('echo ok') } catch { sshOk = false }
     must(failedCrit.length === 0, 'A6 上次全量 runner：关键路径无失败', { lastRun: last.at, failedCrit })
     console.log(`   [last run] ${last.at} → passed=${last.passed.length} failed=${last.failed.length} skipped=${last.skipped.length}`)
   } else {
-    notes.push('[SKIP] A6 增量对账跳过：尚无 qa/.qa_last_run.json（先跑 node qa/run_all.cjs）')
+    skip('A6 增量对账**未验证**：尚无 qa/.qa_last_run.json（先跑 node qa/run_all.cjs）')
   }
   must(doc.includes('## 七·五') || doc.includes('七·五'),
     'A6 方案文档仍在（对账基准存在）', {})
+
+  /* ── A7 测试残留（**信息性，不判红** · 2026-09-29 补）──────────────────────────
+   * 为什么补：核查"补漏工作"时发现——我此前只查了**仓库与容器**有没有残留，**没查数据库**，
+   * 而库才是最容易被弄脏的一处：多次运行在共享 staging 里积了 45 条 `__E2E*` 测试件
+   * （根因：清理写在 `finally`，进程被 kill —— 包括我这边命令超时被取消 —— 就绕过）。
+   * 为什么**不判红**：残留多少取决于"有没有异常中断"，用它卡门会把"没跑过测试"和"跑漏了"混为一谈；
+   * 它的作用是把这一处**显性化**，别再一次只看仓库与容器就宣布"残留干净"。 */
+  try {
+    const SSH = process.env.SSH_TARGET || 'root@193.112.163.147'
+    const psqlAudit = (sql) => execFileSync('ssh', [SSH,
+      `set -a; . /opt/zhiwei/code/deploy/.env.staging; set +a; docker exec -i zhiwei-postgres-staging psql -U "$DB_USER" -d "$DB_NAME" -t -A -c ${JSON.stringify(sql)}`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 })
+      .split('\n').map(s => s.trim()).filter(s => s && !/WARNING|HINT|DETAIL|collation/i.test(s)).join('\n')
+    const n = Number(psqlAudit("SELECT count(*) FROM materials WHERE name LIKE '__E2E%'")) || 0
+    const oldest = n ? psqlAudit("SELECT min(to_char(created_at,'MM-DD HH24:MI')) FROM materials WHERE name LIKE '__E2E%'") : ''
+    console.log(`   [A7] 数据库测试件残留：**${n}** 条${n ? `（最早 ${oldest}）` : ' ✔'}` +
+      (n ? '  ← 信息性指标（不判红）：异常中断会绕过 finally 清理；清理口径见 qa/RETIRED.md' : ''))
+    // ⚠ 末尾 `|| true` 不能省：`grep -c` 计数为 0 时退出码为 1 → execFileSync 抛异常，
+    //   于是**最干净的场合**反而报"未取到"（首版就踩了）。
+    const tmpMock = execFileSync('ssh', [SSH, 'docker exec zhiwei-ai-staging sh -c "ls /tmp 2>/dev/null | grep -c qa_ || true"'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 }).trim()
+    console.log(`   [A7] 容器 /tmp 测试临时件：**${tmpMock}** 个${tmpMock === '0' ? ' ✔' : '  ← 信息性指标（我的云通道变异写的 mock 响应）'}`)
+  } catch (e) {
+    console.log(`   [A7] 测试残留：未取到（${String(e.message).slice(0, 40)}）—— 不影响本体检`)
+  }
 
   for (const n of notes) console.log('   ' + n)
   report()

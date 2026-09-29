@@ -22,7 +22,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { must, report } = require('./lib/assert.cjs')
+const { must, skip, report } = require('./lib/assert.cjs')
 const { session, B } = require('./lib/cwFixture.cjs')
 
 const MUTATE = !!process.env.MUTATE
@@ -162,7 +162,7 @@ function parseTsRegistry() {
     must(bad.length === 0, '④ 契约③：params **只含形状/语义槽、不含色值**（颜色由 styleDNA 渲染时填入）', { bad: bad.slice(0, 4) })
     const ids = a3.items.map(i => i.assetId).filter(Boolean)
     const dbRows = psql(`SELECT count(*) FROM materials WHERE id IN (${ids.map(i => `'${i}'`).join(',') || "''"})`)
-    if (dbRows === null) must(true, 'SKIP：ssh 不可用 → 资产存在性**未验证**（不计入通过）')
+    if (dbRows === null) skip('ssh 不可用 → 资产存在性**未验证**')
     else must(dbRows[0] === String(ids.length), '④ 返回的 assetId **确实存在于库**（materials 表）', { got: dbRows[0], want: ids.length })
     must(a2.items.every(i => i.params && i.params.medium && i.params.shape && typeof i.params.role === 'string'),
       '④ params 含形状/语义槽（shape/medium/role）', { sample: a2.items[0] && a2.items[0].params })

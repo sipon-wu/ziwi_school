@@ -24,7 +24,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { must, report } = require('./lib/assert.cjs')
+const { must, skip, report } = require('./lib/assert.cjs')
 
 const B = process.env.BASE || 'http://school1.ziwi.cn'
 const SSH = process.env.SSH_TARGET || 'root@193.112.163.147'
@@ -142,8 +142,8 @@ function parseMigrations() {
   /* ── 取库实际结构 ── */
   const have = readHave()
   if (have === null) {
-    must(true, 'SKIP①：ssh/psql 不可用 → 迁移↔库 对账**未验证**（不计入通过）')
-    must(true, 'SKIP②：同上 → 代码期望字段**未验证**')
+    skip('ssh/psql 不可用 → 迁移↔库 对账**未验证**')
+    skip('ssh/psql 不可用 → 代码期望字段**未验证**')
   } else {
     const dbTables = new Set([...have].map(s => s.split('|')[0]))
     const { tables, files } = parseMigrations()

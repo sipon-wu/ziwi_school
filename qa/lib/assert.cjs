@@ -15,6 +15,7 @@
  */
 let total = 0
 let fails = 0
+let skips = 0
 
 /** 断言 + 附证据（evidence 会原样打印，便于复核 —— 只打结论等于不可复核） */
 function must(cond, label, evidence) {
@@ -28,6 +29,17 @@ function must(cond, label, evidence) {
 
 /** 非空断言：挡掉 `includes('')` / `startsWith('')` 这类**恒真**写法。
  *  evidence 可传入更贴切的证据（如 { len }），默认给值的摘要。 */
+/** **未验证**（2026-09-29 补）：环境/样本不足时**不许**写成 `must(true, 'SKIP…')` ——
+ *  那种写法把"没验"记成"通过"（断言数 +1、整轮显示"全部通过"），是最隐蔽的假绿：
+ *  例：ssh 一断线，几条依赖库的判据就会**假装通过**。
+ *  本函数不计入断言通过、打印 `⏭ 未验证`，并把整轮退出码置 2（runner 据此记成"未验证"而非"通过"）。
+ *  用 `process.exitCode` 而不是 `process.exit()`，好让调用方的 finally 清理照常执行。 */
+function skip(reason, evidence) {
+  skips++
+  const ev = evidence === undefined ? '' : '  ' + JSON.stringify(evidence)
+  console.log(`  ⏭ 未验证：${reason}${ev}`)
+  process.exitCode = 2
+}
 function notEmpty(v, label, evidence) {
   const isEmpty = v === null || v === undefined || String(v).trim() === '' || (Array.isArray(v) && v.length === 0)
   const fallback = { got: Array.isArray(v) ? `array(${v.length})` : String(v).slice(0, 60) }
@@ -61,12 +73,17 @@ function allOf(items, pred, label) {
 
 /** 收口：任一条失败 → 非 0 退出（否则脚本会"跑完就当作通过"） */
 function report() {
-  console.log(`\n断言 ${total} 条，失败 ${fails} 条`)
+  console.log(`\n断言 ${total} 条，失败 ${fails} 条${skips ? `，未验证 ${skips} 项` : ''}`)
   if (fails) {
     console.log('✘ 有用例未通过 → 退出码 1（不要把这次当成"通过"）')
     process.exit(1)
   }
+  if (skips) {
+    console.log(`⏭ 有 ${skips} 项未验证（skip ≠ pass）→ 退出码 2（不要把这次当成"通过"）`)
+    process.exitCode = 2
+    return
+  }
   console.log('✔ 全部通过')
 }
 
-module.exports = { must, notEmpty, mustChange, sampled, allOf, report }
+module.exports = { must, skip, notEmpty, mustChange, sampled, allOf, report }
