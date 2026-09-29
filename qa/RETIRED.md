@@ -25,7 +25,7 @@
 | 7 | `verify_courseware_preview.cjs` | 课件(P4)轻量一致性验证：PreviewOverlay 统一承载课件全屏预览/播放 | `qa/verify_preview_pure.cjs` + `qa/verify_materials_preview_decor.cjs`（预览/装饰，已登记） |
 | 8 | `verify_courseware_preview_real.cjs` | 真实验证：创建多页课件 → 预览页(带左右侧栏、可下拉) → 编辑态 | `qa/verify_preview_pure.cjs` + `qa/verify_materials_preview_decor.cjs`（预览/装饰，已登记） |
 | 9 | `verify_courseware_preview_route.cjs` | 验证路由：列表 → 全屏预览（只读放映） → 编辑 | `qa/verify_preview_pure.cjs` + `qa/verify_materials_preview_decor.cjs`（预览/装饰，已登记） |
-| 10 | `verify_courseware_style_p1.cjs` | 真浏览器验证 P1（AI 生成课件风格模板）：登录 → 进 PPT 编辑器(/courseware/ppt/new) → AI 模式 → 选「科技」风格 → 生 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
+| 10 | `verify_courseware_style_p1.cjs` | 真浏览器验证 P1（AI 生成课件风格模板）：登录 → 进 PPT 编辑器(/courseware/ppt/new) → AI 模式 → 选「科技」风格 → 生成 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 11 | `verify_cursor.cjs` | 验证公式插入到【光标位置】而非文档末尾（真浏览器）。 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 12 | `verify_cw_view_unified.cjs` | (原文件无头部说明) | `qa/verify_editor_shell.cjs`（2026-09-29 补：6 个编辑器同壳校验 + 预览全屏层 + **真塞坏数据不白屏**）|
 | 13 | `verify_distill_base.cjs` | 蒸馏底座回归断言（知微·有谱引擎 RAG 素材层） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
@@ -88,66 +88,49 @@
 | 70 | `verify_user_plan.cjs` | 针对用户指定真实教案 lp_ee1dd53dfaf9（doc 模式）插入公式的真浏览器截图脚本。 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 71 | `verify_version_cadence.cjs` | 版本节奏验收（2026-09-15，按产品规则：生成 / 保存草稿 / 发布 三个时机形成版本） | `qa/verify_version_policy.cjs`（版本策略，已登记） |
 | 72 | `verify_view_unified.cjs` | 查看态统一 EditorLayout + 全屏预览 fullscreen 专项验证（staging 真浏览器） | `qa/verify_editor_shell.cjs`（2026-09-29 补：6 个编辑器同壳校验 + 预览全屏层 + **真塞坏数据不白屏**）|
+| 72 | `verify_dashboard_fix.cjs` | 首页/面板显示问题的一次性排查：收集 pageerror / console error 后人工判读 | **无接管** → **覆盖缺口**（见文末清单；本仓库目前没有自动守卫） |
+| 73 | `verify_h5_qr_three_entries.cjs` | 二维码只应出现在**预览/放映态**（2026-09-15）—— 按三种真实入口验全。 | `qa/verify_courseware_entries.cjs`（2026-09-29 收口） |
+| 74 | `verify_lesson_export_ui.cjs` | 教案 Word 导出（含公式 PNG 嵌入）的端到端排查：结果写 /tmp/lesson_result.json 供人工比对 | **无接管** → **覆盖缺口**（见文末清单；本仓库目前没有自动守卫） |
+| 75 | `verify_mde_toolbar.cjs` | 教案编辑器富文本（MDE）工具栏的一次性排查：登录 → 进编辑页 → 点工具栏，人工看现象 | **无接管** → **覆盖缺口**（见文末清单；本仓库目前没有自动守卫） |
 
-## 覆盖缺口清单（无接管者，共 30 个；2026-09-29 已收口 25 条）
+## 覆盖缺口清单（无接管者，共 **33** 个；已收口 **42** 条）
 
 这些性质**目前没有自动守卫**。要补，就在 `qa/` 下新写守卫并登记进 `qa/run_all.cjs`（写 covers + critical 视情况）。
+**本清单由 `node qa/sync_retired.cjs` 从上面的原文件表派生**（别再手改：手改正是当初"已收口却仍挂在缺口里"的原因）。
 
 - `verify_0915_deliverables` — 交付自证（2026-09-15）：把 4 份课件按教师入口打开，确认「不白屏 + 页数正常 + 零报错」，
 - `verify_annotation_version` — 知微 AI 教学助手 · 通用批注 + 版本快照 真浏览器验证
 - `verify_courseware_channels` — 真浏览器验证：教学课件三频道（PPT / H5 互动 / 视频）独立路由导航与可达性
 - `verify_courseware_list_click` — (原文件无头部说明)
 - `verify_courseware_ppt_fix` — 验证 PPT 课件列表点击进编辑态（有工具栏+缩略图可收起），而非只读放映页
-- `verify_courseware_style_p1` — 真浏览器验证 P1（AI 生成课件风格模板）：登录 → 进 PPT 编辑器(/courseware/ppt/new) → AI 模式 → 选
+- `verify_courseware_style_p1` — 真浏览器验证 P1（AI 生成课件风格模板）：登录 → 进 PPT 编辑器(/courseware/ppt/new) → AI 模式 → 选「科技」风格 → 生成
 - `verify_cursor` — 验证公式插入到【光标位置】而非文档末尾（真浏览器）。
-- `verify_cw_view_unified` — (原文件无头部说明)
 - `verify_distill_base` — 蒸馏底座回归断言（知微·有谱引擎 RAG 素材层）
-- `verify_docx_no_model` — 自证：教案 Word 导出里**不再出现内部配方**（生成模型 / qwen-plus / 发散边界 / 前置来源）2026-09-15
 - `verify_editor_p0` — Phase 0 编辑器框架重构专项验证（真实浏览器，本地 dev :5173 + staging 后端）
 - `verify_editor_p0_exam` — Phase 0 编辑器框架重构专项验证 · 组卷页（ExamBuilder 迁移）
 - `verify_editor_p0_exercise` — Phase 0 编辑器框架重构专项验证 · 出题页（ExerciseGenerator 迁移）
-- `verify_exam_generate` — verify_exam_generate.cjs — 出题 AI 生成端到端验证
-- `verify_exam_preview` — 验证试卷 A3 横排预览（ExamPreview 组件）staging · 13800000002
-- `verify_exam_warn` — P3 组卷页 G6 遗留 WARN 消除验证：打开 /exams/new，捕获 console 中的
-- `verify_export_formula` — 真实验证：公式导出一致性（教案+试卷 × Word+PDF）
 - `verify_formula` — 验证公式渲染集成（KaTeX）staging · 13800000002
 - `verify_formula_frames` — 公式编辑器逐帧验证 v2（真浏览器 + API 真相源）
 - `verify_formula_interactive` — 公式编辑器深度验证 v3（真点击 + 视觉量化）
 - `verify_frame_consistency` — { key: 'lessonplan', url: '/lesson-plans/new', scene: '教案' },
 - `verify_gen_version` — 生成路径验收（2026-09-15，产品规则第 1 条）：**系统生成并显示到屏幕上 = 自动一稿草稿**
 - `verify_geom` — 两态几何一致性（2026-09-14，第二版）
-- `verify_h5_draft_html` — 验证「H5 草稿也落派生 HTML」（2026-09-15）
-- `verify_h5_entry_states` — 按**教师真实入口**验证 H5 两态与右栏（2026-09-15）
-- `verify_h5_fit` — H5「整页适配舞台高度」验收（2026-09-15）
-- `verify_h5_interactive` — 真浏览器验证 H5 互动课件的投屏互动（7 组件 + XSS + 横屏提示 + 向后兼容）
-- `verify_h5_nav` — H5 导航/白屏两个问题的验收（2026-09-15）
-- `verify_h5_qr_scope` — 验证「二维码只属于预览/查看态」（2026-09-15）
-- `verify_courseware_entries` — 二维码只应出现在**预览/放映态**（2026-09-15）—— 按三种真实入口验全。
-- `verify_h5_rules` — H5 课件是否同一套版本规则的验收（2026-09-15）
-- `verify_h5_template` — 验证 H5 互动课件频道的模板库接入：
 - `verify_knowledge_boundary_fast` — 知识边界 · 精简版验收测试
 - `verify_knowledge_graph_fix` — 知识图谱缺陷修复验证：统计三类错误在 /lesson-plans/new 加载后出现次数
 - `verify_lesson_menus` — 知微 AI 教学助手 · 教案三子菜单职责对齐专项真浏览器 E2E
-- `verify_list_open_mode` — 验证「课件库列表点入 = 预览态」（2026-09-15）
 - `verify_materials_interactive_staging` — 聚焦验证：staging 后端 InteractiveSlots 落库 + 指针清空 + /uploads 静态路由
 - `verify_p7_and_h5` — 两条目测件的**几何/状态证据**（2026-09-15）
 - `verify_parity` — 临时验证脚本（2026-09-14）：编辑态 vs 预览态「同一页」逐字比对。
 - `verify_phase0` — Phase 0 有据引擎专项验证（真实浏览器）
 - `verify_physics_account` — 物理教师 13800000028 全流程验证
 - `verify_probe` — (原文件无头部说明)
-- `verify_reflow` — 「重新套版」（重档）语义的**确定性单测**（2026-09-15）——不依赖浏览器、不依赖 LLM。
-- `verify_review_pool` — 知微 AI 教学助手 · 教案互审池专项真浏览器 E2E（复用阅读视图 + 评审人落库）
-- `verify_route_consistency` — 五类资源：列表端点 + 路径前缀 + 场景关键词
 - `verify_s52_lock` — §5.2 家长端功能锁定验证：个人试用模式（licenseStatus !== 'active'）下，
-- `verify_sheet_unified` — 题单 SheetBuilder 专项验证：渲染健康 / 小微 / 统一 footer / 出题生成
-- `verify_shell_consistency` — 验证编辑器外壳一致性：题单 / 教案 / 出题 / 组卷 / 试卷 / 课件
 - `verify_source_panel_hidden` — 验证「来源（生成配方）」面板：**缺省隐藏**，`?debug=1` 才显示（2026-09-15）
-- `verify_switch_flow` — 换风格「多轮流程」验收（2026-09-15）
-- `verify_switch_style` — A 验收（2026-09-14）：「小微明确指令换风格」
 - `verify_template_modal` — 真浏览器验证：课件模板库统一弹层（按风格 / 按色系 双维度分类，选中即全文换肤套用）
-- `verify_thumbs` — 真实缩略图验证（2026-09-14）
 - `verify_user_plan` — 针对用户指定真实教案 lp_ee1dd53dfaf9（doc 模式）插入公式的真浏览器截图脚本。
-- `verify_view_unified` — 查看态统一 EditorLayout + 全屏预览 fullscreen 专项验证（staging 真浏览器）
+- `verify_dashboard_fix` — 首页/面板显示问题的一次性排查：收集 pageerror / console error 后人工判读
+- `verify_lesson_export_ui` — 教案 Word 导出（含公式 PNG 嵌入）的端到端排查：结果写 /tmp/lesson_result.json 供人工比对
+- `verify_mde_toolbar` — 教案编辑器富文本（MDE）工具栏的一次性排查：登录 → 进编辑页 → 点工具栏，人工看现象
 
 ---
 
@@ -183,7 +166,7 @@
 | 2026-09-29 | 教案互审（开关/待审列表/评审决策） | `verify_review_flow`（开关真写库 → 开关注入行为：定稿即 `pending` → 待审列表**含同事件、排除自己的** → 决策落地：列表消失且教案 `approved`；变异：**psql 绕过 API 改回 pending** → 列表必须重新出现） | `verify_review_pool` |
 | 2026-09-29 | 题单 · 习题库（工作单/简单卷面） | `verify_worksheet_flow`（真 CRUD：新建→回读一致→更新真写库→列表读真源→删除真删 404，题单只读可达；变异：**psql 绕过 API 改库** → 回读必须立刻反映）**⚠ 本守卫当前判红**：它抓到了缺陷 1（`exercise_sheets` 缺表；见下文），依赖项显式记未验证 | `verify_sheet_unified` |
 
-> 其余 **30** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 25 条见上表"接管者"列），按需一条条收。
+> 其余 **33** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 42 条见上表"接管者"列），按需一条条收。
 
 ---
 

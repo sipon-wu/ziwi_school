@@ -26,8 +26,8 @@
  * 变异（M3 · **强形态**）：`MUTATE=1` 时，④ 的状态翻转就是**真注入**（真改库数据 → 入口归属必须跟着变），
  *   并把它作为【变异测试·真注入】证据打印出来 —— 若有人把入口写死（忽略状态），这两条必然红。
  *
- * 用法：`node qa/verify_courseware_entries.cjs`（约 80s：两个通道 × 4 次跳转）
- *       `MUTATE=1 node qa/verify_courseware_entries.cjs`
+ * 用法：`node qa/verify_courseware_entry_modes.cjs`（约 80s：两个通道 × 4 次跳转）
+ *       `MUTATE=1 node qa/verify_courseware_entry_modes.cjs`
  */
 const { execFileSync } = require('child_process')
 const { chromium } = require('playwright')

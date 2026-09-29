@@ -126,6 +126,27 @@ const RULES = [
   const caught = RULES.filter(r => r.test(FAKE)).map(r => r.id)
   must(caught.includes('R1') && caught.includes('R3'),
     '反向自检：把"样本空 → exit 0"的假绿样本丢进规则，必须被 R1/R3 抓到（证明本门不是摆设）', { caught })
+  /* RETIRED.md 三处口径自洽（2026-09-29）：
+   *   ① 标题里的「共 N 个」 ② 缺口清单正文的条目数 ③ 原文件表里"无接管"的行数 —— 三者必须相等。
+   * 背景：这三处曾靠**手改**，于是收了 8 条缺口后计数改了、清单没划掉 → "反向脱节"
+   *   （清单说还缺，其实早有守卫）。现在口径由 `qa/sync_retired.cjs` 从原文件表派生，
+   *   本门只负责看它有没有被跑过（手改过就会当场报出来）。 */
+  try {
+    const md = fs.readFileSync(path.join(QA, 'RETIRED.md'), 'utf8').split('\n')
+    const head = md.find(l => /^## 覆盖缺口清单/.test(l)) || ''
+    const nHead = Number((head.match(/共 \*\*(\d+)\*\*/) || [])[1])
+    const s = md.findIndex(l => /^## 覆盖缺口清单/.test(l))
+    let e = s
+    while (e < md.length && !/^---\s*$/.test(md[e])) e++
+    const nBullet = md.slice(s, e).filter(l => /^- `/.test(l)).length
+    const nRows = md.filter(l => /^\| \d+ \|/.test(l) && /无接管|覆盖缺口/.test(l)).length
+    must(nHead === nBullet && nBullet === nRows,
+      'RETIRED.md 口径自洽：标题计数 == 缺口清单条数 == 表中"无接管"行数（手改过？跑 `node qa/sync_retired.cjs`）',
+      { 标题: nHead, 清单: nBullet, 表: nRows })
+  } catch (err) {
+    must(false, 'RETIRED.md 可读且口径自洽', { err: err.message })
+  }
+
   report()
 })().catch(e => {
   console.error('✘ 门自身异常：' + e.message)
