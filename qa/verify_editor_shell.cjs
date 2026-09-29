@@ -4,7 +4,7 @@
  * 覆盖退役文件（见 `qa/RETIRED.md` 缺口清单）：`verify_shell_consistency`（题单/教案/出题/组卷/试卷/课件
  * 外壳一致）、`verify_view_unified` / `verify_cw_view_unified`（查看态统一 EditorLayout + 全屏预览出口）、
  * `verify_route_consistency`（路由可达）。（`verify_list_open_mode` 的"点行=预览"已由
- * `qa/verify_h5_qr_three_entries.cjs` 接管，本守卫不重复。）
+ * `qa/verify_courseware_entries.cjs` 接管，本守卫不重复。）
  *
  * 为什么值得守：6 个编辑器共用**同一个外壳** `EditorLayout`（管左栏/右栏/footer/**全屏预览 overlay**）。
  * 谁把某一页改成自己画的壳，教师就会遇到"这页有预览、那页没有""预览不走全屏而是跳走"这类**不一致**；

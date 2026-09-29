@@ -2,7 +2,7 @@
  * H5 课件：派生 HTML 落库与重算 / 两态右栏作用域 / 查看→编辑不白屏 —— 2026-09-29 立
  *
  * 覆盖退役文件（见 `qa/RETIRED.md` 缺口清单）：`verify_h5_draft_html`（草稿也落派生 HTML）、
- * `verify_h5_qr_scope` + `verify_h5_qr_three_entries`（二维码只属于查看/预览态）、
+ * `verify_h5_qr_scope` + `verify_courseware_entries`（二维码只属于查看/预览态）、
  * `verify_h5_entry_states`（两态入口语义）、`verify_h5_nav`（查看→编辑切换不白屏，曾因 hooks 数量变化踩 React #310）。
  * （H5 一族的其余：`fit` / `interactive` / `rules` / `template` 仍是缺口，本守卫**不声称**覆盖。）
  *
