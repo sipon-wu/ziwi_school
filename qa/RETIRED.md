@@ -80,7 +80,7 @@
 | 62 | `verify_s52_lock.cjs` | §5.2 家长端功能锁定验证：个人试用模式（licenseStatus !== 'active'）下， | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 63 | `verify_sheet_unified.cjs` | 题单 SheetBuilder 专项验证：渲染健康 / 小微 / 统一 footer / 出题生成 | `qa/verify_worksheet_flow.cjs`（2026-09-29 补：习题库 CRUD + 题单只读可达）**⚠ 当前红：见真缺陷** |
 | 64 | `verify_shell_consistency.cjs` | 验证编辑器外壳一致性：题单 / 教案 / 出题 / 组卷 / 试卷 / 课件 | `qa/verify_editor_shell.cjs`（2026-09-29 补：6 个编辑器同壳校验 + 预览全屏层 + **真塞坏数据不白屏**）|
-| 65 | `verify_source_panel_hidden.cjs` | 验证「来源（生成配方）」面板：**缺省隐藏**，`?debug=1` 才显示（2026-09-15） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
+| 65 | `verify_source_panel_hidden.cjs` | 验证「来源（生成配方）」面板：**缺省隐藏**，`?debug=1` 才显示（2026-09-15） | `qa/verify_source_panel_scope.cjs`（2026-09-29 收口，口径见"缺口收口记录"） |
 | 66 | `verify_switch_flow.cjs` | 换风格「多轮流程」验收（2026-09-15） | `qa/verify_style_intent.cjs`（2026-09-29 补：意图/多轮确认/预演=真实影响/可回退 —— 确定性部分）|
 | 67 | `verify_switch_style.cjs` | A 验收（2026-09-14）：「小微明确指令换风格」 | `qa/verify_style_intent.cjs`（2026-09-29 补：意图/多轮确认/预演=真实影响/可回退 —— 确定性部分）|
 | 68 | `verify_template_modal.cjs` | 真浏览器验证：课件模板库统一弹层（按风格 / 按色系 双维度分类，选中即全文换肤套用） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
@@ -93,7 +93,7 @@
 | 74 | `verify_lesson_export_ui.cjs` | 教案 Word 导出（含公式 PNG 嵌入）的端到端排查：结果写 /tmp/lesson_result.json 供人工比对 | **无接管** → **覆盖缺口**（见文末清单；本仓库目前没有自动守卫） |
 | 75 | `verify_mde_toolbar.cjs` | 教案编辑器富文本（MDE）工具栏的一次性排查：登录 → 进编辑页 → 点工具栏，人工看现象 | **无接管** → **覆盖缺口**（见文末清单；本仓库目前没有自动守卫） |
 
-## 覆盖缺口清单（无接管者，共 **33** 个；已收口 **42** 条）
+## 覆盖缺口清单（无接管者，共 **32** 个；已收口 **43** 条）
 
 这些性质**目前没有自动守卫**。要补，就在 `qa/` 下新写守卫并登记进 `qa/run_all.cjs`（写 covers + critical 视情况）。
 **本清单由 `node qa/sync_retired.cjs` 从上面的原文件表派生**（别再手改：手改正是当初"已收口却仍挂在缺口里"的原因）。
@@ -125,7 +125,6 @@
 - `verify_physics_account` — 物理教师 13800000028 全流程验证
 - `verify_probe` — (原文件无头部说明)
 - `verify_s52_lock` — §5.2 家长端功能锁定验证：个人试用模式（licenseStatus !== 'active'）下，
-- `verify_source_panel_hidden` — 验证「来源（生成配方）」面板：**缺省隐藏**，`?debug=1` 才显示（2026-09-15）
 - `verify_template_modal` — 真浏览器验证：课件模板库统一弹层（按风格 / 按色系 双维度分类，选中即全文换肤套用）
 - `verify_user_plan` — 针对用户指定真实教案 lp_ee1dd53dfaf9（doc 模式）插入公式的真浏览器截图脚本。
 - `verify_dashboard_fix` — 首页/面板显示问题的一次性排查：收集 pageerror / console error 后人工判读
@@ -166,7 +165,9 @@
 | 2026-09-29 | 教案互审（开关/待审列表/评审决策） | `verify_review_flow`（开关真写库 → 开关注入行为：定稿即 `pending` → 待审列表**含同事件、排除自己的** → 决策落地：列表消失且教案 `approved`；变异：**psql 绕过 API 改回 pending** → 列表必须重新出现） | `verify_review_pool` |
 | 2026-09-29 | 题单 · 习题库（工作单/简单卷面） | `verify_worksheet_flow`（真 CRUD：新建→回读一致→更新真写库→列表读真源→删除真删 404，题单只读可达；变异：**psql 绕过 API 改库** → 回读必须立刻反映）**⚠ 本守卫当前判红**：它抓到了缺陷 1（`exercise_sheets` 缺表；见下文），依赖项显式记未验证 | `verify_sheet_unified` |
 
-> 其余 **33** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 42 条见上表"接管者"列），按需一条条收。
+| 2026-09-29 | 内部配方可见范围（教师视角缺省隐藏 / 诊断开关才显示） | `verify_source_panel_scope`（① **前置**：psql 真把生成配方写进 `gen_params` 并回读确认数据真在 —— 防"看不到只是因为没数据"**空转** ② 教师视角零命中 ③ `?debug=1` 三个诊断字段全命中 ④ localStorage `zhiwei_debug=1` 也生效 ⑤ 清掉即回到隐藏（每次真读） ⑥ 查看态也不显示 ⑦ pageerror=0 ⑧ 不留副作用；PPT + H5 两通道，17 断言 0 失败） | `verify_source_panel_hidden` |
+
+> 其余 **32** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 43 条见上表"接管者"列），按需一条条收。
 
 ---
 
