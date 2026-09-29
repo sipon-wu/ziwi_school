@@ -50,7 +50,7 @@
 | 32 | `verify_h5_nav.cjs` | H5 导航/白屏两个问题的验收（2026-09-15） | `qa/verify_h5_flow.cjs`（2026-09-29 补：派生 HTML 落库/改名重算、两态作用域、不白屏）|
 | 33 | `verify_h5_qr_scope.cjs` | 验证「二维码只属于预览/查看态」（2026-09-15） | `qa/verify_h5_flow.cjs`（2026-09-29 补：派生 HTML 落库/改名重算、两态作用域、不白屏）|
 | 34 | `verify_h5_qr_three_entries.cjs` | 二维码只应出现在**预览/放映态**（2026-09-15）—— 按三种真实入口验全。 | **部分接管**：`qa/verify_h5_flow.cjs`（2026-09-29 补）只验了**两态路由的作用域**；**列表点条目/点笔尖三种入口未验** → 仍是缺口|
-| 35 | `verify_h5_rules.cjs` | H5 课件是否同一套版本规则的验收（2026-09-15） | `qa/verify_h5_stage.cjs` **仅接管"HD 等比档 / 手机档"这一条**；其余性质（交互/二维码/导航/模板）**无接管** → 覆盖缺口 |
+| 35 | `verify_h5_rules.cjs` | H5 课件是否同一套版本规则的验收（2026-09-15） | `qa/verify_h5_rules.cjs`（2026-09-29 补：事件契约一致 / 版本快照落库 / 画布配色真变）|
 | 36 | `verify_h5_template.cjs` | 验证 H5 互动课件频道的模板库接入： | `qa/verify_h5_template.cjs`（2026-09-29 补：池隔离/条目完备/面板真用 H5 池）|
 | 37 | `verify_knowledge_boundary_fast.cjs` | 知识边界 · 精简版验收测试 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 | 38 | `verify_knowledge_graph_fix.cjs` | 知识图谱缺陷修复验证：统计三类错误在 /lesson-plans/new 加载后出现次数 | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
@@ -89,7 +89,7 @@
 | 71 | `verify_version_cadence.cjs` | 版本节奏验收（2026-09-15，按产品规则：生成 / 保存草稿 / 发布 三个时机形成版本） | `qa/verify_version_policy.cjs`（版本策略，已登记） |
 | 72 | `verify_view_unified.cjs` | 查看态统一 EditorLayout + 全屏预览 fullscreen 专项验证（staging 真浏览器） | **无接管** → **覆盖缺口**（该性质目前没有自动守卫；见本文末尾缺口清单） |
 
-## 覆盖缺口清单（无接管者，共 37 个；2026-09-29 已收口 18 条）
+## 覆盖缺口清单（无接管者，共 36 个；2026-09-29 已收口 19 条）
 
 这些性质**目前没有自动守卫**。要补，就在 `qa/` 下新写守卫并登记进 `qa/run_all.cjs`（写 covers + critical 视情况）。
 
@@ -158,7 +158,7 @@
 | ✅ | ~~**换风格流程**~~ **2026-09-29 已收（确定性部分）** | → `verify_style_intent`（25 断言 + 强形态变异：写死影响范围 / 剥掉 elements 回退）**仍未守：画布实际换肤/重排的渲染结果**（需真浏览器，见下表 ★★） | — | — |
 | ✅ | ~~**教案互审**（开关 → 待审列表 → 评审决策）~~ **2026-09-29 已收** | → `verify_review_flow`（12 断言 + 强形态变异：psql 改回 pending → 列表必须重新出现） | — | — |
 | ✅ | ~~**缩略图**（数量==页数、内容是真实渲染）~~ **2026-09-29 已收** | → `verify_thumbs`（9 断言 + 强形态变异：psql 删库里一页 → 缩略图 5→4 且该页标题消失） | — | — |
-| ★★ | **H5 交互一族** | 已收：`verify_h5_flow` + `verify_h5_interactive` + `verify_h5_template` + `verify_h5_fit`。**仍是缺口**：`h5_rules`（小微换风格在 H5）、`h5_qr_three_entries`（三种入口） | 中高：真浏览器 | 真改库内容/h5_html → 渲染必须跟着变 |
+| ★★ | **H5 交互一族** | 已收：`verify_h5_flow` / `verify_h5_interactive` / `verify_h5_template` / `verify_h5_fit` / `verify_h5_rules`。**仍是缺口**：`h5_qr_three_entries`（三种列表入口） | 中：真浏览器 | — |
 | ★ | **编辑器外壳/路由一致性**（6 个编辑器页 footer 预览、路由可达、不白屏） | `verify_route_consistency` / `verify_shell_consistency` / `verify_view_unified` / `verify_cw_view_unified` / `verify_list_open_mode` / `verify_lesson_menus` | 中：真浏览器 smoke，**难点是"强形态注入点"**（改库带不出差异 → 需另想注入，否则只能是弱形态） | 待想：例如真改前端 dist 里的某个 chunk（风险高，不推荐） |
 | ★ | 其余（公式插入光标、知识图谱、批注版本、S52 锁定、频道导航…） | 见下表 | 视条目 | 逐条定 |
 
@@ -170,6 +170,7 @@
 |---|---|---|---|
 | 2026-09-29 | 出题 · 组卷/试卷库 | `verify_exam_flow`（真造卷 → 回读一致 → 列表/预览读真数据；变异：**真改库题目** → 列表与预览必须跟着变） | `verify_exam_generate` / `verify_exam_preview` / `verify_exam_warn` |
 | 2026-09-29 | 导出 · 内部配方不泄漏 + 公式嵌入 | `verify_export_no_leak`（真打包导出器 → 真 docx 产物：正文进档 / 公式进 `word/media` / **不出现生成模型等内部配方**；变异：**真改被测源码**把"生成模型"写回 → 判据必须抓到） | `verify_docx_no_model` / `verify_export_formula`（公式部分） |
+| 2026-09-29 | H5 换风格规则（与 PPT 同规则） | `verify_h5_rules`（① **跨模块契约**：派发端常量 `SWITCH_STYLE_EVENT` === 监听端注册的事件名（不一致=面板说换了、画布不动）② 快照标签只有一处模板、无按格式分支（H5 与 PPT 同规则）③ 真页面按契约派发轻档换素净 → `handled=true` ④ 版本接口出现「换风格前（轻档 → 素净）」⑤ 画布 `srcdoc` 变了**且配色集合双向改变**（真换肤）⑥ pageerror=0；变异：**真改被测源码**改名事件常量 → ① 必须红） | `verify_h5_rules` |
 | 2026-09-29 | H5 整页适配（HD 档） | `verify_h5_fit`（① `?hd=1` 真进 HD 档且舞台 16:9 ② **逐页**量 `innerH(transform 后 rect) ≤ avail`（不看 scrollHeight —— 那是错口径）③ **前置**：至少一页确实触发等比适配，否则记**未验证**（防真空通过）④ pageerror=0；变异：**真改被测源码**让 `fitToStage` 提前 return（关掉适配）→ 出现"超屏不缩放"的页且无 `.fit` 页 ⇒ ②③ 必须红） | `verify_h5_fit` |
 | 2026-09-29 | H5 模板库接入 | `verify_h5_template`（① 池隔离：H5 池非空、每条 kind=h5、`getTemplatesByKind` 按媒介分流、**两池 id 不相交** ② 条目完备：id/name/themeId 非空、**themeId 能被配色解析器解析**（单独打包 pptThemes 做真解析，避免真空通过）、style 有中文标签、面板筛选函数不抛错 ③ **真浏览器**进 `/courseware/h5/new` 点「模板库」→ 出现 **H5 池独有模板名**（名字取自被测对象）且**不出现** PPT 独有模板名；变异：**真改被测源码**（H5 池清空 + 取池串池）→ ①② 必须红） | `verify_h5_template` |
 | 2026-09-29 | H5 互动组件（8 类渲染 / XSS / 向后兼容） | `verify_h5_interactive`（① 点读/跟读/选择/揭示/绘图/音频/视频/弹层**八类标记逐个列缺** ② 静态转义：产物里不得有裸 `<script>` 或裸 `onerror="`，且必须能看到 `&lt;script&gt;` ③ **真浏览器** `setContent` 后注入的 `window.__xss` 未被置位、组件在真 DOM 里存在、pageerror=0 ④ 未知类型/残缺 quiz 不抛错也不冒脏组件 ⑤ 含 HD 舞台+固定比例；变异：**真改被测源码把 `esc()` 置恒等** → ②③ 必须红，且实测**注入脚本在真浏览器里确实执行**） | `verify_h5_interactive` |
@@ -179,7 +180,7 @@
 | 2026-09-29 | 教案互审（开关/待审列表/评审决策） | `verify_review_flow`（开关真写库 → 开关注入行为：定稿即 `pending` → 待审列表**含同事件、排除自己的** → 决策落地：列表消失且教案 `approved`；变异：**psql 绕过 API 改回 pending** → 列表必须重新出现） | `verify_review_pool` |
 | 2026-09-29 | 题单 · 习题库（工作单/简单卷面） | `verify_worksheet_flow`（真 CRUD：新建→回读一致→更新真写库→列表读真源→删除真删 404，题单只读可达；变异：**psql 绕过 API 改库** → 回读必须立刻反映）**⚠ 本守卫当前判红**：它抓到了缺陷 1（`exercise_sheets` 缺表；见下文），依赖项显式记未验证 | `verify_sheet_unified` |
 
-> 其余 **37** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 18 条见上表"接管者"列），按需一条条收。
+> 其余 **36** 条缺口仍**无接管者**（见上表"覆盖缺口清单"，已收口的 19 条见上表"接管者"列），按需一条条收。
 
 ---
 
