@@ -47,10 +47,27 @@ const { GUARDS } = require('./run_all.cjs')
 
 const QA = __dirname
 
-/** 自证型守卫的**量化证据**：光说"检测到了"不算，必须给出可核对的数字 */
+/** 自证型守卫的**量化证据**：光说"检测到了"不算，必须给出可核对的数字
+ *  ⚠ 2026-09-29 更正：这两个守卫已从**弱形态**升级为**强形态**（真改库 / 真改容器源码），
+ *     旧的期望（`"distinguishable":0`、`"uniq":1` —— 那是"把数据造成同质"的产物）**早已不存在**，
+ *     门却还在按旧形态找证据 → 全量变异门因此误报 2 条失败（不是守卫坏了，是**门的期望过时**）。
+ *     现改为匹配强形态的真实证据：改成"恰好指认被改的那一对"、改容器源码后"漂移必须报出 china.font"。 */
 const EVIDENCE = [
-  { guard: 'verify_style_diversity_ab', detect: /"distinguishable":0/, what: '6 个课件同主题 → 可区分对数必须为 0' },
-  { guard: 'verify_style_tools', detect: /"uniq":1/, what: '9 个 style_tag 打成同一个 → 去重后必须只剩 1' },
+  {
+    guard: 'verify_style_diversity_ab',
+    detect: /"distinguishable":\d+,"total":\d+,"bad":\["/,
+    what: '真改库一个 fixture 的 theme_id → 对账必须**恰好指认那一对**不可区分（其余各对仍可区分）',
+  },
+  {
+    guard: 'verify_style_tools',
+    detect: /"drift":\["china\.font/,
+    what: '真改容器内 style_tools.py（font: kai→hei）+ 重启 → 漂移对账必须报出 china.font',
+  },
+  {
+    guard: 'verify_style_tools',
+    detect: /"tool":"kai","ts":"kai"/,
+    what: '还原后**自检**：工具返回与事实源重新一致（不留污染）',
+  },
 ]
 
 const onlyArg = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1]
