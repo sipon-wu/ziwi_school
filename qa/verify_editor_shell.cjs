@@ -59,6 +59,7 @@ const psql = (sql) => {
 const b64set = (text) => `convert_from(decode('${Buffer.from(text, 'utf8').toString('base64')}','base64'),'UTF8')`
 
 let br, id
+let createdByVisit = []   // 本轮冒烟过程中产品自动存出的草稿 id（收尾必须清掉）
 ;(async () => {
   const { H, get } = await session()
   br = await chromium.launch()
@@ -97,12 +98,27 @@ let br, id
   }
 
   /* ── ① 六页不白屏 ② 都有预览入口 ③ 点预览 → 同一个全屏层 ── */
+  /* ⚠ 副作用登记（2026-09-29 实测踩到）：打开 `/xxx/new` 并点「预览」会**自动存出一份草稿**
+   *   （名字「未命名_课件」）。首次上线这条守卫时它留下 3 份垃圾，把共享基线件挤出素材列表 →
+   *   同一轮全量里 `verify_preview_pure` 失败、`verify_cover_elements` 抛异常记未验证
+   *   （隔离复跑又全绿 —— 典型的"测试污染"。教训：**冒烟也要登记并清理自己造的数据**）。
+   *   故：进入前记一遍素材 id，跑完把本次新产生的删掉；finally 里再兜底删一次。 */
+  const listIds = async () => ((await (await fetch(`${B}/api/materials`, { headers: H })).json()).items || []).map(m => m.id)
+  const idsBefore = new Set(await listIds())
   const rows = []
   for (const [label, path] of EDITORS) {
     const r = await visit(path)
     rows.push({ label, path, ...r })
     console.log(`   [${label}] ${path} 文本=${r.len} 预览按钮=${r.hasPreview} 层(点前 ${r.layers} → 点后 ${r.after ? r.after.layers : '-'}) 新 pageerror=${r.newErrs}`)
   }
+  createdByVisit = (await listIds()).filter(x => !idsBefore.has(x))
+  console.log(`   [note] 这 6 页冒烟过程中产品自动存出的草稿 ${createdByVisit.length} 份（建页即自动存草稿＝产品行为；本守卫负责清掉，不留污染）`)
+  for (const mid of createdByVisit) await fetch(`${B}/api/materials/${mid}`, { method: 'DELETE', headers: H })
+  const leftAfter = (await listIds()).filter(x => !idsBefore.has(x))
+  must(leftAfter.length === 0,
+    '④ **本守卫不留副作用**：冒烟期间产品自动存出的草稿已全部清掉（测试污染会挤掉共享基线件、把别的守卫搞红）',
+    { created: createdByVisit.length, left: leftAfter.length })
+  createdByVisit = leftAfter   // 若仍有残留，交给 finally 再兜底删
   const blank = rows.filter(r => r.len < 250)
   must(blank.length === 0,
     `① **6 个编辑器页都不白屏**（文本长度 ≥ 250；实测 ${rows.map(r => `${r.label}:${r.len}`).join(' / ')}）`,
@@ -168,6 +184,15 @@ let br, id
   process.exitCode = 2
 }).finally(async () => {
   try { await br?.close() } catch { /* noop */ }
+  try {
+    const lg = await (await fetch(`${B}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: process.env.PHONE || '13800000002', password: process.env.PASS || 'teacher123' }),
+    })).json()
+    for (const mid of createdByVisit || []) {           // 兜底：异常中断时也要清掉冒烟产生的草稿
+      await fetch(`${B}/api/materials/${mid}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + lg.token } }).catch(() => { })
+    }
+  } catch { /* noop */ }
   if (!id) return
   try {
     const lg = await (await fetch(`${B}/api/auth/login`, {
