@@ -833,19 +833,22 @@ export default function ExerciseGenerator() {
     </EditorInfoPanel>
   )
 
-  const exerciseFooterLifecycle = useMemo(() => ({
-   saveDraftLabel: '保存为草稿',
-   publishLabel: '发布',
-    onSaveDraft: ctrl?.saveDraft ?? (() => {}),
-    onPublish: ctrl?.publish ?? (() => {}),
-    status: ctrl?.status,
-    saving: (ctrl?.saving ?? false) || publishing,
-  }), [ctrl?.saveDraft, ctrl?.publish, ctrl?.status, ctrl?.saving, publishing])
-
+  /* ⚠ 顺序修复（2026-09-30）：`ctrl` 用 `let` 声明、每次渲染重置为 undefined。
+   *   原代码**先**建 useMemo 页脚（依赖恒为 undefined → memo 永不重算）→ onSaveDraft 恒空操作，
+   *   页脚「保存为草稿」点了不保存（实测：22 题生成后 `questions` 表 0 新增）。必须**先**赋值 ctrl。 */
   ctrl = useEditorController({
     onSaveDraft: handleSaveToBank,
     onPublish: () => { if (savedIds.length === 0) toast('请先保存题目', 'warning'); else handlePublish() },
   })
+
+  const exerciseFooterLifecycle = useMemo(() => ({
+   saveDraftLabel: '保存为草稿',
+   publishLabel: '发布',
+    onSaveDraft: ctrl.saveDraft,
+    onPublish: ctrl.publish,
+    status: ctrl.status,
+    saving: (ctrl.saving ?? false) || publishing,
+  }), [ctrl.saveDraft, ctrl.publish, ctrl.status, ctrl.saving, publishing])
 
   // 查看态：进入查看态即自动打开全屏预览（按 id 重算，兼容同标签内切换不同题目）
   useEffect(() => {

@@ -22,6 +22,20 @@ import { exportExamPaper } from '../lib/exportExamDocx'
 import { printExamPaper } from '../lib/printPdf'
 import QuestionNav from '../components/QuestionNav'
 
+/* 组卷默认题型配比（按学科）—— 2026-09-30 修：
+ *   原先进 `/exams/new` 配比全 0（"共计 0 题"），教师不手动拉滑块直接点生成 → **0 题**。
+ *   按学科给一套合理默认值，进页即"有配比"（可再调）。 */
+const DEFAULT_TYPE_COUNTS: Record<string, Record<string, number>> = {
+  语文: { choice: 4, fill: 4, reading: 2, writing: 1 },
+  数学: { choice: 4, fill: 4, calculation: 4, application: 2 },
+  英语: { choice: 4, fill: 4, reading: 2, writing: 1 },
+}
+/** 按学科可选题型生成默认配比（无预设学科给 选择/填空 各 5） */
+const defaultTypeCounts = (subject: string): Record<string, number> => {
+  const preset = DEFAULT_TYPE_COUNTS[subject] || { choice: 5, fill: 5 }
+  return Object.fromEntries(getQuestionTypes(subject).map(t => [t.id, preset[t.id] ?? 0]))
+}
+
 export default function ExamBuilder() {
   const { id: examId } = useParams()
   const teaching = useTeaching()
@@ -82,11 +96,11 @@ export default function ExamBuilder() {
   const [extraRequirements, setExtraRequirements] = useState('')
   const [examDuration, setExamDuration] = useState(40)
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>(
-    () => Object.fromEntries(getQuestionTypes(teaching.subject).map(t => [t.id, 0]))
+    () => defaultTypeCounts(teaching.subject)
   )
   // 学科切换时重置题型配比（数学不出现阅读理解，语文不出现计算等）
   useEffect(() => {
-    setTypeCounts(Object.fromEntries(getQuestionTypes(teaching.subject).map(t => [t.id, 0])))
+    setTypeCounts(defaultTypeCounts(teaching.subject))
   }, [teaching.subject])
 
   // 选题状态
@@ -391,6 +405,12 @@ export default function ExamBuilder() {
       }),
     }).then(r => { if (r.ok) toast('已保存为草稿', 'success'); else toast('保存失败', 'error') }).catch(() => toast('网络错误', 'error'))
   }
+  /* ⚠ 顺序修复（2026-09-30）：`ctrl` 用 `let` 声明、每次渲染都重置为 undefined。
+   *   原代码**先**构造 examFooterLifecycle（此刻 ctrl 仍是 undefined）→ onSaveDraft/onPublish
+   *   恒为 `() => {}` → **页脚「保存为草稿」「发布」是空操作**（实测：点保存后 `exams` 表 0 新增）。
+   *   必须**先**赋值 ctrl 再取用它。对照 `LessonPlanEditor.tsx`（ctrl 赋值在前、页脚在后）为正确写法。 */
+  ctrl = useEditorController({ onSaveDraft: handleSaveExamDraft, onPublish: () => toast('发布功能开发中，请先在出题页导出发布', 'warning') })
+
   const examFooterLifecycle: {
     saveDraftLabel: string; publishLabel: string
     onSaveDraft: () => void; onPublish: () => void
@@ -398,13 +418,11 @@ export default function ExamBuilder() {
   } = {
     saveDraftLabel: '保存为草稿',
     publishLabel: '发布',
-    onSaveDraft: ctrl?.saveDraft ?? (() => {}),
-    onPublish: ctrl?.publish ?? (() => {}),
-    status: ctrl?.status,
-    saving: ctrl?.saving,
+    onSaveDraft: ctrl.saveDraft,
+    onPublish: ctrl.publish,
+    status: ctrl.status,
+    saving: ctrl.saving,
   }
-
-  ctrl = useEditorController({ onSaveDraft: handleSaveExamDraft, onPublish: () => toast('发布功能开发中，请先在出题页导出发布', 'warning') })
 
   // 查看态：进入查看态即自动打开全屏预览（按 examId 重算，兼容同标签内切换不同试卷）
   useEffect(() => {
