@@ -110,15 +110,31 @@ export default function KnowledgeGraph({
   const visibleNodes = useMemo(() =>
     data
       .filter(n => n.subject === subject)
+      // ⚠ 年级/学期过滤（2026-10-01 修）：`/api/ai/knowledge/nodes` **不返回 semester**
+      // （节点映射见 hooks/useKnowledgePicker.ts：只有 subject/grade/unit/version_id/...）。
+      // 于是 `sv(undefined)` 恒为 2，而「上册」cs=1 → `2 <= 1` 恒假 → **同年级节点全被滤掉**。
+      // 学期未知时不应过滤（它本就没这个信息）。
       .filter(n => {
         if (grade == null) return true
         const sv = (s: string) => s === '上' ? 1 : 2
         const cs = semester ? sv(semester) : 2
         if (n.grade < grade) return true
-        if (n.grade === grade) return sv(n.semester) <= cs
+        if (n.grade === grade) {
+          if (!n.semester) return true   // 学期未知 → 保留（接口未提供，不能据此否定）
+          return sv(n.semester) <= cs
+        }
         return false
       })
-      .filter(n => { const d = parseInt(n.difficulty.replace('L', '')); return d >= difficultyRange[0] && d <= difficultyRange[1] }),
+      // ⚠ 难度过滤（2026-10-01 修）：接口同样**不返回 difficulty**（实测 89/89 为空）→
+      // `parseInt('')` = NaN → `NaN >= 1` 恒假 → **全部节点被滤掉**，图谱恒显示
+      // 「当前筛选条件下暂无可知识点」，教师在课件页根本选不了知识点
+      // —— 这正是「课件从来没有知识点、因而从来没有课标」的根因。
+      // 缺值视为"未知难度"保留；可解析时才参与区间过滤。
+      .filter(n => {
+        const d = parseInt(String((n as any).difficulty ?? '').replace('L', ''), 10)
+        if (!Number.isFinite(d)) return true
+        return d >= difficultyRange[0] && d <= difficultyRange[1]
+      }),
   [data, subject, grade, semester, difficultyRange])
 
   const getColor = useCallback((node: KnowledgeNode): string => {
