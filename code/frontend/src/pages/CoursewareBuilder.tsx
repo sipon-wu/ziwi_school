@@ -164,6 +164,9 @@ export default function CoursewareBuilder() {
   // 发散边界 orbit/edge/beyond_band、教材版本、单元、模型）。生成后随草稿落库，
   // 编辑页才能回填「来源」——这是修"左栏与画布脱节"的关键数据。
   const [scopeResolved, setScopeResolved] = useState<ScopeResolvedPayload | null>(null)
+  // 课标对齐（2026-10-01 接线）：生成接口现已返回 curriculum_alignments（[{code,path,text}]），
+  // 此前课件页**完全没接** → 生成的课标被丢。这里接住，随草稿落库（与教案/试卷一致）。
+  const [curriculumAlign, setCurriculumAlign] = useState<any[]>([])
   const [cwMarkdown, setCwMarkdown] = useState('')
   const [cwH5Html, setCwH5Html] = useState('')
   const [cwSimilar, setCwSimilar] = useState<SimilarMaterial | null>(null)
@@ -446,6 +449,11 @@ export default function CoursewareBuilder() {
       // 统一形状：state 存"整个配方对象"（与从 gen_params 反解析出来的形状一致），
       // 避免生成态与加载态两种结构互相嵌套错位。
       setScopeResolved({ scope_resolved: res.scope_resolved ?? null })
+      // 课标对齐（2026-10-01）：ai-service 返回的是**数组**（历史契约可能是 JSON 字符串），两种都认。
+      {
+        const _ca: any = res.curriculum_alignments
+        try { setCurriculumAlign(Array.isArray(_ca) ? _ca : (typeof _ca === 'string' && _ca ? JSON.parse(_ca) : [])) } catch { setCurriculumAlign([]) }
+      }
       // 实时生成配色快照：后端按 学科/年级/风格 派生 styleDNA，优先于 theme_id 还原专属配色
       const nextColorRoot = res.color_palette ? JSON.stringify(res.color_palette) : ''
       // 风格模板（P1）：AI 生成后自动套用"最匹配模板"（风格+学段+学科多维匹配），无需教师再手动挑
@@ -693,7 +701,7 @@ export default function CoursewareBuilder() {
   const { savingCw, pendingGenSave, handleSaveDraft, handlePublish } = useCwSave({
     getDoc: () => ({
       genTitle, cwExtra, genStyleTag, genStyleProfile, divergenceLevel, edgeEnabled, edgeCats,
-      cwOutline, cwMarkdown, cwH5Html, cwDivergence, scopeResolved, themeId, colorRoot, videoConfig, coverDecor,
+      cwOutline, cwMarkdown, cwH5Html, cwDivergence, scopeResolved, curriculumAlign, themeId, colorRoot, videoConfig, coverDecor,
       cwFormat, subject: teaching.subject, gradeName, textbookName: teaching.currentTextbook(),
       picker, materialId, notMine, draftKey: getDraftKey(materialId), cwOpts,
       cwVer, ctrl,   // 二者声明在本调用点之后 → 靠惰性取值避开 TDZ（只在保存/发布发生时才读）

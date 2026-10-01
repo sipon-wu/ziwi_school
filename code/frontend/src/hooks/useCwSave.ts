@@ -165,6 +165,11 @@ export function useCwSave({
             style_tag: d.genStyleTag || '',
             style_profile: d.genStyleProfile || '',
             style_mode: d.genStyleTag ? 'preset' : (d.genStyleProfile.trim() ? 'free' : 'auto'),
+            // 课标对齐 + 知识点 id（2026-10-01 补）：与 material_handler 既有设计一致 ——
+            // 「知识点/课标等明细存 gen_params 快照，不另存列」（见 material_handler.go 注释）。
+            // 此前课件页**完全没接**生成响应里的 curriculum_alignments → 课标被丢。
+            curriculum_alignments: (d as any).curriculumAlign || [],
+            knowledge_node_ids: ((d.picker as any)?.selectedIds as any[]) || [],
             captured_at: new Date().toISOString(),
           })
         : undefined,

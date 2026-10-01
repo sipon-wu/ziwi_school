@@ -340,8 +340,11 @@ export default function LessonPlanEditor() {
       const hasExisting = content && content.trim().length > 0
       const generated = res.content || ''
       setContent(hasExisting ? content + '\n\n---\n\n' + generated : generated)
-      // curriculum_alignments 是 **JSON 字符串**（此前直接塞给数组 state，靠 any 掩盖 —— 真 bug）
-      try { setCurriculum(res.curriculum_alignments ? JSON.parse(res.curriculum_alignments) : []) } catch { setCurriculum([]) }
+      // curriculum_alignments 可能是**数组**（ai-service 直接返回）或 JSON 字符串（历史契约），两种都认。
+      // 只按字符串 JSON.parse 会在这版 ai-service 下**抛错 → 存成空数组**（2026-10-01 实测：
+      // 教案落库了但 curriculum_alignments 长度 0）。
+      const _ca: any = res.curriculum_alignments
+      try { setCurriculum(Array.isArray(_ca) ? _ca : (typeof _ca === 'string' && _ca ? JSON.parse(_ca) : [])) } catch { setCurriculum([]) }
       setModelVersion(res.model || 'qwen-plus'); setGenTime(res.generation_time_ms || 0)
       // 自动命名标题：用户未填时，根据知识点/单元/日期自动生成
       if (!lessonTitle.trim()) {

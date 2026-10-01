@@ -135,6 +135,8 @@ export interface CoursewareGenerateResp {
   style_profile?: string
   theme_id?: string
   scope_resolved?: ScopeResolved | null
+  /** 课标对齐（2026-10-01 起 ai-service 返回）：[{code,path,text}]；历史契约可能是 JSON 字符串 */
+  curriculum_alignments?: unknown
   textbook_version_name?: string
   /** 发散地图（编辑器"发散度"面板）；此前靠 `any` 才读得到 */
   divergence_map?: unknown[]
