@@ -22,10 +22,10 @@ ai-service 部署即可渲染；后续若要瘦身，改 url 为静态托管路�
         -v ON_ERROR_STOP=1 < /tmp/decor.sql'
 """
 import argparse
+import base64
 import json
 import os
 import sys
-import urllib.parse
 
 # index.json 枚举：styles / scenes / grades / subjects 的下标 → 中文受控词。
 # motif_root / color_root 与前端 cwTemplate STYLE_LABELS / COLOR_FAMILIES 同源，
@@ -51,8 +51,12 @@ def esc(s) -> str:
 
 
 def data_url(svg: str) -> str:
-    """把 SVG 文本包成 dataURL（与 main.go 占位图同款，零静态托管依赖）。"""
-    return "data:image/svg+xml;utf8," + urllib.parse.quote(svg.strip())
+    """把 SVG 文本包成 dataURL（零静态托管依赖）。
+
+    2026-10-01 修：此前用 urllib.parse.quote（percent 编码），**浏览器渲染不出**（实测只有
+    `;base64` 稳定可用）→ 装饰破图。改 base64。
+    """
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.strip().encode("utf-8")).decode("ascii")
 
 
 def main():

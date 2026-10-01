@@ -7,6 +7,8 @@
 //   - resolveDecorUrl 永远回落到 snapshot fallback，零回归
 import { decorAPI } from './api'
 import type { MaterialItem } from './api'
+import { normalizeDecorUrl } from './decorUrl'
+export { normalizeDecorUrl, normalizeDecorSlots } from './decorUrl'
 
 interface CatalogEntry {
   url: string
@@ -25,7 +27,7 @@ export function loadDecorCatalog(): Promise<void> {
       const res = await decorAPI.list({ scope: 'public', kind: 'decor_element' })
       const map = new Map<string, CatalogEntry>()
       for (const it of (res?.items ?? []) as MaterialItem[]) {
-        if (it.id && it.url) map.set(it.id, { url: it.url, name: it.name })
+        if (it.id && it.url) map.set(it.id, { url: normalizeDecorUrl(it.url), name: it.name })
       }
       catalog = map
     } catch {
@@ -40,5 +42,7 @@ export function loadDecorCatalog(): Promise<void> {
 export function resolveDecorUrl(assetId: string, fallback: string): string {
   if (!catalog && !loading) loadDecorCatalog() // 懒触发：任意消费点首次解析时后台拉取，下次命中
   const e = catalog?.get(assetId)
-  return e?.url || fallback
+  return normalizeDecorUrl(e?.url || fallback)
 }
+
+// 装饰 URL 归一化实现见 `decorUrl.ts`（零依赖，PPT/H5 共用）；本文件顶部已 re-export。

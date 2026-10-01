@@ -12,6 +12,7 @@ import type { CwTheme } from './pptThemes'
 import { DEFAULT_THEME } from './pptThemes'
 import type { DecoSpec } from './visualAsset/types'
 import type { DecorSlots, DecorItem } from './api'
+import { normalizeDecorSlots } from './decorUrl'
 import type { SlideLayout, SlideSlots } from './cwTemplate'
 import { distributeToSlots, getSkeleton, isStructuredLayout, pickContentLayout } from './cwTemplate'
 // 风格管形（2026-09-11）：导出必须与预览同口径，几何同样按风格打补丁
@@ -558,7 +559,7 @@ export function markdownToOutline(md: string): OutlineSlide[] {
     const dcMatch = line.match(/^<!--\s*CW-DECOR:([A-Za-z0-9+/=]+)\s*-->$/)
     if (dcMatch && cur) {
       const d = b64dec<DecorSlots>(dcMatch[1])
-      if (d && typeof d === 'object') cur.decor = d
+      if (d && typeof d === 'object') cur.decor = normalizeDecorSlots(d) // 归一化装饰 URL（破图修复，见 decorCatalog.normalizeDecorUrl）
       continue
     }
     // 自由元素层内嵌注释：<!-- CW-EL:base64 --> 还原到当前页 elements
@@ -781,7 +782,7 @@ export function parseCoverDecor(md: string): DecorSlots | null {
   const m = (md || '').match(/^<!--\s*CW-COVER:([A-Za-z0-9+/=]+)\s*-->\s*$/m)
   if (!m) return null
   const d = b64dec<DecorSlots>(m[1])
-  return d && typeof d === 'object' ? d : null
+  return d && typeof d === 'object' ? normalizeDecorSlots(d) : null // 归一化装饰 URL（破图修复）
 }
 
 /** 将任意对象 base64 化（UTF-8 安全），用于内嵌注释，规避特殊字符截断 */

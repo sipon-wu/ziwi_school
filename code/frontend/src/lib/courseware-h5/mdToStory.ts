@@ -1,4 +1,5 @@
 import { stripDecorMarkers } from '../textClean'
+import { normalizeDecorSlots } from '../decorUrl'
 
 /**
  * mdToStory —— 把"AI 课件 markdown"解析为绘本 Story
@@ -87,7 +88,7 @@ interface ParseCtx {
 function decodeCoverDecor(b64: string): SceneDecor | null {
   try {
     const o = JSON.parse(decodeURIComponent(escape(atob(b64))))
-    return o && typeof o === 'object' ? o as SceneDecor : null
+    return o && typeof o === 'object' ? normalizeDecorSlots(o) as SceneDecor : null // 归一化装饰 URL（破图修复）
   } catch { return null }
 }
 

@@ -33,10 +33,10 @@ package main
 //   DECOR_ASSETS_DIR=../ai-service/assets   （含 svg/ 与 tags.json）
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -267,7 +267,9 @@ func humanize(stem string) string {
 }
 
 func dataURL(svg string) string {
-	return "data:image/svg+xml;utf8," + url.QueryEscape(svg)
+	// 2026-10-01 修：url.QueryEscape 把空格编成 `+`，在 data: URL 里非法 → **装饰全破图**。
+	// 改 base64（浏览器实测唯一稳定可渲染的形式）。
+	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
 }
 
 func humanSize(n int64) string {

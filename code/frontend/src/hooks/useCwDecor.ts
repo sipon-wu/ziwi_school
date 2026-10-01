@@ -12,6 +12,7 @@
  */
 import { useState } from 'react'
 import { decorAPI, notifyError, type MaterialItem, type DecorItem, type DecorSlots } from '../lib/api'
+import { normalizeDecorUrl } from '../lib/decorUrl'
 import { H5_TEMPLATES, PPT_TEMPLATES, STYLE_LABELS, templateColorTags, templateStyleTags } from '../lib/cwTemplate'
 import type { OutlineSlide } from '../lib/exportPptx'
 import type { DecorSelection } from '../components/PptxPreview'
@@ -58,7 +59,7 @@ export function useCwDecor({
 
   /** 纯函数：把「选中槽位/索引」替换为 it —— 封面与内容页共用同一套槽位语义，故抽出复用 */
   const applySlotReplace = (cur: DecorSlots, it: DecorItem, sel: DecorSelection): DecorSlots => {
-    if (sel.slot === 'background') return { ...cur, background: it.url || '' }
+    if (sel.slot === 'background') return { ...cur, background: normalizeDecorUrl(it.url || '') }
     const key = sel.slot === 'corner' ? 'corners' : sel.slot
     const list = (cur as Record<string, unknown>)[key] as DecorItem[] || []
     return { ...cur, [key]: list.map((x: DecorItem, j: number) => (j === sel.index ? it : x)) }
@@ -67,7 +68,7 @@ export function useCwDecor({
   /** 替换当前选中的装饰：把素材库选中的元件写入选中装饰所在的槽位/索引 */
   const replaceDecorAt = (it: MaterialItem) => {
     if (!selDecor) return
-    const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
+    const item: DecorItem = { id: it.id, url: normalizeDecorUrl(it.url || ''), name: it.name }
     // 封面分支（③，2026-09-17）：封面是渲染时合成的、**不在 outline 内** → 写封面装饰状态，
     // 由 CoursewareBuilder 在保存时写回 markdown 的 CW-COVER 注释。内容页仍走原路不变。
     // 判据用「当前是否停在封面页」而非选中项本身：DecorSelection 只有 {slot,index}，
@@ -128,7 +129,7 @@ export function useCwDecor({
 
   /** 应用单个 AI 推荐装饰到当前页的浮动区（若当前页已有浮动装饰则追加） */
   const applyDecorSuggestion = (it: MaterialItem) => {
-    const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
+    const item: DecorItem = { id: it.id, url: normalizeDecorUrl(it.url || ''), name: it.name }
     const appendFloating = (cur: DecorSlots): DecorSlots => ({ ...cur, floating: [...(cur.floating || []), item] })
     // 封面分支（③）：同 replaceDecorAt，封面不在 outline 内
     if (deckIsCover) {
@@ -151,7 +152,7 @@ export function useCwDecor({
     setCwOutline(arr => arr.map((s, i) => {
       if (i === 0) return s // 封面保持干净
       const it = picks[i % picks.length]
-      const item: DecorItem = { id: it.id, url: it.url || '', name: it.name }
+      const item: DecorItem = { id: it.id, url: normalizeDecorUrl(it.url || ''), name: it.name }
       const cur: DecorSlots = s.decor || {}
       const floating = cur.floating || []
       // 仅避免同名重复（同页已有该推荐元件则跳过），其余页一律追加（即使已有模板内置装饰）

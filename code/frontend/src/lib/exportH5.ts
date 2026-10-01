@@ -6,6 +6,7 @@
 
 import { normalizeInteractive, extractBullets, type H5Component, type OutlineSlide } from './exportPptx'
 import type { DecorSlots } from './api'
+import { normalizeDecorUrl } from './decorUrl'
 
 export interface H5Slide {
   title: string
@@ -73,9 +74,9 @@ function esc(s: string): string {
 
 /** 插槽式装饰渲染：背景铺满 + 页眉/页脚/四角/浮动区绝对定位装饰元件。url 经 abs() 转义防注入。 */
 function renderDecor(d: DecorSlots): string {
-  const bg = d.background ? `<div class="dc-bg" style="background-image:url('${abs(d.background)}')"></div>` : ''
+  const bg = d.background ? `<div class="dc-bg" style="background-image:url('${abs(normalizeDecorUrl(d.background))}')"></div>` : ''
   const img = (it: { url: string; name?: string }, cls: string) =>
-    `<img class="dc-el ${cls}" src="${abs(it.url)}" alt="${esc(it.name || '装饰')}" loading="lazy">`
+    `<img class="dc-el ${cls}" src="${abs(normalizeDecorUrl(it.url))}" alt="${esc(it.name || '装饰')}" loading="lazy">`
   const layer = (items: { url: string; name?: string }[] | undefined, cls: string) =>
     (items || []).map(it => img(it, cls)).join('')
   return `<div class="dc-layer">

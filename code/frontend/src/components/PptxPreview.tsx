@@ -17,6 +17,7 @@ import { VisualBlockView } from './VisualBlocks'
 // 修复前此处 `u.lang` 硬编码 'en-US' → 中文用英文读，且只有"示范"按钮、无法暂停关闭。
 import { tts } from '../lib/tts'
 import type { DecorSlots, DecorItem } from '../lib/api'
+import { normalizeDecorUrl } from '../lib/decorUrl'
 
 const FONT = 'Microsoft YaHei'
 
@@ -259,13 +260,13 @@ function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, plac
           onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('background', 0) ? null : { slot: 'background', index: 0 }) } : undefined}
           onContextMenu={onCtx('background', 0)}
           className={`absolute inset-0 ${selectable ? 'pointer-events-auto cursor-pointer' : ''} ${isSel('background', 0) ? 'ring-2 ring-inset ring-[#02A7F0]' : ''}`}
-          style={{ backgroundImage: `url(${decor.background})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.18 }}
+          style={{ backgroundImage: `url(${normalizeDecorUrl(decor.background)})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.18 }}
         />
       )}
       {/* 页眉 */}
       <div className="absolute top-0 left-0 right-0 h-[18%] flex items-center justify-center gap-2">
         {items(decor.header).map((it, i) => (
-          <img key={`h${i}`} src={it.url} alt={it.name || '装饰'}
+          <img key={`h${i}`} src={normalizeDecorUrl(it.url)} alt={it.name || '装饰'}
             onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('header', i) ? null : { slot: 'header', index: i }) } : undefined}
             onContextMenu={onCtx('header', i)}
             className={imgCls('header', i, 'max-h-[80%] max-w-[40%] object-contain')} />
@@ -274,7 +275,7 @@ function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, plac
       {/* 页脚 */}
       <div className="absolute bottom-0 left-0 right-0 h-[18%] flex items-center justify-center gap-2">
         {items(decor.footer).map((it, i) => (
-          <img key={`f${i}`} src={it.url} alt={it.name || '装饰'}
+          <img key={`f${i}`} src={normalizeDecorUrl(it.url)} alt={it.name || '装饰'}
             onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('footer', i) ? null : { slot: 'footer', index: i }) } : undefined}
             onContextMenu={onCtx('footer', i)}
             className={imgCls('footer', i, 'max-h-[80%] max-w-[40%] object-contain')} />
@@ -285,7 +286,7 @@ function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, plac
         const it = items(decor.corners)[i]
         if (!it) return null
         const style: React.CSSProperties = pos === 'tl' ? { top: '4%', left: '4%' } : pos === 'tr' ? { top: '4%', right: '4%' } : pos === 'bl' ? { bottom: '4%', left: '4%' } : { bottom: '4%', right: '4%' }
-        return <img key={pos} src={it.url} alt={it.name || '装饰'} style={style}
+        return <img key={pos} src={normalizeDecorUrl(it.url)} alt={it.name || '装饰'} style={style}
           onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('corner', i) ? null : { slot: 'corner', index: i }) } : undefined}
           onContextMenu={onCtx('corner', i)}
           className={imgCls('corner', i, 'absolute max-w-[14%] max-h-[14%] object-contain')} />
@@ -293,7 +294,7 @@ function DecorLayer({ decor, selectable, selected, onSelect, onContextMenu, plac
       {/* 浮动 */}
       {items(decor.floating).map((it, i) => {
         const style: React.CSSProperties = i === 0 ? { top: '42%', left: '8%' } : i === 1 ? { top: '58%', right: '8%' } : { top: '30%', right: '10%' }
-        return <img key={`fl${i}`} src={it.url} alt={it.name || '装饰'} style={style}
+        return <img key={`fl${i}`} src={normalizeDecorUrl(it.url)} alt={it.name || '装饰'} style={style}
           onClick={selectable ? (e) => { stop(e); onSelect?.(isSel('floating', i) ? null : { slot: 'floating', index: i }) } : undefined}
           onContextMenu={onCtx('floating', i)}
           className={imgCls('floating', i, 'absolute max-w-[16%] max-h-[16%] object-contain')} />

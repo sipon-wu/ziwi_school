@@ -123,6 +123,10 @@ export default function CoursewareBuilder() {
   // 打开的是**他人**课件（2026-09-18，配合后端"素材仅本人可改"）：
   // 置位后保存/发布在前端直接拦下（见 useCwSave），预览态「编辑」按钮禁用 —— 不给出"编辑半天保存必失败"的陷阱。
   const [notMine, setNotMine] = useState(false)
+  // 课件**自身**的学科/年级（2026-10-01）：封面/页脚/导出优先用它，而不是登录者上下文。
+  // 此前数学课件《三位数乘两位数》封面显示"语文 · 四年级"——因为封面取了 `teaching.subject`（登录者=小微 默认语文）。
+  // 打开已有课件时由素材回填；新建/生成时两者相同（=当前上下文），零行为变化。
+  const [matMeta, setMatMeta] = useState<{ subject: string; grade: string }>({ subject: '', grade: '' })
   // 缩略图侧栏可收起（腾讯文档范式：左侧页管理可折叠，编辑区最大化）
   const [thumbCollapsed, setThumbCollapsed] = useState(false)
   // 全屏预览（放映态）开关：view 态由框架受控自动开
@@ -264,6 +268,7 @@ export default function CoursewareBuilder() {
         || (m.grade ? recommendTheme(m.subject || teaching.subject, GRADE_NAMES.indexOf(m.grade) + 1 || teaching.grade).themeId : themeId)
       const effColorRoot = m.color_root || ''
       setGenTitle((m.name || '').replace(/_课件$/, ''))
+      setMatMeta({ subject: m.subject || '', grade: m.grade || '' }) // 封面/页脚用课件自身的学科/年级
       // 归属判定（2026-09-18）：打开**他人**课件 → 置只读保护并说明原因。
       // 素材库按学校共享可见（列表带作者名），但写权限仅本人（后端 PUT /materials/:id 已收口）；
       // 这里在前端同步收口，避免"编辑半天 → 保存 403"。
@@ -349,7 +354,8 @@ export default function CoursewareBuilder() {
     || myClasses[0])?.class_name || ''
 
   const cwOpts = () => ({
-    subject: teaching.subject, grade: gradeName,
+    // 优先课件自身的学科/年级（打开已有课件时由素材回填）；新建/生成时同上下文，零变化。
+    subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName,
     // 课件标题（= 封面标题 / 每页页脚 / 保存进内容的 `#` 行）**不带 `_课件` 后缀**（2026-09-15）：
     // 素材名带后缀是为了在课件库里区分类型，但它此前一路渗进封面——教师看到封面写着
     // 「观潮 国风 09-15_课件」（H5 封面同样中招）。素材名仍在保存时另行拼接，故此处剥掉；
@@ -374,7 +380,7 @@ export default function CoursewareBuilder() {
 
   const { docSlide, deckIdx, goToPage, cwThumbSlides, previewSlides } = useCwPreview({
     cwOutline, cwOpts,
-    subject: teaching.subject, gradeName, title: genTitle, classLabel, themeId, colorRoot, aspect: cwAr,
+    subject: matMeta.subject || teaching.subject, gradeName: matMeta.grade || gradeName, title: genTitle, classLabel, themeId, colorRoot, aspect: cwAr,
     coverDecor,
   })
 
@@ -404,7 +410,7 @@ export default function CoursewareBuilder() {
         : ''
       const isH5 = cwFormat === 'h5'
       const res = await aiAPI.generateCoursewareStreaming({
-        subject: teaching.subject, grade: gradeName, lesson_title: genTitle.trim(),
+        subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName, lesson_title: genTitle.trim(),
         content: (base as any)?.content || '', school_id: getSchoolId(),
         textbook_version: teaching?.currentTextbook?.() || '',
         // 教材版本**实体引用**（2026-09-13）：来自知识图谱节点自带的 version_id —— 与后端同源，
@@ -469,7 +475,7 @@ export default function CoursewareBuilder() {
       // H5 频道：用本轮确定的 nextThemeId/nextColorRoot 渲染（预览/发布均直接使用）
       const nextH5Html = isH5 && md
         ? markdownToStorybookH5(md, {
-            subject: teaching.subject, grade: gradeName, title: genTitle.trim(),
+            subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName, title: genTitle.trim(),
             teacherName: safeGetUser().name || '教师', themeId: nextThemeId,
             colorRoot: nextColorRoot,
           })
@@ -562,7 +568,7 @@ export default function CoursewareBuilder() {
     try {
       const md = outlineToMarkdown(cwOutline, cwOpts())
       const r: any = await aiAPI.renderPptCourseware({
-        markdown: md, title: `${genTitle.trim()}_课件`, subject: teaching.subject, grade: gradeName,
+        markdown: md, title: `${genTitle.trim()}_课件`, subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName,
         style_tag: genStyleTag || undefined,
         theme_id: themeId,
       })
@@ -590,7 +596,7 @@ export default function CoursewareBuilder() {
     setGenVideo(true)
     try {
       const r: any = await aiAPI.generateVideoScript({
-        markdown: md, title: genTitle.trim() || '视频课件', subject: teaching.subject, grade: gradeName,
+        markdown: md, title: genTitle.trim() || '视频课件', subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName,
       })
       const shots = r.video_script || []
       if (!shots.length) { toast('分镜未返回内容', 'warning'); return }
@@ -618,12 +624,12 @@ export default function CoursewareBuilder() {
   }
   const exportCwDocx = async () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    const blob = await exportLessonPlanToDocx(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: genTitle.trim().replace(/_课件$/, ''), teacher: safeGetUser().name || '', model: 'qwen-plus' })
+    const blob = await exportLessonPlanToDocx(outlineToMarkdown(cwOutline, cwOpts()), { subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName, title: genTitle.trim().replace(/_课件$/, ''), teacher: safeGetUser().name || '', model: 'qwen-plus' })
     downloadBlob(blob, `${genTitle.trim()}_${teaching.subject}${gradeName}.docx`)
   }
   const exportCwPdf = () => {
     if (!cwOutline.length) { toast('课件内容为空', 'warning'); return }
-    printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: teaching.subject, grade: gradeName, title: genTitle.trim().replace(/_课件$/, ''), teacherName: safeGetUser().name || '' })
+    printLessonPlan(outlineToMarkdown(cwOutline, cwOpts()), { subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName, title: genTitle.trim().replace(/_课件$/, ''), teacherName: safeGetUser().name || '' })
   }
   // H5 互动课件：直接消费与 PPT 同源的提纲 OutlideSlide[]，首段作封面、其余为内容页。
   // 手动互动插槽优先：若某页有合法 interactive 用真互动；否则 notes 兜底 reveal；否则纯内容页。
@@ -653,7 +659,7 @@ export default function CoursewareBuilder() {
       const haystack = (cwH5Html || '') + '\n' + JSON.stringify(slides) + '\n' + JSON.stringify(cwOutline)
       const hasPersonal = /personal:\/\/|user-upload\/|u-teacher\/assets\/personal/i.test(haystack)
       const blob = exportH5Courseware(slides, {
-        subject: teaching.subject, grade: gradeName, title: `${genTitle.trim()}_课件`,
+        subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName, title: `${genTitle.trim()}_课件`,
         teacherName: safeGetUser().name || '教师',
         autoPlay: true,
         autoPlayInterval: 8,
@@ -768,7 +774,7 @@ export default function CoursewareBuilder() {
       try {
         const md = outlineToMarkdown(cwOutline, cwOpts())
         setCwH5Html(markdownToStorybookH5(md, {
-          subject: teaching.subject, grade: gradeName, title: genTitle.trim(),
+          subject: matMeta.subject || teaching.subject, grade: matMeta.grade || gradeName, title: genTitle.trim(),
           teacherName: safeGetUser().name || '教师', themeId, colorRoot,
         }) || '')
       } catch (e: any) {

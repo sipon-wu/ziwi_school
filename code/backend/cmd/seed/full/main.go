@@ -9,10 +9,10 @@ package main
 // 所有统计接口按 teacher_id 过滤，故演示业务数据统一归属 13800000002。
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"time"
 
@@ -501,7 +501,10 @@ func main() {
 	// 图片资源尚未上传，URL 用内联 SVG dataURL，保证前端 AI 推荐/装饰面板可直接渲染；
 	// 待平台上传真实素材后，将 URL 替换为素材库地址即可。
 	svgDecor := func(svg string) string {
-		return "data:image/svg+xml;utf8," + url.QueryEscape(svg)
+		// 2026-10-01 修：此前用 url.QueryEscape（空格 → `+`），而 data: URL 里 `+` 是**字面量**、不解成空格
+		// → SVG 变 `<svg+xmlns=...` 非法 → **装饰全破图**（每页角标/浮动都挂）。改 base64
+		// （浏览器实测：percent 编码形式渲染不出，只有 `;base64` 稳定可用）。
+		return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
 	}
 	decorElements := []model.Material{
 		// 国风：印章角标 + 竹枝
