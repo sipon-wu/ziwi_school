@@ -268,10 +268,14 @@ export default function LessonPlanEditor() {
       setSubject(data.subject || '语文')
       setGrade(data.grade || '四年级')
       setLessonTitle(data.title || data.lesson_title || '')
-      setTextbookUnit(data.textbook_unit || '')
+      // 读侧字段名兼容（2026-10-01）：LessonPlan model 的 json tag 是 unit / lesson_period /
+      // template_type / knowledge_nodes（见 backend/internal/model/models.go），而本页此前读的是
+      // textbook_unit / period / format_template / knowledge_node_ids —— 名字对不上 → 回显恒空。
+      // 两种都认，后端将来统一命名也不会坏。
+      setTextbookUnit(data.textbook_unit || data.unit || '')
       // period 后端可能返回字符串（"2"）——此前靠 any 掩盖，这里显式收敛为数字
-      setPeriod(Number(data.period) || 1)
-      setTemplate(data.format_template || 'core_literacy')
+      setPeriod(Number(data.period ?? data.lesson_period) || 1)
+      setTemplate(data.format_template || data.template_type || 'core_literacy')
       const c = data.content || ''
       setContent(c === '{}' || c === '""' ? '' : c)
       setPlanId(data.id || null)
@@ -293,10 +297,12 @@ export default function LessonPlanEditor() {
         } catch { /* ignore */ }
       }
       // 回显已保存的知识点
-      if (data.knowledge_node_ids) {
+      // 读侧字段名兼容（2026-10-01）：model json tag 是 `knowledge_nodes`（列名才是 knowledge_node_ids）
+      const knRaw = data.knowledge_node_ids ?? data.knowledge_nodes
+      if (knRaw) {
         try {
           // 后端可能给 JSON 字符串，也可能直接给数组（此前靠 any 掩盖，会直接抛错）
-          const raw = data.knowledge_node_ids
+          const raw = knRaw
           const ids = typeof raw === 'string' ? JSON.parse(raw) : raw
           if (Array.isArray(ids)) {
             setSavedKnowledgeIds(ids)

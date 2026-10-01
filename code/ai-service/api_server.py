@@ -149,7 +149,7 @@ from vector_store import (
 from materials_store import list_materials, rank_materials  # noqa: E402
 # 知识图谱 / 课标 / 题库检索（知识面约束、课标备注、组卷抽题）
 from kg_store import (  # noqa: E402
-    resolve_knowledge_scope, map_curriculum, list_bank_questions,
+    resolve_knowledge_scope, map_curriculum, map_curriculum_by_nodes, list_bank_questions,
     list_kg_nodes, list_kg_units,   # 统一数据源：前端选择器改为读 DB（2026-09-13）
     lookup_version_id,              # 学科/年级/册别 → version_id（2026-09-18，C3 收口）
 )
@@ -604,7 +604,13 @@ async def gen_lesson_plan(req: Request):
 
     kp_names, prereq_names = _resolve_scope(body)
     try:
-        curriculum = map_curriculum(body.get("curriculum_codes") or [], subject, grade)
+        # 2026-10-01 修「课标对齐恒空」：改走真链路——按所选知识点反查「教材-课标映射表」。
+        # 原 `map_curriculum(codes)` 只认前端直传的 curriculum_codes，而该值源自知识图谱节点的
+        # `curriculum_code` 字段，`tb_kg_node` 根本没有这一列 → codes 恒空 → 课标恒为空。
+        # 新路径：知识点 → (version_id, dan_yuan) → tb_version_standard_map → tb_standard_clause；
+        # 失败/无映射时回退旧编码路径，行为向后兼容。
+        _kp_ids = body.get("selected_knowledge_ids") or []
+        curriculum = map_curriculum_by_nodes(_kp_ids, subject, grade) or map_curriculum(body.get("curriculum_codes") or [], subject, grade)
     except Exception as e:
         # 拆静默：课标映射失败会让教案"课标对齐"整块为空
         logger.warning("课标映射失败（本次课标对齐为空）：%s", e)
@@ -990,6 +996,16 @@ async def gen_courseware(req: Request):
         "unit": unit or "",
         "model": _effective_model(),   # 复用既有实现（勿另写一份）：库优先、env 兜底
     }
+
+    # 课标对齐（2026-10-01 新增）：课件此前**完全没算**课标（返回体里没有此字段）→ 落库恒空。
+    # 走真链路：知识点 → (version_id, dan_yuan) → tb_version_standard_map → tb_standard_clause；
+    # 无映射时回退旧编码路径（行为向后兼容，最差也是空数组，不阻断生成）。
+    try:
+        curriculum_alignments = map_curriculum_by_nodes(body.get("selected_knowledge_ids") or [], subject, grade) or \
+            map_curriculum(body.get("curriculum_codes") or [], subject, grade)
+    except Exception as _ce:
+        logger.warning("课件课标映射失败（本次课标对齐为空）：%s", _ce)
+        curriculum_alignments = []
 
     # ── P1 受控编排 S0–S5（2026-09-27）──────────────────────────────────────
     # 为什么要有它：此前从"收到请求"直接跳到"调 LLM"，中间没有**明确的步骤**可观测 —— 教师看不到
@@ -1433,6 +1449,9 @@ async def gen_courseware(req: Request):
 
     return {
         "courseware_markdown": courseware,
+        # 课标对齐（2026-10-01 新增）：与教案/试卷**同构**（[{code,path,text}]），
+        # 供前端随产物落库 `materials.curriculum_alignments`。此前课件响应里没有此字段 → 恒空。
+        "curriculum_alignments": curriculum_alignments,
         "style_dna": meta.get("style_dna") if isinstance(meta, dict) else None,
         "decor_refs": meta.get("decor_refs") if isinstance(meta, dict) else None,
         # 生成配方（溯源，2026-09-13）：本次知识面（source=teacher/kg + 前置来源）+ 发散边界
@@ -2367,7 +2386,10 @@ async def gen_exam(req: Request):
 
     kp_names, prereq_names = _resolve_scope(body)
     try:
-        curriculum = map_curriculum(body.get("curriculum_codes") or [], subject, grade) if (kp_ids or body.get("curriculum_codes")) else []
+        # 2026-10-01 同教案：课标改走真链路（知识点 → 单元 → 教材-课标映射表），旧编码路径作回退。
+        curriculum = map_curriculum_by_nodes(kp_ids) or (
+            map_curriculum(body.get("curriculum_codes") or [], subject, grade) if (kp_ids or body.get("curriculum_codes")) else []
+        )
     except Exception:
         curriculum = []
 

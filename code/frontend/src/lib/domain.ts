@@ -231,6 +231,13 @@ export interface LessonPlanItem {
   material_refs?: string | unknown[]
   /** 知识点 ID：JSON 字符串或数组（保存时 stringify，回显时 parse） */
   knowledge_node_ids?: string | unknown[]
+  /* ── 后端 LessonPlan model 的 json tag（2026-10-01 补）──
+   * 响应实际用的是这套名字（见 backend/internal/model/models.go），与上面几个同义。
+   * 两者都声明，读侧才能都兼容（否则 tsc 直接报 TS2339「属性不存在」）。 */
+  unit?: string
+  lesson_period?: string | number
+  template_type?: string
+  knowledge_nodes?: string | unknown[]
   updated_at?: string
   created_at?: string
   /** 部分接口会把 body 再包一层 { data } */

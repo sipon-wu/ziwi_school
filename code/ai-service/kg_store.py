@@ -316,6 +316,61 @@ def map_curriculum(codes, subject="", grade=""):
     return out
 
 
+def map_curriculum_by_nodes(node_ids, subject="", grade=""):
+    """按所选知识点反查课标（2026-10-01 新增，修「课标对齐恒空」）。
+
+    真链路：知识点 → (version_id, dan_yuan) → tb_version_standard_map → tb_standard_clause。
+
+    为什么需要它：原 `map_curriculum` 只认前端直传的 `curriculum_codes`，而该值源自知识图谱节点的
+    `curriculum_code` 字段——`tb_kg_node` **根本没有这一列**（见 backend/internal/model/knowledge.go 的
+    KGNode）→ codes 恒空 → 课标对齐恒为空。这里改走真链路（教材-课标映射表，与知识点同 era 同 build 产出，
+    dan_yuan 语义同一套，可直接 join）。
+
+    返回结构与 `map_curriculum` **同构**（[{code, path, text}]），前端契约不变。
+    """
+    if not node_ids:
+        return []
+    out, seen = [], set()
+    try:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            ph = ",".join(["%s"] * len(node_ids))
+            nodes = _fetchall(
+                cur,
+                f"SELECT DISTINCT version_id, dan_yuan FROM tb_kg_node "
+                f"WHERE id IN ({ph}) AND dan_yuan IS NOT NULL AND dan_yuan <> ''",
+                tuple(node_ids),
+            )
+            for n in nodes:
+                vid = n.get("version_id")
+                dy = (n.get("dan_yuan") or "").strip()
+                if vid is None or not dy:
+                    continue
+                rows = _fetchall(
+                    cur,
+                    "SELECT c.ye_zi_bian_hao, c.tiao_mu_lu_jing, c.zheng_wen "
+                    "FROM tb_version_standard_map m JOIN tb_standard_clause c ON c.id = m.standard_clause_id "
+                    "WHERE m.version_id = %s AND m.dan_yuan = %s",
+                    (vid, dy),
+                )
+                for r in rows:
+                    path = (r.get("tiao_mu_lu_jing") or "").strip()
+                    code = (r.get("ye_zi_bian_hao") or "").strip() or path
+                    key = code or path
+                    if not key or key in seen:
+                        continue
+                    seen.add(key)
+                    out.append({"code": code, "path": path, "text": (r.get("zheng_wen") or "")[:120]})
+        finally:
+            conn.close()
+    except Exception as e:
+        import sys
+        sys.stderr.write(f"[kg_store] map_curriculum_by_nodes ERROR: {e}\n")
+        sys.stderr.flush()
+    return out
+
+
 def list_bank_questions(subject, grade, knowledge_names, types=None, limit=60, exclude_ids=None):
     """从题库（questions）按 学科/年级/知识点名称/题型 抽取题目，供组卷优先使用。
 

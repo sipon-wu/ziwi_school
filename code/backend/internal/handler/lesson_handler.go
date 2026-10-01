@@ -33,6 +33,17 @@ type CreateLessonRequest struct {
 	Unit         string `json:"unit"`
 	Content      string `json:"content"` // 草稿允许空内容
 	MaterialRefs string `json:"material_refs"`
+	// ── 对齐字段（2026-10-01 补）─────────────────────────────────────────────
+	// 此前 DTO 未收这些字段，而 `ShouldBindJSON` 对未知字段**静默丢弃**（Go 默认行为）→
+	// 前端明明传了 knowledge_node_ids / curriculum_alignments / period / format_template，
+	// 教案却恒不落库 —— 这是「课标/知识点/单元恒空」的直接根因。
+	Period               int    `json:"period"`
+	FormatTemplate       string `json:"format_template"`
+	KnowledgeNodeIDs     string `json:"knowledge_node_ids"`
+	CurriculumAlignments string `json:"curriculum_alignments"`
+	AIGenerated          bool   `json:"ai_generated"`
+	AIModelVersion       string `json:"ai_model_version"`
+	GenerationTimeMs     int    `json:"generation_time_ms"`
 }
 
 // UpdateLessonRequest 更新教案请求
@@ -43,6 +54,13 @@ type UpdateLessonRequest struct {
 	Unit         string `json:"unit"`
 	Content      string `json:"content"`
 	MaterialRefs string `json:"material_refs"`
+	// 对齐字段（2026-10-01 补，同 Create；按「未传不动」约定只在非零值时覆盖）
+	Period               int    `json:"period"`
+	FormatTemplate       string `json:"format_template"`
+	KnowledgeNodeIDs     string `json:"knowledge_node_ids"`
+	CurriculumAlignments string `json:"curriculum_alignments"`
+	AIModelVersion       string `json:"ai_model_version"`
+	GenerationTimeMs     int    `json:"generation_time_ms"`
 }
 
 // ListLessonPlans 教案草稿箱列表
@@ -86,19 +104,33 @@ func (h *LessonHandler) CreateLessonPlan(c *gin.Context) {
 		return
 	}
 
+	tpl := req.FormatTemplate
+	if tpl == "" {
+		tpl = "core_literacy" // 缺省沿用历史默认，老的"只传标题"调用方行为不变
+	}
+	period := req.Period
+	if period <= 0 {
+		period = 1
+	}
 	plan := &model.LessonPlan{
-		TeacherID:    teacherIDStr,
-		SchoolID:     schoolIDStr,
-		Title:        req.Title,
-		Subject:      req.Subject,
-		Grade:        req.Grade,
-		Unit:         req.Unit,
-		Content:      req.Content,
-		MaterialRefs: req.MaterialRefs,
-		Status:       "draft",
-		TemplateType: "core_literacy",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		TeacherID:        teacherIDStr,
+		SchoolID:         schoolIDStr,
+		Title:            req.Title,
+		Subject:          req.Subject,
+		Grade:            req.Grade,
+		Unit:             req.Unit,
+		Content:          req.Content,
+		MaterialRefs:     req.MaterialRefs,
+		Status:           "draft",
+		TemplateType:     tpl,                   // 2026-10-01：由入参决定（此前硬编码 core_literacy）
+		LessonPeriod:     period,                // 同上：此前不落库
+		KnowledgeNodes:   req.KnowledgeNodeIDs,  // 同上：此前被 ShouldBindJSON 静默丢弃
+		CurriculumAlign:  req.CurriculumAlignments,
+		AIGenerated:      req.AIGenerated,
+		AIModelVersion:   req.AIModelVersion,
+		GenerationTimeMs: req.GenerationTimeMs,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 
 	if err := h.repo.Create(plan); err != nil {
@@ -161,6 +193,25 @@ func (h *LessonHandler) UpdateLessonPlan(c *gin.Context) {
 	}
 	if req.MaterialRefs != "" {
 		plan.MaterialRefs = req.MaterialRefs
+	}
+	// 对齐字段（2026-10-01 补）：按「未传不动」——零值即视为未传，不覆盖已有值。
+	if req.Period > 0 {
+		plan.LessonPeriod = req.Period
+	}
+	if req.FormatTemplate != "" {
+		plan.TemplateType = req.FormatTemplate
+	}
+	if req.KnowledgeNodeIDs != "" {
+		plan.KnowledgeNodes = req.KnowledgeNodeIDs
+	}
+	if req.CurriculumAlignments != "" {
+		plan.CurriculumAlign = req.CurriculumAlignments
+	}
+	if req.AIModelVersion != "" {
+		plan.AIModelVersion = req.AIModelVersion
+	}
+	if req.GenerationTimeMs > 0 {
+		plan.GenerationTimeMs = req.GenerationTimeMs
 	}
 	plan.EditCount++
 	plan.UpdatedAt = time.Now()
