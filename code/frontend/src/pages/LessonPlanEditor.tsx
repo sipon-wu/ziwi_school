@@ -187,7 +187,11 @@ export default function LessonPlanEditor() {
   // 左侧小微会话"应用到当前内容"：携带对话上下文触发 AI 生成 → 切换 DOC 模式展示结果（小微展开由 EditorInfoPanel 内部控制）
   const handleLeftApply = async (chatContext: string) => {
     await handleGenerate(chatContext)
-    if (ctrl.workMode === 'ai') handleSwitchToDoc()
+    // ⚠ 必须**延到 state 提交之后**再切 DOC：handleSwitchToDoc 内部会「切换即保存草稿」，
+    // 而同 tick 调用时读到的是 handleGenerate 里 setContent/setCurriculum **尚未生效**的旧值 →
+    // 保存落库的是生成前的旧内容/旧课标（2026-10-01 实测：教案落库了但 curriculum_alignments 为空）。
+    // setTimeout(0) 让出本轮，React 提交 state 后再切，保存到的才是新值。
+    if (ctrl.workMode === 'ai') setTimeout(() => { handleSwitchToDoc() }, 0)
   }
 
   // 拉取素材库，建立 id -> 素材 映射（用于展示已挂载课件名称）
