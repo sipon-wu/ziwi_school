@@ -139,7 +139,19 @@ export default function CoursewareBuilder() {
   // eslint-disable-next-line prefer-const
   let ctrl: any
 
-  const picker = useKnowledgePicker({ autoSelect: false })
+  // 预选知识点（2026-10-01）：支持 `/courseware/ppt/new?pre_nodes=4818,4819` 直达"带选生成"。
+  // 复用 hook 既有能力 `preSelectedNodes`（注释原文："联动传入，优先级最高"），**纯增量**：
+  // 不带该参数时行为与之前完全一致（autoSelect 仍为 false、不预选）。
+  // 为什么需要这条通道：课件页的知识图谱是 **G6 canvas 渲染**，节点不是 DOM，
+  // 自动化/外部编排**点不到**节点 → 之前只能人工选；有了它，脚本/外部系统可带着知识点直达生成，
+  // 课标对齐（curriculum_alignments）才会随之产生。
+  const preNodes = useMemo(() => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('pre_nodes') || ''
+      return raw.split(',').map(s => s.trim()).filter(Boolean)
+    } catch { return [] as string[] }
+  }, [])
+  const picker = useKnowledgePicker({ autoSelect: false, preSelectedNodes: preNodes.length ? preNodes : undefined })
   const { setPicker: setKGPicker } = useKGContext()
   useEffect(() => { setKGPicker(picker as any); return () => setKGPicker(null) }, [picker, setKGPicker])
   // 装饰素材库：进入编辑器即拉取，使模板装饰优先用素材库真实 URL（snapshot 内联 SVG 兜底）
