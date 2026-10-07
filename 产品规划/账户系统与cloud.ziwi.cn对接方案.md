@@ -448,7 +448,9 @@ cloudLogin: async (email, password) => {
 | cloud 身份租户（JWT `tenant_id`） | `dazhou_tc_yixiao`（经 `schools.cloud_tenant_id` **列映射**，§3.3） | `mfg-staging` |
 | 心跳侧 tenant_id | `sch-0001`、`test-school-uuid` | 历史遗留 `mfg1-pre`（与本地 `mfg_stage` 不一致） |
 
-**规则**：心跳上报必须用**产品线本地租户标识**——因为心跳回传的 `license_status`/`expires_at` 要写回本地租户表，用 cloud 标识会找不到对应行；cloud `tenant_id` 只管登录身份，两者靠映射关联（school 已有 `cloud_tenant_id` 列，为先例）。契约 §B.3「全局统一 tenant 命名」的预设需放宽为"仅约束 cloud 身份侧"。
+**规则（2026-10-07 复核修正，此前表述有误）**：心跳上报的 `tenant_id` 用 **cloud 身份租户**（客户实体维度），**不是**产品线本地 ID。依据：school 客户端既有实现即如此——`internal/heartbeat/client.go:94-96`，`school.CloudTenantID` 优先、为空才回退 `school.ID`。这样运营端才能按"客户/工厂"聚合其名下**所有产品**的私有部署实例（见 §13.6）。
+
+产品线本地 ID 只在**本地映射层**使用：school 靠 `schools.cloud_tenant_id` 列（§3.3 已落地）；**mfg 需加同名列**（`tenants.cloud_tenant_id`）。契约 §B.3「全局统一 tenant 命名」应改为：**cloud 身份侧统一命名，映射关系由接入方自行维护**。
 
 ### 13.3 阈值口径四分裂（私有化部署必踩）
 
@@ -472,4 +474,18 @@ cloudLogin: async (email, password) => {
 - 服务端 A 可用状态：`active / trial / none / expired`，`revoked` 有代码分支但未列入 UI 下拉。
 - 心跳响应回传 `license_status` / `expires_at` / `revoked`，**不采信客户端自报状态**；新建部署无 License 时服务端 auto-seed 为 `none`，须管理员在后台激活。
 - 服务端 A **不消费** `license_issued_at` 与 `deployment_id`（Pydantic 静默忽略），License 权威源 = A 后台建档；私有部署离线 License 文件（内嵌公钥）属 B 能力，A 不支持。
-- **school 侧 P0-2 已完成**：`schools.license_status/license_expires_at/last_heartbeat_at/heartbeat_fail_count` + 客户端回写已在库，可作为 mfg 实现参照。，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。
+- **school 侧 P0-2 已完成**：`schools.license_status/license_expires_at/last_heartbeat_at/heartbeat_fail_count` + 客户端回写已在库，可作为 mfg 实现参照。
+
+### 13.6 租户与产品的正交关系（2026-10-07 用户裁定，运营端定位）
+
+`ziwi_cloud` 定位为**运营端**，三条产品线各自面向客户：
+
+| 项目 | 产品标识 | 客户实体（租户） | cloud 侧状态 |
+|---|---|---|---|
+| 项目 1 school | `school` | 学校（每校一个租户，多校区 A1 合在同租户内） | `school-staging`（staging）、`dazhou_tc_yixiao`（达州通川一小，已绑定 `sch-dazhou-tc-yixiao`） |
+| 项目 2 mfg | `mfg` | 制造工厂 | `mfg-staging`（含 `staging-mfg@ziwi.cn`） |
+| 项目 3 ecms | `ecms` | 制造工厂（**可能与 mfg 合并为同一"制造工厂系"租户**） | `ecms-dna`（私有化实例，见 §13.1 服务端 B） |
+
+**关键认知：租户 = 客户实体（学校/工厂），产品 = 租户订阅的产品线，二者正交。**一个工厂租户可同时持 `products = ["mfg","ecms"]`；契约 §I.1 的 `GET /api/v1/tenants/{tenant_id}/licenses?product=` 与 A 服务端 `licenses` 表的 `UNIQUE(tenant_id, product)` 约束正是为此设计（`e557794` 曾专门修复"同租户并行 mfg+school"）。
+
+**对运营端的直接要求**：私有部署心跳上报的 `tenant_id` 必须是 **cloud 租户（工厂/学校）**，运营端才能按客户聚合"名下各产品有几个私有实例、授权是否到期"。因此 mfg 侧需要补 `tenants.cloud_tenant_id` 映射列（照抄 school），其上报值由本地映射查得，而非直接用 `mfg_stage`。，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。
