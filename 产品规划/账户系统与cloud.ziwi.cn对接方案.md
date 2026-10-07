@@ -433,7 +433,7 @@ cloudLogin: async (email, password) => {
 | | 服务端 A | 服务端 B |
 |---|---|---|
 | 端点 | `heartbeat.ziwi.cn/api/v1/heartbeat` | `cloud.ziwi.cn/api/v1/platform/heartbeat` |
-| 实现 | `:8091 heartbeat-backend`，源码在 `ziwi_mfg` 仓 `heartbeat/`（SQLite + admin/RBAC/审计） | `ziwi_cloud`（PG `license_tickets` + `instance_heartbeats`，license_key 为 RS256 JWT 自证） |
+| 实现 | `:8091 heartbeat-backend`，源码在 **`ziwi_cloud` 仓 `heartbeat/`**（2026-10-07 由 `ziwi_mfg` 迁入运营端；SQLite + admin/RBAC/审计） | `ziwi_cloud`（PG `license_tickets` + `instance_heartbeats`，license_key 为 RS256 JWT 自证） |
 | 现有接入 | mfg Python SDK、school Go 客户端（`internal/heartbeat/client.go`） | ecms-dna |
 
 **成因**（git 证据）：§3.9 决策定"独立域名 + 复用 cloud 单一后端"，但 `3fb916b`(2026-07-10) 先落地了独立服务 A，`813b11f`(2026-07-27) 又在 cloud 内建了 B；07-27 归属移交只带走 B，A 留在 mfg 仓 → 双轨。**"单一后端"这条设计意图至今未实现**。
