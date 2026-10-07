@@ -1,7 +1,7 @@
 # 知微教学（school.ziwi.cn）账户系统对接 cloud.ziwi.cn 方案
 
 > 版本：v0.7（职责归属更正：三线全归 codebuddy）｜日期：2026-10-07
-> **v0.7 变更（2026-10-07）**：§12.4 职责边界全面更正——**cloud / heartbeat / mfg 三线代码与部署全部归 codebuddy**，原「workbuddy 开发部署、codebuddy 只出策略备忘」的旧分工作废；heartbeat 服务端源码虽在 `ziwi_mfg` 仓，维护职责亦归 codebuddy。相关实测事实（两套心跳服务端并存、租户三层标识、阈值口径分裂、租户标识应取产品线本地 ID）见 `ziwi-integration-contracts/requests/mfg接入申请-回执-20261007.md`。
+> **v0.7 变更（2026-10-07）**：①§12.4 职责边界全面更正——**cloud / heartbeat / mfg 三线代码与部署全部归 codebuddy**，原「workbuddy 开发部署、codebuddy 只出策略备忘」的旧分工作废；heartbeat 服务端源码虽在 `ziwi_mfg` 仓，维护职责亦归 codebuddy。②**新增 §13「心跳与租户标识现状（2026-10-07 实测）」**：两套心跳服务端并存及其成因（与 §3.9「独立域名 + 单一后端」决策的偏差）、租户标识三层规则、阈值口径四分裂（私有化必踩）、3 项待拍板、License 枚举与回传语义。协同仓 `ziwi-integration-contracts/requests/mfg接入申请-回执-20261007.md` 为详细证据与申请往来记录（契约真相源在协同仓 `contracts/`）。
 > 历史：v0.6（对齐 mfg v0.3 契约基线：license_exp 不进 JWT、products 为字符串数组、roles 走本地）｜日期：2026-07-27
 > **v0.6 变更（2026-07-27 用户拍板）**：以 `ziwi-integration-contracts/contracts/mfg接入cloud接口契约.md` v0.3（2026-07-10 已闭环）+ cloud 源码实况（`jwt_service.py`）为权威基线，修正本文档残留的 v0.1 旧写法：① cloud JWT claims = `sub/email/tenant_id/products[]/iat/exp`，**不含 `license_exp`**；② `products[]` 是**字符串数组**（如 `["school","mfg"]`），**无 `products[].roles/license_exp` 对象结构**；③ 角色走各产品本地体系；④ License 权威源 = cloud **License 服务/DB**（Phase 2 待建），本地 `LicenseStatus/LicenseExpiresAt` 为运行时判据 + 私有部署/断网兜底。受影响段落：§1.4、§3.3、§3.4、§3.5、§12。
 > 历史变更：v0.4 完成 cloud IdP 对接（公钥验签 + CloudLogin 邮箱登录）后，手机号短信验证码通道、微信登录两项正式纳入统一认证路线图，见 §9、§10；改造清单 §4、待拍板 §5 同步更新。2026-07-16 方案定稿：短信服务商定腾讯云、微信登录定范围（仅 Web 扫码）、身份归属定 school 自管，三项均仅规划不实现；§12 新增 mfg 跨产品线统一认证决策（租户管理员/财务/SaaS 用户纳入 cloud 认证，同构 school 策略）。v0.5.1：§8.1 补入「注册·租户·计费」专题文档双向引用。
@@ -421,3 +421,55 @@ cloudLogin: async (email, password) => {
 - mfg 的详细接入实现以 mfg 团队 `cloud-jwt-integration-guide.md` v1.0（姊妹方案）为准，本 §12 为**产品级决策备忘**，要求该 guide 显式覆盖上述三类角色的映射与登录入口，与 school §9/§10 保持同构。
 - **职责边界（2026-10-07 用户拍板，**全面取代** 2026-07-12 拍板 / 07-16 重申的旧分工）**：**cloud、heartbeat、mfg 三线代码与部署全部归 codebuddy（Mac 侧）**。原「cloud/heartbeat/mfg 全部由 workbuddy 开发部署、codebuddy 仅提供认证策略与跨产品线决策备忘、不代执行任何代码或部署」的分工**已作废**。补充澄清：heartbeat 服务端（`heartbeat-backend` :8091）源码虽寄生在 `ziwi_mfg` 仓 `heartbeat/` 目录，其开发与维护职责**同样归 codebuddy**，不再视为 workbuddy 的活。物理原因：CVM 193.112.163.147 的 SSH key 仅 Mac 侧持有，workbuddy(Win) 无法上 CVM 改码/部署。跨环境对齐仍统一走 `ziwi-integration-contracts` 共享仓 SOP；**生产部署仍须用户明确指令**（纪律红线不变）。本 §12 的 mfg 侧决策同步方式随之改为由 codebuddy 直接落入 mfg 仓，不再依赖「由 mfg 团队落地」这一分工前提。
 - 本决策与 §0「各产品线信任 cloud JWT、不自签业务 token」的总体定位一致，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。
+
+---
+
+## 13. 心跳与租户标识现状（2026-10-07 实测）
+
+> 本节为**线上实测 + git 追溯**结论，用于 school 侧对齐；未拍板项已在 §13.4 标注，不在此处代替决策。详细证据与申请往来见 `ziwi-integration-contracts/requests/mfg接入申请-回执-20261007.md`（协同仓为契约真相源）。
+
+### 13.1 两套心跳服务端并存（与 §3.9「独立域名 + 单一后端」的决策有偏差）
+
+| | 服务端 A | 服务端 B |
+|---|---|---|
+| 端点 | `heartbeat.ziwi.cn/api/v1/heartbeat` | `cloud.ziwi.cn/api/v1/platform/heartbeat` |
+| 实现 | `:8091 heartbeat-backend`，源码在 `ziwi_mfg` 仓 `heartbeat/`（SQLite + admin/RBAC/审计） | `ziwi_cloud`（PG `license_tickets` + `instance_heartbeats`，license_key 为 RS256 JWT 自证） |
+| 现有接入 | mfg Python SDK、school Go 客户端（`internal/heartbeat/client.go`） | ecms-dna |
+
+**成因**（git 证据）：§3.9 决策定"独立域名 + 复用 cloud 单一后端"，但 `3fb916b`(2026-07-10) 先落地了独立服务 A，`813b11f`(2026-07-27) 又在 cloud 内建了 B；07-27 归属移交只带走 B，A 留在 mfg 仓 → 双轨。**"单一后端"这条设计意图至今未实现**。
+
+**归属更正**：B 的源码作者是 WorkBuddy（非 codebuddy），`ziwi_cloud` 仓 2026-08-11 快照时已含 B；codebuddy 仅做建仓与 ecms-dna 实测。
+
+### 13.2 租户标识三层各自独立（§3.3 的推广）
+
+| 层 | school | mfg |
+|---|---|---|
+| 产品线自有租户 | `sch-0001`、`sch-dazhou-tc-yixiao`（`schools.id`） | `mfg_stage`、`mfg_demo`（`tenants.tenant_id`） |
+| cloud 身份租户（JWT `tenant_id`） | `dazhou_tc_yixiao`（经 `schools.cloud_tenant_id` **列映射**，§3.3） | `mfg-staging` |
+| 心跳侧 tenant_id | `sch-0001`、`test-school-uuid` | 历史遗留 `mfg1-pre`（与本地 `mfg_stage` 不一致） |
+
+**规则**：心跳上报必须用**产品线本地租户标识**——因为心跳回传的 `license_status`/`expires_at` 要写回本地租户表，用 cloud 标识会找不到对应行；cloud `tenant_id` 只管登录身份，两者靠映射关联（school 已有 `cloud_tenant_id` 列，为先例）。契约 §B.3「全局统一 tenant 命名」的预设需放宽为"仅约束 cloud 身份侧"。
+
+### 13.3 阈值口径四分裂（私有化部署必踩）
+
+| 来源 | 上报频率 | 失联判定 |
+|---|---|---|
+| 本文档 §3.7 | 每天 1 次 | 连续 3 天 |
+| 契约 v0.3 §D | 1 小时 | 连续 24 小时 |
+| 服务端 A 实测 | — | `timeout=15min`、`check_interval=5min`、`misses=3`（**约 45 分钟判失联**；且 A 的 `.env` 无阈值注入） |
+| school Go 客户端实现 | 24 小时 | ≥3 次失败告警 |
+
+**风险**：私有化部署若沿用 24h 上报，在 A 的 15min 超时下**会被长期判为 offline**。当前 school SaaS 租户未启用心跳（§4 该项为 P2 未做，`schools.last_heartbeat_at` 为空），故尚未暴露。契约 §H5 声称的 `.env` 注入 60/60/24 在 A 上**不存在**。
+
+### 13.4 待拍板（3 项，本节不代替决策）
+
+1. **心跳后端归一**：保留 A 为唯一后端、B 降为 cloud 运营看板（贴合 §3.9「独立域名 + 单一后端」），或改由 school/mfg 客户端迁移到 B。
+2. **阈值口径统一**：建议服务端统一为 1h/24h（改 `.env` 注入即可，不改代码），并同步修订本文档 §3.7。
+3. **`X-Api-Key` 安全改造**：A 当前为**全局单 key 且 key↔tenant 不绑定**（`tenant_id` 取自请求体），持 key 者可伪造任意租户心跳；建议做 per-deployment key + 绑定（归 codebuddy）。
+
+### 13.5 License 枚举与回传（供 mfg 对齐参考）
+
+- 服务端 A 可用状态：`active / trial / none / expired`，`revoked` 有代码分支但未列入 UI 下拉。
+- 心跳响应回传 `license_status` / `expires_at` / `revoked`，**不采信客户端自报状态**；新建部署无 License 时服务端 auto-seed 为 `none`，须管理员在后台激活。
+- 服务端 A **不消费** `license_issued_at` 与 `deployment_id`（Pydantic 静默忽略），License 权威源 = A 后台建档；私有部署离线 License 文件（内嵌公钥）属 B 能力，A 不支持。
+- **school 侧 P0-2 已完成**：`schools.license_status/license_expires_at/last_heartbeat_at/heartbeat_fail_count` + 客户端回写已在库，可作为 mfg 实现参照。，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。
