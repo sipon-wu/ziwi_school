@@ -129,8 +129,8 @@ func main() {
 	// ── 3. 学校 ──
 	school := model.School{
 		ID:         "sch-0001",
-		FullName:   "树人实验小学",
-		ShortName:  "树人实验",
+		FullName:   "知微学校（演示）",
+		ShortName:  "知微演示",
 		SystemType: "六三制",
 		Region:     "北京市海淀区",
 		Status:     "active",
@@ -1199,7 +1199,7 @@ func main() {
 	}
 
 	fmt.Println("\n=== 增强版种子数据完成 ===")
-	fmt.Println("学校: 树人实验小学 (sch-0001)")
+	fmt.Println("学校: 知微学校（演示）(sch-0001)")
 	fmt.Println("教案 4 / 题目 24 / 试卷 3 / 素材 8 / 成长关爱 7 / 作业 4 / 课件素材 6")
 	fmt.Println("\n=== 演示账号（QA专用）===")
 	fmt.Println("13800000002 / teacher123  - 李老师 (teacher, 语文, 主力测试)")

@@ -1,9 +1,11 @@
 -- 知微AI教学助手 — 演示帐套仿真数据 v2
--- 虚拟学校"树人实验小学"，3教师，3班级，60学生，完整教学闭环
+-- 虚拟学校"知微学校（演示）"，3教师，3班级，60学生，完整教学闭环
+-- ⚠️ 本文件表结构为旧版（schools.name / UUID 主键），当前生效的演示租户种子为
+--    code/backend/cmd/seed/full/main.go 的 sch-0001（schools.full_name）。两处名称须保持一致。
 
 -- ── 学校 ──
 INSERT INTO schools (id, name, region, contact, phone) VALUES
-('00000000-4000-0000-0000-000000000001', '树人实验小学', '北京市海淀区', '教务处王主任', '010-62510000');
+('00000000-4000-0000-0000-000000000001', '知微学校（演示）', '北京市海淀区', '教务处王主任', '010-62510000');
 
 -- ── 教师 (5人：3学科 + 1教务 + 1管理员) ──
 INSERT INTO users (id, school_id, phone, password_hash, role, name, grade, subject) VALUES
