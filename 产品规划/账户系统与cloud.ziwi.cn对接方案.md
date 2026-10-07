@@ -1,7 +1,7 @@
 # 知微教学（school.ziwi.cn）账户系统对接 cloud.ziwi.cn 方案
 
 > 版本：v0.7（职责归属更正：三线全归 codebuddy）｜日期：2026-10-07
-> **v0.7 变更（2026-10-07）**：①§12.4 职责边界全面更正——**cloud / heartbeat / mfg 三线代码与部署全部归 codebuddy**，原「workbuddy 开发部署、codebuddy 只出策略备忘」的旧分工作废；heartbeat 服务端源码虽在 `ziwi_mfg` 仓，维护职责亦归 codebuddy。②**新增 §13「心跳与租户标识现状（2026-10-07 实测）」**：两套心跳服务端并存及其成因（与 §3.9「独立域名 + 单一后端」决策的偏差）、租户标识三层规则、阈值口径四分裂（私有化必踩）、3 项待拍板、License 枚举与回传语义。协同仓 `ziwi-integration-contracts/requests/mfg接入申请-回执-20261007.md` 为详细证据与申请往来记录（契约真相源在协同仓 `contracts/`）。
+> **v0.7 变更（2026-10-07）**：①§12.4 职责边界更正为——**codebuddy 只负责 cloud 的代码部署 + License 发放**；school / mfg / ecms 各有独立工作小组（**mfg、ecms 归 workbuddy**）。②**新增 §13「心跳与租户标识现状（2026-10-07 实测）」**：两套心跳服务端并存及其成因（与 §3.9「独立域名 + 单一后端」决策的偏差）、租户标识三层规则、阈值口径四分裂（私有化必踩）、3 项待拍板、License 枚举与回传语义。协同仓 `ziwi-integration-contracts/requests/mfg接入申请-回执-20261007.md` 为详细证据与申请往来记录（契约真相源在协同仓 `contracts/`）。
 > 历史：v0.6（对齐 mfg v0.3 契约基线：license_exp 不进 JWT、products 为字符串数组、roles 走本地）｜日期：2026-07-27
 > **v0.6 变更（2026-07-27 用户拍板）**：以 `ziwi-integration-contracts/contracts/mfg接入cloud接口契约.md` v0.3（2026-07-10 已闭环）+ cloud 源码实况（`jwt_service.py`）为权威基线，修正本文档残留的 v0.1 旧写法：① cloud JWT claims = `sub/email/tenant_id/products[]/iat/exp`，**不含 `license_exp`**；② `products[]` 是**字符串数组**（如 `["school","mfg"]`），**无 `products[].roles/license_exp` 对象结构**；③ 角色走各产品本地体系；④ License 权威源 = cloud **License 服务/DB**（Phase 2 待建），本地 `LicenseStatus/LicenseExpiresAt` 为运行时判据 + 私有部署/断网兜底。受影响段落：§1.4、§3.3、§3.4、§3.5、§12。
 > 历史变更：v0.4 完成 cloud IdP 对接（公钥验签 + CloudLogin 邮箱登录）后，手机号短信验证码通道、微信登录两项正式纳入统一认证路线图，见 §9、§10；改造清单 §4、待拍板 §5 同步更新。2026-07-16 方案定稿：短信服务商定腾讯云、微信登录定范围（仅 Web 扫码）、身份归属定 school 自管，三项均仅规划不实现；§12 新增 mfg 跨产品线统一认证决策（租户管理员/财务/SaaS 用户纳入 cloud 认证，同构 school 策略）。v0.5.1：§8.1 补入「注册·租户·计费」专题文档双向引用。
@@ -419,7 +419,7 @@ cloudLogin: async (email, password) => {
 
 ### 12.4 落点边界（重要）
 - mfg 的详细接入实现以 mfg 团队 `cloud-jwt-integration-guide.md` v1.0（姊妹方案）为准，本 §12 为**产品级决策备忘**，要求该 guide 显式覆盖上述三类角色的映射与登录入口，与 school §9/§10 保持同构。
-- **职责边界（2026-10-07 用户拍板，**全面取代** 2026-07-12 拍板 / 07-16 重申的旧分工）**：**cloud、heartbeat、mfg 三线代码与部署全部归 codebuddy（Mac 侧）**。原「cloud/heartbeat/mfg 全部由 workbuddy 开发部署、codebuddy 仅提供认证策略与跨产品线决策备忘、不代执行任何代码或部署」的分工**已作废**。补充澄清：heartbeat 服务端（`heartbeat-backend` :8091）源码虽寄生在 `ziwi_mfg` 仓 `heartbeat/` 目录，其开发与维护职责**同样归 codebuddy**，不再视为 workbuddy 的活。物理原因：CVM 193.112.163.147 的 SSH key 仅 Mac 侧持有，workbuddy(Win) 无法上 CVM 改码/部署。跨环境对齐仍统一走 `ziwi-integration-contracts` 共享仓 SOP；**生产部署仍须用户明确指令**（纪律红线不变）。本 §12 的 mfg 侧决策同步方式随之改为由 codebuddy 直接落入 mfg 仓，不再依赖「由 mfg 团队落地」这一分工前提。
+- **职责边界（2026-10-07 用户最终裁定，覆盖 2026-07-12 / 07-16 旧分工）**：**codebuddy 只负责 cloud 的代码部署 + License 发放**；**school、mfg、ecms 各有独立工作小组**，其代码改动、部署、提交均由各小组负责。**mfg 与 ecms 归 workbuddy**，不在 codebuddy。A 心跳服务端源码虽由 mfg 仓迁入 `ziwi_cloud/heartbeat/`，但它是 **cloud 运营端组件**（部署至独立容器 `/opt/heartbeat`），随 cloud 仓由 codebuddy 部署，不属 ecms 代码。跨线协同统一走 `ziwi-integration-contracts` 共享仓 SOP；**生产部署仍须用户明确指令**（纪律红线不变）。
 - 本决策与 §0「各产品线信任 cloud JWT、不自签业务 token」的总体定位一致，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。
 
 ---
