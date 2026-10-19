@@ -1,6 +1,8 @@
 # 知微教学（school.ziwi.cn）账户系统对接 cloud.ziwi.cn 方案
 
-> 版本：v0.7（职责归属更正：三线全归 codebuddy）｜日期：2026-10-07
+> 版本：v0.8（新增 §14 租户管理员随 License 预开通）｜日期：2026-10-19
+> **v0.8 变更（2026-10-19）**：新增 **§14「租户管理员账号随 License 下发预开通」**——定义触发时机（approve）、幂等键（tenant_id）、数据模型（`tenants` 表 + `users.must_change_password` + 工单联系人字段）、初始凭据策略、异常矩阵、接口增量、分期与可测验收断言。**状态：规划，未实现（用户明确"先不动手"）**。同章记录一处文档与实现偏差：§3.4「roles 不进 cloud JWT」与 2026-10-19 实测不符（cloud 实际签发 `roles` / `account_type`，见 §14.8.2），建议后续单独修订 §3.4。
+> 历史：v0.7（职责归属更正：三线全归 codebuddy）｜日期：2026-10-07
 > **v0.7 变更（2026-10-07）**：①§12.4 职责边界更正为——**codebuddy 只负责 cloud 的代码部署 + License 发放**；school / mfg / ecms 各有独立工作小组（**mfg、ecms 归 workbuddy**）。②**新增 §13「心跳与租户标识现状（2026-10-07 实测）」**：两套心跳服务端并存及其成因（与 §3.9「独立域名 + 单一后端」决策的偏差）、租户标识三层规则、阈值口径四分裂（私有化必踩）、3 项待拍板、License 枚举与回传语义。协同仓 `ziwi-integration-contracts/requests/mfg接入申请-回执-20261007.md` 为详细证据与申请往来记录（契约真相源在协同仓 `contracts/`）。
 > 历史：v0.6（对齐 mfg v0.3 契约基线：license_exp 不进 JWT、products 为字符串数组、roles 走本地）｜日期：2026-07-27
 > **v0.6 变更（2026-07-27 用户拍板）**：以 `ziwi-integration-contracts/contracts/mfg接入cloud接口契约.md` v0.3（2026-07-10 已闭环）+ cloud 源码实况（`jwt_service.py`）为权威基线，修正本文档残留的 v0.1 旧写法：① cloud JWT claims = `sub/email/tenant_id/products[]/iat/exp`，**不含 `license_exp`**；② `products[]` 是**字符串数组**（如 `["school","mfg"]`），**无 `products[].roles/license_exp` 对象结构**；③ 角色走各产品本地体系；④ License 权威源 = cloud **License 服务/DB**（Phase 2 待建），本地 `LicenseStatus/LicenseExpiresAt` 为运行时判据 + 私有部署/断网兜底。受影响段落：§1.4、§3.3、§3.4、§3.5、§12。
@@ -181,6 +183,7 @@ cloud.ziwi.cn 已定位为**统一身份与授权平台（IdP）**：统一登�
 6. **短信服务商选型**：✅ 已定——腾讯云短信（`sms.tencentcloudapi.com`，与现有腾讯云 CVM 同生态，SDK 即 `tencentcloud-sdk-go`）
 7. **微信登录形态**：✅ 已定——**先做 Web 端扫码登录**（微信开放平台"网站应用" `snsapi_login`）；公众号网页授权、小程序 `wx.login` 暂不实现，待统一小程序策略推进时再补。资质（开放平台认证 300 元/年 + 回调域名白名单）办好前不排期。
 8. **身份归属**：✅ 已定——短信验证码（phone OTP）与微信 unionid 均由 **school 自管**（phone 本就是 school 主键，且 §3.7 私有部署边界要求业务身份不出本地），不沉淀 cloud IdP。
+9. **租户管理员开通方式**（2026-10-19 新增，属 cloud 侧）→ 见 **§14.11**：是否建 `tenants` 表、预开通触发点（approved / paid）、初始密码策略、存量 3 租户是否回填。**该项待主理人拍板，未拍板前不排期。**
 
 ---
 
@@ -489,3 +492,254 @@ cloudLogin: async (email, password) => {
 **关键认知：租户 = 客户实体（学校/工厂），产品 = 租户订阅的产品线，二者正交。**一个工厂租户可同时持 `products = ["mfg","ecms"]`；契约 §I.1 的 `GET /api/v1/tenants/{tenant_id}/licenses?product=` 与 A 服务端 `licenses` 表的 `UNIQUE(tenant_id, product)` 约束正是为此设计（`e557794` 曾专门修复"同租户并行 mfg+school"）。
 
 **对运营端的直接要求**：私有部署心跳上报的 `tenant_id` 必须是 **cloud 租户（工厂/学校）**，运营端才能按客户聚合"名下各产品有几个私有实例、授权是否到期"。因此 mfg 侧需要补 `tenants.cloud_tenant_id` 映射列（照抄 school），其上报值由本地映射查得，而非直接用 `mfg_stage`。，是对 mfg 侧"哪些角色必须 cloud 认证"的明确化。
+
+---
+
+## 14. 租户管理员账号随 License 下发预开通（2026-10-19 规划）
+
+> **状态：规划，未实现。** 本章只定义机制与契约，不含代码改动；用户 2026-10-19 明确"先不动手"。
+> **适用范围**：cloud 侧机制，school / mfg / ecms 三条产品线共用，与具体产品线无关。
+> **与 §3.8 的关系**：§3.8 定义了"私有部署只需要 IT 管理员 + 财务人员两类 cloud 账号"，回答了**需要哪几类账号**；本章回答**这些账号何时被创建、由谁触发、怎么保证唯一与安全**。本章**不改变** §3.7 / §3.8 的红线——cloud 账号与产品线本地账号严格独立、不自动同步。
+
+### 14.0 问题陈述
+
+现状是**纯手工**：达州租户管理员 `admin@dztcyxx.cn` 于 2026-07-29 手工建库（`usr-dazhou-admin` → 后由 cloud 统一身份接管），无任何"开通流程"、无字段留痕、无密码策略约束。
+
+由此产生四类可预期缺陷：
+
+| 缺陷 | 机理 | 后果 |
+|---|---|---|
+| **漏建** | 销售签单后没人记得建 cloud 账号 | 客户拿到 License 却登不进 cloud 门户，License/发票/续期无人可管 |
+| **错建** | 联系人邮箱写错或用了离职同事邮箱 | 账号归属错误，事后无法追溯 |
+| **重复建** | 同一租户先买 school 后买 mfg，两次各建一个 owner | 一个租户两个 owner，权限与审计口径分裂 |
+| **弱口令** | 手工指定 `Ziwi@123` 这类密码 | 最高权限账号被撞库/社工，且无首登强制改密 |
+
+**目标定义（可验收）**：任一租户在 License 首次生效时，cloud 侧**有且仅有一个**可登录的租户管理员账号，其登录邮箱来自工单联系人字段，初始密码一次性下发且首登必须改密，全过程可追溯、可幂等重跑。
+
+### 14.1 实测基线（2026-10-19，cloud 生产库 + 源码）
+
+| # | 事实 | 证据 |
+|---|---|---|
+| 1 | `users` 表结构：`id / email(unique) / password_hash / display_name / tenant_id / products(JSON) / is_active / is_superuser / created_at / updated_at`。**无 role、无 phone、无 must_change_password** | `ziwi_cloud/backend/app/models/user.py:14-26` |
+| 2 | 全库租户身份账号仅 **3 个，每租户 1 个**：`dazhou_tc_yixiao → admin@dztcyxx.cn`（`is_superuser=true`）、`mfg-staging → staging-mfg@ziwi.cn`、`school-staging → staging-school@ziwi.cn` | `select tenant_id,count(*)... group by tenant_id` 实测 |
+| 3 | `license_tickets` 字段：`ticket_no / tenant_id / tenant_name / product / ticket_type / status / requested_expires_at / tier / seats / deploy_mode / domain / license_key / remarks / 审批人字段`。**无 contact_name / contact_email / contact_phone** | `\d license_tickets` 实测 |
+| 4 | **没有 `tenants` 表**，租户主数据（名称/联系人）只散落在各条工单 | 库内表清单实测 |
+| 5 | 租户管理员判定 = `users.is_superuser`；JWT 写入 `roles=["tenant_admin"]`（否则空数组），并带 `account_type="tenant"` / `tenant_id` / `products` / `env` | `backend/app/api/auth.py:56`、`:186`、`:252` |
+| 6 | 登录门禁：`tenant_id` 非空的用户必须存在 **approved 且未过期**的 License 才放行 | `backend/app/services/auth_service.py:50-63` |
+| 7 | 全库 **无 SMTP / 无 forgot-password / 无邮件模板**；唯一找回手段是运维直改 `password_hash` | `reset_super_admin_password.py` 注释；全仓 grep 0 命中 |
+| 8 | 已有 6 条 License 工单，其中 `ecms-demo`（saas/demo/无 key）、`dazhou_tc_yixiao`（saas）证明 **SaaS 租户没有 license_key 可签** | `license_tickets` 实测 |
+
+**由此推出两个不可回避的结论**：
+
+- **没有联系人邮箱就无法预开通** —— 必须先给工单加字段（或建 `tenants` 表），这是前置条件而非实现细节。
+- **不能把预开通绑在"签发 license key"上** —— SaaS 租户根本没有 key，绑上去会漏掉一半客户。
+
+### 14.2 术语与状态机
+
+| 术语 | 定义 |
+|---|---|
+| **租户（tenant）** | 客户实体（学校/工厂），以 `tenant_id` 唯一标识；与产品线正交（§13.6） |
+| **租户管理员（tenant_admin）** | cloud 侧租户 owner，对应 §3.8 的「IT 管理员」；权限作用域**严格限于本 `tenant_id`** |
+| **预开通（provision）** | 在 License 审批通过时，由系统自动在 `users` 建行并置 `is_superuser=true`，不等客户操作 |
+| **激活（activate）** | 租户管理员首次登录并完成强制改密 |
+| **幂等键** | `tenant_id`（**不是** `ticket_no`、**不是** `email`） |
+
+```
+                 approve(工单)
+   pending ────────────────► licensed ──┐
+                                        │ provision（自动）
+                                        ▼
+                                  provisioned ──首登+改密──► activated
+                                        ▲
+                        邮箱冲突/人工指定 │
+                                   needs_manual
+                                        ▲
+                   renewal（续期）───────┘ 只同步 products，不改账号、不改密码
+```
+
+**状态定义**：`licensed` = 工单已 approved（门禁可用）；`provisioned` = users 行已存在但未首登；`activated` = 首登改密完成；`needs_manual` = 自动开通被拒，待人工处理。续期、增购**不改变**已处于 `provisioned/activated` 的租户，仅合并 `products`。
+
+### 14.3 触发时机（定义与反例）
+
+**定义：在工单 `approve` 成功的事务提交后触发同步预开通。**
+
+三条依据：
+
+1. **SaaS 无 key**：`deploy_mode=saas` 的工单不签发 `license_key`（实测 `dazhou_tc_yixiao`、`ecms-demo` 均无 key），绑 key 必然漏。
+2. **`approved` 正是门禁判定点**：`auth_service` 只认 approved + 未过期。早于它建号，账号存在却登不进，等于制造"已开通但不能用"的困惑。
+3. **收款前给账号无商业风险**：账号本身不产生使用价值，价值由 License 释放；等到 `paid` 才给会让客户卡在财务流程。
+
+**明确排除的三个时点**：
+
+| 反例 | 为什么不做 |
+|---|---|
+| `paid`（财务确认收款）后 | 客户体验差；且财务字段可能长期不填（现状 6 条工单 `paid_at` 全空） |
+| 签发 `license_key` 时 | SaaS 无 key，直接漏掉 school/mfg 的 SaaS 客户 |
+| 首次登录时懒创建 | 客户拿不到任何账号信息，无法完成"首次登录"这一步 |
+
+### 14.4 预开通流程（8 步 + 分支）
+
+```
+approve(ticket) 事务提交后：
+1. upsert tenants(tenant_id)：
+     tenant_name / contact_* ← 本次工单值（工单为空则保留原值）
+2. 查 users where tenant_id=? and is_superuser=true
+     ├─ 命中 → 不建号、不动密码；把 ticket.product 合并进 products；
+     │          工单回执标注「沿用现有管理员 <email>」（skipped_existing）
+     └─ 未命中 → 3
+3. 邮箱合法性检查（contact_email 必填且格式有效），否则 needs_manual(NO_CONTACT)
+4. 邮箱冲突检查（顺序固定）：
+     a. users 表同邮箱、不同 tenant_id      → needs_manual(EMAIL_IN_OTHER_TENANT)
+     b. platform_users 表同邮箱              → needs_manual(EMAIL_IS_PLATFORM_ACCOUNT)
+     c. 本租户已存在同邮箱但 is_superuser=false → 提升为 owner，重置初始密码
+     d. 干净                                 → 5
+5. 生成初始密码：16 位强随机（大小写+数字+符号），只存 bcrypt
+6. 插入 users：email=contact_email, tenant_id, products=[ticket.product],
+     is_superuser=true, is_active=true, must_change_password=true,
+     provisioned_ticket_no=ticket_no
+7. 回写 tenants.admin_user_id / admin_provisioned_at（可追溯）
+8. 返回审批响应：{provisioned | skipped_existing | needs_manual, admin_email,
+     initial_password（仅本次响应出现，不落库、不进日志）}
+```
+
+**并发保护**：两个工单同时 approve 同一租户时，靠数据库唯一索引兜底（见 §14.5 的 `uq_users_tenant_owner`），代码捕获唯一冲突后按 `skipped_existing` 处理，**不允许出现两个 owner**。
+
+### 14.5 数据模型（DDL 草案，幂等）
+
+> cloud 仓**没有 alembic**（`alembic/versions/` 为空），实际走 `Base.metadata.create_all` + `main.py` 内手写 `ALTER TABLE ... IF NOT EXISTS`。因此下表必须写成**幂等 DDL**并挂进启动迁移列表，否则对已有表无效。
+
+```sql
+-- ① 租户主数据（单点，消除多工单歧义）
+CREATE TABLE IF NOT EXISTS tenants (
+  tenant_id            varchar(64)  PRIMARY KEY,
+  tenant_name          varchar(128) NOT NULL,
+  contact_name         varchar(64),
+  contact_email        varchar(255),
+  contact_phone        varchar(32),
+  status               varchar(16)  NOT NULL DEFAULT 'active',  -- active / suspended
+  admin_user_id        uuid,
+  admin_provisioned_at timestamptz,
+  created_at           timestamptz  NOT NULL DEFAULT now(),
+  updated_at           timestamptz
+);
+
+-- ② 工单补联系人字段（申请时填写）
+ALTER TABLE license_tickets ADD COLUMN IF NOT EXISTS contact_name  varchar(64);
+ALTER TABLE license_tickets ADD COLUMN IF NOT EXISTS contact_email varchar(255);
+ALTER TABLE license_tickets ADD COLUMN IF NOT EXISTS contact_phone varchar(32);
+
+-- ③ 用户补首登改密标记与开通来源
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password   boolean NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS provisioned_ticket_no  varchar(32);
+
+-- ④ 数据库级幂等保证：每个租户最多一个 owner
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_owner
+  ON users(tenant_id) WHERE is_superuser = true AND tenant_id IS NOT NULL;
+```
+
+**设计说明**：
+
+- `uq_users_tenant_owner` 是**部分唯一索引**，只约束 `is_superuser=true` 的行——不阻碍未来同租户开设多个普通账号（财务等，见 §3.8）。
+- `tenants.contact_email` 与 `users.email` 语义**不同**：前者是"当前对接人"（可随工单更新），后者是"登录名"（一经创建不自动改，见 §14.7 第 6 条）。
+- `admin_user_id` 不加外键：保持与现状一致（`users.tenant_id` 本身也无外键），避免 DDL 顺序耦合。
+
+### 14.6 初始凭据与首登（安全定义）
+
+| 项 | 定义 |
+|---|---|
+| 密码生成 | 系统生成 16 位强随机（大小写+数字+符号），**不允许人工指定** |
+| 存储 | 仅 bcrypt hash，明文不落库、不写日志、不进审计文本 |
+| 下发 | 审批响应中一次性返回 → 平台工单详情页展示 + 「复制」按钮 → 销售/实施**线下**告知客户 |
+| 二次查看 | **不支持**（无 SMTP、亦不做可逆存储）；遗失则走「重置初始密码」重新生成（同样只显示一次） |
+| 首登 | `must_change_password=true` → 登录成功但被强制跳转改密页，改密完成后置 false 才可进入门户 |
+| 邮件 | 本期**不做**；将来接 SMTP 再补"自动发客户"，届时仍需保留线下通道作为兜底 |
+
+**为什么不做"邮件发密码"**：cloud 无 SMTP（实测无 forgot-password / 无邮件模板）；且以明文邮件下发凭据本身就是弱实践。当前最稳的链路是"系统生成 → 页面上一次性可见 → 人工可控渠道传递"。
+
+### 14.7 异常矩阵
+
+| # | 场景 | 系统行为 | 人工动作 |
+|---|---|---|---|
+| 1 | 工单未填 `contact_email` | `needs_manual(NO_CONTACT)`，**不建号**，工单回执提示补填 | 补填联系人后重试 |
+| 2 | 邮箱已存在于 `users`（**另一租户**） | `needs_manual(EMAIL_IN_OTHER_TENANT)`，不建号、不覆盖 | 确认归属，换邮箱或人工合并 |
+| 3 | 邮箱已存在于 `platform_users` | `needs_manual(EMAIL_IS_PLATFORM_ACCOUNT)`（与 `unified-login` 的跨表碰撞防护一致） | 换邮箱；**绝不**静默改判角色 |
+| 4 | 同租户已有 owner | `skipped_existing`，仅合并 `products` | 无 |
+| 5 | 同租户已有**普通**账号（`is_superuser=false`）且邮箱相同 | 提升为 owner + 重置初始密码 + 置 `must_change_password` | 线下告知新密码 |
+| 6 | 续期 / 增购工单 | 只 upsert `tenants` + 合并 `products`；**永不改邮箱、永不改密码** | 无 |
+| 7 | 工单被 reject / License 过期 / revoked | **不停用账号、不删 products**，仅由登录门禁拦截 | 续费后自动恢复可登录 |
+| 8 | 两工单并发 approve 同租户 | 数据库唯一索引兜底，后者按 `skipped_existing` 处理 | 无 |
+| 9 | 对接人换了（工单里 contact_email 变了） | 只更新 `tenants.contact_email`；**`users.email` 不变** | 如需改登录名，走独立人工流程 |
+
+### 14.8 与既有章节的边界
+
+**14.8.1 与 §3.7 / §3.8（不可动摇）**
+
+- 预开通的只是**cloud 身份账号**，用于 cloud 门户、License/账单、统一登录；**不与产品线本地账号自动同步**。
+- school 的校长/IT 管理员是 school 本地 `User.Role` 体系里的角色，与 cloud `tenant_admin` **不是同一个身份**，不自动映射（既不能"cloud 建号就自动成校长"，也不能"本地管理员自动获得 cloud 账号"）。
+- 私有部署客户：cloud 侧只需 IT 管理员 + 财务（§3.8 口径），业务用户全部在本地 IdP，预开通机制**不越界碰业务用户**。
+
+**14.8.2 一处文档与实现的偏差（须记）**
+
+§3.4 写「roles 不进 cloud JWT」。2026-10-19 实测 cloud 签发的 JWT claims 为：
+
+```
+sub, email, tenant_id, products[], account_type("tenant"|"platform"), roles[], env, iat, exp
+```
+
+其中 `roles` 由 `is_superuser` 推导（`["tenant_admin"]` 或 `[]`），`refresh_token` 另有 `type/jti/family_id`。**结论**：cloud 侧确实签了 `roles`，只是 school 目前不消费它（校内角色仍取本地 `User.Role`）。本章的预开通判定依赖 `is_superuser` 这一 DB 事实，不依赖 JWT 里的 roles，因此不受该偏差影响；但 **§3.4 应单独修订**，避免后续有人按文档写错校验逻辑。
+
+**14.8.3 与 §13.6（租户—产品正交）**
+
+幂等键取 `tenant_id` 正是该裁定的直接推论：一个工厂租户同时持 `["mfg","ecms"]` 时，仍是**一个**租户管理员，只是 `products` 数组更宽。
+
+### 14.9 接口契约增量
+
+| 端点 | 变化 | 说明 |
+|---|---|---|
+| `POST /api/v1/platform/tickets` | 增加 `contact_name`（必填）/ `contact_email`（必填）/ `contact_phone`（选填） | 建单时采集，前端工单表单同步加字段 |
+| `POST /api/v1/platform/tickets/{id}/approve` | 响应增加 `provision` 块：`{result, admin_email, initial_password?, reason?}` | `initial_password` **仅本次返回** |
+| `GET /api/v1/platform/tickets/{id}` | 增加 `provision` 只读摘要（不含密码） | 便于事后追溯开通状态 |
+| `POST /api/v1/platform/tenants/{tenant_id}/reset-initial-password` | 新增（超管） | 重新生成初始密码，仍只返回一次 |
+| `GET /api/v1/platform/tenant/me` | 增加 `tenant_name` / `admin_email` / `license`（状态+到期+席位） | 现状只返回 id/email/products/roles，连租户名都没有 |
+| `POST /api/v1/auth/change-password` | 校验 `must_change_password`，成功后清零 | 首登强制改密的落地钩子 |
+
+### 14.10 分期与工作量
+
+| 阶段 | 内容 | 人日 |
+|---|---|---|
+| **P0** | `tenants` 表 + 幂等 DDL、工单联系人三字段、approve 钩子（含唯一索引兜底）、初始密码生成/一次性展示、`must_change_password` 与首登强制改密 | 2.5 |
+| **P1** | 租户门户（租户名/产品入口/到期倒计时/账号区），即另一条线的 P0 门户 | 2.0 |
+| **P1** | `needs_manual` 人工处理 UI（换邮箱重试、平台账号冲突指引） | 0.5 |
+| **P2** | 续期自动同步 products、席位变更、到期提醒横幅（站内，无 SMTP） | 1.0 |
+
+### 14.11 决策（2026-10-19 按安全与工程惯例定默认，主理人可推翻）
+
+| # | 议题 | 结论 | 依据 |
+|---|---|---|---|
+| 1 | 是否建 `tenants` 表 | **建** | 主数据单点；否则续期换联系人就产生"这租户归谁"的歧义；租户门户需要稳定租户名 |
+| 2 | 触发点 | **`approve` 之后**（非 paid） | SaaS 无 key 可绑；`approved` 是现成门禁判定点；`paid_at` 现状 6 条工单全空，不可作为流程依赖 |
+| 3 | 初始密码 | **系统强随机 16 位 + 首登强制改密**，不允许人工指定 | 最高权限账号不得人工设弱口令；明文一次性展示、不可二次查看、不落库 |
+| 4 | 存量 3 个租户 | **回填 `tenants`，并置 `must_change_password=true`** | 3 个账号均为手工创建、强度未知（含 `DaZhou@2026Test` 一类），必须首登重置 |
+
+**推翻成本**：第 2 条改为 `paid` 只需调整钩子挂载点；第 3 条若允许人工指定，必须同时补"强度校验 + 审批留痕"，否则不满足安全底线。第 4 条只作用于 cloud 门户，**不改变 school / mfg 本地登录**（`must_change_password` 仅在 cloud 前端拦改密，见 §14.9）。
+
+### 14.12 安全与运维基线（工程惯例，实施时必须满足）
+
+| 项 | 要求 | 现状差距 |
+|---|---|---|
+| **审计留痕** | 预开通 / 重置初始密码 / 首登改密 三类事件必须记录：`who`（操作者或 `system`）、`when`、`ticket_no`、`tenant_id`、`target_email`、`result` | cloud **无审计表**（全库 grep `audit_log|login_audit` 0 命中）。P0 先写 `tenants.admin_provisioned_at` + 后端 WARNING 日志；P1 建 `provision_events` 表 |
+| **敏感数据** | 初始密码不落库、不进日志、不进审计文本；只在 approve 响应出现一次 | 需在实现时对日志做显式排除，避免 `str(body)` 误打 |
+| **最小权限** | `tenant_admin` 的 JWT 仅含本 `tenant_id`；所有租户端点以 `get_current_tenant_user` 校验 `account_type=tenant` | 现状已具备（`deps.py`），但 `deps.py:53-137` 有重复定义，改鉴权时需同步两处 |
+| **幂等与并发** | 唯一索引兜底，重复 approve 不产生第二个 owner | 新增 `uq_users_tenant_owner` |
+| **可回滚** | DDL 全部 `IF NOT EXISTS` 幂等；回滚只 drop 新增表/列，不动 `users` 既有行 | 需挂进 `main.py` 启动迁移列表，顺序在 `create_all` 之后 |
+| **门禁一致** | 预开通不得绕过 License 门禁与 `is_active` | 复用 `auth_service.authenticate`，不另写登录路径 |
+| **已知全局缺口（本章不解决）** | cloud 登录无失败限流、无验证码、无登录审计 | 属 cloud 认证层，建议单独立项，不混进本章 |
+
+### 14.13 验收断言（实现后必须全部通过）
+
+1. **幂等**：对同一 `tenant_id` 连续两次 approve，`select count(*) from users where tenant_id=? and is_superuser` 恒为 1。
+2. **续期不动密码**：renewal 工单 approve 后，该 owner 的 `password_hash` 与 `updated_at` 均不变。
+3. **冲突不静默**：把 `contact_email` 设为某平台账号邮箱，approve 返回 `needs_manual` 且 `users` 表不新增行。
+4. **首登强制改密**：用初始密码登录成功，但访问任何租户端点被引导至改密；改密后 `must_change_password=false`。
+5. **明文不外泄**：全库无明文密码；审批响应之外任何接口、日志、审计文本中 grep 初始密码均为 0 命中。
+6. **门禁不被绕过**：License 未 approved 时，预开通账号登录仍被拒（复用 `auth_service` 现有门禁）。
